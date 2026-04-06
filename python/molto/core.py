@@ -6,7 +6,7 @@ from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from molto.types.openai.responses import (
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
-    OpenAIResponsesStream,
+    _OpenAIStreamEvent,
 )
 
 
@@ -21,7 +21,8 @@ class Molto:
         await self._http_client.aclose()
 
     async def chat(
+        self,
         body: OpenAIResponsesRequest | OpenAIChatCompletionRequest,
-    ) -> OpenAIResponsesResponse | AsyncIterator[OpenAIResponsesStream]:
+    ) -> OpenAIResponsesResponse | AsyncIterator[_OpenAIStreamEvent]:
         pass
         # TODO: Transform `body` into an intermediate representation, then dispatch to the appropriate provider(s)
