@@ -1,0 +1,74 @@
+filename: 2026-04-06-019d6166-8129-7743-9ce3-a52f411c433c
+request:
+  body:
+    messages:
+    - content: What number am I thinking of?
+      role: user
+    model: gpt-4.1-nano
+    tool_choice: required
+    tools:
+    - function:
+        description: Guess a number.
+        name: guess_number
+        parameters:
+          additionalProperties: false
+          properties:
+            number:
+              description: The guessed number.
+              type: integer
+          required:
+          - number
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '378'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 019d6166-8129-7743-9ce3-a52f411c433c
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      logprobs: null
+      message:
+        annotations: []
+        content: null
+        refusal: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"number": 50}'
+            name: guess_number
+          id: call_r4eJq81egGOYptvBkw0uZWcm
+          type: function
+    created: 1775455602
+    id: chatcmpl-DRXOc2HFVfTWfl9KKx06EVj1hHeoT
+    model: gpt-4.1-nano-2025-04-14
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: fp_3ecbc2e313
+    usage:
+      completion_tokens: 16
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 53
+      prompt_tokens_details:
+        audio_tokens: 0
+        cached_tokens: 0
+      total_tokens: 69
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-04-06T06:06:40.937771+00:00'
