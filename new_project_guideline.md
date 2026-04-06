@@ -177,6 +177,118 @@ jobs:
         run: npx prettier@3.8 --check .
 ```
 
+## .vscode
+
+### settings.json
+
+Per-language formatter and Ruff config.
+
+- Python: Ruff formatter with organize-imports on save, language server disabled
+- Markdown, JSON, JSONC, YAML, GitHub Actions, CSS, HTML: Prettier
+- TOML: Even Better TOML
+- JavaScript: Prettier, tab size 4
+- JSX/TSX/TypeScript: Prettier, tab size 2; TypeScript also has organize-imports and fix-all on save
+
+```jsonc
+{
+  "files.eol": "\n",
+  "python.languageServer": "None",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+    },
+  },
+  "ruff.configuration": "pyproject.toml",
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.nativeServer": "on",
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml",
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[javascript]": {
+    "editor.tabSize": 4,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[javascriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[typescriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[typescript]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "always",
+      "source.fixAll": "explicit",
+    },
+  },
+}
+```
+
+### python.json.code-snippets
+
+Handy Python snippets:
+
+| Prefix | Description                        |
+| ------ | ---------------------------------- |
+| `mm`   | `if __name__ == "__main__":` guard |
+| `tt`   | `perf_counter` timing block        |
+| `lgg`  | `from loguru import logger`        |
+| `cdd`  | `Path(__file__).resolve().parent`  |
+
+```jsonc
+{
+  "MAIN_IF_GUARD": {
+    "prefix": "mm",
+    "body": ["if __name__ == \"__main__\":", "    $0"],
+  },
+  "TIME": {
+    "prefix": "tt",
+    "body": [
+      "from time import perf_counter",
+      "t0 = perf_counter()",
+      "$0",
+      "print(f\"t={(perf_counter() - t0) * 1e3:,.2f} ms\")",
+    ],
+  },
+  "GET_LOGGER": {
+    "prefix": "lgg",
+    "body": ["from loguru import logger"],
+  },
+  "CURRENT_DIRECTORY": {
+    "prefix": "cdd",
+    "body": [
+      "from pathlib import Path",
+      "CURR_DIR = Path(__file__).resolve().parent",
+    ],
+  },
+}
+```
+
 ## .gitattributes
 
 Enforce consistent line endings and mark binary files so they aren't diffed or corrupted by EOL conversion.
