@@ -177,6 +177,35 @@ jobs:
         run: npx prettier@3.8 --check .
 ```
 
+## .prettierrc
+
+Prettier config for non-Python file formatting (JSON, YAML, Markdown prose-wrapping, CSS, HTML, JS/TS).
+
+- Print width: 150
+- Prose wrap: never (Markdown lines are not wrapped)
+- Trailing comma: all (explicit, though it is the Prettier 3.x default)
+
+```json
+{
+  "printWidth": 150,
+  "proseWrap": "never",
+  "trailingComma": "all"
+}
+```
+
+## .prettierignore
+
+Tells Prettier which files to skip. Prettier already respects `.gitignore`, so this file covers additional paths not in `.gitignore` (e.g., `archive/`, frontend apps formatted separately) and non-Git-ignored file types that Prettier should not touch (e.g., `*.py*`, `*.parquet`).
+
+Key entries:
+
+- OS artifacts, `.env`, `archive/`
+- Test cassettes (`tests/cassettes/**/*.yaml`)
+- Python files and artifacts (`*.py*`, `__pycache__/`, `.venv/`, `.pytest_cache`, etc.)
+- Build and coverage outputs
+- Frontend apps formatted independently (`services/app`, `clients/typescript`)
+- Markdown files (`**/*.md`) — handled by mdformat instead
+
 ## .vscode
 
 ### settings.json
