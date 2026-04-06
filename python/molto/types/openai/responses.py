@@ -2053,7 +2053,7 @@ class vLLMResponsesRequest(BaseModel):
                     )
                 selected_tools = {self.tool_choice.name: selected_tools[self.tool_choice.name]}
             mcp_servers = {self.tool_choice.server_label: selected_server}
-            selected_mcp_tool_infos_by_server = {self.tool_choice.server_label: selected_tools}
+            selected_mcp_tool_infos_by_server = {self.tool_choice.server_label: selected_tools}  # noqa: F841
             builtin_tools = []
             deferred_tools = []
             internal_tool_choice_instruction = _build_required_tool_choice_instruction(
