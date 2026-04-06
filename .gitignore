@@ -31,14 +31,12 @@ venv/
 
 # pip
 **/build/
-**/dist/
 
 # pytest-cov
 **/coverage.xml
 **/.coverage*
 /junit
 /htmlcov
-/coverage.xml
 
 # ruff
 .ruff_cache/
