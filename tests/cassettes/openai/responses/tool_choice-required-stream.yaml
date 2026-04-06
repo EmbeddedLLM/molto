@@ -1,0 +1,146 @@
+filename: 2026-04-06-019d6233-6f67-76d2-94a0-d30afe7896fa
+request:
+  body:
+    input:
+    - content: What number am I thinking of?
+      role: user
+    model: gpt-4.1-nano
+    stream: true
+    tool_choice: required
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '376'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019d6233-6f67-76d2-94a0-d30afe7896fa
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0f5d91d96eb0cdfb0069d381e76cf08199a54a44b05ec0dbf6","object":"response","created_at":1775469031,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0f5d91d96eb0cdfb0069d381e76cf08199a54a44b05ec0dbf6","object":"response","created_at":1775469031,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","type":"function_call","status":"in_progress","arguments":"","call_id":"call_mNjRCq9Gd3phblwwvUBkuHrm","name":"guess_number"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","obfuscation":"c6EKVOkmdRzJth","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"number","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","obfuscation":"KjPUuYBZnq","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","obfuscation":"gnx9IYAgR7OoiG","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"50","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","obfuscation":"ee2xzCWa04DVFi","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"}","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","obfuscation":"wyZdamjhtfBipIt","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"number\":50}","item_id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","type":"function_call","status":"completed","arguments":"{\"number\":50}","call_id":"call_mNjRCq9Gd3phblwwvUBkuHrm","name":"guess_number"},"output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0f5d91d96eb0cdfb0069d381e76cf08199a54a44b05ec0dbf6","object":"response","created_at":1775469031,"status":"completed","background":false,"completed_at":1775469031,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[{"id":"fc_0f5d91d96eb0cdfb0069d381e7b8d88199aa0ecb5a42bd6879","type":"function_call","status":"completed","arguments":"{\"number\":50}","call_id":"call_mNjRCq9Gd3phblwwvUBkuHrm","name":"guess_number"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":57,"input_tokens_details":{"cached_tokens":0},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":63},"user":null,"metadata":{}},"sequence_number":10}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-04-06T09:50:31.271747+00:00'
