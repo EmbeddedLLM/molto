@@ -37,16 +37,16 @@ async def test_tool_choice_required():
     )
     print(response)
 
-    # client = Molto(
-    #     http_client=httpx.AsyncClient(
-    #         transport=httpx.MockTransport(handler),
-    #         base_url="http://testserver",
-    #     )
-    # )
-    # await client.chat(
-    #     OpenAIResponsesRequest(
-    #         model="gpt-4o",
-    #         input=[{"role": "user", "content": "Hello, world!"}],
-    #         tool_choice="required",
-    #     )
-    # )
+    client = Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="http://testserver",
+        )
+    )
+    await client.chat(
+        OpenAIResponsesRequest(
+            model="gpt-4o",
+            input=[{"role": "user", "content": "Hello, world!"}],
+            tool_choice="required",
+        )
+    )
