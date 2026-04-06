@@ -89,7 +89,12 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 lint = ["ruff~=0.12"]
-test = ["pytest~=8.3", "pytest-asyncio>=0.23.8", "pytest-timeout~=2.3"]
+test = [
+    "fastapi[standard]~=0.135.2",
+    "pytest~=8.3",
+    "pytest-asyncio>=0.23.8",
+    "pytest-timeout~=2.3",
+]
 all = ["molto[lint,test]"]
 
 [tool.setuptools.dynamic]

@@ -1,0 +1,106 @@
+filename: 2026-04-06-019d61d6-804e-7510-b640-9c10d5e02456
+request:
+  body:
+    input:
+    - content: What number am I thinking of?
+      role: user
+    model: gpt-4.1-nano
+    tool_choice: required
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '362'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019d61d6-804e-7510-b640-9c10d5e02456
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1775462941
+    created_at: 1775462940
+    error: null
+    frequency_penalty: 0.0
+    id: resp_0b18e927e1e6ded80069d36a1ce5e48190a26a42df28a1d6cf
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-4.1-nano-2025-04-14
+    object: response
+    output:
+    - arguments: '{"number":50}'
+      call_id: call_sp009vVmc0IOG9RyakancslH
+      id: fc_0b18e927e1e6ded80069d36a1dca008190bf3fa3c239c1f621
+      name: guess_number
+      status: completed
+      type: function_call
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: null
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      strict: true
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 57
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 6
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 63
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-04-06T08:09:00.750551+00:00'

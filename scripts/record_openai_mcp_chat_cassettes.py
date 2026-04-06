@@ -3,7 +3,7 @@
 Record a real OpenAI Chat Completions 2-step tool loop for MCP-wrapper replay fixtures.
 
 This script is intended to be used with `scripts/recorder_proxy.py` so the resulting
-YAML files can be curated into `responses/tests/cassettes/chat_completion/`.
+YAML files can be curated into `tests/cassettes/chat_completions/`.
 
 Flow:
 1) Step 1 (streaming): force a tool call to `mcp__...` wrapper function.
