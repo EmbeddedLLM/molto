@@ -124,7 +124,7 @@ The same `types/<vendor>/` modules that parsed the request also convert the outp
 - [ ] Remove the `from pydantic_ai.models.openai import OpenAIChatModelSettings` import from `types/openai/responses.py`.
 
 **Output IR & response path:**
-- [ ] Define the output IR (provider-agnostic response events for both streaming and non-streaming).
+- [ ] Define the output IR (provider-agnostic response events for both streaming and non-streaming). Event start and end must be pure markers that carry no content — content is only delivered in delta events between them. One specific motivation: pydantic-ai sometimes mixes content into event markers — e.g. `TextPart` inside a `PartStartEvent` can already contain text content instead of being a pure start signal. The output IR normalises these inconsistencies so that downstream type converters don't need to handle them.
 - [ ] Add response conversion methods to `types/openai/` that accept output IR and produce vendor-specific responses and streaming events.
 
 **Runner:**
