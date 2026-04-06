@@ -1,0 +1,26 @@
+{
+  "MAIN_IF_GUARD": {
+    "prefix": "mm",
+    "body": ["if __name__ == \"__main__\":", "    $0"],
+  },
+  "TIME": {
+    "prefix": "tt",
+    "body": [
+      "from time import perf_counter",
+      "t0 = perf_counter()",
+      "$0",
+      "print(f\"t={(perf_counter() - t0) * 1e3:,.2f} ms\")",
+    ],
+  },
+  "GET_LOGGER": {
+    "prefix": "lgg",
+    "body": ["from loguru import logger"],
+  },
+  "CURRENT_DIRECTORY": {
+    "prefix": "cdd",
+    "body": [
+      "from pathlib import Path",
+      "CURR_DIR = Path(__file__).resolve().parent",
+    ],
+  },
+}

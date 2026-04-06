@@ -1,0 +1,96 @@
+# -----------------------------------------------------------------------------
+# Pytest configuration
+# https://docs.pytest.org/en/latest/customize.html?highlight=pyproject#pyproject-toml
+
+[tool.pytest.ini_options]
+timeout = 90
+log_cli = true
+asyncio_mode = "auto"
+addopts = "--doctest-modules -vv -ra --strict-markers --durations=200 --durations-min=0.05"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:tensorflow.*",
+    "ignore::DeprecationWarning:tensorboard.*",
+    "ignore::DeprecationWarning:matplotlib.*",
+    "ignore::DeprecationWarning:flatbuffers.*",
+]
+
+# -----------------------------------------------------------------------------
+# Ruff configuration
+# https://docs.astral.sh/ruff/
+
+[tool.ruff]
+line-length = 99
+indent-width = 4
+target-version = "py312"
+extend-include = [".pyi?$", ".ipynb"]
+extend-exclude = ["archive/*"]
+respect-gitignore = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E1", "E4", "E7", "E9", "F", "I", "W1", "W2", "W3", "W6", "B"]
+ignore = ["E501"]
+unfixable = ["B"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402"]
+"**/{tests,docs,tools}/*" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["molto"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Path",
+    "fastapi.Query",
+]
+
+# -----------------------------------------------------------------------------
+# setuptools
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
+
+[build-system]
+requires = ["setuptools>=62.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "molto"
+description = "Molto: A unified LLM-provider translation library."
+readme = "README.md"
+requires-python = "~=3.10"
+license = { text = "Proprietary" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3 :: Only",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+dynamic = ["version"]
+
+[project.optional-dependencies]
+lint = ["ruff~=0.12"]
+test = [
+    "pytest~=8.3",
+    "pytest-asyncio>=0.23.8",
+    "pytest-timeout~=2.3",
+]
+all = [
+    "molto[lint,test]",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "molto.version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["python"]
