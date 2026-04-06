@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from time import time
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypedDict, Union
+from typing import Annotated, Any, Literal, TypedDict, Union
 
 from jsonschema import Draft202012Validator
 from jsonschema import exceptions as jsonschema_exceptions
@@ -37,7 +37,7 @@ from pydantic_ai import (
     ThinkingPart,
     Tool,
     ToolCallPart,
-    ToolDefinition,
+    # ToolDefinition,
     ToolReturnPart,
     UsageLimits,
     UserPromptPart,
@@ -45,25 +45,28 @@ from pydantic_ai import (
 from pydantic_ai.models.openai import OpenAIChatModelSettings
 from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_extra_types.timezone_name import TimeZoneName
-from vllm_responses.mcp.gateway_toolset import McpGatewayToolset, ResolvedMcpTool
-from vllm_responses.mcp.resolver import (
-    ResolvedMcpServerTools,
-    build_request_remote_toolset,
-    resolve_mcp_declarations,
-)
-from vllm_responses.mcp.types import McpToolInfo, McpToolRef
-from vllm_responses.mcp.utils import (
-    HOSTED_MCP_INTERNAL_PREFIX,
-    build_internal_mcp_tool_name,
-    normalize_mcp_input_schema,
-)
-from vllm_responses.tools import TOOLS
-from vllm_responses.tools.ids import CODE_INTERPRETER_TOOL, WEB_SEARCH_TOOL
-from vllm_responses.utils import uuid7_str
-from vllm_responses.utils.exceptions import BadInputError
 
-if TYPE_CHECKING:
-    from vllm_responses.mcp.runtime_client import BuiltinMcpRuntimeClient
+# from vllm_responses.mcp.gateway_toolset import McpGatewayToolset, ResolvedMcpTool
+# from vllm_responses.mcp.resolver import (
+#     ResolvedMcpServerTools,
+#     build_request_remote_toolset,
+#     resolve_mcp_declarations,
+# )
+# from vllm_responses.mcp.types import McpToolInfo, McpToolRef
+# from vllm_responses.mcp.utils import (
+#     HOSTED_MCP_INTERNAL_PREFIX,
+#     build_internal_mcp_tool_name,
+#     normalize_mcp_input_schema,
+# )
+# from vllm_responses.tools import TOOLS
+from molto.utils import uuid7_str
+from molto.utils.exceptions import BadInputError
+
+# if TYPE_CHECKING:
+#     from molto.mcp.runtime_client import BuiltinMcpRuntimeClient
+
+CODE_INTERPRETER_TOOL = "code_interpreter"
+WEB_SEARCH_TOOL = "web_search"
 
 
 class OpenAIConversation(BaseModel):
@@ -931,93 +934,93 @@ def _normalize_hosted_tool_type(tool_type: str) -> str:
     return tool_type
 
 
-def _apply_allowed_tools_choice(
-    *,
-    choice: OpenAIAllowedToolsChoice,
-    builtin_tools: list[Tool],
-    deferred_tools: list[ToolDefinition],
-    mcp_servers: dict[str, ResolvedMcpServerTools],
-) -> tuple[
-    list[Tool],
-    list[ToolDefinition],
-    dict[str, ResolvedMcpServerTools],
-    dict[str, dict[str, McpToolInfo]],
-]:
-    allowed_builtin_names = {
-        _normalize_hosted_tool_type(tool.type)
-        for tool in choice.tools
-        if isinstance(tool, OpenAIHostedToolChoice)
-    }
-    allowed_function_names = {
-        tool.name for tool in choice.tools if isinstance(tool, OpenAIFunctionToolChoice)
-    }
-    allowed_mcp_names_by_server: dict[str, set[str] | None] = {}
-    for tool in choice.tools:
-        if not isinstance(tool, OpenAIMcpToolChoice):
-            continue
-        if tool.server_label not in allowed_mcp_names_by_server:
-            if tool.name is None:
-                allowed_mcp_names_by_server[tool.server_label] = None
-            else:
-                allowed_mcp_names_by_server[tool.server_label] = {tool.name}
-            continue
-        existing = allowed_mcp_names_by_server[tool.server_label]
-        if existing is None:
-            continue
-        if tool.name is None:
-            allowed_mcp_names_by_server[tool.server_label] = None
-            continue
-        existing.add(tool.name)
+# def _apply_allowed_tools_choice(
+#     *,
+#     choice: OpenAIAllowedToolsChoice,
+#     builtin_tools: list[Tool],
+#     deferred_tools: list[ToolDefinition],
+#     mcp_servers: dict[str, ResolvedMcpServerTools],
+# ) -> tuple[
+#     list[Tool],
+#     list[ToolDefinition],
+#     dict[str, ResolvedMcpServerTools],
+#     dict[str, dict[str, McpToolInfo]],
+# ]:
+#     allowed_builtin_names = {
+#         _normalize_hosted_tool_type(tool.type)
+#         for tool in choice.tools
+#         if isinstance(tool, OpenAIHostedToolChoice)
+#     }
+#     allowed_function_names = {
+#         tool.name for tool in choice.tools if isinstance(tool, OpenAIFunctionToolChoice)
+#     }
+#     allowed_mcp_names_by_server: dict[str, set[str] | None] = {}
+#     for tool in choice.tools:
+#         if not isinstance(tool, OpenAIMcpToolChoice):
+#             continue
+#         if tool.server_label not in allowed_mcp_names_by_server:
+#             if tool.name is None:
+#                 allowed_mcp_names_by_server[tool.server_label] = None
+#             else:
+#                 allowed_mcp_names_by_server[tool.server_label] = {tool.name}
+#             continue
+#         existing = allowed_mcp_names_by_server[tool.server_label]
+#         if existing is None:
+#             continue
+#         if tool.name is None:
+#             allowed_mcp_names_by_server[tool.server_label] = None
+#             continue
+#         existing.add(tool.name)
 
-    builtin_by_name = {tool.name: tool for tool in builtin_tools}
-    missing_builtin_names = sorted(allowed_builtin_names - builtin_by_name.keys())
-    if missing_builtin_names:
-        raise BadInputError(
-            "`tool_choice.allowed_tools` references built-in tools not present in effective tools: "
-            f"{missing_builtin_names!r}."
-        )
+#     builtin_by_name = {tool.name: tool for tool in builtin_tools}
+#     missing_builtin_names = sorted(allowed_builtin_names - builtin_by_name.keys())
+#     if missing_builtin_names:
+#         raise BadInputError(
+#             "`tool_choice.allowed_tools` references built-in tools not present in effective tools: "
+#             f"{missing_builtin_names!r}."
+#         )
 
-    deferred_by_name = {tool.name: tool for tool in deferred_tools}
-    missing_function_names = sorted(allowed_function_names - deferred_by_name.keys())
-    if missing_function_names:
-        raise BadInputError(
-            "`tool_choice.allowed_tools` references function tools not present in effective tools: "
-            f"{missing_function_names!r}."
-        )
+#     deferred_by_name = {tool.name: tool for tool in deferred_tools}
+#     missing_function_names = sorted(allowed_function_names - deferred_by_name.keys())
+#     if missing_function_names:
+#         raise BadInputError(
+#             "`tool_choice.allowed_tools` references function tools not present in effective tools: "
+#             f"{missing_function_names!r}."
+#         )
 
-    selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
-    filtered_mcp_servers: dict[str, ResolvedMcpServerTools] = {}
-    for server_label, allowed_names in allowed_mcp_names_by_server.items():
-        server_runtime = mcp_servers.get(server_label)
-        if server_runtime is None:
-            raise BadInputError(
-                "`tool_choice.allowed_tools` references an MCP `server_label` "
-                "not present in effective tools."
-            )
-        if allowed_names is None:
-            filtered_mcp_servers[server_label] = server_runtime
-            continue
-        missing_names = sorted(
-            name for name in allowed_names if name not in server_runtime.allowed_tool_infos
-        )
-        if missing_names:
-            raise BadInputError(
-                "`tool_choice.allowed_tools` references MCP tools not present in effective tools: "
-                f"server={server_label!r} names={missing_names!r}."
-            )
-        selected_mcp_tool_infos_by_server[server_label] = {
-            name: tool_info
-            for name, tool_info in server_runtime.allowed_tool_infos.items()
-            if name in allowed_names
-        }
-        filtered_mcp_servers[server_label] = server_runtime
+#     selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
+#     filtered_mcp_servers: dict[str, ResolvedMcpServerTools] = {}
+#     for server_label, allowed_names in allowed_mcp_names_by_server.items():
+#         server_runtime = mcp_servers.get(server_label)
+#         if server_runtime is None:
+#             raise BadInputError(
+#                 "`tool_choice.allowed_tools` references an MCP `server_label` "
+#                 "not present in effective tools."
+#             )
+#         if allowed_names is None:
+#             filtered_mcp_servers[server_label] = server_runtime
+#             continue
+#         missing_names = sorted(
+#             name for name in allowed_names if name not in server_runtime.allowed_tool_infos
+#         )
+#         if missing_names:
+#             raise BadInputError(
+#                 "`tool_choice.allowed_tools` references MCP tools not present in effective tools: "
+#                 f"server={server_label!r} names={missing_names!r}."
+#             )
+#         selected_mcp_tool_infos_by_server[server_label] = {
+#             name: tool_info
+#             for name, tool_info in server_runtime.allowed_tool_infos.items()
+#             if name in allowed_names
+#         }
+#         filtered_mcp_servers[server_label] = server_runtime
 
-    return (
-        [tool for tool in builtin_tools if tool.name in allowed_builtin_names],
-        [tool for tool in deferred_tools if tool.name in allowed_function_names],
-        filtered_mcp_servers,
-        selected_mcp_tool_infos_by_server,
-    )
+#     return (
+#         [tool for tool in builtin_tools if tool.name in allowed_builtin_names],
+#         [tool for tool in deferred_tools if tool.name in allowed_function_names],
+#         filtered_mcp_servers,
+#         selected_mcp_tool_infos_by_server,
+#     )
 
 
 def _build_required_tool_choice_instruction(
@@ -1117,33 +1120,33 @@ class AgentRunSettings(TypedDict):
     usage_limits: UsageLimits
 
 
-def _normalize_mcp_input_schema(
-    *,
-    server_label: str,
-    tool_name: str,
-    input_schema: dict[str, object],
-) -> dict[str, object]:
-    try:
-        normalized = normalize_mcp_input_schema(input_schema)
-    except (TypeError, ValueError) as exc:
-        raise BadInputError(
-            f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc}"
-        ) from exc
+# def _normalize_mcp_input_schema(
+#     *,
+#     server_label: str,
+#     tool_name: str,
+#     input_schema: dict[str, object],
+# ) -> dict[str, object]:
+#     try:
+#         normalized = normalize_mcp_input_schema(input_schema)
+#     except (TypeError, ValueError) as exc:
+#         raise BadInputError(
+#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc}"
+#         ) from exc
 
-    if normalized["type"] != "object":
-        raise BadInputError(
-            f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`; "
-            "root `type` must be `object`."
-        )
+#     if normalized["type"] != "object":
+#         raise BadInputError(
+#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`; "
+#             "root `type` must be `object`."
+#         )
 
-    try:
-        Draft202012Validator.check_schema(normalized)
-    except jsonschema_exceptions.SchemaError as exc:
-        raise BadInputError(
-            f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc.message}"
-        ) from exc
+#     try:
+#         Draft202012Validator.check_schema(normalized)
+#     except jsonschema_exceptions.SchemaError as exc:
+#         raise BadInputError(
+#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc.message}"
+#         ) from exc
 
-    return normalized
+#     return normalized
 
 
 class OpenAIResponsesFunctionTool(BaseModel):
@@ -1621,10 +1624,11 @@ class vLLMResponsesRequest(BaseModel):
     async def as_run_settings(
         self,
         *,
-        builtin_mcp_runtime_client: BuiltinMcpRuntimeClient | None = None,
+        # builtin_mcp_runtime_client: BuiltinMcpRuntimeClient | None = None,
         request_remote_enabled: bool,
         request_remote_url_checks_enabled: bool,
-    ) -> tuple[AgentRunSettings, list[Tool], dict[str, McpToolRef]]:
+        # ) -> tuple[AgentRunSettings, list[Tool], dict[str, McpToolRef]]:
+    ) -> tuple[AgentRunSettings, list[Tool], dict[str, Any]]:
         """
         Converts the request into a dictionary of run settings for Pydantic AI.
 
@@ -1641,36 +1645,36 @@ class vLLMResponsesRequest(BaseModel):
         role: user
         ```
         """
-        mcp_tool_name_map: dict[str, McpToolRef] = {}
-        mcp_internal_name_by_ref: dict[McpToolRef, str] = {}
+        # mcp_tool_name_map: dict[str, McpToolRef] = {}
+        # mcp_internal_name_by_ref: dict[McpToolRef, str] = {}
 
-        def _register_internal_mcp_tool(ref: McpToolRef) -> str:
-            existing_name = mcp_internal_name_by_ref.get(ref)
-            if existing_name is not None:
-                return existing_name
-            try:
-                internal_tool_name = build_internal_mcp_tool_name(
-                    server_label=ref.server_label,
-                    tool_name=ref.tool_name,
-                    existing_map=mcp_tool_name_map,
-                )
-            except ValueError as exc:
-                raise BadInputError(str(exc)) from exc
-            mcp_tool_name_map[internal_tool_name] = ref
-            mcp_internal_name_by_ref[ref] = internal_tool_name
-            return internal_tool_name
+        # def _register_internal_mcp_tool(ref: McpToolRef) -> str:
+        #     existing_name = mcp_internal_name_by_ref.get(ref)
+        #     if existing_name is not None:
+        #         return existing_name
+        #     try:
+        #         internal_tool_name = build_internal_mcp_tool_name(
+        #             server_label=ref.server_label,
+        #             tool_name=ref.tool_name,
+        #             existing_map=mcp_tool_name_map,
+        #         )
+        #     except ValueError as exc:
+        #         raise BadInputError(str(exc)) from exc
+        #     mcp_tool_name_map[internal_tool_name] = ref
+        #     mcp_internal_name_by_ref[ref] = internal_tool_name
+        #     return internal_tool_name
 
-        if not isinstance(self.input, str):
-            historical_mcp_refs = sorted(
-                {
-                    McpToolRef(server_label=msg.server_label, tool_name=msg.name)
-                    for msg in self.input
-                    if isinstance(msg, OpenAIMcpToolCall)
-                },
-                key=lambda ref: (ref.server_label, ref.tool_name),
-            )
-            for ref in historical_mcp_refs:
-                _register_internal_mcp_tool(ref)
+        # if not isinstance(self.input, str):
+        #     historical_mcp_refs = sorted(
+        #         {
+        #             McpToolRef(server_label=msg.server_label, tool_name=msg.name)
+        #             for msg in self.input
+        #             if isinstance(msg, OpenAIMcpToolCall)
+        #         },
+        #         key=lambda ref: (ref.server_label, ref.tool_name),
+        #     )
+        #     for ref in historical_mcp_refs:
+        #         _register_internal_mcp_tool(ref)
 
         # Process chat history
         # `previous_response_id` hydration is implemented in Layer 4 (ResponseStore). This method expects
@@ -1879,87 +1883,88 @@ class vLLMResponsesRequest(BaseModel):
                     )
                     continue
 
-                if isinstance(msg, OpenAIMcpToolCall):
-                    msg_id = msg.id
-                    internal_tool_name = _register_internal_mcp_tool(
-                        McpToolRef(server_label=msg.server_label, tool_name=msg.name)
-                    )
-                    mcp_args: dict[str, Any] = {}
-                    try:
-                        parsed_args = json.loads(msg.arguments)
-                        if isinstance(parsed_args, dict):
-                            mcp_args = parsed_args
-                    except Exception:
-                        mcp_args = {}
-                    tool_return_content: dict[str, Any] = {"status": msg.status}
-                    if msg.output is not None:
-                        tool_return_content["output"] = msg.output
-                    if msg.error is not None:
-                        tool_return_content["error"] = msg.error
-                    message_history.append(
-                        ModelResponse(
-                            parts=[
-                                BuiltinToolCallPart(
-                                    tool_name=internal_tool_name,
-                                    args=mcp_args,
-                                    tool_call_id=msg_id,
-                                ),
-                                BuiltinToolReturnPart(
-                                    tool_name=internal_tool_name,
-                                    content=tool_return_content,
-                                    tool_call_id=msg_id,
-                                ),
-                            ]
-                        )
-                    )
-                    continue
+                # if isinstance(msg, OpenAIMcpToolCall):
+                #     msg_id = msg.id
+                #     internal_tool_name = _register_internal_mcp_tool(
+                #         McpToolRef(server_label=msg.server_label, tool_name=msg.name)
+                #     )
+                #     mcp_args: dict[str, Any] = {}
+                #     try:
+                #         parsed_args = json.loads(msg.arguments)
+                #         if isinstance(parsed_args, dict):
+                #             mcp_args = parsed_args
+                #     except Exception:
+                #         mcp_args = {}
+                #     tool_return_content: dict[str, Any] = {"status": msg.status}
+                #     if msg.output is not None:
+                #         tool_return_content["output"] = msg.output
+                #     if msg.error is not None:
+                #         tool_return_content["error"] = msg.error
+                #     message_history.append(
+                #         ModelResponse(
+                #             parts=[
+                #                 BuiltinToolCallPart(
+                #                     tool_name=internal_tool_name,
+                #                     args=mcp_args,
+                #                     tool_call_id=msg_id,
+                #                 ),
+                #                 BuiltinToolReturnPart(
+                #                     tool_name=internal_tool_name,
+                #                     content=tool_return_content,
+                #                     tool_call_id=msg_id,
+                #                 ),
+                #             ]
+                #         )
+                #     )
+                #     continue
 
                 raise BadInputError(f"Invalid message type: {type(msg)}")
 
+        # TODO: Re-enable this
         # Process tool list
-        builtin_tools: list[Tool] = []
-        deferred_tools: list[ToolDefinition] = []
-        mcp_declarations: dict[str, OpenAIResponsesMcpTool] = {}
-        mcp_servers: dict[str, ResolvedMcpServerTools] = {}
-        selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
-        if self.tools:
-            for t in self.tools:
-                match t:
-                    case OpenAIResponsesFunctionTool():
-                        if t.name.startswith(HOSTED_MCP_INTERNAL_PREFIX):
-                            raise BadInputError(
-                                f"Function tool names starting with {HOSTED_MCP_INTERNAL_PREFIX!r} are reserved."
-                            )
-                        deferred_tools.append(
-                            ToolDefinition(
-                                name=t.name,
-                                parameters_json_schema=t.parameters,
-                                strict=t.strict,
-                                description=t.description,
-                            )
-                        )
-                    case vLLMResponsesCodeTool():
-                        builtin_tools.append(TOOLS[CODE_INTERPRETER_TOOL])
-                    case OpenAIResponsesWebSearchTool():
-                        builtin_tools.append(TOOLS[WEB_SEARCH_TOOL])
-                    case OpenAIResponsesMcpTool():
-                        if t.server_label in mcp_declarations:
-                            raise BadInputError(
-                                "Duplicate MCP declarations are not allowed for the same "
-                                f"`server_label`: {t.server_label!r}."
-                            )
-                        mcp_declarations[t.server_label] = t
-                    case _:
-                        raise BadInputError(f"Invalid tool type: {type(t)}")
+        # builtin_tools: list[Tool] = []
+        # deferred_tools: list[ToolDefinition] = []
+        # mcp_declarations: dict[str, OpenAIResponsesMcpTool] = {}
+        # mcp_servers: dict[str, ResolvedMcpServerTools] = {}
+        # selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
+        # if self.tools:
+        #     for t in self.tools:
+        #         match t:
+        #             case OpenAIResponsesFunctionTool():
+        #                 if t.name.startswith(HOSTED_MCP_INTERNAL_PREFIX):
+        #                     raise BadInputError(
+        #                         f"Function tool names starting with {HOSTED_MCP_INTERNAL_PREFIX!r} are reserved."
+        #                     )
+        #                 deferred_tools.append(
+        #                     ToolDefinition(
+        #                         name=t.name,
+        #                         parameters_json_schema=t.parameters,
+        #                         strict=t.strict,
+        #                         description=t.description,
+        #                     )
+        #                 )
+        #             case vLLMResponsesCodeTool():
+        #                 builtin_tools.append(TOOLS[CODE_INTERPRETER_TOOL])
+        #             case OpenAIResponsesWebSearchTool():
+        #                 builtin_tools.append(TOOLS[WEB_SEARCH_TOOL])
+        #             case OpenAIResponsesMcpTool():
+        #                 if t.server_label in mcp_declarations:
+        #                     raise BadInputError(
+        #                         "Duplicate MCP declarations are not allowed for the same "
+        #                         f"`server_label`: {t.server_label!r}."
+        #                     )
+        #                 mcp_declarations[t.server_label] = t
+        #             case _:
+        #                 raise BadInputError(f"Invalid tool type: {type(t)}")
 
-        if mcp_declarations:
-            mcp_servers = await resolve_mcp_declarations(
-                declarations=mcp_declarations,
-                builtin_mcp_runtime_client=builtin_mcp_runtime_client,
-                request_remote_enabled=request_remote_enabled,
-                request_remote_url_checks_enabled=request_remote_url_checks_enabled,
-                request_remote_toolset_builder=build_request_remote_toolset,
-            )
+        # if mcp_declarations:
+        #     mcp_servers = await resolve_mcp_declarations(
+        #         declarations=mcp_declarations,
+        #         builtin_mcp_runtime_client=builtin_mcp_runtime_client,
+        #         request_remote_enabled=request_remote_enabled,
+        #         request_remote_url_checks_enabled=request_remote_url_checks_enabled,
+        #         request_remote_toolset_builder=build_request_remote_toolset,
+        #     )
 
         internal_tool_choice_instruction: str | None = None
 
@@ -1977,17 +1982,18 @@ class vLLMResponsesRequest(BaseModel):
                 )
             internal_tool_choice_instruction = _build_required_tool_choice_instruction(kind="any")
         elif isinstance(self.tool_choice, OpenAIAllowedToolsChoice):
-            (
-                builtin_tools,
-                deferred_tools,
-                mcp_servers,
-                selected_mcp_tool_infos_by_server,
-            ) = _apply_allowed_tools_choice(
-                choice=self.tool_choice,
-                builtin_tools=builtin_tools,
-                deferred_tools=deferred_tools,
-                mcp_servers=mcp_servers,
-            )
+            # TODO: Re-enable
+            # (
+            #     builtin_tools,
+            #     deferred_tools,
+            #     mcp_servers,
+            #     selected_mcp_tool_infos_by_server,
+            # ) = _apply_allowed_tools_choice(
+            #     choice=self.tool_choice,
+            #     builtin_tools=builtin_tools,
+            #     deferred_tools=deferred_tools,
+            #     mcp_servers=mcp_servers,
+            # )
             if self.tool_choice.mode == "auto":
                 pass
             else:
@@ -2058,52 +2064,54 @@ class vLLMResponsesRequest(BaseModel):
         else:
             raise BadInputError(f"Invalid `tool_choice` provided: {self.tool_choice}.")
 
-        mcp_resolved_tools: list[ResolvedMcpTool] = []
-        for server_label, server_runtime in sorted(mcp_servers.items()):
-            tool_infos = selected_mcp_tool_infos_by_server.get(
-                server_label, server_runtime.allowed_tool_infos
-            )
-            for tool_name, tool_info in tool_infos.items():
-                normalized_schema = _normalize_mcp_input_schema(
-                    server_label=server_label,
-                    tool_name=tool_name,
-                    input_schema=tool_info.input_schema,
-                )
-                ref = McpToolRef(
-                    server_label=server_label,
-                    tool_name=tool_name,
-                    mode=server_runtime.mode,
-                )
-                internal_tool_name = _register_internal_mcp_tool(ref)
+        # TODO: Re-enable this
+        # mcp_resolved_tools: list[ResolvedMcpTool] = []
+        # for server_label, server_runtime in sorted(mcp_servers.items()):
+        #     tool_infos = selected_mcp_tool_infos_by_server.get(
+        #         server_label, server_runtime.allowed_tool_infos
+        #     )
+        #     for tool_name, tool_info in tool_infos.items():
+        #         normalized_schema = _normalize_mcp_input_schema(
+        #             server_label=server_label,
+        #             tool_name=tool_name,
+        #             input_schema=tool_info.input_schema,
+        #         )
+        #         ref = McpToolRef(
+        #             server_label=server_label,
+        #             tool_name=tool_name,
+        #             mode=server_runtime.mode,
+        #         )
+        #         internal_tool_name = _register_internal_mcp_tool(ref)
 
-                description = (
-                    tool_info.description.strip()
-                    if isinstance(tool_info.description, str) and tool_info.description.strip()
-                    else f"MCP tool {server_label}:{tool_name}"
-                )
-                mcp_resolved_tools.append(
-                    ResolvedMcpTool(
-                        internal_name=internal_tool_name,
-                        ref=ref,
-                        mcp_toolset=server_runtime.mcp_toolset,
-                        mcp_tool_name=tool_name,
-                        description=description,
-                        input_schema=normalized_schema,
-                        schema_validator=Draft202012Validator(normalized_schema),
-                        secret_values=server_runtime.secret_values,
-                        mcp_tool=server_runtime.allowed_mcp_tools_by_name.get(tool_name),
-                    )
-                )
+        #         description = (
+        #             tool_info.description.strip()
+        #             if isinstance(tool_info.description, str) and tool_info.description.strip()
+        #             else f"MCP tool {server_label}:{tool_name}"
+        #         )
+        #         mcp_resolved_tools.append(
+        #             ResolvedMcpTool(
+        #                 internal_name=internal_tool_name,
+        #                 ref=ref,
+        #                 mcp_toolset=server_runtime.mcp_toolset,
+        #                 mcp_tool_name=tool_name,
+        #                 description=description,
+        #                 input_schema=normalized_schema,
+        #                 schema_validator=Draft202012Validator(normalized_schema),
+        #                 secret_values=server_runtime.secret_values,
+        #                 mcp_tool=server_runtime.allowed_mcp_tools_by_name.get(tool_name),
+        #             )
+        #         )
         toolsets: list[AbstractToolset[Any]] = []
         if builtin_tools:
             toolsets.append(FunctionToolset(tools=builtin_tools))
-        if mcp_resolved_tools:
-            toolsets.append(
-                McpGatewayToolset(
-                    tools=mcp_resolved_tools,
-                    id="vllm_responses_mcp",
-                )
-            )
+        # TODO: Re-enable this
+        # if mcp_resolved_tools:
+        #     toolsets.append(
+        #         McpGatewayToolset(
+        #             tools=mcp_resolved_tools,
+        #             id="vllm_responses_mcp",
+        #         )
+        #     )
         if deferred_tools:
             toolsets.append(ExternalToolset(tool_defs=deferred_tools))
         run_settings: AgentRunSettings = {
@@ -2118,7 +2126,8 @@ class vLLMResponsesRequest(BaseModel):
             # Preserve pydantic_ai default request_limit safety guard for non-terminating loops.
             "usage_limits": UsageLimits(tool_calls_limit=None),
         }
-        return run_settings, builtin_tools, mcp_tool_name_map
+        # return run_settings, builtin_tools, mcp_tool_name_map
+        return run_settings, builtin_tools
 
     def as_openai_chat_settings(self) -> OpenAIChatModelSettings:
         """
@@ -2175,178 +2184,178 @@ class vLLMResponsesRequest(BaseModel):
         return OpenAIChatModelSettings(**kwargs)
 
 
-# class OpenAIResponsesRequest(vLLMResponsesRequest):
-#     background: Annotated[
-#         bool,
-#         Field(
-#             description="Whether to run the model response in the background.",
-#         ),
-#     ] = False
-#     conversation: Annotated[
-#         str | OpenAIConversation | None,
-#         Field(
-#             description=(
-#                 "The conversation that this response belongs to. "
-#                 "Items from this conversation are prepended to `input_items` for this response request. "
-#                 "Input items and output items from this response are automatically added to this conversation after this response completes."
-#             )
-#         ),
-#     ] = None
-#     include: Annotated[
-#         list[
-#             Literal[
-#                 "web_search_call.action.sources",
-#                 "code_interpreter_call.outputs",
-#                 "computer_call_output.output.image_url",
-#                 "file_search_call.results",
-#                 "message.input_image.image_url",
-#                 "message.output_text.logprobs",
-#                 "reasoning.encrypted_content",
-#             ]
-#         ]
-#         | None,
-#         Field(
-#             description=(
-#                 "Specify additional output data to include in the model response. Currently supported values are:\n"
-#                 "`web_search_call.action.sources`: Include the sources of the web search tool call.\n"
-#                 "`code_interpreter_call.outputs`: Includes the outputs of python code execution in code interpreter tool call items.\n"
-#                 "`computer_call_output.output.image_url`: Include image urls from the computer call output.\n"
-#                 "`file_search_call.results`: Include the search results of the file search tool call.\n"
-#                 "`message.input_image.image_url:` Include image urls from the input message.\n"
-#                 "`message.output_text.logprobs`: Include logprobs with assistant messages.\n"
-#                 "`reasoning.encrypted_content`: Includes an encrypted version of reasoning tokens in reasoning item outputs. "
-#                 "This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly "
-#                 "(like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program)."
-#             ),
-#         ),
-#     ] = None
-#     prompt: Annotated[
-#         OpenAIPromptTemplate | None,
-#         Field(
-#             description=("Reference to a prompt template and its variables."),
-#         ),
-#     ] = None
-#     prompt_cache_key: Annotated[
-#         str | None,
-#         Field(
-#             description=(
-#                 "Used to cache responses for similar requests to optimize your cache hit rates. "
-#                 "Replaces the `user` field."
-#             ),
-#         ),
-#     ] = None
-#     prompt_cache_retention: Annotated[
-#         Literal["24h"] | None,
-#         Field(
-#             description=(
-#                 "The retention policy for the prompt cache. "
-#                 "Set to `24h` to enable extended prompt caching, "
-#                 "which keeps cached prefixes active for longer, up to a maximum of 24 hours."
-#             ),
-#         ),
-#     ] = None
-#     safety_identifier: Annotated[
-#         str | None,
-#         Field(
-#             description=(
-#                 "A stable identifier used to help detect users of your application that may be violating usage policies. "
-#                 "The IDs should be a string that uniquely identifies each user. "
-#                 "We recommend hashing their username or email address, in order to avoid sending us any identifying information."
-#             ),
-#         ),
-#     ] = None
-#     service_tier: Annotated[
-#         Literal["auto", "default", "flex", "priority"],
-#         Field(
-#             description=(
-#                 "Specifies the processing type used for serving the request.\n\n"
-#                 "- If set to 'auto', then the request will be processed with the service tier configured in the Project settings. "
-#                 "Unless otherwise configured, the Project will use 'default'.\n"
-#                 "- If set to 'default', then the request will be processed with the standard pricing and performance for the selected model.\n"
-#                 "- If set to 'flex' or 'priority', then the request will be processed with the corresponding service tier.\n"
-#                 "- When not set, the default behavior is 'auto'.\n"
-#                 "When the `service_tier` parameter is set, the response body will include the `service_tier` value based on the processing mode actually used to serve the request. "
-#                 "This response value may be different from the value set in the parameter."
-#             ),
-#         ),
-#     ] = "auto"
-#     stream_options: Annotated[
-#         OpenAIStreamOptions | None,
-#         Field(
-#             description=(
-#                 "Options for streaming responses. Only set this when you set `stream: true`."
-#             ),
-#         ),
-#     ] = None
-#     text: Annotated[
-#         OpenAITextConfig | None,
-#         Field(
-#             description=(
-#                 "Configuration options for a text response from the model. "
-#                 "Can be plain text or structured JSON data."
-#             ),
-#         ),
-#     ] = None
-#     tools: Annotated[
-#         list[OpenAIResponsesTool] | None,
-#         Field(
-#             description=(
-#                 "An array of tools the model may call while generating a response. "
-#                 "You can specify which tool to use by setting the `tool_choice` parameter."
-#             ),
-#             min_length=1,
-#             examples=[
-#                 [
-#                     OpenAIResponsesWebSearchTool(),
-#                     OpenAIResponsesCodeTool(),
-#                     OpenAIResponsesFunctionTool(
-#                         name="get_weather",
-#                         parameters=dict(
-#                             type="object",
-#                             properties=dict(
-#                                 location=dict(
-#                                     type="string",
-#                                     description="City and country, e.g. `Bogotá, Colombia`",
-#                                 )
-#                             ),
-#                             required=["location"],
-#                             additionalProperties=False,
-#                         ),
-#                         description="Get current temperature for a given location.",
-#                     ),
-#                 ],
-#             ],
-#         ),
-#     ] = None
-#     truncation: Annotated[
-#         Literal["auto", "disabled"],
-#         Field(
-#             description=(
-#                 "The truncation strategy to use for the model response. "
-#                 "`auto`: If the input to this Response exceeds the model's context window size, "
-#                 "the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. "
-#                 "`disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error."
-#             ),
-#         ),
-#     ] = "disabled"
-#     user: Annotated[
-#         str | None,
-#         Field(
-#             description=(
-#                 "This field is being replaced by `safety_identifier` and `prompt_cache_key`. "
-#                 "Use `prompt_cache_key` instead to maintain caching optimizations. "
-#                 "A stable identifier for your end-users. "
-#                 "Used to boost cache hit rates by better bucketing similar requests and to help detect and prevent abuse."
-#             ),
-#         ),
-#     ] = None
+class OpenAIResponsesRequest(vLLMResponsesRequest):
+    background: Annotated[
+        bool,
+        Field(
+            description="Whether to run the model response in the background.",
+        ),
+    ] = False
+    conversation: Annotated[
+        str | OpenAIConversation | None,
+        Field(
+            description=(
+                "The conversation that this response belongs to. "
+                "Items from this conversation are prepended to `input_items` for this response request. "
+                "Input items and output items from this response are automatically added to this conversation after this response completes."
+            )
+        ),
+    ] = None
+    include: Annotated[
+        list[
+            Literal[
+                "web_search_call.action.sources",
+                "code_interpreter_call.outputs",
+                "computer_call_output.output.image_url",
+                "file_search_call.results",
+                "message.input_image.image_url",
+                "message.output_text.logprobs",
+                "reasoning.encrypted_content",
+            ]
+        ]
+        | None,
+        Field(
+            description=(
+                "Specify additional output data to include in the model response. Currently supported values are:\n"
+                "`web_search_call.action.sources`: Include the sources of the web search tool call.\n"
+                "`code_interpreter_call.outputs`: Includes the outputs of python code execution in code interpreter tool call items.\n"
+                "`computer_call_output.output.image_url`: Include image urls from the computer call output.\n"
+                "`file_search_call.results`: Include the search results of the file search tool call.\n"
+                "`message.input_image.image_url:` Include image urls from the input message.\n"
+                "`message.output_text.logprobs`: Include logprobs with assistant messages.\n"
+                "`reasoning.encrypted_content`: Includes an encrypted version of reasoning tokens in reasoning item outputs. "
+                "This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly "
+                "(like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program)."
+            ),
+        ),
+    ] = None
+    prompt: Annotated[
+        OpenAIPromptTemplate | None,
+        Field(
+            description=("Reference to a prompt template and its variables."),
+        ),
+    ] = None
+    prompt_cache_key: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Used to cache responses for similar requests to optimize your cache hit rates. "
+                "Replaces the `user` field."
+            ),
+        ),
+    ] = None
+    prompt_cache_retention: Annotated[
+        Literal["24h"] | None,
+        Field(
+            description=(
+                "The retention policy for the prompt cache. "
+                "Set to `24h` to enable extended prompt caching, "
+                "which keeps cached prefixes active for longer, up to a maximum of 24 hours."
+            ),
+        ),
+    ] = None
+    safety_identifier: Annotated[
+        str | None,
+        Field(
+            description=(
+                "A stable identifier used to help detect users of your application that may be violating usage policies. "
+                "The IDs should be a string that uniquely identifies each user. "
+                "We recommend hashing their username or email address, in order to avoid sending us any identifying information."
+            ),
+        ),
+    ] = None
+    service_tier: Annotated[
+        Literal["auto", "default", "flex", "priority"],
+        Field(
+            description=(
+                "Specifies the processing type used for serving the request.\n\n"
+                "- If set to 'auto', then the request will be processed with the service tier configured in the Project settings. "
+                "Unless otherwise configured, the Project will use 'default'.\n"
+                "- If set to 'default', then the request will be processed with the standard pricing and performance for the selected model.\n"
+                "- If set to 'flex' or 'priority', then the request will be processed with the corresponding service tier.\n"
+                "- When not set, the default behavior is 'auto'.\n"
+                "When the `service_tier` parameter is set, the response body will include the `service_tier` value based on the processing mode actually used to serve the request. "
+                "This response value may be different from the value set in the parameter."
+            ),
+        ),
+    ] = "auto"
+    stream_options: Annotated[
+        OpenAIStreamOptions | None,
+        Field(
+            description=(
+                "Options for streaming responses. Only set this when you set `stream: true`."
+            ),
+        ),
+    ] = None
+    text: Annotated[
+        OpenAITextConfig | None,
+        Field(
+            description=(
+                "Configuration options for a text response from the model. "
+                "Can be plain text or structured JSON data."
+            ),
+        ),
+    ] = None
+    tools: Annotated[
+        list[OpenAIResponsesTool] | None,
+        Field(
+            description=(
+                "An array of tools the model may call while generating a response. "
+                "You can specify which tool to use by setting the `tool_choice` parameter."
+            ),
+            min_length=1,
+            examples=[
+                [
+                    OpenAIResponsesWebSearchTool(),
+                    OpenAIResponsesCodeTool(),
+                    OpenAIResponsesFunctionTool(
+                        name="get_weather",
+                        parameters=dict(
+                            type="object",
+                            properties=dict(
+                                location=dict(
+                                    type="string",
+                                    description="City and country, e.g. `Bogotá, Colombia`",
+                                )
+                            ),
+                            required=["location"],
+                            additionalProperties=False,
+                        ),
+                        description="Get current temperature for a given location.",
+                    ),
+                ],
+            ],
+        ),
+    ] = None
+    truncation: Annotated[
+        Literal["auto", "disabled"],
+        Field(
+            description=(
+                "The truncation strategy to use for the model response. "
+                "`auto`: If the input to this Response exceeds the model's context window size, "
+                "the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. "
+                "`disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error."
+            ),
+        ),
+    ] = "disabled"
+    user: Annotated[
+        str | None,
+        Field(
+            description=(
+                "This field is being replaced by `safety_identifier` and `prompt_cache_key`. "
+                "Use `prompt_cache_key` instead to maintain caching optimizations. "
+                "A stable identifier for your end-users. "
+                "Used to boost cache hit rates by better bucketing similar requests and to help detect and prevent abuse."
+            ),
+        ),
+    ] = None
 
-#     @field_validator("tool_choice", mode="after")
-#     @classmethod
-#     def validate_tool_choice(
-#         cls, v: str | OpenAIAllowedToolsChoice
-#     ) -> str | OpenAIAllowedToolsChoice:
-#         return v
+    @field_validator("tool_choice", mode="after")
+    @classmethod
+    def validate_tool_choice(
+        cls, v: str | OpenAIAllowedToolsChoice
+    ) -> str | OpenAIAllowedToolsChoice:
+        return v
 
 
 class OpenAIResponsesResponseError(BaseModel):

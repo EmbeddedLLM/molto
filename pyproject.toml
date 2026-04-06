@@ -75,19 +75,22 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "loguru~=0.7",
+    "orjson~=3.11",
+    "pycountry~=26.2.16",
+    "pydantic-ai-slim[openai,google,anthropic,groq,mistral,cohere,bedrock,huggingface,exa,duckduckgo,tavily,mcp,fastmcp,retries]~=1.73.0",
+    "pydantic-extra-types~=2.11.1",
+    "pydantic-settings~=2.13.1",
+    "pydantic[email,timezone]>=2.12.5",
+    "uuid-utils~=0.14.1",
+]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 lint = ["ruff~=0.12"]
-test = [
-    "pytest~=8.3",
-    "pytest-asyncio>=0.23.8",
-    "pytest-timeout~=2.3",
-]
-all = [
-    "molto[lint,test]",
-]
+test = ["pytest~=8.3", "pytest-asyncio>=0.23.8", "pytest-timeout~=2.3"]
+all = ["molto[lint,test]"]
 
 [tool.setuptools.dynamic]
 version = { attr = "molto.version.__version__" }
