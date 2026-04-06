@@ -24,9 +24,9 @@ def _read_cassette_response_body(path: Path) -> dict[str, Any]:
 
 async def test_tool_choice_required():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        body = json_loads(request.content)
         try:
+            assert request.method == "POST"
+            body = json_loads(request.content)
             assert body.get("tool_choice") == "required"
             assert len(body.get("input", [])) == 1
             assert body.get("stream", False) is False
@@ -36,10 +36,15 @@ async def test_tool_choice_required():
                     CASSETTE_DIR / "openai" / "responses" / "tool_choice-required.yaml"
                 ),
             )
-        except AssertionError:
+        except AssertionError as e:
             return httpx.Response(
                 400,
-                json={"error": "Invalid request"},
+                json={"error": f"Assertions failed: {e!r}"},
+            )
+        except Exception as e:
+            return httpx.Response(
+                400,
+                json={"error": f"Invalid request: {e!r}"},
             )
 
     body = dict(
