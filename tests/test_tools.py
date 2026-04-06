@@ -3,11 +3,15 @@ from typing import Any
 
 import httpx
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessageFunctionToolCall
+from openai.types.responses import Response, ResponseFunctionToolCall
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
-from molto.types.openai.responses import OpenAIResponsesRequest
+from molto.types.openai.responses import (
+    OpenAIFunctionToolCall,
+    OpenAIResponsesRequest,
+    OpenAIResponsesResponse,
+)
 from molto.utils.io import json_loads, read_yaml
 
 CASSETTE_DIR = Path("tests/cassettes")
@@ -23,12 +27,13 @@ async def test_tool_choice_required():
         assert request.method == "POST"
         body = json_loads(request.content)
         try:
-            assert body["tool_choice"] == "required"
-            assert len(body["messages"]) == 1
+            assert body.get("tool_choice") == "required"
+            assert len(body.get("input", [])) == 1
+            assert body.get("stream", False) is False
             return httpx.Response(
                 200,
                 json=_read_cassette_response_body(
-                    CASSETTE_DIR / "openai" / "tool-choice-required.yaml"
+                    CASSETTE_DIR / "openai" / "responses" / "tool_choice-required.yaml"
                 ),
             )
         except AssertionError:
@@ -39,23 +44,21 @@ async def test_tool_choice_required():
 
     body = dict(
         model="gpt-4.1-nano",
-        messages=[{"role": "user", "content": "What number am I thinking of?"}],
+        input=[{"role": "user", "content": "What number am I thinking of?"}],
         tools=[
             {
                 "type": "function",
-                "function": {
-                    "name": "guess_number",
-                    "description": "Guess a number.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "number": {"type": "integer", "description": "The guessed number."},
-                        },
-                        "required": ["number"],
-                        "additionalProperties": False,
+                "name": "guess_number",
+                "description": "Guess a number.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "number": {"type": "integer", "description": "The guessed number."},
                     },
+                    "required": ["number"],
+                    "additionalProperties": False,
                 },
-            }
+            },
         ],
         tool_choice="required",
     )
@@ -66,13 +69,13 @@ async def test_tool_choice_required():
             transport=httpx.MockTransport(handler),
             base_url="http://testserver",
         ),
+        max_retries=1,  # Disable retries to surface assertion errors immediately
     )
-    response = await client.chat.completions.create(**body)
-    assert isinstance(response, ChatCompletion)
-    tool_calls = response.choices[0].message.tool_calls
-    assert isinstance(tool_calls, list)
-    assert isinstance(tool_calls[0], ChatCompletionMessageFunctionToolCall)
-    assert tool_calls[0].function.name == "guess_number"
+    response = await client.responses.create(**body)
+    assert isinstance(response, Response)
+    assert isinstance(response.output, list)
+    assert isinstance(response.output[0], ResponseFunctionToolCall)
+    assert response.output[0].name == "guess_number"
 
     client = Molto(
         http_client=httpx.AsyncClient(
@@ -80,10 +83,8 @@ async def test_tool_choice_required():
             base_url="http://testserver",
         )
     )
-    await client.chat(
-        OpenAIResponsesRequest(
-            model="gpt-4o",
-            input=[{"role": "user", "content": "Hello, world!"}],
-            tool_choice="required",
-        )
-    )
+    response = await client.chat(OpenAIResponsesRequest(**body))
+    assert isinstance(response, OpenAIResponsesResponse)
+    assert isinstance(response.output, list)
+    assert isinstance(response.output[0], OpenAIFunctionToolCall)
+    assert response.output[0].name == "guess_number"
