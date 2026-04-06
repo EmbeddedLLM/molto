@@ -1,0 +1,48 @@
+name: Linting Workflow
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  python_lint:
+    name: Python linting and formatting checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install linting libraries
+        run: |
+          python3 -m pip install "ruff~=0.12"
+
+      - name: Check Python files using Ruff
+        run: |
+          ruff check --output-format github .
+          ruff format --diff .
+
+  prettier_lint:
+    name: Prettier Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Check files using Prettier
+        run: npx prettier@3.8 --check .
