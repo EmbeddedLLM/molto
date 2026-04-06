@@ -2,21 +2,20 @@
 
 ## Package Layout
 
-Use `src/<package_name>/` as the source root, configured via `tool.setuptools.packages.find.where = ["src"]` in `pyproject.toml`.
+Use `src/<package>/` as the source root, configured via `tool.setuptools.packages.find.where = ["src"]` in `pyproject.toml`.
 
 Standard submodules:
 
 ```
-src/<package_name>/
+src/<package>/
 ├── __init__.py
+├── configs.py
 ├── version.py
-├── configs/
 ├── db/
-│   └── models.py
+│   └── orm.py
 ├── entrypoints/
 │   └── api.py
 ├── routers/
-├── tasks/
 ├── types/
 └── utils/
 tests/
@@ -29,7 +28,7 @@ Single source of truth for build config, linting, and testing.
 ### Build
 
 - Build system: setuptools
-- Version: pulled dynamically from `<package>.version.__version__`
+- Version: pulled dynamically from `src/<package>/version.py` (`__version__ = "0.0.1"`)
 
 ```toml
 [build-system]
@@ -178,10 +177,243 @@ jobs:
         run: npx prettier@3.8 --check .
 ```
 
-## Versioning
+## .vscode
 
-`src/<package>/version.py` with:
+### settings.json
 
-```python
-__version__ = "0.0.1"
+Per-language formatter and Ruff config.
+
+- Python: Ruff formatter with organize-imports on save, language server disabled
+- Markdown, JSON, JSONC, YAML, GitHub Actions, CSS, HTML: Prettier
+- TOML: Even Better TOML
+- JavaScript: Prettier, tab size 4
+- JSX/TSX/TypeScript: Prettier, tab size 2; TypeScript also has organize-imports and fix-all on save
+
+```jsonc
+{
+  "files.eol": "\n",
+  "python.languageServer": "None",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+    },
+  },
+  "ruff.configuration": "pyproject.toml",
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.nativeServer": "on",
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml",
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[javascript]": {
+    "editor.tabSize": 4,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[javascriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[typescriptreact]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  },
+  "[typescript]": {
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "always",
+      "source.fixAll": "explicit",
+    },
+  },
+}
+```
+
+### python.json.code-snippets
+
+Handy Python snippets:
+
+| Prefix | Description                        |
+| ------ | ---------------------------------- |
+| `mm`   | `if __name__ == "__main__":` guard |
+| `tt`   | `perf_counter` timing block        |
+| `lgg`  | `from loguru import logger`        |
+| `cdd`  | `Path(__file__).resolve().parent`  |
+
+```jsonc
+{
+  "MAIN_IF_GUARD": {
+    "prefix": "mm",
+    "body": ["if __name__ == \"__main__\":", "    $0"],
+  },
+  "TIME": {
+    "prefix": "tt",
+    "body": [
+      "from time import perf_counter",
+      "t0 = perf_counter()",
+      "$0",
+      "print(f\"t={(perf_counter() - t0) * 1e3:,.2f} ms\")",
+    ],
+  },
+  "GET_LOGGER": {
+    "prefix": "lgg",
+    "body": ["from loguru import logger"],
+  },
+  "CURRENT_DIRECTORY": {
+    "prefix": "cdd",
+    "body": [
+      "from pathlib import Path",
+      "CURR_DIR = Path(__file__).resolve().parent",
+    ],
+  },
+}
+```
+
+## .gitattributes
+
+Enforce consistent line endings and mark binary files so they aren't diffed or corrupted by EOL conversion.
+
+- Default all files to `text=auto eol=lf`
+- `.bat` files use CRLF; `.sh` files use LF
+- Explicitly mark common text extensions (`.css`, `.html`, `.js*`, `.md`, `.py`, `.sh`) as `text`
+- Mark media, archive, and data files as `binary`
+
+```gitattributes
+# Default: auto-detect text files and normalise to LF
+* text=auto eol=lf
+
+# Platform-specific EOL overrides
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Explicit text files (normalise CRLF => LF)
+*.css text
+*.html text
+*.js* text
+*.md text
+*.py text
+
+# Binary files (no EOL conversion, no diff)
+*.7z binary
+*.bin binary
+*.cu.o binary
+*.db binary
+*.doc binary
+*.docx binary
+*.gif binary
+*.gz binary
+*.heic* binary
+*.heif* binary
+*.jar binary
+*.jpeg binary
+*.jpg binary
+*.mov binary
+*.mp* binary
+*.npy binary
+*.npz binary
+*.parquet binary
+*.pcd binary
+*.pdf binary
+*.pkl binary
+*.png binary
+*.ppt binary
+*.pptx binary
+*.pth binary
+*.so binary
+*.webp binary
+*.xls binary
+*.xlsx binary
+*.zip binary
+
+# LFS (uncomment as needed)
+# *.pth filter=lfs diff=lfs merge=lfs -text
+
+# Exclude from GitHub Linguist language detection
+*.p linguist-detectable=false
+*.gz linguist-detectable=false
+```
+
+## .gitignore
+
+Ignore OS artifacts, caches, build outputs, and local data directories.
+
+```gitignore
+# OS
+thumbs.db
+.DS_Store
+
+# Internal references, dependencies, temporary folders & files
+.env
+**/__ref__/
+*.log
+*.lock
+*.db
+*.db.*
+*.sqlite3*
+*.sqlite3.*
+*.parquet
+.cache/
+
+# Agents
+tasks/
+
+# Docker
+/docker_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info
+.pytest_cache
+.ipynb_checkpoints
+venv/
+
+# pip
+**/build/
+
+# pytest-cov
+**/coverage.xml
+**/.coverage*
+/junit
+/htmlcov
+
+# ruff
+.ruff_cache/
+
+# jest-cov
+**/coverage/*
+
+# JavaScript
+**/node_modules/
+**/logs
+**/dist/
+
+# db related
+**/ch_data/
+**/vm_data/
+**/ch_logs/
+/db/
+**/vl_data/
+**/rqlite_db/
 ```
