@@ -68,11 +68,11 @@ class RunSettings(TypedDict):
 class Runner:
     def __init__(
         self,
-        run_settings: AgentSettings,
-        agent_settings: RunSettings,
+        agent_settings: AgentSettings,
+        run_settings: RunSettings,
     ):
-        self._run_settings = run_settings
         self._agent_settings = agent_settings
+        self._run_settings = run_settings
         self._tool_id2name: dict[str, str] = {}
         self._agent = Agent(
             **self._agent_settings,

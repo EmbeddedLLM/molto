@@ -63,59 +63,100 @@ from molto.utils.exceptions import BadInputError
 
 
 class _Provider:
-    _run_settings: RunSettings
-    _agent_settings: ModelSettings
-
-    def __init__(
-        self,
-        body: Any,
-        http_client: AsyncClient,
-    ):
-        self._body = body
-        self._http_client = http_client
-
-    async def close(self) -> None:
-        await self._http_client.aclose()
-
-    async def run(self):
-        """Non-streaming execution."""
-        self._parse_run_settings()
-        self._parse_agent_settings()
-        runner = Runner(self._run_settings, self._agent_settings)
-        output_ir = await runner.run()
-        return self._compose_output(output_ir)
-
-    async def run_stream(self) -> AsyncIterator:
-        """Streaming execution."""
-        self._parse_run_settings()
-        self._parse_agent_settings()
-        runner = Runner(self._run_settings, self._agent_settings)
-        async for event in runner.run_stream():
-            yield self._compose_output(event)
-
-    async def _parse_run_settings(self) -> None:
+    async def parse_agent_settings(self, ir) -> AgentSettings:
+        """Parse input IR into pydantic-ai agent settings."""
         raise NotImplementedError
 
-    async def _parse_agent_settings(self) -> None:
+    async def parse_run_settings(self, ir) -> RunSettings:
+        """Parse input IR into pydantic-ai run settings."""
         raise NotImplementedError
 
-    async def _compose_outputs(self) -> None:
+    async def compose_outputs(self) -> AsyncIterator:
+        """Compose vendor-specific streaming response from output IR stream."""
+        raise NotImplementedError
+
+    async def get_output(self):
+        """Compose vendor-specific response from output IR."""
         raise NotImplementedError
 
 
 class OpenAIResponsesProvider(_Provider):
-    async def _parse_run_settings(self) -> None:
+    async def parse_agent_settings(self, ir) -> AgentSettings:
+        """Parse input IR into pydantic-ai agent settings."""
         raise NotImplementedError
 
-    async def _parse_agent_settings(self) -> None:
+    async def parse_run_settings(self, ir) -> RunSettings:
+        """Parse input IR into pydantic-ai run settings."""
         raise NotImplementedError
 
-    async def _compose_output(self) -> None:
+    async def compose_outputs(self) -> AsyncIterator:
+        """Compose vendor-specific response from output IR."""
+        raise NotImplementedError
+
+    async def get_output(self):
+        """Compose vendor-specific response from output IR."""
         raise NotImplementedError
 
 
-# class OpenAIChatCompletionsProvider(_Provider):
-#     async def _parse_run_settings(self) -> None:
+class OpenAIChatCompletionsProvider(_Provider):
+    pass
+
+
+#     def parse_agent_settings(self) -> AgentSettings:
+#         """
+#         These parameters are not supported by Responses API:
+#         - id
+#         - n
+#         - presence_penalty
+#         - frequency_penalty
+#         - logit_bias
+#         - stop / stop_sequences
+#         - seed
+
+#         These parameters are not supported by vLLM:
+#         - user / openai_user
+#         - service_tier / openai_service_tier
+#         - prediction / openai_prediction
+#         - safety_identifier
+#         - prompt_cache_key / openai_prompt_cache_key
+#         - prompt_cache_retention / openai_prompt_cache_retention
+
+#         Unused OpenAIChatModelSettings fields:
+#         - timeout: float | Timeout
+#         - extra_headers: dict[str, str]
+#         - extra_body: object
+
+#         vLLMResponses fields that are mapped in `as_run_settings`:
+#         - input
+#         - instructions
+#         - tools
+#         - tool_choice
+#         - previous_response_id
+
+#         vLLMResponses fields that are used when creating Agent:
+#         - model
+
+#         vLLMResponses fields that are not used:
+#         - metadata
+#         """
+#         kwargs: dict[str, Any] = self.model_dump(exclude_unset=True, exclude_none=True)
+
+#         max_output_tokens = kwargs.pop("max_output_tokens", None)
+#         if max_output_tokens:
+#             kwargs["max_tokens"] = max_output_tokens
+#         reasoning_effort = kwargs.pop("reasoning", {}).get("effort")
+#         if reasoning_effort:
+#             kwargs["openai_reasoning_effort"] = reasoning_effort
+#         top_logprobs = kwargs.pop("top_logprobs", None)
+#         if top_logprobs:
+#             kwargs["openai_logprobs"] = True
+#             kwargs["openai_top_logprobs"] = top_logprobs
+#         else:
+#             kwargs["openai_logprobs"] = False
+
+#         return OpenAIChatModelSettings(**kwargs)
+
+#     async def parse_run_settings(self, ir) -> RunSettings:
 #         """
 #         Converts the request into a dictionary of run settings for Pydantic AI.
 
@@ -616,56 +657,6 @@ class OpenAIResponsesProvider(_Provider):
 #         # return run_settings, builtin_tools, mcp_tool_name_map
 #         return run_settings, builtin_tools
 
-#     def _parse_agent_settings(self) -> None:
-#         """
-#         These parameters are not supported by Responses API:
-#         - id
-#         - n
-#         - presence_penalty
-#         - frequency_penalty
-#         - logit_bias
-#         - stop / stop_sequences
-#         - seed
 
-#         These parameters are not supported by vLLM:
-#         - user / openai_user
-#         - service_tier / openai_service_tier
-#         - prediction / openai_prediction
-#         - safety_identifier
-#         - prompt_cache_key / openai_prompt_cache_key
-#         - prompt_cache_retention / openai_prompt_cache_retention
-
-#         Unused OpenAIChatModelSettings fields:
-#         - timeout: float | Timeout
-#         - extra_headers: dict[str, str]
-#         - extra_body: object
-
-#         vLLMResponses fields that are mapped in `as_run_settings`:
-#         - input
-#         - instructions
-#         - tools
-#         - tool_choice
-#         - previous_response_id
-
-#         vLLMResponses fields that are used when creating Agent:
-#         - model
-
-#         vLLMResponses fields that are not used:
-#         - metadata
-#         """
-#         kwargs: dict[str, Any] = self.model_dump(exclude_unset=True, exclude_none=True)
-
-#         max_output_tokens = kwargs.pop("max_output_tokens", None)
-#         if max_output_tokens:
-#             kwargs["max_tokens"] = max_output_tokens
-#         reasoning_effort = kwargs.pop("reasoning", {}).get("effort")
-#         if reasoning_effort:
-#             kwargs["openai_reasoning_effort"] = reasoning_effort
-#         top_logprobs = kwargs.pop("top_logprobs", None)
-#         if top_logprobs:
-#             kwargs["openai_logprobs"] = True
-#             kwargs["openai_top_logprobs"] = top_logprobs
-#         else:
-#             kwargs["openai_logprobs"] = False
-
-#         return OpenAIChatModelSettings(**kwargs)
+class AnthropicMessagesProvider(_Provider):
+    pass
