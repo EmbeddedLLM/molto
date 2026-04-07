@@ -12,21 +12,19 @@ Molto is a provider-agnostic gateway that accepts requests in various API format
        ▼
   ┌──────────┐
   │  types/  │  Parse & validate the vendor-specific request.
-  │          │  Convert it into the Intermediate Representation (IR).
+  │          │  Type.to_ir() → Input IR
   └────┬─────┘
        │  Input IR
        ▼
   ┌──────────────┐
-  │ providers.py │  Accept input IR. Internally: map to pydantic-ai
-  │              │  settings, create a Runner, call run/run_stream,
-  │              │  convert the response back into output IR.
+  │  providers/  │  Provider(body) — instantiated with vendor request.
+  │              │  provider.run() / provider.run_stream()
+  │              │  Internally: parse settings, create Runner,
+  │              │  compose output via Type.from_ir().
   └────┬─────────┘
-       │  Output IR stream
+       │  Vendor-specific response
        ▼
-  ┌──────────┐
-  │  types/  │  Convert the IR response stream back into the
-  │          │  vendor-specific response format.
-  └──────────┘
+  Client
 ```
 
 ### Step 1 — Types (request path): vendor request → IR
@@ -36,15 +34,66 @@ The type modules are responsible for:
 
 - Pydantic models that mirror the vendor's API schema (request, response, streaming events).
 - Validation logic specific to that vendor format.
-- A method (e.g. `as_ir()`) that converts the validated request into the **Intermediate Representation**.
+- `to_ir()` — converts the validated request into the **Input IR**.
+- `from_ir()` — converts Output IR events back into vendor-specific response objects and streaming events.
 
-The IR is a provider-agnostic bundle of everything needed to run an Agent.
+The IR is a provider-agnostic bundle of everything needed to run an Agent (input side) and everything produced by a run (output side).
 
-**Key rule:** type modules must NOT import provider-specific pydantic-ai settings (e.g. `OpenAIChatModelSettings`). They produce only the common IR. This keeps the `types/` layer decoupled from any single provider.
+**Key rule:** type modules must NOT import provider-specific pydantic-ai settings (e.g. `OpenAIChatModelSettings`). They produce and consume only the common IR. This keeps the `types/` layer decoupled from any single provider.
 
-### Step 2 — Runner: pydantic-ai wrapper
+### Step 2 — Providers: body → run / run_stream
 
-`runner.py` is a thin wrapper around pydantic-ai's `Agent`. It is instantiated with the agent, model, and provider-specific settings, then exposes two methods:
+Each provider is instantiated with the vendor-specific request `body` and exposes two public methods — `run` and `run_stream`:
+
+```python
+# providers.py  (sketch)
+
+class _Provider:
+     def __init__(self, body: VendorRequest):
+          self.body = body
+
+     async def run(self) -> VendorResponse:
+          """Non-streaming execution."""
+          self._parse_run_settings()
+          self._parse_agent_settings()
+          runner = Runner(self._run_settings, self._agent_settings)
+          output_ir = await runner.run()
+          return self._compose_output(output_ir)
+
+     async def run_stream(self) -> AsyncIterator[VendorResponse]:
+          """Streaming execution."""
+          self._parse_run_settings()
+          self._parse_agent_settings()
+          runner = Runner(self._run_settings, self._agent_settings)
+          async for event in runner.run_stream():
+               yield self._compose_output(event)
+
+     def _parse_run_settings(self) -> AgentRunSettings:
+          """Parse the vendor request body into pydantic-ai run settings
+          (message history, instructions, toolsets, usage limits)."""
+          ...
+
+     def _parse_agent_settings(self) -> ModelSettings:
+          """Parse the vendor request body into provider-specific model settings
+          (temperature, max_tokens → max_output_tokens, reasoning_effort, etc.)."""
+          ...
+
+     def _compose_output(self, output_ir: OutputIR) -> VendorResponse:
+          """Convert Output IR to vendor-specific response format
+          by calling Type.from_ir()."""
+          ...
+```
+
+Internally each provider:
+1. Is **instantiated with the vendor-specific request body**.
+2. **`run`** / **`run_stream`** — the public interface. Orchestrates the full pipeline: parse settings, create Runner, stream output, compose response.
+3. **`_parse_run_settings`** — parses the body into the agent run configuration (message history, instructions, toolsets, usage limits).
+4. **`_parse_agent_settings`** — parses the body's sampling parameters into provider-specific pydantic-ai settings (e.g. field renaming like `max_tokens` → `max_output_tokens`, provider-specific features like `openai_reasoning_effort`, omitting unsupported fields).
+5. **`_compose_output`** — takes Output IR from the Runner and produces the vendor-specific response by calling `Type.from_ir()`.
+
+### Step 3 — Runner: pydantic-ai wrapper
+
+`runner.py` is a thin wrapper around pydantic-ai's `Agent`. The provider instantiates it with the run settings and model settings, and the Runner streams **Output IR** back.
 
 ```python
 # runner.py  (sketch)
@@ -53,87 +102,47 @@ class Runner:
      def __init__(self, agent: Agent, model: Model, settings: ModelSettings):
           ...
 
-     async def run(self, ...) -> RunResult:
-          """Non-streaming execution."""
+     async def run(self, ...) -> OutputIR:
+          """Non-streaming execution. Returns Output IR."""
           ...
 
-     async def run_stream(self, ...) -> AsyncIterator[StreamEvent]:
-          """Streaming execution."""
-          ...
-```
-
-The Runner is the only module that directly interacts with the pydantic-ai execution API. It can be swapped or mocked independently (e.g. for testing or recording).
-
-### Step 3 — Providers: input IR → output IR
-
-`providers.py` contains one class per provider. Each provider exposes `run` and `run_stream` that accept input IR and return output IR.
-
-```python
-# providers.py  (sketch)
-
-class OpenAIProvider:
-     async def run(ir: InputIR) -> OutputIR:
-          settings = self._map_model_settings(ir.model_settings)
-          runner = Runner(agent, model, settings)
-          result = await runner.run(...)
-          return self._map_response(result)
-
-     async def run_stream(ir: InputIR) -> AsyncIterator[OutputIR]:
-          settings = self._map_model_settings(ir.model_settings)
-          runner = Runner(agent, model, settings)
-          async for event in runner.run_stream(...):
-               yield self._map_stream_event(event)
-
-
-class AnthropicProvider:
-     async def run(ir: InputIR) -> OutputIR:
-          ...
-
-     async def run_stream(ir: InputIR) -> AsyncIterator[OutputIR]:
+     async def run_stream(self, ...) -> AsyncIterator[OutputIR]:
+          """Streaming execution. Yields Output IR events."""
           ...
 ```
 
-Internally each provider:
-1. Maps IR model settings to provider-specific pydantic-ai settings (eg: field renaming like `max_tokens` → `max_output_tokens`, provider-specific features like `openai_reasoning_effort`, omitting unsupported fields).
-2. Creates a Runner with the appropriate agent, model, and settings.
-3. Converts the pydantic-ai response/stream events back into provider-agnostic output IR.
+The Runner is the only module that directly interacts with the pydantic-ai execution API. It normalises pydantic-ai's raw response/stream events into the Output IR before yielding them. It can be swapped or mocked independently (e.g. for testing or recording).
 
-### Step 4 — Types (response path): IR → vendor response
-
-The same `types/<vendor>/` modules that parsed the request also convert the output IR stream back into the vendor-specific response format:
-
-- For streaming: each output IR event is mapped to the appropriate vendor streaming event (e.g. `response.output_text.delta` for OpenAI Responses).
-- For non-streaming: the full output IR is assembled into the vendor's response object (e.g. `OpenAIResponsesResponse`).
-
-**Key rule:** type modules consume and produce only the common IR — they never interact with pydantic-ai types directly.
-
-### Step 5 — Core: orchestrate
+### Step 4 — Core: orchestrate
 
 `core.py` (`Molto.chat()`) ties it together:
 
-1. Call the type's `as_ir()` to get the input IR.
+1. Call the type's `to_ir()` to get the Input IR.
 2. Select the provider based on the model identifier (or explicit config).
-3. Call the provider's `run()` or `run_stream()` to get output IR.
-4. Pass the output IR to the type's response conversion to produce the vendor-specific response.
+3. Instantiate the provider with the vendor-specific request body.
+4. Call `provider.run()` or `provider.run_stream()` to get the vendor-specific response.
 
 ## Migration Checklist (current → target)
 
 **Input IR & request path:**
-- [ ] Define the input IR (provider-agnostic sampling params, message history, tools, etc.).
-- [ ] Refactor `as_run_settings` to return the input IR instead of `OpenAIChatModelSettings`. Rename to `as_ir` or similar.
+- [ ] Define the Input IR (provider-agnostic sampling params, message history, tools, etc.).
+- [ ] Implement `to_ir()` on vendor request types. Refactor the current `as_run_settings()` on `vLLMResponsesRequest` — the provider-agnostic parts become `to_ir()`, the provider-specific parts move to the provider.
 - [ ] Remove the `from pydantic_ai.models.openai import OpenAIChatModelSettings` import from `types/openai/responses.py`.
 
 **Output IR & response path:**
-- [ ] Define the output IR (provider-agnostic response events for both streaming and non-streaming). Event start and end must be pure markers that carry no content — content is only delivered in delta events between them. One specific motivation: pydantic-ai sometimes mixes content into event markers — e.g. `TextPart` inside a `PartStartEvent` can already contain text content instead of being a pure start signal. The output IR normalises these inconsistencies so that downstream type converters don't need to handle them.
-- [ ] Add response conversion methods to `types/openai/` that accept output IR and produce vendor-specific responses and streaming events.
+- [ ] Define the Output IR (provider-agnostic response events for both streaming and non-streaming). Event start and end must be pure markers that carry no content — content is only delivered in delta events between them. One specific motivation: pydantic-ai sometimes mixes content into event markers — e.g. `TextPart` inside a `PartStartEvent` can already contain text content instead of being a pure start signal. The Output IR normalises these inconsistencies so that downstream type converters don't need to handle them.
+- [ ] Implement `from_ir()` on vendor type modules — accepts Output IR events and produces vendor-specific response objects and streaming events.
 
 **Runner:**
-- [ ] Implement `runner.py` with a `Runner` class that wraps pydantic-ai Agent instantiation and exposes `run` / `run_stream`.
+- [ ] Implement `runner.py` with a `Runner` class that wraps pydantic-ai Agent instantiation and exposes `run` / `run_stream`, normalising pydantic-ai output into Output IR.
 
 **Providers:**
-- [ ] Move `as_openai_chat_settings` from `vLLMResponsesRequest` into the OpenAI provider as an internal settings mapper.
-- [ ] Implement provider `run` / `run_stream` methods (input IR → Runner → output IR).
+- [ ] Implement provider constructors that accept the vendor-specific request body.
+- [ ] Implement `run()` / `run_stream()` as the public interface.
+- [ ] Implement `_parse_run_settings()` — parse the body into pydantic-ai agent run configuration (move provider-agnostic logic from `vLLMResponsesRequest.as_run_settings()` here).
+- [ ] Implement `_parse_agent_settings()` — parse the body into provider-specific agent configuration (move `as_openai_chat_settings` logic from `vLLMResponsesRequest` here).
+- [ ] Implement `_compose_output()` — convert Output IR to vendor-specific responses via `Type.from_ir()`.
 - [ ] Add provider implementations for additional backends (Anthropic, vLLM, etc.).
 
 **Core:**
-- [ ] Wire the full pipeline into `Molto.chat()`: types → provider → types.
+- [ ] Wire the full pipeline into `Molto.chat()`: `to_ir()` → `Provider(body)` → `provider.run()` / `provider.run_stream()`.
