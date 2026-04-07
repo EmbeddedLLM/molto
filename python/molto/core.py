@@ -31,24 +31,29 @@ class Molto:
         body: OpenAIResponsesRequest | OpenAIChatCompletionRequest,
         prefer_openai_responses: bool = False,
     ) -> OpenAIResponsesResponse | AsyncIterator[_OpenAIStreamEvent]:
-        pass
-        # TODO: Transform `body` into an intermediate representation, then dispatch to the appropriate provider(s)
+        """Orchestrate the pipeline."""
+        if isinstance(body, OpenAIChatCompletionRequest):
+            request_provider = OpenAIChatCompletionsProvider
+        elif isinstance(body, OpenAIResponsesRequest):
+            request_provider = OpenAIResponsesProvider
+        else:
+            raise ValueError(f"Unsupported request type: {type(body)}")
         ir = body.to_ir()
         if ir.model.startswith("openai/"):
-            provider = OpenAIResponsesProvider
+            model_provider = OpenAIResponsesProvider
         elif ir.model.startswith("anthropic/"):
-            provider = AnthropicMessagesProvider
+            model_provider = AnthropicMessagesProvider
         elif ir.model.startswith("vllm/"):
             if prefer_openai_responses:
-                provider = OpenAIResponsesProvider
+                model_provider = OpenAIResponsesProvider
             else:
-                provider = OpenAIChatCompletionsProvider
+                model_provider = OpenAIChatCompletionsProvider
         else:
             raise ValueError(f"Unsupported model: {ir.model}")
-        agent_settings = await provider.parse_agent_settings(ir)
-        run_settings = await provider.parse_run_settings(ir)
+        agent_settings = await model_provider.parse_agent_settings(ir)
+        run_settings = await model_provider.parse_run_settings(ir)
         runner = Runner(agent_settings, run_settings)
         if ir.stream:
-            return await provider.compose_outputs(runner.run_stream())
+            return await request_provider.compose_outputs(runner.run_stream())
         else:
-            return await provider.get_output(runner.run_stream())
+            return await request_provider.get_output(runner.run_stream())
