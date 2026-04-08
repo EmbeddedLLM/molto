@@ -150,6 +150,7 @@ class AgentError(_Message):
     error: str
     cause: str
 
+
 class InputTokensDetails(BaseModel):
     cached_tokens: int = 0
 
@@ -175,7 +176,6 @@ class AgentRunResult(_Message):
     message: str | None = None
     error: str | None = None
     usage: Usage | None = None
-
 
 
 AgentEvent = Annotated[
@@ -216,6 +216,7 @@ OutputIR = AgentEvent
 # ---------------------------------------------------------------------------
 # Input IR — provider-agnostic request bundle produced by Type.to_ir()
 # ---------------------------------------------------------------------------
+
 
 class TextFormat(BaseModel):
     kind: Literal["text"] = "text"
