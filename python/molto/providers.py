@@ -19,6 +19,7 @@ from pydantic import (
 from pydantic_ai import (
     BuiltinToolCallPart,
     BuiltinToolReturnPart,
+    DeferredToolRequests,
     ExternalToolset,
     FunctionToolset,
     ImageUrl,
@@ -26,41 +27,97 @@ from pydantic_ai import (
     ModelRequest,
     ModelResponse,
     ModelSettings,
+    RunContext,
+    StructuredDict,
     SystemPromptPart,
     TextPart,
     ThinkingPart,
     Tool,
     ToolCallPart,
-    # ToolDefinition,
+    ToolDefinition,
     ToolReturnPart,
     UsageLimits,
     UserPromptPart,
 )
-from pydantic_ai.models.openai import OpenAIChatModelSettings
+from pydantic_ai.models.openai import OpenAIChatModelSettings, OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_extra_types.timezone_name import TimeZoneName
+from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from molto.runner import AgentSettings, Runner, RunSettings
+from molto.configs import ENV_CONFIG
 
-# from vllm_responses.mcp.gateway_toolset import McpGatewayToolset, ResolvedMcpTool
-# from vllm_responses.mcp.resolver import (
-#     ResolvedMcpServerTools,
-#     build_request_remote_toolset,
-#     resolve_mcp_declarations,
-# )
-# from vllm_responses.mcp.types import McpToolInfo, McpToolRef
-# from vllm_responses.mcp.utils import (
-#     HOSTED_MCP_INTERNAL_PREFIX,
-#     build_internal_mcp_tool_name,
-#     normalize_mcp_input_schema,
-# )
-# from vllm_responses.tools import TOOLS
 from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
+from molto.types.openai.responses import (
+    OpenAIFunctionToolCall,
+    OpenAIOutputItem,
+    OpenAIOutputTextContent,
+    OpenAIReasoningContent,
+    OpenAIReasoningItem,
+    OpenAIResponsesResponse,
+    OpenAIResponsesResponseError,
+    OpenAIResponsesStream,
+    OpenAIResponsesStreamOutput,
+    OpenAIResponsesStreamPart,
+    OpenAIResponsesStreamText,
+)
+from molto.types.ir import (
+    AgentError,
+    AgentMessageDelta,
+    AgentMessageEnd,
+    AgentMessageStart,
+    AgentThoughtDelta,
+    AgentThoughtEnd,
+    AgentThoughtStart,
+    AgentToolCall,
+    AgentToolDelta,
+    AgentToolEnd,
+    AgentToolStart,
+    AgentRunResult,
+    AllowedToolsChoice,
+    BuiltinToolChoice,
+    CodeInterpreterTool,
+    FunctionTool,
+    FunctionToolChoice,
+    InputIR,
+    JsonSchemaFormat,
+    McpTool,
+    McpToolChoice,
+    OutputIR,
+    WebSearchTool,
+)
 
 # if TYPE_CHECKING:
 #     from molto.mcp.runtime_client import BuiltinMcpRuntimeClient
 
+class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
+    def get_model_settings(self):
+        def check_messages_for_tool_calls(messages: list[ModelMessage]):
+            is_tool_called = False
+            for message in messages:
+                for part in message.parts:
+                    if isinstance(part, ToolReturnPart) and part.outcome=="success":
+                        is_tool_called = True
+            return is_tool_called
+
+        def check_tool_calls(ctx: RunContext[None]):
+            if not ctx.model_settings:
+                ctx.model_settings = ModelSettings()
+            if ctx.usage.tool_calls > 0 or check_messages_for_tool_calls(ctx.messages):
+                # If tool calls exist, remove tool_choice if extra_body exists
+                if ctx.model_settings.get("extra_body"):
+                    ctx.model_settings["extra_body"].pop("tool_choice", None)
+                return ctx.model_settings
+
+            # If no tool calls, ensure tool_choice is set to "required"
+            if ctx.model_settings.get("extra_body") is None:
+                ctx.model_settings["extra_body"] = {}
+
+            ctx.model_settings["extra_body"]["tool_choice"] = "required"
+            return ctx.model_settings
+        return check_tool_calls
 
 class _Provider:
     async def parse_agent_settings(self, ir) -> AgentSettings:
@@ -71,31 +128,443 @@ class _Provider:
         """Parse input IR into pydantic-ai run settings."""
         raise NotImplementedError
 
-    async def compose_outputs(self) -> AsyncIterator:
-        """Compose vendor-specific streaming response from output IR stream."""
+    async def compose_outputs(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ):
+        """Compose vendor-specific streaming response from Output IR stream."""
         raise NotImplementedError
 
-    async def get_output(self):
-        """Compose vendor-specific response from output IR."""
+    async def get_output(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ):
+        """Compose vendor-specific response from Output IR stream."""
         raise NotImplementedError
 
 
 class OpenAIResponsesProvider(_Provider):
-    async def parse_agent_settings(self, ir) -> AgentSettings:
+    def __init__(self, ir: InputIR | None = None) -> None:
+        self._ir = ir
+
+    async def parse_agent_settings(self, ir: InputIR, http_client: AsyncClient | None = None) -> AgentSettings:
         """Parse input IR into pydantic-ai agent settings."""
-        raise NotImplementedError
+        model = OpenAIResponsesModel(
+            model_name=ir.model.split("/")[-1],
+            provider=OpenAIProvider(
+                api_key=ENV_CONFIG.openai_api_key_plain,
+                http_client=http_client,
+            )
+        )
+        model_settings=OpenAIResponsesModelSettings(
+            temperature=ir.temperature,
+            top_p=ir.top_p,
+            max_tokens=ir.max_output_tokens,
+            openai_reasoning_effort=ir.reasoning_effort,
+            openai_reasoning_summary=ir.reasoning_summary,
+            openai_logprobs= True if ir.top_logprobs else False,
+            openai_top_logprobs= ir.top_logprobs,
+            parallel_tool_calls=ir.parallel_tool_calls,
+            openai_store=ir.store,
+            openai_previous_response_id=ir.previous_response_id
+        )
+        return AgentSettings(
+            model=model,
+            model_settings=model_settings,
+            output_type=dict[str, Any] if isinstance(ir.text_format, JsonSchemaFormat) else [str, DeferredToolRequests],
+            capabilities=[OpenAIResponsesRequiredToolChoiceCapability()] if ir.tool_choice == "required" else None,
+        )
 
-    async def parse_run_settings(self, ir) -> RunSettings:
+    async def parse_run_settings(self, ir: InputIR) -> RunSettings:
+        # TODO: (Amer) improve this
         """Parse input IR into pydantic-ai run settings."""
-        raise NotImplementedError
+        # Build function tool definitions, keyed by name for filtering
+        function_tool_defs: dict[str, ToolDefinition] = {}
+        if ir.tools:
+            for t in ir.tools:
+                if isinstance(t, FunctionTool):
+                    function_tool_defs[t.name] = ToolDefinition(
+                        name=t.name,
+                        description=t.description or "",
+                        parameters_json_schema=t.parameters,
+                        strict=t.strict,
+                    )
+                elif isinstance(t, CodeInterpreterTool):
+                    pass  # TODO: wire builtin code interpreter
+                elif isinstance(t, WebSearchTool):
+                    pass  # TODO: wire builtin web search
+                elif isinstance(t, McpTool):
+                    pass  # TODO: wire MCP toolset
 
-    async def compose_outputs(self) -> AsyncIterator:
-        """Compose vendor-specific response from output IR."""
-        raise NotImplementedError
+        # Apply tool_choice: filter tools and build an instruction override when forcing a call
+        tc = ir.tool_choice
+        instruction_override: str | None = None
 
-    async def get_output(self):
-        """Compose vendor-specific response from output IR."""
-        raise NotImplementedError
+        if tc == "none":
+            function_tool_defs.clear()
+        elif tc == "auto":
+            pass
+        elif tc == "required":
+            # (Amer) I added a capability that will handle this.
+            pass
+        elif isinstance(tc, BuiltinToolChoice):
+            function_tool_defs.clear()
+            # TODO: activate the specific builtin
+            instruction_override = (
+                f"You must call the `{tc.name}` tool before producing the final answer. "
+                "Do not answer directly without calling it."
+            )
+        elif isinstance(tc, FunctionToolChoice):
+            selected = function_tool_defs.get(tc.name)
+            if selected is None:
+                raise BadInputError(
+                    f"`tool_choice.name` {tc.name!r} is not present in effective tools."
+                )
+            function_tool_defs = {tc.name: selected}
+            instruction_override = (
+                f"You must call the function `{tc.name}` before producing the final answer. "
+                "Do not answer directly without calling it."
+            )
+        elif isinstance(tc, McpToolChoice):
+            function_tool_defs.clear()
+            # TODO: activate the specific MCP tool
+            if tc.name is None:
+                instruction_override = (
+                    f"You must call a tool from the MCP server `{tc.server_label}` before "
+                    "producing the final answer. Do not answer directly without a tool call."
+                )
+            else:
+                instruction_override = (
+                    f"You must call the MCP tool `{tc.server_label}:{tc.name}` before producing "
+                    "the final answer. Do not answer directly without calling it."
+                )
+        elif isinstance(tc, AllowedToolsChoice):
+            allowed_function_names = {
+                e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
+            }
+            function_tool_defs = {
+                k: v for k, v in function_tool_defs.items() if k in allowed_function_names
+            }
+            # TODO: filter builtins and MCP tools to allowed set
+            if tc.mode == "required":
+                instruction_override = (
+                    "You must call at least one of the allowed tools before producing the final "
+                    "answer. Do not answer directly without a tool call."
+                )
+
+        # Assemble toolsets
+        toolsets: list[AbstractToolset[Any]] = []
+        if function_tool_defs:
+            toolsets.append(ExternalToolset(tool_defs=list(function_tool_defs.values())))
+
+        # Merge user instructions with any tool-choice instruction override
+        instructions: str | None
+        if not instruction_override:
+            instructions = ir.instructions
+        elif not ir.instructions:
+            instructions = instruction_override
+        else:
+            instructions = f"{ir.instructions.rstrip()}\n\n{instruction_override}"
+
+        return RunSettings(
+            message_history=ir.message_history,
+            instructions=instructions,
+            toolsets=toolsets or None,
+            usage_limits=UsageLimits(tool_calls_limit=None),
+        )
+
+    async def compose_outputs(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ):
+        """Yield OpenAI Responses streaming SSE events from the Output IR stream."""
+        assert self._ir is not None, "compose_outputs requires ir set on provider"
+        ir = self._ir
+        seq = 0
+        output_index = 0
+        output_items: list = []
+        error: OpenAIResponsesResponseError | None = None
+
+        # Per-tool-call streaming state keyed by tool_call_id
+        active_tools: dict[str, dict] = {}
+
+        # Text streaming state
+        current_text_id: str | None = None
+        current_text = ""
+
+        # Reasoning streaming state
+        current_reasoning_id: str | None = None
+        current_reasoning = ""
+
+        initial_response = OpenAIResponsesResponse(
+            model=ir.model.split("/")[-1],
+            instructions=ir.instructions,
+            status="in_progress",
+        )
+        yield OpenAIResponsesStream(
+            type="response.created",
+            response=initial_response,
+            sequence_number=seq,
+        )
+        seq += 1
+        yield OpenAIResponsesStream(
+            type="response.in_progress",
+            response=initial_response,
+            sequence_number=seq,
+        )
+        seq += 1
+
+        async for event in output_stream:
+            if isinstance(event, AgentMessageStart):
+                current_text = ""
+                current_text_id = uuid7_str("msg_")
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=OpenAIOutputItem(id=current_text_id, content=[], status="in_progress"),
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamPart(
+                    type="response.content_part.added",
+                    part=OpenAIOutputTextContent(text=""),
+                    item_id=current_text_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+            elif isinstance(event, AgentMessageDelta):
+                current_text += event.content
+                yield OpenAIResponsesStreamText(
+                    type="response.output_text.delta",
+                    delta=event.content,
+                    item_id=current_text_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+            elif isinstance(event, AgentMessageEnd):
+                yield OpenAIResponsesStreamText(
+                    type="response.output_text.done",
+                    text=current_text,
+                    item_id=current_text_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamPart(
+                    type="response.content_part.done",
+                    part=OpenAIOutputTextContent(text=current_text),
+                    item_id=current_text_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                completed_item = OpenAIOutputItem(
+                    id=current_text_id,
+                    content=[OpenAIOutputTextContent(text=current_text)],
+                    status="completed",
+                )
+                output_items.append(completed_item)
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.done",
+                    item=completed_item,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                output_index += 1
+
+            elif isinstance(event, AgentThoughtStart):
+                current_reasoning = ""
+                current_reasoning_id = uuid7_str("rs_")
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=OpenAIReasoningItem(id=current_reasoning_id, status="in_progress"),
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+            elif isinstance(event, AgentThoughtDelta):
+                current_reasoning += event.content
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.delta",
+                    delta=event.content,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+            elif isinstance(event, AgentThoughtEnd):
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.done",
+                    text=current_reasoning,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                completed_item = OpenAIReasoningItem(
+                    id=current_reasoning_id,
+                    content=(
+                        [OpenAIReasoningContent(text=current_reasoning)]
+                        if current_reasoning
+                        else []
+                    ),
+                    status="completed",
+                )
+                output_items.append(completed_item)
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.done",
+                    item=completed_item,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                output_index += 1
+
+            elif isinstance(event, AgentToolStart):
+                item_id = uuid7_str("fc_")
+                active_tools[event.tool_call_id] = {
+                    "id": item_id,
+                    "tool_name": event.tool_name,
+                    "args_buf": "",
+                    "output_index": output_index,
+                }
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=OpenAIFunctionToolCall(
+                        id=item_id,
+                        call_id=event.tool_call_id,
+                        name=event.tool_name,
+                        arguments="",
+                        status="in_progress",
+                    ),
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                output_index += 1
+
+            elif isinstance(event, AgentToolDelta):
+                tc = active_tools.get(event.tool_call_id)
+                if tc:
+                    tc["args_buf"] += event.args
+                    yield OpenAIResponsesStreamText(
+                        type="response.function_call_arguments.delta",
+                        delta=event.args,
+                        item_id=tc["id"],
+                        output_index=tc["output_index"],
+                        sequence_number=seq,
+                    )
+                    seq += 1
+
+            elif isinstance(event, AgentToolEnd):
+                tc = active_tools.get(event.tool_call_id)
+                if tc:
+                    yield OpenAIResponsesStreamText(
+                        type="response.function_call_arguments.done",
+                        arguments=tc["args_buf"],
+                        item_id=tc["id"],
+                        output_index=tc["output_index"],
+                        sequence_number=seq,
+                    )
+                    seq += 1
+
+            elif isinstance(event, AgentRunResult):
+                for tool_call in (event.tool_calls or []):
+                    args_str = json.dumps(
+                        tool_call.args, ensure_ascii=False, separators=(",", ":")
+                    )
+                    tc = active_tools.pop(tool_call.tool_call_id, None)
+                    item_id = tc["id"] if tc else uuid7_str("fc_")
+                    item_output_index = tc["output_index"] if tc else output_index
+                    completed_item = OpenAIFunctionToolCall(
+                        id=item_id,
+                        call_id=tool_call.tool_call_id,
+                        name=tool_call.tool_name,
+                        arguments=args_str,
+                        status="completed",
+                    )
+                    output_items.append(completed_item)
+                    yield OpenAIResponsesStreamOutput(
+                        type="response.output_item.done",
+                        item=completed_item,
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
+
+            elif isinstance(event, AgentError):
+                error = OpenAIResponsesResponseError(
+                    code="server_error",
+                    message=event.error,
+                )
+
+        final_response = OpenAIResponsesResponse(
+            model=ir.model.split("/")[-1],
+            instructions=ir.instructions,
+            status="completed" if error is None else "failed",
+            output=output_items,
+            error=error,
+        )
+        yield OpenAIResponsesStream(
+            type="response.completed" if error is None else "response.failed",
+            response=final_response,
+            sequence_number=seq,
+        )
+
+    async def get_output(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ) -> OpenAIResponsesResponse:
+        """Return a single OpenAI Responses response by parsing the terminal AgentRunResult event."""
+        ir = self._ir
+        async for event in output_stream:
+            if isinstance(event, AgentRunResult):
+                output_items = []
+                for tool_call in (event.tool_calls or []):
+                    output_items.append(
+                        OpenAIFunctionToolCall(
+                            id=uuid7_str("fc_"),
+                            call_id=tool_call.tool_call_id,
+                            name=tool_call.tool_name,
+                            arguments=json.dumps(
+                                tool_call.args, ensure_ascii=False, separators=(",", ":")
+                            ),
+                            status="completed",
+                        )
+                    )
+                if event.message:
+                    output_items.append(
+                        OpenAIOutputItem(
+                            id=uuid7_str("msg_"),
+                            content=[OpenAIOutputTextContent(text=event.message)],
+                            status="completed",
+                        )
+                    )
+                error = (
+                    OpenAIResponsesResponseError(code="server_error", message=event.error)
+                    if event.error
+                    else None
+                )
+                return OpenAIResponsesResponse(
+                    model=ir.model.split("/")[-1],
+                    instructions=ir.instructions,
+                    status="completed" if error is None else "failed",
+                    output=output_items,
+                    error=error,
+                )
+        return OpenAIResponsesResponse(
+            model=ir.model.split("/")[-1],
+            instructions=ir.instructions,
+            status="completed",
+            output=[],
+        )
 
 
 class OpenAIChatCompletionsProvider(_Provider):

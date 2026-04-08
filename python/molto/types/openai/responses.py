@@ -59,6 +59,21 @@ from pydantic_extra_types.timezone_name import TimeZoneName
 #     normalize_mcp_input_schema,
 # )
 # from vllm_responses.tools import TOOLS
+from molto.types.ir import (
+    AllowedToolsChoice,
+    BuiltinToolChoice,
+    CodeInterpreterTool,
+    FunctionTool,
+    FunctionToolChoice,
+    InputIR,
+    JsonObjectFormat,
+    JsonSchemaFormat,
+    McpTool,
+    McpToolChoice,
+    TextFormat,
+    WebSearchTool,
+    WebSearchUserLocation,
+)
 from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
 
@@ -1380,6 +1395,178 @@ class OpenAIStreamOptions(BaseModel):
         ),
     ] = True
 
+# Might need to move this later idk if this is the correct place for it
+def _convert_input_to_messages(
+    input: str | list[vLLMInput],
+) -> list[ModelMessage]:
+    if isinstance(input, str):
+        return [ModelRequest(parts=[UserPromptPart(content=input)])]
+
+    message_history: list[ModelMessage] = []
+    for msg in input:
+        if isinstance(msg, (OpenAIInputMessage, OpenAIInputItem)):
+            if msg.role in ("system", "developer"):
+                if not isinstance(msg.content, str):
+                    raise BadInputError("System prompt must be a string.")
+                message_history.append(ModelRequest(parts=[SystemPromptPart(content=msg.content)]))
+                continue
+
+            if msg.role == "user":
+                if isinstance(msg.content, str):
+                    message_history.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+                else:
+                    message_history.append(
+                        ModelRequest(
+                            parts=[
+                                UserPromptPart(
+                                    content=[
+                                        c.text
+                                        if isinstance(c, OpenAITextContent)
+                                        else ImageUrl(url=c.image_url, vendor_metadata={"detail": c.detail})
+                                        for c in msg.content
+                                    ]
+                                )
+                            ]
+                        )
+                    )
+                continue
+
+            if msg.role == "assistant":
+                if not isinstance(msg.content, str):
+                    raise BadInputError(
+                        "Assistant message input must be a string. "
+                        "To replay assistant outputs, use `OpenAIOutputItem`."
+                    )
+                message_history.append(ModelResponse(parts=[TextPart(content=msg.content, id=None)]))
+                continue
+
+            raise BadInputError(f"Invalid message role: {msg.role}")
+
+        if isinstance(msg, OpenAIOutputItem):
+            for content_item in msg.content:
+                if isinstance(content_item, OpenAIOutputTextContent):
+                    message_history.append(
+                        ModelResponse(parts=[TextPart(content=content_item.text, id=msg.id)])
+                    )
+                elif isinstance(content_item, OpenAIOutputRefusal):
+                    message_history.append(
+                        ModelResponse(parts=[TextPart(content=content_item.refusal, id=msg.id)])
+                    )
+                else:
+                    raise BadInputError(f"Invalid assistant content type: {type(content_item)}")
+            continue
+
+        if isinstance(msg, OpenAIReasoningItem):
+            content = ""
+            if msg.content:
+                content = "".join(c.text for c in msg.content)
+            if not msg.encrypted_content and msg.summary:
+                content = "".join(c.text for c in msg.summary)
+            message_history.append(
+                ModelResponse(
+                    parts=[
+                        ThinkingPart(
+                            content=content,
+                            signature=msg.encrypted_content,
+                            id=msg.id,
+                        )
+                    ]
+                )
+            )
+            continue
+
+        if isinstance(msg, OpenAIFunctionToolCall):
+            message_history.append(
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            tool_name=msg.name,
+                            args=msg.arguments,
+                            tool_call_id=msg.call_id,
+                            id=msg.id,
+                        )
+                    ]
+                )
+            )
+            continue
+
+        if isinstance(msg, OpenAIFunctionToolOutput):
+            tool_name: str = next(
+                (
+                    i.name
+                    for i in input
+                    if isinstance(i, OpenAIFunctionToolCall) and i.call_id == msg.call_id
+                ),
+                "",
+            )
+            if isinstance(msg.output, str):
+                tool_output = msg.output
+            else:
+                tool_output = json.dumps(
+                    [c.model_dump(mode="python") for c in msg.output],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            message_history.append(
+                ModelRequest(
+                    parts=[
+                        ToolReturnPart(
+                            tool_name=tool_name,
+                            content=tool_output,
+                            tool_call_id=msg.call_id,
+                        )
+                    ]
+                )
+            )
+            continue
+
+        if isinstance(msg, OpenAICodeToolCall):
+            message_history.append(
+                ModelResponse(
+                    parts=[
+                        BuiltinToolCallPart(
+                            tool_name="code_execution",
+                            args={"container_id": msg.container_id, "code": msg.code},
+                            tool_call_id=msg.id,
+                        ),
+                        BuiltinToolReturnPart(
+                            tool_name="code_execution",
+                            content={"status": "completed"},
+                            tool_call_id=msg.id,
+                        ),
+                    ]
+                )
+            )
+            continue
+
+        if isinstance(msg, OpenAIWebSearchToolCall):
+            action_payload = (
+                msg.action.model_dump(mode="python", exclude_none=True)
+                if msg.action is not None
+                else {}
+            )
+            message_history.append(
+                ModelResponse(
+                    parts=[
+                        BuiltinToolCallPart(
+                            tool_name=WEB_SEARCH_TOOL,
+                            args=action_payload,
+                            tool_call_id=msg.id,
+                        ),
+                        BuiltinToolReturnPart(
+                            tool_name=WEB_SEARCH_TOOL,
+                            content={"status": msg.status, "action": action_payload},
+                            tool_call_id=msg.id,
+                        ),
+                    ]
+                )
+            )
+            continue
+
+        raise BadInputError(f"Invalid message type: {type(msg)}")
+
+    return message_history
+
 
 class vLLMResponsesRequest(BaseModel):
     input: Annotated[
@@ -1605,9 +1792,118 @@ class vLLMResponsesRequest(BaseModel):
             v.validate_vllm_hosted_tools()
         return v
 
-    def to_ir():
-        # TODO: Implement
-        pass
+    def to_ir(self) -> InputIR:
+        # Normalize tools
+        ir_tools: list | None = None
+        if self.tools:
+            ir_tools = []
+            for t in self.tools:
+                if isinstance(t, OpenAIResponsesFunctionTool):
+                    ir_tools.append(
+                        FunctionTool(
+                            name=t.name,
+                            parameters=t.parameters,
+                            strict=t.strict,
+                            description=t.description,
+                        )
+                    )
+                elif isinstance(t, vLLMResponsesCodeTool):
+                    ir_tools.append(CodeInterpreterTool())
+                elif isinstance(t, OpenAIResponsesWebSearchTool):
+                    ir_tools.append(
+                        WebSearchTool(
+                            search_context_size=t.search_context_size,
+                            allowed_domains=t.filters.allowed_domains if t.filters else [],
+                            user_location=(
+                                WebSearchUserLocation(
+                                    city=t.user_location.city,
+                                    country=t.user_location.country,
+                                    region=t.user_location.region,
+                                    timezone=(
+                                        str(t.user_location.timezone)
+                                        if t.user_location.timezone
+                                        else None
+                                    ),
+                                )
+                                if t.user_location
+                                else None
+                            ),
+                        )
+                    )
+                elif isinstance(t, OpenAIResponsesMcpTool):
+                    ir_tools.append(
+                        McpTool(
+                            server_label=t.server_label,
+                            server_url=t.server_url,
+                            headers=t.headers,
+                            authorization=t.authorization,
+                            allowed_tools=t.allowed_tools,
+                            require_approval=t.require_approval,
+                        )
+                    )
+                else:
+                    raise ValueError(f"Unknown tool type: {type(t)}")
+
+        # Normalize tool_choice
+        tc = self.tool_choice
+        if isinstance(tc, str):
+            ir_tool_choice = tc  # "none" | "auto" | "required"
+        elif isinstance(tc, OpenAIHostedToolChoice):
+            ir_tool_choice = BuiltinToolChoice(name=_normalize_hosted_tool_type(tc.type))
+        elif isinstance(tc, OpenAIFunctionToolChoice):
+            ir_tool_choice = FunctionToolChoice(name=tc.name)
+        elif isinstance(tc, OpenAIMcpToolChoice):
+            ir_tool_choice = McpToolChoice(server_label=tc.server_label, name=tc.name)
+        elif isinstance(tc, OpenAIAllowedToolsChoice):
+            allowed = []
+            for atool in tc.tools:
+                if isinstance(atool, OpenAIHostedToolChoice):
+                    allowed.append(BuiltinToolChoice(name=_normalize_hosted_tool_type(atool.type)))
+                elif isinstance(atool, OpenAIFunctionToolChoice):
+                    allowed.append(FunctionToolChoice(name=atool.name))
+                elif isinstance(atool, OpenAIMcpToolChoice):
+                    allowed.append(McpToolChoice(server_label=atool.server_label, name=atool.name))
+            ir_tool_choice = AllowedToolsChoice(mode=tc.mode, tools=allowed)
+        else:
+            raise ValueError(f"Unknown tool_choice type: {type(tc)}")
+
+        # Normalize text output format
+        text_format = None
+        if self.text and self.text.format is not None:
+            fmt = self.text.format
+            if isinstance(fmt, OpenAITextFormat):
+                text_format = TextFormat()
+            elif isinstance(fmt, OpenAIJsonObjectFormat):
+                text_format = JsonObjectFormat()
+            elif isinstance(fmt, OpenAIJsonSchemaFormat):
+                text_format = JsonSchemaFormat(
+                    name=fmt.name,
+                    json_schema=fmt.schema_,
+                    strict=fmt.strict,
+                    description=fmt.description,
+                )
+
+        return InputIR(
+            model=self.model,
+            stream=self.stream,
+            message_history=_convert_input_to_messages(self.input),
+            instructions=self.instructions,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            max_output_tokens=self.max_output_tokens,
+            reasoning_effort=self.reasoning.effort if self.reasoning else None,
+            reasoning_summary=self.reasoning.summary if self.reasoning else None,
+            top_logprobs=self.top_logprobs,
+            parallel_tool_calls=self.parallel_tool_calls,
+            max_tool_calls=self.max_tool_calls,
+            text_format=text_format,
+            tools=ir_tools,
+            tool_choice=ir_tool_choice,
+            include=self.include,
+            store=self.store,
+            previous_response_id=self.previous_response_id,
+            metadata=self.metadata,
+        )
 
 
 class OpenAIResponsesRequest(vLLMResponsesRequest):

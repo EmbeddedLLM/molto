@@ -27,10 +27,13 @@ from molto.utils.test import STREAM_PARAMS
 CASSETTE_DIR = Path("tests/cassettes")
 
 
-def _read_cassette(path: Path, stream: bool) -> dict[str, Any]:
+def _read_cassette(path: Path, stream: bool, is_molto: bool) -> dict[str, Any]:
     """Read the response body from a cassette YAML file."""
-    if stream:
+    if stream or is_molto:
         path = path.with_stem(f"{path.stem}-stream")
+    print("path: ", path)
+    print("path: ", is_molto)
+    print("----")
     data = read_yaml(path)["response"]
     return data["sse"] if stream else data["body"]
 
@@ -44,9 +47,11 @@ async def test_tool_choice_required(stream: bool):
             assert body.get("tool_choice") == "required"
             assert len(body.get("input", [])) == 1
             assert body.get("stream", False) is stream
+            is_molto = body.get("is_molto", False)
             data = _read_cassette(
                 CASSETTE_DIR / "openai" / "responses" / "tool_choice-required.yaml",
                 stream=stream,
+                is_molto=is_molto
             )
             if stream:
                 return httpx.Response(
@@ -67,7 +72,7 @@ async def test_tool_choice_required(stream: bool):
             )
 
     body = dict(
-        model="gpt-4.1-nano",
+        model="openai/gpt-4.1-nano",
         input=[{"role": "user", "content": "What number am I thinking of?"}],
         tools=[
             {
@@ -108,7 +113,7 @@ async def test_tool_choice_required(stream: bool):
     assert isinstance(response.output, list)
     assert isinstance(response.output[0], ResponseFunctionToolCall)
     assert response.output[0].name == "guess_number"
-
+    body["is_molto"] = True
     client = Molto(http_client=http_client)
     response = await client.chat(OpenAIResponsesRequest(**body))
     if stream:
