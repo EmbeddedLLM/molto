@@ -1,6 +1,5 @@
 from typing import Annotated, Any, Literal, Union
 
-from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import ModelMessage
 
