@@ -33,7 +33,6 @@ class Molto:
     ) -> OpenAIResponsesResponse | AsyncIterator[_OpenAIStreamEvent]:
         """Orchestrate the pipeline."""
         ir = body.to_ir()
-
         if isinstance(body, OpenAIChatCompletionRequest):
             request_provider = OpenAIChatCompletionsProvider()
         elif isinstance(body, OpenAIResponsesRequest):
@@ -56,7 +55,6 @@ class Molto:
         agent_settings = await model_provider.parse_agent_settings(ir, self._http_client)
         run_settings = await model_provider.parse_run_settings(ir)
         runner = Runner(agent_settings, run_settings)
-
         if ir.stream:
             return request_provider.compose_outputs(runner.run_stream())
         else:

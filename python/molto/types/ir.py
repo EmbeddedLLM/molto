@@ -361,3 +361,5 @@ class InputIR(BaseModel):
     store: bool | None = None
     previous_response_id: str | None
     metadata: dict[str, Any] | None
+
+    # TODO: (Amer) maybe we should add extra_body

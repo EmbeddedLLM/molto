@@ -1,55 +1,52 @@
 # Providers will map the intermediate representation to Pydantic-AI's various settings
 import json
-from collections import defaultdict
 from collections.abc import AsyncIterator
-from time import time
-from typing import Annotated, Any, Literal, TypedDict, Union
 
 from httpx import AsyncClient
-from jsonschema import Draft202012Validator
-from jsonschema import exceptions as jsonschema_exceptions
-from pydantic import (
-    AliasChoices,
-    BaseModel,
-    Discriminator,
-    Field,
-    WrapValidator,
-    field_validator,
-)
 from pydantic_ai import (
-    BuiltinToolCallPart,
-    BuiltinToolReturnPart,
     DeferredToolRequests,
     ExternalToolset,
-    FunctionToolset,
-    ImageUrl,
     ModelMessage,
-    ModelRequest,
-    ModelResponse,
     ModelSettings,
     RunContext,
-    StructuredDict,
-    SystemPromptPart,
-    TextPart,
-    ThinkingPart,
-    Tool,
-    ToolCallPart,
     ToolDefinition,
     ToolReturnPart,
     UsageLimits,
-    UserPromptPart,
 )
-from pydantic_ai.models.openai import OpenAIChatModelSettings, OpenAIResponsesModel, OpenAIResponsesModelSettings
-from pydantic_ai.toolsets.abstract import AbstractToolset
-from pydantic_extra_types.timezone_name import TimeZoneName
 from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.models.openai import (
+    OpenAIResponsesModel,
+    OpenAIResponsesModelSettings,
+)
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.toolsets.abstract import AbstractToolset
 
-from molto.runner import AgentSettings, Runner, RunSettings
 from molto.configs import ENV_CONFIG
-
-from molto.utils import uuid7_str
-from molto.utils.exceptions import BadInputError
+from molto.runner import AgentSettings, RunSettings
+from molto.types.ir import (
+    AgentError,
+    AgentMessageDelta,
+    AgentMessageEnd,
+    AgentMessageStart,
+    AgentRunResult,
+    AgentThoughtDelta,
+    AgentThoughtEnd,
+    AgentThoughtStart,
+    AgentToolDelta,
+    AgentToolEnd,
+    AgentToolStart,
+    AllowedToolsChoice,
+    BuiltinToolChoice,
+    CodeInterpreterTool,
+    FunctionTool,
+    FunctionToolChoice,
+    InputIR,
+    JsonSchemaFormat,
+    McpTool,
+    McpToolChoice,
+    OutputIR,
+    WebSearchTool,
+)
 from molto.types.openai.responses import (
     OpenAIFunctionToolCall,
     OpenAIOutputItem,
@@ -63,34 +60,12 @@ from molto.types.openai.responses import (
     OpenAIResponsesStreamPart,
     OpenAIResponsesStreamText,
 )
-from molto.types.ir import (
-    AgentError,
-    AgentMessageDelta,
-    AgentMessageEnd,
-    AgentMessageStart,
-    AgentThoughtDelta,
-    AgentThoughtEnd,
-    AgentThoughtStart,
-    AgentToolCall,
-    AgentToolDelta,
-    AgentToolEnd,
-    AgentToolStart,
-    AgentRunResult,
-    AllowedToolsChoice,
-    BuiltinToolChoice,
-    CodeInterpreterTool,
-    FunctionTool,
-    FunctionToolChoice,
-    InputIR,
-    JsonSchemaFormat,
-    McpTool,
-    McpToolChoice,
-    OutputIR,
-    WebSearchTool,
-)
+from molto.utils import uuid7_str
+from molto.utils.exceptions import BadInputError
 
 # if TYPE_CHECKING:
 #     from molto.mcp.runtime_client import BuiltinMcpRuntimeClient
+
 
 class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
     def get_model_settings(self):
@@ -98,7 +73,7 @@ class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
             is_tool_called = False
             for message in messages:
                 for part in message.parts:
-                    if isinstance(part, ToolReturnPart) and part.outcome=="success":
+                    if isinstance(part, ToolReturnPart) and part.outcome == "success":
                         is_tool_called = True
             return is_tool_called
 
@@ -117,7 +92,9 @@ class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
 
             ctx.model_settings["extra_body"]["tool_choice"] = "required"
             return ctx.model_settings
+
         return check_tool_calls
+
 
 class _Provider:
     async def parse_agent_settings(self, ir) -> AgentSettings:
@@ -147,32 +124,38 @@ class OpenAIResponsesProvider(_Provider):
     def __init__(self, ir: InputIR | None = None) -> None:
         self._ir = ir
 
-    async def parse_agent_settings(self, ir: InputIR, http_client: AsyncClient | None = None) -> AgentSettings:
+    async def parse_agent_settings(
+        self, ir: InputIR, http_client: AsyncClient | None = None
+    ) -> AgentSettings:
         """Parse input IR into pydantic-ai agent settings."""
         model = OpenAIResponsesModel(
             model_name=ir.model.split("/")[-1],
             provider=OpenAIProvider(
                 api_key=ENV_CONFIG.openai_api_key_plain,
                 http_client=http_client,
-            )
+            ),
         )
-        model_settings=OpenAIResponsesModelSettings(
+        model_settings = OpenAIResponsesModelSettings(
             temperature=ir.temperature,
             top_p=ir.top_p,
             max_tokens=ir.max_output_tokens,
             openai_reasoning_effort=ir.reasoning_effort,
             openai_reasoning_summary=ir.reasoning_summary,
-            openai_logprobs= True if ir.top_logprobs else False,
-            openai_top_logprobs= ir.top_logprobs,
+            openai_logprobs=True if ir.top_logprobs else False,
+            openai_top_logprobs=ir.top_logprobs,
             parallel_tool_calls=ir.parallel_tool_calls,
             openai_store=ir.store,
-            openai_previous_response_id=ir.previous_response_id
+            openai_previous_response_id=ir.previous_response_id,
         )
         return AgentSettings(
             model=model,
             model_settings=model_settings,
-            output_type=dict[str, Any] if isinstance(ir.text_format, JsonSchemaFormat) else [str, DeferredToolRequests],
-            capabilities=[OpenAIResponsesRequiredToolChoiceCapability()] if ir.tool_choice == "required" else None,
+            output_type=dict[str, Any]
+            if isinstance(ir.text_format, JsonSchemaFormat)
+            else [str, DeferredToolRequests],
+            capabilities=[OpenAIResponsesRequiredToolChoiceCapability()]
+            if ir.tool_choice == "required"
+            else None,
         )
 
     async def parse_run_settings(self, ir: InputIR) -> RunSettings:
@@ -476,7 +459,7 @@ class OpenAIResponsesProvider(_Provider):
                     seq += 1
 
             elif isinstance(event, AgentRunResult):
-                for tool_call in (event.tool_calls or []):
+                for tool_call in event.tool_calls or []:
                     args_str = json.dumps(
                         tool_call.args, ensure_ascii=False, separators=(",", ":")
                     )
@@ -524,10 +507,11 @@ class OpenAIResponsesProvider(_Provider):
     ) -> OpenAIResponsesResponse:
         """Return a single OpenAI Responses response by parsing the terminal AgentRunResult event."""
         ir = self._ir
+        response = None
         async for event in output_stream:
             if isinstance(event, AgentRunResult):
                 output_items = []
-                for tool_call in (event.tool_calls or []):
+                for tool_call in event.tool_calls or []:
                     output_items.append(
                         OpenAIFunctionToolCall(
                             id=uuid7_str("fc_"),
@@ -552,13 +536,16 @@ class OpenAIResponsesProvider(_Provider):
                     if event.error
                     else None
                 )
-                return OpenAIResponsesResponse(
+                response = OpenAIResponsesResponse(
                     model=ir.model.split("/")[-1],
                     instructions=ir.instructions,
                     status="completed" if error is None else "failed",
                     output=output_items,
                     error=error,
                 )
+        # This is done to properly exit the async generator
+        if response is not None:
+            return response
         return OpenAIResponsesResponse(
             model=ir.model.split("/")[-1],
             instructions=ir.instructions,

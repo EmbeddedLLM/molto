@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from time import time
-from typing import Annotated, Any, Literal, TypedDict, Union
+from typing import Annotated, Any, Literal, Union
 
 from jsonschema import Draft202012Validator
 from jsonschema import exceptions as jsonschema_exceptions
@@ -26,8 +26,6 @@ from pydantic import (
 from pydantic_ai import (
     BuiltinToolCallPart,
     BuiltinToolReturnPart,
-    ExternalToolset,
-    FunctionToolset,
     ImageUrl,
     ModelMessage,
     ModelRequest,
@@ -35,30 +33,13 @@ from pydantic_ai import (
     SystemPromptPart,
     TextPart,
     ThinkingPart,
-    Tool,
     ToolCallPart,
     # ToolDefinition,
     ToolReturnPart,
-    UsageLimits,
     UserPromptPart,
 )
-from pydantic_ai.models.openai import OpenAIChatModelSettings
-from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_extra_types.timezone_name import TimeZoneName
 
-# from vllm_responses.mcp.gateway_toolset import McpGatewayToolset, ResolvedMcpTool
-# from vllm_responses.mcp.resolver import (
-#     ResolvedMcpServerTools,
-#     build_request_remote_toolset,
-#     resolve_mcp_declarations,
-# )
-# from vllm_responses.mcp.types import McpToolInfo, McpToolRef
-# from vllm_responses.mcp.utils import (
-#     HOSTED_MCP_INTERNAL_PREFIX,
-#     build_internal_mcp_tool_name,
-#     normalize_mcp_input_schema,
-# )
-# from vllm_responses.tools import TOOLS
 from molto.types.ir import (
     AllowedToolsChoice,
     BuiltinToolChoice,
@@ -76,9 +57,6 @@ from molto.types.ir import (
 )
 from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
-
-# if TYPE_CHECKING:
-#     from molto.mcp.runtime_client import BuiltinMcpRuntimeClient
 
 CODE_INTERPRETER_TOOL = "code_interpreter"
 WEB_SEARCH_TOOL = "web_search"
@@ -1395,7 +1373,8 @@ class OpenAIStreamOptions(BaseModel):
         ),
     ] = True
 
-# Might need to move this later idk if this is the correct place for it
+
+# TODO: (Amer) need to move this to providers.py
 def _convert_input_to_messages(
     input: str | list[vLLMInput],
 ) -> list[ModelMessage]:
@@ -1413,7 +1392,9 @@ def _convert_input_to_messages(
 
             if msg.role == "user":
                 if isinstance(msg.content, str):
-                    message_history.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+                    message_history.append(
+                        ModelRequest(parts=[UserPromptPart(content=msg.content)])
+                    )
                 else:
                     message_history.append(
                         ModelRequest(
@@ -1422,7 +1403,9 @@ def _convert_input_to_messages(
                                     content=[
                                         c.text
                                         if isinstance(c, OpenAITextContent)
-                                        else ImageUrl(url=c.image_url, vendor_metadata={"detail": c.detail})
+                                        else ImageUrl(
+                                            url=c.image_url, vendor_metadata={"detail": c.detail}
+                                        )
                                         for c in msg.content
                                     ]
                                 )
@@ -1437,7 +1420,9 @@ def _convert_input_to_messages(
                         "Assistant message input must be a string. "
                         "To replay assistant outputs, use `OpenAIOutputItem`."
                     )
-                message_history.append(ModelResponse(parts=[TextPart(content=msg.content, id=None)]))
+                message_history.append(
+                    ModelResponse(parts=[TextPart(content=msg.content, id=None)])
+                )
                 continue
 
             raise BadInputError(f"Invalid message role: {msg.role}")
