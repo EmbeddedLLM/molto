@@ -23,43 +23,61 @@ from pydantic import (
     WrapValidator,
     field_validator,
 )
-from pydantic_ai import (
-    BuiltinToolCallPart,
-    BuiltinToolReturnPart,
-    ImageUrl,
-    ModelMessage,
-    ModelRequest,
-    ModelResponse,
-    SystemPromptPart,
-    TextPart,
-    ThinkingPart,
-    ToolCallPart,
-    # ToolDefinition,
-    ToolReturnPart,
-    UserPromptPart,
-)
 from pydantic_extra_types.timezone_name import TimeZoneName
 
 from molto.types.ir import (
+    AgentMessage,
+    AgentThought,
+    AgentToolCall,
+    AgentToolCalls,
+    AgentToolResult,
     AllowedToolsChoice,
     BuiltinToolChoice,
     CodeInterpreterTool,
+    ContentPart,
     FunctionTool,
     FunctionToolChoice,
-    InputIR,
+    ImagePart,
+    Input,
+    InputCodeToolCall,
+    InputHistoryItem,
+    InputMcpToolCall,
+    InputWebSearchToolCall,
     JsonObjectFormat,
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
+    PromptTemplate,
+    SystemMessage,
     TextFormat,
+    TextPart,
+    UserMessage,
     WebSearchTool,
     WebSearchUserLocation,
 )
 from molto.utils import uuid7_str
-from molto.utils.exceptions import BadInputError
 
 CODE_INTERPRETER_TOOL = "code_interpreter"
 WEB_SEARCH_TOOL = "web_search"
+
+
+def _normalize_hosted_tool_type(tool_type: str) -> str:
+    if tool_type in {"web_search_preview", "web_search_2025_08_26"}:
+        return WEB_SEARCH_TOOL
+    return tool_type
+
+
+def _json_schema_validator(value: Any, handler):
+    if isinstance(value, dict):
+        try:
+            Draft202012Validator.check_schema(value)
+        except jsonschema_exceptions.SchemaError as exc:
+            raise ValueError(f"Invalid JSON Schema: {exc.message}") from exc
+        return value
+    return handler(value)
+
+
+JsonSchema = Annotated[dict[str, Any], WrapValidator(_json_schema_validator)]
 
 
 class OpenAIConversation(BaseModel):
@@ -99,6 +117,7 @@ class OpenAIReasoningEffort(BaseModel):
 # Keep this as a finite set (enum-like) so we fail fast on typos while staying spec-aligned.
 # Note: The gateway currently acts upon `web_search_call.action.sources` and
 # `code_interpreter_call.outputs` (others are parsed but ignored).
+# TODO: Create an IR for this
 OpenAIResponsesInclude = Literal[
     "web_search_call.action.sources",
     "code_interpreter_call.outputs",
@@ -154,14 +173,7 @@ class OpenAIImageContent(BaseModel):
         Literal["input_image"],
         Field(description=("The type of the input item. Always `input_image`.")),
     ] = "input_image"
-    # file_id: Annotated[
-    #     str | None,
-    #     Field(
-    #         description=("The ID of the file to be sent to the model."),
-    #     ),
-    # ] = None
     image_url: Annotated[
-        # str | None,
         str,
         Field(
             description=(
@@ -170,39 +182,6 @@ class OpenAIImageContent(BaseModel):
             ),
         ),
     ]
-
-
-# class OpenAIFileContent(BaseModel):
-#     """A file input to the model."""
-
-#     type: Annotated[
-#         Literal["input_file"],
-#         Field(description=("The type of the input item. Always `input_file`.")),
-#     ] = "input_file"
-#     file_data: Annotated[
-#         str | None,
-#         Field(
-#             description=("The content of the file to be sent to the model."),
-#         ),
-#     ] = None
-#     file_id: Annotated[
-#         str | None,
-#         Field(
-#             description=("The ID of the file to be sent to the model."),
-#         ),
-#     ] = None
-#     file_url: Annotated[
-#         str | None,
-#         Field(
-#             description=("The URL of the file to be sent to the model."),
-#         ),
-#     ] = None
-#     filename: Annotated[
-#         str | None,
-#         Field(
-#             description=("The name of the file to be sent to the model."),
-#         ),
-#     ] = None
 
 
 class OpenAIInputMessage(_OpenAIMessage):
@@ -648,7 +627,7 @@ class OpenAIWebSearchToolCall(BaseModel):
     ] = "web_search_call"
 
 
-vLLMInput = Union[
+OpenAIInput = Union[
     OpenAIInputMessage,
     OpenAIInputItem,
     OpenAIOutputItem,
@@ -664,7 +643,7 @@ vLLMInput = Union[
         Discriminator("type"),
     ],
 ]
-vLLMOutput = Annotated[
+OpenAIOutput = Annotated[
     Union[
         OpenAIOutputItem,
         OpenAIReasoningItem,
@@ -803,7 +782,7 @@ class OpenAITextConfig(BaseModel):
     ] = None
 
 
-class OpenAIHostedToolChoice(BaseModel):
+class OpenAIBuiltinToolChoice(BaseModel):
     """
     Indicates that the model should use a built-in tool to generate a response.
     """
@@ -817,7 +796,7 @@ class OpenAIHostedToolChoice(BaseModel):
         ],
         Field(
             description=(
-                "The type of hosted tool the model should to use. Allowed values are:\n"
+                "The type of Built-in tool the model should to use. Allowed values are:\n"
                 f"- `{CODE_INTERPRETER_TOOL}`\n"
                 "- `web_search`\n"
                 "- `web_search_preview`\n"
@@ -887,7 +866,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
         ),
     ]
     tools: Annotated[
-        list[OpenAIHostedToolChoice | OpenAIFunctionToolChoice | OpenAIMcpToolChoice],
+        list[OpenAIBuiltinToolChoice | OpenAIFunctionToolChoice | OpenAIMcpToolChoice],
         Field(
             description=(
                 "A list of tool definitions that the model should be allowed to call. "
@@ -911,7 +890,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
 
     def validate_vllm_hosted_tools(self) -> None:
         if any(
-            isinstance(tool, OpenAIHostedToolChoice)
+            isinstance(tool, OpenAIBuiltinToolChoice)
             and _normalize_hosted_tool_type(tool.type)
             not in {CODE_INTERPRETER_TOOL, WEB_SEARCH_TOOL}
             for tool in self.tools
@@ -919,12 +898,6 @@ class OpenAIAllowedToolsChoice(BaseModel):
             raise ValueError(
                 "vLLM does not support hosted tools other than code interpreter and web_search."
             )
-
-
-def _normalize_hosted_tool_type(tool_type: str) -> str:
-    if tool_type in {"web_search_preview", "web_search_2025_08_26"}:
-        return WEB_SEARCH_TOOL
-    return tool_type
 
 
 # def _apply_allowed_tools_choice(
@@ -1016,114 +989,18 @@ def _normalize_hosted_tool_type(tool_type: str) -> str:
 #     )
 
 
-def _build_required_tool_choice_instruction(
-    *,
-    kind: Literal["any", "allowed", "builtin", "function", "mcp"],
-    builtin_name: str | None = None,
-    function_name: str | None = None,
-    server_label: str | None = None,
-    mcp_tool_name: str | None = None,
-) -> str:
-    if kind == "builtin":
-        assert builtin_name is not None
-        return (
-            f"You must call the `{builtin_name}` tool before producing the final answer. "
-            "Do not answer directly without calling it."
-        )
-    if kind == "function":
-        assert function_name is not None
-        return (
-            f"You must call the function `{function_name}` before producing the final answer. "
-            "Do not answer directly without calling it."
-        )
-    if kind == "mcp":
-        assert server_label is not None
-        if mcp_tool_name is None:
-            return (
-                f"You must call a tool from the MCP server `{server_label}` before producing "
-                "the final answer. Do not answer directly without a tool call."
-            )
-        return (
-            f"You must call the MCP tool `{server_label}:{mcp_tool_name}` before producing "
-            "the final answer. Do not answer directly without calling it."
-        )
-    if kind == "allowed":
-        return (
-            "You must call at least one of the allowed tools before producing the final answer. "
-            "Do not answer directly without a tool call."
-        )
-    return (
-        "You must call at least one available tool before producing the final answer. "
-        "Do not answer directly without a tool call."
-    )
-
-
-def _merge_internal_instructions(
-    *,
-    user_instructions: str | None,
-    internal_instruction: str | None,
-) -> str | None:
-    if not internal_instruction:
-        return user_instructions
-    if not user_instructions:
-        return internal_instruction
-    return f"{user_instructions.rstrip()}\n\n{internal_instruction}"
-
-
 OpenAIToolChoice = Union[
     Literal["none", "auto", "required"],
     Annotated[
         Union[
             OpenAIAllowedToolsChoice,
-            OpenAIHostedToolChoice,
+            OpenAIBuiltinToolChoice,
             OpenAIFunctionToolChoice,
             OpenAIMcpToolChoice,
         ],
         Discriminator("type"),
     ],
 ]
-
-
-def _json_schema_validator(value: Any, handler):
-    if isinstance(value, dict):
-        try:
-            Draft202012Validator.check_schema(value)
-        except jsonschema_exceptions.SchemaError as exc:
-            raise ValueError(f"Invalid JSON Schema: {exc.message}") from exc
-        return value
-    return handler(value)
-
-
-JsonSchema = Annotated[dict[str, Any], WrapValidator(_json_schema_validator)]
-
-
-# def _normalize_mcp_input_schema(
-#     *,
-#     server_label: str,
-#     tool_name: str,
-#     input_schema: dict[str, object],
-# ) -> dict[str, object]:
-#     try:
-#         normalized = normalize_mcp_input_schema(input_schema)
-#     except (TypeError, ValueError) as exc:
-#         raise BadInputError(
-#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc}"
-#         ) from exc
-
-#     if normalized["type"] != "object":
-#         raise BadInputError(
-#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`; "
-#             "root `type` must be `object`."
-#         )
-
-#     try:
-#         Draft202012Validator.check_schema(normalized)
-#     except jsonschema_exceptions.SchemaError as exc:
-#         raise BadInputError(
-#             f"MCP tool {server_label!r}:{tool_name!r} has invalid `input_schema`: {exc.message}"
-#         ) from exc
-
-#     return normalized
 
 
 class OpenAIResponsesFunctionTool(BaseModel):
@@ -1374,188 +1251,139 @@ class OpenAIStreamOptions(BaseModel):
     ] = True
 
 
-# TODO: (Amer) need to move this to providers.py
-def _convert_input_to_messages(
-    input: str | list[vLLMInput],
-) -> list[ModelMessage]:
+def _convert_input(
+    input: str | list[OpenAIInput],
+) -> str | list[InputHistoryItem]:
+    """Convert a vendor Responses API input list into provider-agnostic IR history items."""
     if isinstance(input, str):
-        return [ModelRequest(parts=[UserPromptPart(content=input)])]
+        return input
 
-    message_history: list[ModelMessage] = []
+    call_id_to_name: dict[str, str] = {
+        msg.call_id: msg.name for msg in input if isinstance(msg, OpenAIFunctionToolCall)
+    }
+
+    result: list[InputHistoryItem] = []
     for msg in input:
         if isinstance(msg, (OpenAIInputMessage, OpenAIInputItem)):
             if msg.role in ("system", "developer"):
-                if not isinstance(msg.content, str):
-                    raise BadInputError("System prompt must be a string.")
-                message_history.append(ModelRequest(parts=[SystemPromptPart(content=msg.content)]))
-                continue
-
-            if msg.role == "user":
-                if isinstance(msg.content, str):
-                    message_history.append(
-                        ModelRequest(parts=[UserPromptPart(content=msg.content)])
-                    )
-                else:
-                    message_history.append(
-                        ModelRequest(
-                            parts=[
-                                UserPromptPart(
-                                    content=[
-                                        c.text
-                                        if isinstance(c, OpenAITextContent)
-                                        else ImageUrl(
-                                            url=c.image_url, vendor_metadata={"detail": c.detail}
-                                        )
-                                        for c in msg.content
-                                    ]
-                                )
-                            ]
-                        )
-                    )
-                continue
-
-            if msg.role == "assistant":
-                if not isinstance(msg.content, str):
-                    raise BadInputError(
-                        "Assistant message input must be a string. "
-                        "To replay assistant outputs, use `OpenAIOutputItem`."
-                    )
-                message_history.append(
-                    ModelResponse(parts=[TextPart(content=msg.content, id=None)])
+                content_str = (
+                    msg.content
+                    if isinstance(msg.content, str)
+                    else "".join(p.text for p in msg.content if isinstance(p, OpenAITextContent))
                 )
-                continue
+                result.append(SystemMessage(content=content_str))
 
-            raise BadInputError(f"Invalid message role: {msg.role}")
+            elif msg.role == "user":
+                if isinstance(msg.content, str):
+                    result.append(UserMessage(content=msg.content))
+                else:
+                    parts: list[ContentPart] = []
+                    for c in msg.content:
+                        if isinstance(c, OpenAITextContent):
+                            parts.append(TextPart(text=c.text))
+                        else:
+                            parts.append(ImagePart(url=c.image_url, detail=c.detail))
+                    result.append(UserMessage(content=parts))
 
-        if isinstance(msg, OpenAIOutputItem):
+            else:  # assistant
+                content_str = (
+                    msg.content
+                    if isinstance(msg.content, str)
+                    else "".join(p.text for p in msg.content if isinstance(p, OpenAITextContent))
+                )
+                result.append(AgentMessage(content=content_str))
+
+        elif isinstance(msg, OpenAIOutputItem):
             for content_item in msg.content:
                 if isinstance(content_item, OpenAIOutputTextContent):
-                    message_history.append(
-                        ModelResponse(parts=[TextPart(content=content_item.text, id=msg.id)])
-                    )
-                elif isinstance(content_item, OpenAIOutputRefusal):
-                    message_history.append(
-                        ModelResponse(parts=[TextPart(content=content_item.refusal, id=msg.id)])
-                    )
-                else:
-                    raise BadInputError(f"Invalid assistant content type: {type(content_item)}")
-            continue
+                    result.append(AgentMessage(content=content_item.text, id=msg.id))
+                else:  # OpenAIOutputRefusal
+                    result.append(AgentMessage(content=content_item.refusal, id=msg.id))
 
-        if isinstance(msg, OpenAIReasoningItem):
+        elif isinstance(msg, OpenAIReasoningItem):
             content = ""
             if msg.content:
                 content = "".join(c.text for c in msg.content)
-            if not msg.encrypted_content and msg.summary:
+            elif msg.summary:
                 content = "".join(c.text for c in msg.summary)
-            message_history.append(
-                ModelResponse(
-                    parts=[
-                        ThinkingPart(
-                            content=content,
-                            signature=msg.encrypted_content,
-                            id=msg.id,
-                        )
-                    ]
-                )
+            result.append(
+                AgentThought(content=content, signature=msg.encrypted_content, id=msg.id)
             )
-            continue
 
-        if isinstance(msg, OpenAIFunctionToolCall):
-            message_history.append(
-                ModelResponse(
-                    parts=[
-                        ToolCallPart(
-                            tool_name=msg.name,
-                            args=msg.arguments,
+        elif isinstance(msg, OpenAIFunctionToolCall):
+            result.append(
+                AgentToolCalls(
+                    tool_calls=[
+                        AgentToolCall(
                             tool_call_id=msg.call_id,
+                            tool_name=msg.name,
+                            args=json.loads(msg.arguments) if msg.arguments else {},
                             id=msg.id,
                         )
                     ]
                 )
             )
-            continue
 
-        if isinstance(msg, OpenAIFunctionToolOutput):
-            tool_name: str = next(
-                (
-                    i.name
-                    for i in input
-                    if isinstance(i, OpenAIFunctionToolCall) and i.call_id == msg.call_id
-                ),
-                "",
-            )
-            if isinstance(msg.output, str):
-                tool_output = msg.output
-            else:
-                tool_output = json.dumps(
+        elif isinstance(msg, OpenAIFunctionToolOutput):
+            tool_name = call_id_to_name.get(msg.call_id, "")
+            tool_output = (
+                msg.output
+                if isinstance(msg.output, str)
+                else json.dumps(
                     [c.model_dump(mode="python") for c in msg.output],
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
-            message_history.append(
-                ModelRequest(
-                    parts=[
-                        ToolReturnPart(
-                            tool_name=tool_name,
-                            content=tool_output,
-                            tool_call_id=msg.call_id,
-                        )
-                    ]
+            )
+            result.append(
+                AgentToolResult(tool_call_id=msg.call_id, tool_name=tool_name, result=tool_output)
+            )
+
+        elif isinstance(msg, OpenAIMcpToolCall):
+            result.append(
+                InputMcpToolCall(
+                    id=msg.id,
+                    server_label=msg.server_label,
+                    name=msg.name,
+                    arguments=msg.arguments,
+                    status=msg.status,
+                    output=msg.output,
+                    error=msg.error,
                 )
             )
-            continue
 
-        if isinstance(msg, OpenAICodeToolCall):
-            message_history.append(
-                ModelResponse(
-                    parts=[
-                        BuiltinToolCallPart(
-                            tool_name="code_execution",
-                            args={"container_id": msg.container_id, "code": msg.code},
-                            tool_call_id=msg.id,
-                        ),
-                        BuiltinToolReturnPart(
-                            tool_name="code_execution",
-                            content={"status": "completed"},
-                            tool_call_id=msg.id,
-                        ),
-                    ]
+        elif isinstance(msg, OpenAICodeToolCall):
+            result.append(
+                InputCodeToolCall(
+                    id=msg.id,
+                    code=msg.code,
+                    container_id=msg.container_id,
+                    status=msg.status,
+                    outputs=(
+                        [o.model_dump(mode="python") for o in msg.outputs] if msg.outputs else None
+                    ),
                 )
             )
-            continue
 
-        if isinstance(msg, OpenAIWebSearchToolCall):
-            action_payload = (
-                msg.action.model_dump(mode="python", exclude_none=True)
-                if msg.action is not None
-                else {}
-            )
-            message_history.append(
-                ModelResponse(
-                    parts=[
-                        BuiltinToolCallPart(
-                            tool_name=WEB_SEARCH_TOOL,
-                            args=action_payload,
-                            tool_call_id=msg.id,
-                        ),
-                        BuiltinToolReturnPart(
-                            tool_name=WEB_SEARCH_TOOL,
-                            content={"status": msg.status, "action": action_payload},
-                            tool_call_id=msg.id,
-                        ),
-                    ]
+        elif isinstance(msg, OpenAIWebSearchToolCall):
+            result.append(
+                InputWebSearchToolCall(
+                    id=msg.id,
+                    status=msg.status,
+                    action=(
+                        msg.action.model_dump(mode="python", exclude_none=True)
+                        if msg.action is not None
+                        else None
+                    ),
                 )
             )
-            continue
 
-        raise BadInputError(f"Invalid message type: {type(msg)}")
-
-    return message_history
+    return result
 
 
 class vLLMResponsesRequest(BaseModel):
     input: Annotated[
-        str | list[vLLMInput],
+        str | list[OpenAIInput],
         Field(
             description="Text, image, or file inputs to the model, used to generate a response."
         ),
@@ -1777,7 +1605,7 @@ class vLLMResponsesRequest(BaseModel):
             v.validate_vllm_hosted_tools()
         return v
 
-    def to_ir(self) -> InputIR:
+    def to_ir(self) -> Input:
         # Normalize tools
         ir_tools: list | None = None
         if self.tools:
@@ -1833,7 +1661,7 @@ class vLLMResponsesRequest(BaseModel):
         tc = self.tool_choice
         if isinstance(tc, str):
             ir_tool_choice = tc  # "none" | "auto" | "required"
-        elif isinstance(tc, OpenAIHostedToolChoice):
+        elif isinstance(tc, OpenAIBuiltinToolChoice):
             ir_tool_choice = BuiltinToolChoice(name=_normalize_hosted_tool_type(tc.type))
         elif isinstance(tc, OpenAIFunctionToolChoice):
             ir_tool_choice = FunctionToolChoice(name=tc.name)
@@ -1842,7 +1670,7 @@ class vLLMResponsesRequest(BaseModel):
         elif isinstance(tc, OpenAIAllowedToolsChoice):
             allowed = []
             for atool in tc.tools:
-                if isinstance(atool, OpenAIHostedToolChoice):
+                if isinstance(atool, OpenAIBuiltinToolChoice):
                     allowed.append(BuiltinToolChoice(name=_normalize_hosted_tool_type(atool.type)))
                 elif isinstance(atool, OpenAIFunctionToolChoice):
                     allowed.append(FunctionToolChoice(name=atool.name))
@@ -1868,10 +1696,10 @@ class vLLMResponsesRequest(BaseModel):
                     description=fmt.description,
                 )
 
-        return InputIR(
+        return Input(
             model=self.model,
             stream=self.stream,
-            message_history=_convert_input_to_messages(self.input),
+            input=_convert_input(self.input),
             instructions=self.instructions,
             temperature=self.temperature,
             top_p=self.top_p,
@@ -2064,6 +1892,38 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
     ) -> str | OpenAIAllowedToolsChoice:
         return v
 
+    def to_ir(self) -> Input:
+        ir = super().to_ir()
+        conversation_id: str | None = None
+        if isinstance(self.conversation, str):
+            conversation_id = self.conversation
+        elif self.conversation is not None:
+            conversation_id = self.conversation.id
+        return ir.model_copy(
+            update={
+                "background": self.background,
+                "conversation_id": conversation_id,
+                "prompt": PromptTemplate(
+                    id=self.prompt.id,
+                    variables=self.prompt.variables,
+                    version=self.prompt.version,
+                )
+                if self.prompt
+                else None,
+                "prompt_cache_key": self.prompt_cache_key,
+                "prompt_cache_retention": self.prompt_cache_retention,
+                "safety_identifier": self.safety_identifier,
+                "service_tier": self.service_tier,
+                "stream_obfuscation": self.stream_options.include_obfuscation
+                if self.stream_options
+                else None,
+                "truncation": self.truncation,
+                "verbosity": self.text.verbosity
+                if isinstance(self.text, OpenAITextConfig)
+                else None,
+            }
+        )
+
 
 class OpenAIResponsesResponseError(BaseModel):
     code: Annotated[
@@ -2218,7 +2078,7 @@ class OpenAIResponsesResponse(BaseModel):
         Field(description="The object type of this resource. Always `response`."),
     ] = "response"
     output: Annotated[
-        list[vLLMOutput],
+        list[OpenAIOutput],
         Field(
             description=(
                 "An array of content items generated by the model. "
@@ -2458,7 +2318,7 @@ class OpenAIResponsesStream(_OpenAIStreamEvent):
 
 class OpenAIResponsesStreamOutput(_OpenAIStreamEvent):
     item: Annotated[
-        vLLMOutput,
+        OpenAIOutput,
         Field(description=("The output item.")),
     ]
     output_index: Annotated[

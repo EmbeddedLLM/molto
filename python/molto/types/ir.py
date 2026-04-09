@@ -21,15 +21,37 @@ class _MessageWithContent(_Message):
     ]
 
 
-class UserMessage(_MessageWithContent):
+class TextPart(BaseModel):
+    kind: Literal["text"] = "text"
+    text: str
+
+
+class ImagePart(BaseModel):
+    kind: Literal["image"] = "image"
+    url: str
+    detail: Literal["high", "low", "auto"] = "auto"
+
+
+ContentPart = Annotated[
+    Union[TextPart, ImagePart],
+    Field(discriminator="kind"),
+]
+
+
+class UserMessage(_Message):
     type: Annotated[
         Literal["user.message"],
         Field(description="Message type."),
     ] = "user.message"
-    content: Annotated[
-        str,
-        Field(description="Message content."),
-    ]
+    content: str | list[ContentPart]
+
+
+class SystemMessage(_Message):
+    type: Annotated[
+        Literal["system.message"],
+        Field(description="Message type."),
+    ] = "system.message"
+    content: str
 
 
 class AgentMessageStart(_Message):
@@ -59,6 +81,7 @@ class AgentMessage(_MessageWithContent):
         Literal["agent.message"],
         Field(description="Message type."),
     ] = "agent.message"
+    id: str | None = None
 
 
 class AgentThoughtStart(_Message):
@@ -89,6 +112,8 @@ class AgentThought(_MessageWithContent):
         Literal["agent.thought"],
         Field(description="Message type."),
     ] = "agent.thought"
+    signature: str | None = None
+    id: str | None = None
 
 
 class AgentToolStart(_Message):
@@ -122,6 +147,7 @@ class AgentToolCall(BaseModel):
     tool_call_id: str
     tool_name: str
     args: dict[str, Any]
+    id: str | None = None
 
 
 class AgentToolCalls(_Message):
@@ -149,6 +175,58 @@ class AgentError(_Message):
     ] = "agent.error"
     error: str
     cause: str
+
+
+class InputMcpToolCall(_Message):
+    type: Annotated[
+        Literal["input.mcp.call"],
+        Field(description="Message type."),
+    ] = "input.mcp.call"
+    id: str
+    server_label: str
+    name: str
+    arguments: str
+    status: str
+    output: str | None = None
+    error: str | None = None
+
+
+class InputCodeToolCall(_Message):
+    type: Annotated[
+        Literal["input.code.call"],
+        Field(description="Message type."),
+    ] = "input.code.call"
+    id: str
+    code: str | None = None
+    container_id: str
+    status: str
+    outputs: list[Any] | None = None
+
+
+class InputWebSearchToolCall(_Message):
+    type: Annotated[
+        Literal["input.web_search.call"],
+        Field(description="Message type."),
+    ] = "input.web_search.call"
+    id: str
+    status: str
+    action: dict[str, Any] | None = None
+
+
+InputHistoryItem = Annotated[
+    Union[
+        UserMessage,
+        SystemMessage,
+        AgentMessage,
+        AgentThought,
+        AgentToolCalls,
+        AgentToolResult,
+        InputMcpToolCall,
+        InputCodeToolCall,
+        InputWebSearchToolCall,
+    ],
+    Field(discriminator="type"),
+]
 
 
 class InputTokensDetails(BaseModel):
@@ -325,10 +403,16 @@ ToolChoice = Union[
 ]
 
 
-# ---- InputIR ----
+class PromptTemplate(BaseModel):
+    id: str
+    variables: dict[str, Any] | None = None
+    version: str | None = None
 
 
-class InputIR(BaseModel):
+# ---- Input ----
+
+
+class Input(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Routing
@@ -336,8 +420,11 @@ class InputIR(BaseModel):
     stream: bool | None = None
 
     # Conversation (pydantic-ai abstraction)
-    message_history: list[ModelMessage]
+    message_history: list[ModelMessage] = Field(default_factory=list)
     instructions: str | None
+
+    # Normalised input history — set by to_ir(); provider converts to message_history via parse_run_settings
+    input: str | list[InputHistoryItem] | None = None
 
     # Sampling parameters (provider renames/maps these for its backend)
     temperature: float
@@ -351,6 +438,7 @@ class InputIR(BaseModel):
 
     # Text output format
     text_format: TextOutputFormat | None
+    verbosity: Literal["low", "medium", "high"] | None = None
 
     # Tools
     tools: list[Tool] | None
@@ -362,4 +450,13 @@ class InputIR(BaseModel):
     previous_response_id: str | None
     metadata: dict[str, Any] | None
 
-    # TODO: (Amer) maybe we should add extra_body
+    # OpenAI Responses-specific passthrough fields
+    background: bool | None = None
+    conversation_id: str | None = None
+    prompt: PromptTemplate | None = None
+    prompt_cache_key: str | None = None
+    prompt_cache_retention: str | None = None
+    safety_identifier: str | None = None
+    service_tier: str | None = None
+    stream_obfuscation: bool | None = None
+    truncation: Literal["auto", "disabled"] | None = None

@@ -5,15 +5,30 @@ from typing import Any
 
 from httpx import AsyncClient
 from pydantic_ai import (
+    BuiltinToolCallPart,
+    BuiltinToolReturnPart,
     DeferredToolRequests,
     ExternalToolset,
+    FunctionToolset,
+    ImageUrl,
     ModelMessage,
+    ModelRequest,
+    ModelResponse,
     ModelSettings,
     RunContext,
+    SystemPromptPart,
+    ThinkingPart,
+    ToolCallPart,
     ToolDefinition,
     ToolReturnPart,
     UsageLimits,
+    UserPromptPart,
 )
+from pydantic_ai import (
+    TextPart as PydanticAITextPart,
+)
+from pydantic_ai.builtin_tools import CodeExecutionTool as OpenAICodeExecutionTool
+from pydantic_ai.builtin_tools import WebSearchTool as OpenAIWebSearchTool
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models.openai import (
     OpenAIResponsesModel,
@@ -26,29 +41,41 @@ from molto.configs import ENV_CONFIG
 from molto.runner import AgentSettings, RunSettings
 from molto.types.ir import (
     AgentError,
+    AgentMessage,
     AgentMessageDelta,
     AgentMessageEnd,
     AgentMessageStart,
     AgentRunResult,
+    AgentThought,
     AgentThoughtDelta,
     AgentThoughtEnd,
     AgentThoughtStart,
+    AgentToolCalls,
     AgentToolDelta,
     AgentToolEnd,
+    AgentToolResult,
     AgentToolStart,
     AllowedToolsChoice,
     BuiltinToolChoice,
     CodeInterpreterTool,
     FunctionTool,
     FunctionToolChoice,
-    InputIR,
+    Input,
+    InputCodeToolCall,
+    InputHistoryItem,
+    InputMcpToolCall,
+    InputWebSearchToolCall,
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
     OutputIR,
+    SystemMessage,
+    TextPart,
+    UserMessage,
     WebSearchTool,
 )
 from molto.types.openai.responses import (
+    WEB_SEARCH_TOOL,
     OpenAIFunctionToolCall,
     OpenAIOutputItem,
     OpenAIOutputTextContent,
@@ -64,11 +91,12 @@ from molto.types.openai.responses import (
 from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
 
-# if TYPE_CHECKING:
-#     from molto.mcp.runtime_client import BuiltinMcpRuntimeClient
 
+class OpenAIResponsesToolChoiceCapability(AbstractCapability[None]):
+    # TODO: (Amer) Provide unit tests for this capability, test cases should include tool defs and builtin tools as well
+    def __init__(self, tool_choice: str) -> None:
+        self._tool_choice = tool_choice
 
-class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
     def get_model_settings(self):
         def check_messages_for_tool_calls(messages: list[ModelMessage]):
             is_tool_called = False
@@ -81,17 +109,20 @@ class OpenAIResponsesRequiredToolChoiceCapability(AbstractCapability[None]):
         def check_tool_calls(ctx: RunContext[None]):
             if not ctx.model_settings:
                 ctx.model_settings = ModelSettings()
-            if ctx.usage.tool_calls > 0 or check_messages_for_tool_calls(ctx.messages):
-                # If tool calls exist, remove tool_choice if extra_body exists
-                if ctx.model_settings.get("extra_body"):
-                    ctx.model_settings["extra_body"].pop("tool_choice", None)
-                return ctx.model_settings
+            # TODO: (Amer) improve this, what if message history had a previous tool call
+            #       but the user wants to issue another tool call?
+            if self._tool_choice == "required":
+                if ctx.usage.tool_calls > 0 or check_messages_for_tool_calls(ctx.messages):
+                    # If tool calls exist, remove tool_choice if extra_body exists
+                    if ctx.model_settings.get("extra_body"):
+                        ctx.model_settings["extra_body"].pop("tool_choice", None)
+                    return ctx.model_settings
 
             # If no tool calls, ensure tool_choice is set to "required"
             if ctx.model_settings.get("extra_body") is None:
                 ctx.model_settings["extra_body"] = {}
 
-            ctx.model_settings["extra_body"]["tool_choice"] = "required"
+            ctx.model_settings["extra_body"]["tool_choice"] = self._tool_choice
             return ctx.model_settings
 
         return check_tool_calls
@@ -122,11 +153,11 @@ class _Provider:
 
 
 class OpenAIResponsesProvider(_Provider):
-    def __init__(self, ir: InputIR | None = None) -> None:
+    def __init__(self, ir: Input | None = None) -> None:
         self._ir = ir
 
     async def parse_agent_settings(
-        self, ir: InputIR, http_client: AsyncClient | None = None
+        self, ir: Input, http_client: AsyncClient | None = None
     ) -> AgentSettings:
         """Parse input IR into pydantic-ai agent settings."""
         model = OpenAIResponsesModel(
@@ -151,19 +182,164 @@ class OpenAIResponsesProvider(_Provider):
         return AgentSettings(
             model=model,
             model_settings=model_settings,
+            # TODO: (Amer) test if this actually works
             output_type=dict[str, Any]
             if isinstance(ir.text_format, JsonSchemaFormat)
             else [str, DeferredToolRequests],
-            capabilities=[OpenAIResponsesRequiredToolChoiceCapability()]
-            if ir.tool_choice == "required"
+            capabilities=[OpenAIResponsesToolChoiceCapability(ir.tool_choice)]
+            if ir.tool_choice in ["auto", "required", "none"]
             else None,
         )
 
-    async def parse_run_settings(self, ir: InputIR) -> RunSettings:
-        # TODO: (Amer) improve this
+    @staticmethod
+    def convert_input_to_messages(input: str | list[InputHistoryItem]) -> list[ModelMessage]:
+        """Convert IR input history into pydantic-ai ModelMessage objects."""
+        if isinstance(input, str):
+            return [ModelRequest(parts=[UserPromptPart(content=input)])]
+
+        message_history: list[ModelMessage] = []
+        for msg in input:
+            if isinstance(msg, SystemMessage):
+                message_history.append(ModelRequest(parts=[SystemPromptPart(content=msg.content)]))
+
+            elif isinstance(msg, UserMessage):
+                if isinstance(msg.content, str):
+                    message_history.append(
+                        ModelRequest(parts=[UserPromptPart(content=msg.content)])
+                    )
+                else:
+                    message_history.append(
+                        ModelRequest(
+                            parts=[
+                                UserPromptPart(
+                                    content=[
+                                        c.text
+                                        if isinstance(c, TextPart)
+                                        else ImageUrl(
+                                            url=c.url, vendor_metadata={"detail": c.detail}
+                                        )
+                                        for c in msg.content
+                                    ]
+                                )
+                            ]
+                        )
+                    )
+
+            elif isinstance(msg, AgentMessage):
+                message_history.append(
+                    ModelResponse(parts=[PydanticAITextPart(content=msg.content, id=msg.id)])
+                )
+
+            elif isinstance(msg, AgentThought):
+                message_history.append(
+                    ModelResponse(
+                        parts=[
+                            ThinkingPart(content=msg.content, signature=msg.signature, id=msg.id)
+                        ]
+                    )
+                )
+
+            elif isinstance(msg, AgentToolCalls):
+                for tc in msg.tool_calls:
+                    message_history.append(
+                        ModelResponse(
+                            parts=[
+                                ToolCallPart(
+                                    tool_name=tc.tool_name,
+                                    args=json.dumps(tc.args),
+                                    tool_call_id=tc.tool_call_id,
+                                    id=tc.id,
+                                )
+                            ]
+                        )
+                    )
+
+            elif isinstance(msg, AgentToolResult):
+                content = msg.result if isinstance(msg.result, str) else json.dumps(msg.result)
+                message_history.append(
+                    ModelRequest(
+                        parts=[
+                            ToolReturnPart(
+                                tool_name=msg.tool_name,
+                                content=content,
+                                tool_call_id=msg.tool_call_id,
+                            )
+                        ]
+                    )
+                )
+
+            elif isinstance(msg, InputCodeToolCall):
+                message_history.append(
+                    ModelResponse(
+                        parts=[
+                            BuiltinToolCallPart(
+                                tool_name="code_execution",
+                                args={"container_id": msg.container_id, "code": msg.code},
+                                tool_call_id=msg.id,
+                            ),
+                            BuiltinToolReturnPart(
+                                tool_name="code_execution",
+                                content={"status": "completed"},
+                                tool_call_id=msg.id,
+                            ),
+                        ]
+                    )
+                )
+
+            elif isinstance(msg, InputWebSearchToolCall):
+                action = msg.action or {}
+                message_history.append(
+                    ModelResponse(
+                        parts=[
+                            BuiltinToolCallPart(
+                                tool_name=WEB_SEARCH_TOOL,
+                                args=action,
+                                tool_call_id=msg.id,
+                            ),
+                            BuiltinToolReturnPart(
+                                tool_name=WEB_SEARCH_TOOL,
+                                content={"status": msg.status, "action": action},
+                                tool_call_id=msg.id,
+                            ),
+                        ]
+                    )
+                )
+
+            elif isinstance(msg, InputMcpToolCall):
+                args = json.loads(msg.arguments) if msg.arguments else {}
+                message_history.append(
+                    ModelResponse(
+                        parts=[
+                            BuiltinToolCallPart(
+                                tool_name=f"mcp_{msg.server_label}_{msg.name}",
+                                args=args,
+                                tool_call_id=msg.id,
+                            ),
+                            BuiltinToolReturnPart(
+                                tool_name=f"mcp_{msg.server_label}_{msg.name}",
+                                content={
+                                    "status": msg.status,
+                                    "output": msg.output,
+                                    "error": msg.error,
+                                },
+                                tool_call_id=msg.id,
+                            ),
+                        ]
+                    )
+                )
+
+            else:
+                raise BadInputError(f"Invalid message type: {type(msg)}")
+
+        return message_history
+
+    async def parse_run_settings(self, ir: Input) -> RunSettings:
         """Parse input IR into pydantic-ai run settings."""
-        # Build function tool definitions, keyed by name for filtering
+        # Collect function tools keyed by name
         function_tool_defs: dict[str, ToolDefinition] = {}
+        # Collect builtin tools keyed by canonical name ("code_interpreter", "web_search")
+        builtin_tool_map: dict[str, AbstractToolset[Any]] = {}
+
         if ir.tools:
             for t in ir.tools:
                 if isinstance(t, FunctionTool):
@@ -174,30 +350,23 @@ class OpenAIResponsesProvider(_Provider):
                         strict=t.strict,
                     )
                 elif isinstance(t, CodeInterpreterTool):
-                    pass  # TODO: wire builtin code interpreter
+                    builtin_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
                 elif isinstance(t, WebSearchTool):
-                    pass  # TODO: wire builtin web search
+                    builtin_tool_map["web_search"] = OpenAIWebSearchTool()
                 elif isinstance(t, McpTool):
                     pass  # TODO: wire MCP toolset
 
-        # Apply tool_choice: filter tools and build an instruction override when forcing a call
+        # Apply tool_choice: filter both sets down to what the user selected
         tc = ir.tool_choice
-        instruction_override: str | None = None
 
         if tc == "none":
             function_tool_defs.clear()
-        elif tc == "auto":
-            pass
-        elif tc == "required":
-            # (Amer) I added a capability that will handle this.
-            pass
+            builtin_tool_map.clear()
+        elif tc == "auto" or tc == "required":
+            pass  # keep all tools
         elif isinstance(tc, BuiltinToolChoice):
             function_tool_defs.clear()
-            # TODO: activate the specific builtin
-            instruction_override = (
-                f"You must call the `{tc.name}` tool before producing the final answer. "
-                "Do not answer directly without calling it."
-            )
+            builtin_tool_map = {k: v for k, v in builtin_tool_map.items() if k == tc.name}
         elif isinstance(tc, FunctionToolChoice):
             selected = function_tool_defs.get(tc.name)
             if selected is None:
@@ -205,54 +374,35 @@ class OpenAIResponsesProvider(_Provider):
                     f"`tool_choice.name` {tc.name!r} is not present in effective tools."
                 )
             function_tool_defs = {tc.name: selected}
-            instruction_override = (
-                f"You must call the function `{tc.name}` before producing the final answer. "
-                "Do not answer directly without calling it."
-            )
+            builtin_tool_map.clear()
         elif isinstance(tc, McpToolChoice):
             function_tool_defs.clear()
+            builtin_tool_map.clear()
             # TODO: activate the specific MCP tool
-            if tc.name is None:
-                instruction_override = (
-                    f"You must call a tool from the MCP server `{tc.server_label}` before "
-                    "producing the final answer. Do not answer directly without a tool call."
-                )
-            else:
-                instruction_override = (
-                    f"You must call the MCP tool `{tc.server_label}:{tc.name}` before producing "
-                    "the final answer. Do not answer directly without calling it."
-                )
         elif isinstance(tc, AllowedToolsChoice):
             allowed_function_names = {
                 e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
             }
+            allowed_builtin_names = {e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)}
             function_tool_defs = {
                 k: v for k, v in function_tool_defs.items() if k in allowed_function_names
             }
-            # TODO: filter builtins and MCP tools to allowed set
-            if tc.mode == "required":
-                instruction_override = (
-                    "You must call at least one of the allowed tools before producing the final "
-                    "answer. Do not answer directly without a tool call."
-                )
+            builtin_tool_map = {
+                k: v for k, v in builtin_tool_map.items() if k in allowed_builtin_names
+            }
 
-        # Assemble toolsets
+        # Assemble toolsets from whatever survived filtering
         toolsets: list[AbstractToolset[Any]] = []
         if function_tool_defs:
             toolsets.append(ExternalToolset(tool_defs=list(function_tool_defs.values())))
-
-        # Merge user instructions with any tool-choice instruction override
-        instructions: str | None
-        if not instruction_override:
-            instructions = ir.instructions
-        elif not ir.instructions:
-            instructions = instruction_override
-        else:
-            instructions = f"{ir.instructions.rstrip()}\n\n{instruction_override}"
+        if builtin_tool_map:
+            toolsets.append(FunctionToolset(tools=builtin_tool_map.values()))
 
         return RunSettings(
-            message_history=ir.message_history,
-            instructions=instructions,
+            message_history=self.convert_input_to_messages(ir.input)
+            if ir.input is not None
+            else [],
+            instructions=ir.instructions,
             toolsets=toolsets or None,
             usage_limits=UsageLimits(tool_calls_limit=None),
         )
