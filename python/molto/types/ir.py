@@ -460,3 +460,4 @@ class Input(BaseModel):
     service_tier: str | None = None
     stream_obfuscation: bool | None = None
     truncation: Literal["auto", "disabled"] | None = None
+    extra_body: dict[str, Any] | None = None

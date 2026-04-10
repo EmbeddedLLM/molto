@@ -263,7 +263,7 @@ def main():
     parser.add_argument(
         "--target",
         "-t",
-        default="https://api.openai.com",
+        default=TARGET_HOST,
     )
     parser.add_argument(
         "--port",

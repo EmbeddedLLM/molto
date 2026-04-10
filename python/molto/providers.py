@@ -92,42 +92,6 @@ from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
 
 
-class OpenAIResponsesToolChoiceCapability(AbstractCapability[None]):
-    # TODO: (Amer) Provide unit tests for this capability, test cases should include tool defs and builtin tools as well
-    def __init__(self, tool_choice: str) -> None:
-        self._tool_choice = tool_choice
-
-    def get_model_settings(self):
-        def check_messages_for_tool_calls(messages: list[ModelMessage]):
-            is_tool_called = False
-            for message in messages:
-                for part in message.parts:
-                    if isinstance(part, ToolReturnPart) and part.outcome == "success":
-                        is_tool_called = True
-            return is_tool_called
-
-        def check_tool_calls(ctx: RunContext[None]):
-            if not ctx.model_settings:
-                ctx.model_settings = ModelSettings()
-            # TODO: (Amer) improve this, what if message history had a previous tool call
-            #       but the user wants to issue another tool call?
-            if self._tool_choice == "required":
-                if ctx.usage.tool_calls > 0 or check_messages_for_tool_calls(ctx.messages):
-                    # If tool calls exist, remove tool_choice if extra_body exists
-                    if ctx.model_settings.get("extra_body"):
-                        ctx.model_settings["extra_body"].pop("tool_choice", None)
-                    return ctx.model_settings
-
-            # If no tool calls, ensure tool_choice is set to "required"
-            if ctx.model_settings.get("extra_body") is None:
-                ctx.model_settings["extra_body"] = {}
-
-            ctx.model_settings["extra_body"]["tool_choice"] = self._tool_choice
-            return ctx.model_settings
-
-        return check_tool_calls
-
-
 class _Provider:
     async def parse_agent_settings(self, ir) -> AgentSettings:
         """Parse input IR into pydantic-ai agent settings."""
@@ -167,6 +131,12 @@ class OpenAIResponsesProvider(_Provider):
                 http_client=http_client,
             ),
         )
+
+        tool_choice = ir.tool_choice
+        if tool_choice == "auto" or tool_choice == "required":
+            extra_body = ir.extra_body or {}
+            extra_body["tool_choice"] = tool_choice
+
         model_settings = OpenAIResponsesModelSettings(
             temperature=ir.temperature,
             top_p=ir.top_p,
@@ -178,6 +148,7 @@ class OpenAIResponsesProvider(_Provider):
             parallel_tool_calls=ir.parallel_tool_calls,
             openai_store=ir.store,
             openai_previous_response_id=ir.previous_response_id,
+            extra_body=extra_body,
         )
         return AgentSettings(
             model=model,
@@ -186,9 +157,6 @@ class OpenAIResponsesProvider(_Provider):
             output_type=dict[str, Any]
             if isinstance(ir.text_format, JsonSchemaFormat)
             else [str, DeferredToolRequests],
-            capabilities=[OpenAIResponsesToolChoiceCapability(ir.tool_choice)]
-            if ir.tool_choice in ["auto", "required", "none"]
-            else None,
         )
 
     @staticmethod
@@ -362,8 +330,11 @@ class OpenAIResponsesProvider(_Provider):
         if tc == "none":
             function_tool_defs.clear()
             builtin_tool_map.clear()
-        elif tc == "auto" or tc == "required":
-            pass  # keep all tools
+        elif tc == "auto":
+            pass
+        elif tc == "required":
+            if len(ir.tools) == 0:
+                raise BadInputError("tool_choice cannot be 'auto' or 'required' if no tools are provided.")
         elif isinstance(tc, BuiltinToolChoice):
             function_tool_defs.clear()
             builtin_tool_map = {k: v for k, v in builtin_tool_map.items() if k == tc.name}
@@ -431,7 +402,7 @@ class OpenAIResponsesProvider(_Provider):
         current_reasoning = ""
 
         initial_response = OpenAIResponsesResponse(
-            model=ir.model.split("/")[-1],
+            model=ir.model,
             instructions=ir.instructions,
             status="in_progress",
         )
@@ -640,7 +611,7 @@ class OpenAIResponsesProvider(_Provider):
                 )
 
         final_response = OpenAIResponsesResponse(
-            model=ir.model.split("/")[-1],
+            model=ir.model,
             instructions=ir.instructions,
             status="completed" if error is None else "failed",
             output=output_items,
@@ -688,7 +659,7 @@ class OpenAIResponsesProvider(_Provider):
                     else None
                 )
                 response = OpenAIResponsesResponse(
-                    model=ir.model.split("/")[-1],
+                    model=ir.model,
                     instructions=ir.instructions,
                     status="completed" if error is None else "failed",
                     output=output_items,
@@ -698,7 +669,7 @@ class OpenAIResponsesProvider(_Provider):
         if response is not None:
             return response
         return OpenAIResponsesResponse(
-            model=ir.model.split("/")[-1],
+            model=ir.model,
             instructions=ir.instructions,
             status="completed",
             output=[],

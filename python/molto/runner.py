@@ -62,6 +62,7 @@ class AgentSettings(TypedDict):
     model_settings: ModelSettings | None
     http_client: AsyncClient
     output_type: OutputSpec = [str, DeferredToolRequests]
+    # Unused for now but may be useful in the future for things like auto-adding capabilities based on IR features (e.g. tool choice)
     capabilities: list[AbstractCapability[None]] | None = None
 
 
