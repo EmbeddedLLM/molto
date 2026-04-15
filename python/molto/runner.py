@@ -6,10 +6,13 @@ from loguru import logger
 from pydantic_ai import (
     Agent,
     AgentRunResultEvent,
+    BuiltinToolCallPart,
+    BuiltinToolReturnPart,
     DeferredToolRequests,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
+    ModelResponse,
     ModelSettings,
     PartDeltaEvent,
     PartEndEvent,
@@ -24,12 +27,14 @@ from pydantic_ai import (
     UsageLimits,
     capture_run_messages,
 )
+from pydantic_ai.builtin_tools import AbstractBuiltinTool
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.toolsets.abstract import AbstractToolset
 
 from molto.types.ir import (
+    AgentBuiltinToolCall,
     AgentError,
     AgentEvent,
     AgentMessageDelta,
@@ -78,6 +83,7 @@ class RunSettings(TypedDict):
     instructions: str | None
     toolsets: list[AbstractToolset[Any]] | None
     usage_limits: UsageLimits
+    builtin_tools: list[AbstractBuiltinTool] | None
 
 
 class Runner:
@@ -90,6 +96,7 @@ class Runner:
         self._agent_settings = agent_settings
         self._run_settings = run_settings
         self._tool_id2name: dict[str, str] = {}
+        self._builtin_tool_calls: dict[str, dict] = {}
         self._agent = Agent(
             **self._agent_settings,
         )
@@ -131,6 +138,23 @@ class Runner:
                                     tool_name=_tool_name,
                                     args=event.part.args_as_json_str(),
                                 )
+                        elif isinstance(event.part, BuiltinToolCallPart):
+                            self._builtin_tool_calls[event.part.tool_call_id] = {
+                                "tool_name": event.part.tool_name,
+                                "tool_call_id": event.part.tool_call_id,
+                                "args": event.part.args
+                                if isinstance(event.part.args, dict)
+                                else None,
+                            }
+                        elif isinstance(event.part, BuiltinToolReturnPart):
+                            tc = self._builtin_tool_calls.get(event.part.tool_call_id)
+                            if tc:
+                                yield AgentBuiltinToolCall(
+                                    tool_name=tc["tool_name"],
+                                    tool_call_id=tc["tool_call_id"],
+                                    args=tc.get("args"),
+                                    result=event.part.content,
+                                )
                     elif isinstance(event, PartDeltaEvent):
                         if isinstance(event.delta, TextPartDelta):
                             if event.delta.content_delta:
@@ -144,7 +168,7 @@ class Runner:
                         elif isinstance(event.delta, ToolCallPartDelta):
                             if event.delta.args_delta:
                                 _delta_tool_call_id = event.delta.tool_call_id
-                                _tool_name = self._tool_id2name.get(_delta_tool_call_id, None)
+                                _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
                                 yield AgentToolDelta(
                                     tool_call_id=_delta_tool_call_id,
                                     tool_name=_tool_name,
@@ -157,23 +181,13 @@ class Runner:
                             yield AgentThoughtEnd()
                         elif isinstance(event.part, ToolCallPart):
                             yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
+                        elif isinstance(event.part, BuiltinToolCallPart):
+                            tc = self._builtin_tool_calls.get(event.part.tool_call_id)
+                            if tc:
+                                tc["args"] = (
+                                    event.part.args if isinstance(event.part.args, dict) else None
+                                )
                     elif isinstance(event, FunctionToolCallEvent):
-                        # print(event)
-                        # tool_call = event.part
-                        # name = tool_call.tool_name.split("external_")[1]
-                        # func = self._tool_id2name.get(name)
-                        # result = await func(**tool_call.args_as_dict())
-                        # message_history.append(
-                        #     ModelRequest(
-                        #         parts=[
-                        #             ToolReturnPart(
-                        #                 tool_name=call.tool_name,
-                        #                 content=result,
-                        #                 tool_call_id=call.tool_call_id,
-                        #             )
-                        #         ]
-                        #     )
-                        # )
                         yield AgentToolCall(
                             tool_call_id=event.tool_call_id,
                             tool_name=event.part.tool_name,
@@ -200,6 +214,23 @@ class Runner:
                                 reasoning_tokens=_raw_usage.details.get("reasoning_tokens", 0),
                             ),
                         )
+                        _completed_at = int(event.result.timestamp().timestamp())
+                        _logprobs = None
+                        _incomplete_details = None
+                        for msg in reversed(event.result.new_messages()):
+                            if isinstance(msg, ModelResponse):
+                                if msg.provider_details and "logprobs" in msg.provider_details:
+                                    _logprobs = msg.provider_details["logprobs"]
+                                if msg.finish_reason == "length":
+                                    _incomplete_details = "max_output_tokens"
+                                elif (
+                                    msg.finish_reason is None
+                                    and msg.provider_details
+                                    and msg.provider_details.get("finish_reason")
+                                    == "max_output_tokens"
+                                ):
+                                    _incomplete_details = "max_output_tokens"
+                                break
                         if isinstance(_output, DeferredToolRequests):
                             yield AgentRunResult(
                                 tool_calls=[
@@ -211,11 +242,17 @@ class Runner:
                                     for _call in _output.calls
                                 ],
                                 usage=_usage,
+                                completed_at=_completed_at,
+                                logprobs=_logprobs,
+                                incomplete_details=_incomplete_details,
                             )
                         else:
                             yield AgentRunResult(
                                 message=_output if isinstance(_output, str) else None,
                                 usage=_usage,
+                                completed_at=_completed_at,
+                                logprobs=_logprobs,
+                                incomplete_details=_incomplete_details,
                             )
                     else:
                         # Other events we don't handle yet (e.g. tool call end, thought bubble end)

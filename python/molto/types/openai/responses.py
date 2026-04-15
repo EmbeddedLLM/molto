@@ -549,13 +549,17 @@ class OpenAICodeToolCall(BaseModel):
 
 class OpenAIWebSearchSource(BaseModel):
     type: Annotated[
-        Literal["url"],
-        Field(description="The type of source. Always `url`."),
+        str,
+        Field(description="The type of source (e.g. `url`, `api`)."),
     ] = "url"
     url: Annotated[
-        str,
+        str | None,
         Field(description="The canonical URL used by the web search tool."),
-    ]
+    ] = None
+    name: Annotated[
+        str | None,
+        Field(description="The name of the source (for API-type sources)."),
+    ] = None
 
 
 class OpenAIWebSearchActionSearch(BaseModel):
@@ -1716,6 +1720,7 @@ class vLLMResponsesRequest(BaseModel):
             store=self.store,
             previous_response_id=self.previous_response_id,
             metadata=self.metadata,
+            user=self.user if hasattr(self, "user") else None,
         )
 
 

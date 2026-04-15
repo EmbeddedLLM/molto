@@ -1,0 +1,89 @@
+filename: 2026-04-13-019d865a-51a8-70a1-ad23-92dd931a3673
+request:
+  body:
+    input:
+    - content: You are a financial advisor
+      role: system
+    - content: Who are you?
+      role: user
+    instructions: You are a financial advisor for the user.
+    max_output_tokens: 20
+    model: gpt-4.1-nano
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '230'
+    content-type: application/json
+    user-agent: pydantic-ai/1.73.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019d865a-51a8-70a1-ad23-92dd931a3673
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: null
+    created_at: 1776075559
+    error: null
+    frequency_penalty: 0.0
+    id: resp_0c3f1124413702580069dcc32771b0819bba5a7be39f3c5b5f
+    incomplete_details:
+      reason: max_output_tokens
+    instructions: You are a financial advisor for the user.
+    max_output_tokens: 20
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-4.1-nano-2025-04-14
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: I'm a financial advisor here to help you with any questions or concerns
+          you have about your finances, investments
+        type: output_text
+      id: msg_0c3f1124413702580069dcc3283c24819b838f66f6b889e036
+      role: assistant
+      status: incomplete
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: null
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: incomplete
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 33
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 20
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 53
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-04-13T10:19:19.336059+00:00'
