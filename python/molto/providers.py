@@ -92,6 +92,7 @@ from molto.types.openai.responses import (
     OpenAIReasoningItem,
     OpenAIResponsesCodeTool,
     OpenAIResponsesFunctionTool,
+    OpenAIResponsesIncompleteDetails,
     OpenAIResponsesMcpTool,
     OpenAIResponsesResponse,
     OpenAIResponsesResponseError,
@@ -113,7 +114,6 @@ from molto.types.openai.responses import (
 from molto.types.openai.responses import (
     OpenAIMcpToolChoice as OpenAIRespMcpToolChoice,
 )
-from molto.types.openai.responses import OpenAIResponsesIncompleteDetails
 from molto.utils import uuid7_str
 from molto.utils.exceptions import BadInputError
 
