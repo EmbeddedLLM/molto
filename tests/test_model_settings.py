@@ -293,7 +293,7 @@ async def test_model_settings(stream: bool):
     assert text_molto.type == "output_text"
     assert len(text_molto.text) > 0
 
-    # Logprobs (top_logprobs=1 means 1 alternative per token) disabled for now due to a bug in pydantic-ai issue #5091
+    # Logprobs (top_logprobs=1 means 1 alternative per token) disabled for now due to a bug in pydantic-ai PR #5091
     # assert text_molto.logprobs is not None
     # assert len(text_molto.logprobs) > 0
 
