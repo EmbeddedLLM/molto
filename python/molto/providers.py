@@ -633,7 +633,6 @@ class OpenAIResponsesProvider(_Provider):
     ):
         """Yield OpenAI Responses streaming SSE events from the Output IR stream."""
         assert self._ir is not None, "compose_outputs requires ir set on provider"
-        ir = self._ir
         seq = 0
         output_index = 0
         output_items: list = []
