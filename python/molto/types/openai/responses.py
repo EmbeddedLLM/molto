@@ -1720,7 +1720,6 @@ class vLLMResponsesRequest(BaseModel):
             store=self.store,
             previous_response_id=self.previous_response_id,
             metadata=self.metadata,
-            user=self.user if hasattr(self, "user") else None,
         )
 
 
@@ -1878,17 +1877,6 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
             ),
         ),
     ] = "disabled"
-    user: Annotated[
-        str | None,
-        Field(
-            description=(
-                "This field is being replaced by `safety_identifier` and `prompt_cache_key`. "
-                "Use `prompt_cache_key` instead to maintain caching optimizations. "
-                "A stable identifier for your end-users. "
-                "Used to boost cache hit rates by better bucketing similar requests and to help detect and prevent abuse."
-            ),
-        ),
-    ] = None
 
     @field_validator("tool_choice", mode="after")
     @classmethod
@@ -2238,10 +2226,6 @@ class OpenAIResponsesResponse(BaseModel):
                 "Represents token usage details including input tokens, output tokens, a breakdown of output tokens, and the total tokens used."
             )
         ),
-    ] = None
-    user: Annotated[
-        str | None,
-        Field(description=("A stable identifier for your end-users.")),
     ] = None
 
 

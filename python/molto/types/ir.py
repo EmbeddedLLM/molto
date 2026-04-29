@@ -59,6 +59,7 @@ class AgentMessageStart(_Message):
         Literal["agent.message.start"],
         Field(description="Message type."),
     ] = "agent.message.start"
+    id: str | None = None
 
 
 class AgentMessageDelta(_Message):
@@ -67,6 +68,7 @@ class AgentMessageDelta(_Message):
         Field(description="Message type."),
     ] = "agent.message.delta"
     content: str
+    id: str | None = None
 
 
 class AgentMessageEnd(_Message):
@@ -75,6 +77,7 @@ class AgentMessageEnd(_Message):
         Field(description="Message type."),
     ] = "agent.message.end"
     logprobs: list[dict[str, Any]] | None = None
+    id: str | None = None
 
 
 class AgentMessage(_MessageWithContent):
@@ -90,6 +93,7 @@ class AgentThoughtStart(_Message):
         Literal["agent.thought.start"],
         Field(description="Message type."),
     ] = "agent.thought.start"
+    id: str | None = None
 
 
 class AgentThoughtDelta(_Message):
@@ -99,6 +103,7 @@ class AgentThoughtDelta(_Message):
     ] = "agent.thought.delta"
     content: str
     signature: str
+    id: str | None = None
 
 
 class AgentThoughtEnd(_Message):
@@ -106,6 +111,7 @@ class AgentThoughtEnd(_Message):
         Literal["agent.thought.end"],
         Field(description="Message type."),
     ] = "agent.thought.end"
+    id: str | None = None
 
 
 class AgentThought(_MessageWithContent):
@@ -246,28 +252,6 @@ class Usage(BaseModel):
     output_tokens_details: OutputTokensDetails = Field(default_factory=OutputTokensDetails)
 
 
-class RequestSettings(BaseModel):
-    """Sampling and configuration settings echoed from the request."""
-
-    temperature: float | None = None
-    top_p: float | None = None
-    max_output_tokens: int | None = None
-    max_tool_calls: int | None = None
-    parallel_tool_calls: bool | None = None
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
-    reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
-    top_logprobs: int | None = None
-    truncation: Literal["auto", "disabled"] | None = None
-    service_tier: str | None = None
-    store: bool | None = None
-    metadata: dict[str, Any] | None = None
-    safety_identifier: str | None = None
-    prompt_cache_key: str | None = None
-    prompt_cache_retention: str | None = None
-    verbosity: Literal["low", "medium", "high"] | None = None
-    previous_response_id: str | None = None
-
-
 class AgentBuiltinToolCall(_Message):
     """A completed builtin tool call (web_search, code_interpreter) with its result."""
 
@@ -290,7 +274,6 @@ class AgentRunResult(_Message):
     message: str | None = None
     error: str | None = None
     usage: Usage | None = None
-    request_settings: RequestSettings | None = None
     incomplete_details: str | None = None
     completed_at: int | None = None
     logprobs: list[dict[str, Any]] | None = None
@@ -502,4 +485,3 @@ class Input(BaseModel):
     stream_obfuscation: bool | None = None
     truncation: Literal["auto", "disabled"] | None = None
     extra_body: dict[str, Any] | None = None
-    user: str | None = None

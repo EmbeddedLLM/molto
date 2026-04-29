@@ -1,3 +1,4 @@
+import json
 from time import perf_counter
 from typing import Any, AsyncIterator, TypedDict
 
@@ -34,6 +35,7 @@ from pydantic_ai.output import OutputSpec
 from pydantic_ai.toolsets.abstract import AbstractToolset
 
 from molto.types.ir import (
+    RESPONSE_TOOL_NAME,
     AgentBuiltinToolCall,
     AgentError,
     AgentEvent,
@@ -97,6 +99,17 @@ class Runner:
         self._run_settings = run_settings
         self._tool_id2name: dict[str, str] = {}
         self._builtin_tool_calls: dict[str, dict] = {}
+        self._current_text_id: str | None = None
+        self._current_thought_id: str | None = None
+        # When `output_type` is a `StructuredDict(...)`, pydantic-ai routes
+        # structured output through an internal `final_result` tool call. Track
+        # that tool call so the runner can surface it as a text message rather
+        # than a tool-call event in the IR.
+        _output_type = self._agent_settings["output_type"]
+        self._structured_output_active = (
+            isinstance(_output_type, type) and getattr(_output_type, "__is_model_like__", False)
+        )
+        self._structured_output_tool_id: str | None = None
         self._agent = Agent(
             **self._agent_settings,
         )
@@ -114,30 +127,50 @@ class Runner:
                     if isinstance(event, PartStartEvent):
                         # New event / thought bubble
                         if isinstance(event.part, TextPart):
-                            # Signals start and contains the first delta
-                            yield AgentMessageStart()
+                            self._current_text_id = event.part.id
+                            yield AgentMessageStart(id=event.part.id)
                             if event.part.content:
-                                yield AgentMessageDelta(content=event.part.content)
+                                yield AgentMessageDelta(
+                                    content=event.part.content, id=event.part.id
+                                )
                         elif isinstance(event.part, ThinkingPart):
-                            # Signals start and contains the first delta
-                            yield AgentThoughtStart()
+                            self._current_thought_id = event.part.id
+                            yield AgentThoughtStart(id=event.part.id)
                             if event.part.content or event.part.signature:
                                 yield AgentThoughtDelta(
                                     content=event.part.content,
                                     signature=event.part.signature,
+                                    id=event.part.id,
                                 )
                         elif isinstance(event.part, ToolCallPart):
                             # Signals start
                             _tool_name = event.part.tool_name
                             _tool_call_id = event.part.tool_call_id
-                            self._tool_id2name[_tool_call_id] = _tool_name
-                            yield AgentToolStart(tool_call_id=_tool_call_id, tool_name=_tool_name)
-                            if event.part.has_content():
-                                yield AgentToolDelta(
-                                    tool_call_id=_tool_call_id,
-                                    tool_name=_tool_name,
-                                    args=event.part.args_as_json_str(),
+                            if (
+                                self._structured_output_active
+                                and _tool_name == RESPONSE_TOOL_NAME
+                            ):
+                                # pydantic-ai's internal output tool — surface the
+                                # JSON args as a text message instead of a tool call.
+                                self._structured_output_tool_id = _tool_call_id
+                                self._current_text_id = _tool_call_id
+                                yield AgentMessageStart(id=_tool_call_id)
+                                if event.part.has_content():
+                                    yield AgentMessageDelta(
+                                        content=event.part.args_as_json_str(),
+                                        id=_tool_call_id,
+                                    )
+                            else:
+                                self._tool_id2name[_tool_call_id] = _tool_name
+                                yield AgentToolStart(
+                                    tool_call_id=_tool_call_id, tool_name=_tool_name
                                 )
+                                if event.part.has_content():
+                                    yield AgentToolDelta(
+                                        tool_call_id=_tool_call_id,
+                                        tool_name=_tool_name,
+                                        args=event.part.args_as_json_str(),
+                                    )
                         elif isinstance(event.part, BuiltinToolCallPart):
                             self._builtin_tool_calls[event.part.tool_call_id] = {
                                 "tool_name": event.part.tool_name,
@@ -158,29 +191,58 @@ class Runner:
                     elif isinstance(event, PartDeltaEvent):
                         if isinstance(event.delta, TextPartDelta):
                             if event.delta.content_delta:
-                                yield AgentMessageDelta(content=event.delta.content_delta)
+                                yield AgentMessageDelta(
+                                    content=event.delta.content_delta,
+                                    id=self._current_text_id,
+                                )
                         elif isinstance(event.delta, ThinkingPartDelta):
                             if event.delta.content_delta or event.part.signature_delta:
                                 yield AgentThoughtDelta(
                                     content=event.part.content_delta,
                                     signature=event.part.signature_delta,
+                                    id=self._current_thought_id,
                                 )
                         elif isinstance(event.delta, ToolCallPartDelta):
                             if event.delta.args_delta:
                                 _delta_tool_call_id = event.delta.tool_call_id
-                                _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
-                                yield AgentToolDelta(
-                                    tool_call_id=_delta_tool_call_id,
-                                    tool_name=_tool_name,
-                                    args=str(event.delta.args_delta),
-                                )
+                                if (
+                                    self._structured_output_tool_id is not None
+                                    and _delta_tool_call_id == self._structured_output_tool_id
+                                ):
+                                    yield AgentMessageDelta(
+                                        content=str(event.delta.args_delta),
+                                        id=_delta_tool_call_id,
+                                    )
+                                else:
+                                    _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
+                                    yield AgentToolDelta(
+                                        tool_call_id=_delta_tool_call_id,
+                                        tool_name=_tool_name,
+                                        args=str(event.delta.args_delta),
+                                    )
                     elif isinstance(event, PartEndEvent):
                         if isinstance(event.part, TextPart):
-                            yield AgentMessageEnd()
+                            _part_logprobs = None
+                            if (
+                                event.part.provider_details
+                                and "logprobs" in event.part.provider_details
+                            ):
+                                _part_logprobs = event.part.provider_details["logprobs"]
+                            yield AgentMessageEnd(id=event.part.id, logprobs=_part_logprobs)
+                            self._current_text_id = None
                         elif isinstance(event.part, ThinkingPart):
-                            yield AgentThoughtEnd()
+                            yield AgentThoughtEnd(id=event.part.id)
+                            self._current_thought_id = None
                         elif isinstance(event.part, ToolCallPart):
-                            yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
+                            if (
+                                self._structured_output_tool_id is not None
+                                and event.part.tool_call_id == self._structured_output_tool_id
+                            ):
+                                yield AgentMessageEnd(id=event.part.tool_call_id)
+                                self._current_text_id = None
+                                self._structured_output_tool_id = None
+                            else:
+                                yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
                         elif isinstance(event.part, BuiltinToolCallPart):
                             tc = self._builtin_tool_calls.get(event.part.tool_call_id)
                             if tc:
@@ -221,6 +283,16 @@ class Runner:
                             if isinstance(msg, ModelResponse):
                                 if msg.provider_details and "logprobs" in msg.provider_details:
                                     _logprobs = msg.provider_details["logprobs"]
+                                else:
+                                    for _part in msg.parts:
+                                        if (
+                                            isinstance(_part, TextPart)
+                                            and _part.provider_details
+                                            and "logprobs" in _part.provider_details
+                                        ):
+                                            _logprobs = (_logprobs or []) + _part.provider_details[
+                                                "logprobs"
+                                            ]
                                 if msg.finish_reason == "length":
                                     _incomplete_details = "max_output_tokens"
                                 elif (
@@ -247,8 +319,16 @@ class Runner:
                                 incomplete_details=_incomplete_details,
                             )
                         else:
+                            if isinstance(_output, str):
+                                _message = _output
+                            elif isinstance(_output, dict):
+                                _message = json.dumps(
+                                    _output, ensure_ascii=False, separators=(",", ":")
+                                )
+                            else:
+                                _message = None
                             yield AgentRunResult(
-                                message=_output if isinstance(_output, str) else None,
+                                message=_message,
                                 usage=_usage,
                                 completed_at=_completed_at,
                                 logprobs=_logprobs,

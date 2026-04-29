@@ -13,6 +13,7 @@ from pydantic_ai import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    StructuredDict,
     SystemPromptPart,
     ThinkingPart,
     ToolCallPart,
@@ -309,8 +310,6 @@ class OpenAIResponsesProvider(_Provider):
                 variables=ir.prompt.variables,
                 version=ir.prompt.version,
             )
-        if ir.user is not None:
-            kwargs["user"] = ir.user
         if ir.tools is not None:
             kwargs["tools"] = self._convert_ir_tools(ir.tools)
         # text config: only set if at least one sub-field is present
@@ -320,11 +319,13 @@ class OpenAIResponsesProvider(_Provider):
         elif isinstance(ir.text_format, JsonObjectFormat):
             text_format = OpenAIJsonObjectFormat()
         elif isinstance(ir.text_format, JsonSchemaFormat):
-            text_format = OpenAIJsonSchemaFormat(
-                name=ir.text_format.name,
-                schema_=ir.text_format.json_schema,
-                strict=ir.text_format.strict,
-                description=ir.text_format.description,
+            text_format = OpenAIJsonSchemaFormat.model_validate(
+                {
+                    "name": ir.text_format.name,
+                    "schema": ir.text_format.json_schema,
+                    "strict": ir.text_format.strict,
+                    "description": ir.text_format.description,
+                }
             )
         if text_format is not None or ir.verbosity is not None:
             kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=ir.verbosity)
@@ -354,6 +355,8 @@ class OpenAIResponsesProvider(_Provider):
             extra_body["safety_identifier"] = ir.safety_identifier
         if ir.max_tool_calls is not None:
             extra_body["max_tool_calls"] = ir.max_tool_calls
+        if ir.conversation_id is not None:
+            extra_body["conversation"] = ir.conversation_id
         include = ir.include or []
         ms_kwargs: dict[str, Any] = {}
         if ir.temperature is not None:
@@ -385,8 +388,6 @@ class OpenAIResponsesProvider(_Provider):
             ms_kwargs["openai_truncation"] = ir.truncation
         if ir.verbosity is not None:
             ms_kwargs["openai_text_verbosity"] = ir.verbosity
-        if ir.user is not None:
-            ms_kwargs["openai_user"] = ir.user
         if include:
             if "web_search_call.action.sources" in include:
                 ms_kwargs["openai_include_web_search_sources"] = True
@@ -400,8 +401,11 @@ class OpenAIResponsesProvider(_Provider):
         return AgentSettings(
             model=model,
             model_settings=model_settings,
-            # TODO: (Amer) test if this actually works
-            output_type=dict[str, Any]
+            output_type=StructuredDict(
+                ir.text_format.json_schema,
+                name=ir.text_format.name,
+                description=ir.text_format.description,
+            )
             if isinstance(ir.text_format, JsonSchemaFormat)
             else [str, DeferredToolRequests],
         )
@@ -566,7 +570,23 @@ class OpenAIResponsesProvider(_Provider):
                 elif isinstance(t, CodeInterpreterTool):
                     builtin_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
                 elif isinstance(t, WebSearchTool):
-                    builtin_tool_map["web_search"] = OpenAIWebSearchTool()
+                    ws_tool_kwargs: dict[str, Any] = {
+                        "search_context_size": t.search_context_size,
+                    }
+                    if t.allowed_domains:
+                        ws_tool_kwargs["allowed_domains"] = t.allowed_domains
+                    if t.user_location is not None:
+                        ws_tool_kwargs["user_location"] = {
+                            k: v
+                            for k, v in {
+                                "city": t.user_location.city,
+                                "country": t.user_location.country,
+                                "region": t.user_location.region,
+                                "timezone": t.user_location.timezone,
+                            }.items()
+                            if v is not None
+                        }
+                    builtin_tool_map["web_search"] = OpenAIWebSearchTool(**ws_tool_kwargs)
                 elif isinstance(t, McpTool):
                     pass  # TODO: wire MCP toolset
 
@@ -623,7 +643,7 @@ class OpenAIResponsesProvider(_Provider):
             else [],
             instructions=ir.instructions,
             toolsets=toolsets or None,
-            usage_limits=UsageLimits(tool_calls_limit=None),
+            usage_limits=UsageLimits(tool_calls_limit=ir.max_tool_calls),
             builtin_tools=builtin_tools,
         )
 
@@ -671,7 +691,7 @@ class OpenAIResponsesProvider(_Provider):
         async for event in output_stream:
             if isinstance(event, AgentMessageStart):
                 current_text = ""
-                current_text_id = uuid7_str("msg_")
+                current_text_id = event.id
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.added",
                     item=OpenAIOutputItem(id=current_text_id, content=[], status="in_progress"),
@@ -710,7 +730,9 @@ class OpenAIResponsesProvider(_Provider):
                 seq += 1
                 yield OpenAIResponsesStreamPart(
                     type="response.content_part.done",
-                    part=OpenAIOutputTextContent(text=current_text),
+                    part=OpenAIOutputTextContent(
+                        text=current_text, logprobs=event.logprobs or []
+                    ),
                     item_id=current_text_id,
                     output_index=output_index,
                     sequence_number=seq,
@@ -718,7 +740,11 @@ class OpenAIResponsesProvider(_Provider):
                 seq += 1
                 completed_item = OpenAIOutputItem(
                     id=current_text_id,
-                    content=[OpenAIOutputTextContent(text=current_text)],
+                    content=[
+                        OpenAIOutputTextContent(
+                            text=current_text, logprobs=event.logprobs or []
+                        )
+                    ],
                     status="completed",
                 )
                 output_items.append(completed_item)
@@ -733,7 +759,7 @@ class OpenAIResponsesProvider(_Provider):
 
             elif isinstance(event, AgentThoughtStart):
                 current_reasoning = ""
-                current_reasoning_id = uuid7_str("rs_")
+                current_reasoning_id = event.id
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.added",
                     item=OpenAIReasoningItem(id=current_reasoning_id, status="in_progress"),
@@ -848,7 +874,7 @@ class OpenAIResponsesProvider(_Provider):
                         tool_call.args, ensure_ascii=False, separators=(",", ":")
                     )
                     tc = active_tools.pop(tool_call.tool_call_id, None)
-                    item_id = tc["id"] if tc else uuid7_str("fc_")
+                    item_id = tc["id"]
                     item_output_index = tc["output_index"] if tc else output_index
                     completed_item = OpenAIFunctionToolCall(
                         id=item_id,
@@ -946,8 +972,11 @@ class OpenAIResponsesProvider(_Provider):
         """Return a single OpenAI Responses response by parsing the terminal AgentRunResult event."""
         response = None
         builtin_items: list = []
+        last_message_id: str | None = None
         async for event in output_stream:
-            if isinstance(event, AgentBuiltinToolCall):
+            if isinstance(event, AgentMessageStart):
+                last_message_id = event.id
+            elif isinstance(event, AgentBuiltinToolCall):
                 if event.tool_name == "web_search":
                     args = event.args or {}
                     result = event.result or {}
@@ -1002,7 +1031,7 @@ class OpenAIResponsesProvider(_Provider):
                 if event.message:
                     output_items.append(
                         OpenAIOutputItem(
-                            id=uuid7_str("msg_"),
+                            id=last_message_id,
                             content=[
                                 OpenAIOutputTextContent(
                                     text=event.message,
