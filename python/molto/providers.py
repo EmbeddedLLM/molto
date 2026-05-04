@@ -730,9 +730,7 @@ class OpenAIResponsesProvider(_Provider):
                 seq += 1
                 yield OpenAIResponsesStreamPart(
                     type="response.content_part.done",
-                    part=OpenAIOutputTextContent(
-                        text=current_text, logprobs=event.logprobs or []
-                    ),
+                    part=OpenAIOutputTextContent(text=current_text, logprobs=event.logprobs or []),
                     item_id=current_text_id,
                     output_index=output_index,
                     sequence_number=seq,
@@ -741,9 +739,7 @@ class OpenAIResponsesProvider(_Provider):
                 completed_item = OpenAIOutputItem(
                     id=current_text_id,
                     content=[
-                        OpenAIOutputTextContent(
-                            text=current_text, logprobs=event.logprobs or []
-                        )
+                        OpenAIOutputTextContent(text=current_text, logprobs=event.logprobs or [])
                     ],
                     status="completed",
                 )

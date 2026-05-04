@@ -161,7 +161,9 @@ async def test_builtin_tools_web_search(stream: bool):
         stream=stream,
     )
 
-    cassette_path = CASSETTE_DIR / "openai" / "responses" / "tools_choice-required-builtin-tools.yaml"
+    cassette_path = (
+        CASSETTE_DIR / "openai" / "responses" / "tools_choice-required-builtin-tools.yaml"
+    )
     handler = make_handler(
         cassette_path,
         req_body,
@@ -228,7 +230,9 @@ async def test_builtin_tools_web_search(stream: bool):
     assert sdk_tool.type == EXPECTED_WEB_SEARCH_TOOL["type"]
     assert sdk_tool.search_context_size == EXPECTED_WEB_SEARCH_TOOL["search_context_size"]
     assert sdk_tool.filters is not None
-    assert sdk_tool.filters.allowed_domains == EXPECTED_WEB_SEARCH_TOOL["filters"]["allowed_domains"]
+    assert (
+        sdk_tool.filters.allowed_domains == EXPECTED_WEB_SEARCH_TOOL["filters"]["allowed_domains"]
+    )
     assert sdk_tool.user_location is not None
     assert sdk_tool.user_location.type == EXPECTED_WEB_SEARCH_TOOL["user_location"]["type"]
     assert sdk_tool.user_location.city == EXPECTED_WEB_SEARCH_TOOL["user_location"]["city"]

@@ -1980,6 +1980,12 @@ class OpenAIResponsesUsage(BaseModel):
 
 
 class OpenAIResponsesResponse(BaseModel):
+    def model_dump(self, *, exclude_none: bool = True, **kwargs: Any) -> dict[str, Any]:
+        return super().model_dump(exclude_none=exclude_none, **kwargs)
+
+    def model_dump_json(self, *, exclude_none: bool = True, **kwargs: Any) -> str:
+        return super().model_dump_json(exclude_none=exclude_none, **kwargs)
+
     background: Annotated[
         bool,
         Field(

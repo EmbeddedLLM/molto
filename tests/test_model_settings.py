@@ -140,9 +140,7 @@ async def test_model_settings(stream: bool):
     assert response.model == "gpt-5.1-2025-11-13"
     for key, expected in EXPECTED_SETTINGS.items():
         actual = getattr(response, key)
-        assert actual == expected, (
-            f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
-        )
+        assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
     assert response.reasoning.effort == "none"
 
     # Output structure: web_search_call + message
@@ -259,9 +257,7 @@ async def test_model_settings(stream: bool):
     assert response.model == "openai/" + req_body["model"]
     for key, expected in EXPECTED_SETTINGS.items():
         actual = getattr(response, key)
-        assert actual == expected, (
-            f"Molto response.{key}={actual!r}, expected {expected!r}"
-        )
+        assert actual == expected, f"Molto response.{key}={actual!r}, expected {expected!r}"
     assert response.reasoning is not None
     assert response.reasoning.effort == "medium"
 

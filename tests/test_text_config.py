@@ -61,11 +61,11 @@ async def test_text_config_json_schema(stream: bool):
         instructions=INSTRUCTIONS,
         tool_choice="required",
         text={
-                "type": "json_schema",
-                "name": "final_result",
-                "description": "The final response which ends this conversation",
-                "parameters": STRUCT_SCHEMA,
-                "strict": True,
+            "type": "json_schema",
+            "name": "final_result",
+            "description": "The final response which ends this conversation",
+            "parameters": STRUCT_SCHEMA,
+            "strict": True,
         },
         stream=stream,
     )
@@ -169,4 +169,3 @@ async def test_text_config_json_schema(stream: bool):
     assert msg.status == "completed"
     text_part = msg.content[0]
     assert isinstance(text_part, OpenAIOutputTextContent)
-

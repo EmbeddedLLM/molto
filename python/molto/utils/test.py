@@ -72,7 +72,9 @@ def make_openai_client(
 ) -> AsyncOpenAI:
     return AsyncOpenAI(
         http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(partial(handler, load_stream_cassette=load_stream_cassette)),
+            transport=httpx.MockTransport(
+                partial(handler, load_stream_cassette=load_stream_cassette)
+            ),
             base_url="http://testserver",
         ),
         api_key=ENV_CONFIG.openai_api_key_plain,

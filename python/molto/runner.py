@@ -106,8 +106,8 @@ class Runner:
         # that tool call so the runner can surface it as a text message rather
         # than a tool-call event in the IR.
         _output_type = self._agent_settings["output_type"]
-        self._structured_output_active = (
-            isinstance(_output_type, type) and getattr(_output_type, "__is_model_like__", False)
+        self._structured_output_active = isinstance(_output_type, type) and getattr(
+            _output_type, "__is_model_like__", False
         )
         self._structured_output_tool_id: str | None = None
         self._agent = Agent(
@@ -146,10 +146,7 @@ class Runner:
                             # Signals start
                             _tool_name = event.part.tool_name
                             _tool_call_id = event.part.tool_call_id
-                            if (
-                                self._structured_output_active
-                                and _tool_name == RESPONSE_TOOL_NAME
-                            ):
+                            if self._structured_output_active and _tool_name == RESPONSE_TOOL_NAME:
                                 # pydantic-ai's internal output tool — surface the
                                 # JSON args as a text message instead of a tool call.
                                 self._structured_output_tool_id = _tool_call_id

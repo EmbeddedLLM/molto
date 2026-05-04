@@ -1,4 +1,3 @@
-
 import pytest
 from openai.types.responses import (
     Response,
@@ -93,9 +92,7 @@ async def test_incomplete_response(stream: bool):
     assert response.incomplete_details.reason == "max_output_tokens"
     for key, expected in EXPECTED_SETTINGS.items():
         actual = getattr(response, key)
-        assert actual == expected, (
-            f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
-        )
+        assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
 
     assert len(response.output) == 1
     msg = response.output[0]
@@ -174,9 +171,7 @@ async def test_incomplete_response(stream: bool):
     assert response.incomplete_details.reason == "max_output_tokens"
     for key, expected in EXPECTED_SETTINGS.items():
         actual = getattr(response, key)
-        assert actual == expected, (
-            f"Molto response.{key}={actual!r}, expected {expected!r}"
-        )
+        assert actual == expected, f"Molto response.{key}={actual!r}, expected {expected!r}"
 
     assert len(response.output) == 1
     msg_molto = response.output[0]
