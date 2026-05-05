@@ -1,4 +1,4 @@
-filename: 2026-04-27-019dce03-f2c9-78b0-91b9-d6deb59dd196
+filename: 2026-05-05-019df72e-704a-7451-9039-ff132e0305f0
 request:
   body:
     include:
@@ -29,28 +29,29 @@ request:
         type: auto
       type: code_interpreter
     top_logprobs: 1
+    top_p: 0.55
   headers:
     accept: application/json
     accept-encoding: gzip, deflate
     authorization: Bearer ***
     connection: keep-alive
-    content-length: '683'
+    content-length: '696'
     content-type: application/json
     user-agent: pydantic-ai/1.85.0
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 019dce03-f2c9-78b0-91b9-d6deb59dd196
+request_id: 019df72e-704a-7451-9039-ff132e0305f0
 response:
   body:
     background: false
     billing:
       payer: developer
-    completed_at: 1777277861
-    created_at: 1777277858
+    completed_at: 1777968513
+    created_at: 1777968510
     error: null
     frequency_penalty: 0.0
-    id: resp_0931de126224350c0169ef1ba2a230819bbd1e87974b404c1c
+    id: resp_0db1be691f9a80fa0169f9a57df578819383f0ae39aee40987
     incomplete_details: null
     instructions: The user would like to know about the weather in Taiwan today.
     max_output_tokens: 400
@@ -68,7 +69,7 @@ response:
         - name: oai-weather
           type: api
         type: search
-      id: ws_0931de126224350c0169ef1ba3576c819b8136bf6bc2bcce9c
+      id: ws_0db1be691f9a80fa0169f9a57f7710819393a93837d7d27df6
       status: completed
       type: web_search_call
     - content:
@@ -77,7 +78,7 @@ response:
         - bytes:
           - 10
           - 10
-          logprob: -4.7e-05
+          logprob: -0.001025
           token: '
 
 
@@ -86,28 +87,51 @@ response:
           - bytes:
             - 10
             - 10
-            logprob: -4.7e-05
+            logprob: -0.001025
             token: '
 
 
               '
         - bytes:
-          - 73
-          - 102
-          logprob: -0.000126
-          token: If
+          - 87
+          - 104
+          - 97
+          - 116
+          logprob: -0.000296
+          token: What
           top_logprobs:
           - bytes:
-            - 73
-            - 102
-            logprob: -0.000126
-            token: If
+            - 87
+            - 104
+            - 97
+            - 116
+            logprob: -0.000296
+            token: What
+        - bytes:
+          - 32
+          - 119
+          - 111
+          - 117
+          - 108
+          - 100
+          logprob: -0.0
+          token: ' would'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 119
+            - 111
+            - 117
+            - 108
+            - 100
+            logprob: -0.0
+            token: ' would'
         - bytes:
           - 32
           - 121
           - 111
           - 117
-          logprob: -0.0
+          logprob: 0.0
           token: ' you'
           top_logprobs:
           - bytes:
@@ -115,427 +139,153 @@ response:
             - 121
             - 111
             - 117
-            logprob: -0.0
+            logprob: 0.0
             token: ' you'
         - bytes:
           - 32
-          - 116
+          - 108
+          - 105
+          - 107
           - 101
-          - 108
-          - 108
-          logprob: -0.000747
-          token: ' tell'
+          logprob: 0.0
+          token: ' like'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 108
+            - 105
+            - 107
+            - 101
+            logprob: 0.0
+            token: ' like'
+        - bytes:
+          - 32
+          - 116
+          - 111
+          logprob: -0.000166
+          token: ' to'
           top_logprobs:
           - bytes:
             - 32
             - 116
-            - 101
-            - 108
-            - 108
-            logprob: -0.000747
-            token: ' tell'
+            - 111
+            logprob: -0.000166
+            token: ' to'
         - bytes:
           - 32
-          - 109
-          - 101
-          logprob: 0.0
-          token: ' me'
+          - 116
+          - 97
+          - 108
+          - 107
+          logprob: -0.60893
+          token: ' talk'
           top_logprobs:
           - bytes:
             - 32
-            - 109
+            - 116
+            - 97
+            - 108
+            - 107
+            logprob: -0.60893
+            token: ' talk'
+        - bytes:
+          - 32
+          - 97
+          - 98
+          - 111
+          - 117
+          - 116
+          logprob: -0.0
+          token: ' about'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 97
+            - 98
+            - 111
+            - 117
+            - 116
+            logprob: -0.0
+            token: ' about'
+        - bytes:
+          - 32
+          - 111
+          - 114
+          logprob: -1.4e-05
+          token: ' or'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 111
+            - 114
+            logprob: -1.4e-05
+            token: ' or'
+        - bytes:
+          - 32
+          - 103
+          - 101
+          - 116
+          logprob: -0.932845
+          token: ' get'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 103
             - 101
+            - 116
+            logprob: -0.932845
+            token: ' get'
+        - bytes:
+          - 32
+          - 104
+          - 101
+          - 108
+          - 112
+          logprob: 0.0
+          token: ' help'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 104
+            - 101
+            - 108
+            - 112
             logprob: 0.0
-            token: ' me'
+            token: ' help'
         - bytes:
           - 32
           - 119
-          - 104
           - 105
-          - 99
+          - 116
           - 104
-          logprob: -0.129876
-          token: ' which'
+          logprob: 0.0
+          token: ' with'
           top_logprobs:
           - bytes:
             - 32
             - 119
-            - 104
-            - 105
-            - 99
-            - 104
-            logprob: -0.129876
-            token: ' which'
-        - bytes:
-          - 32
-          - 99
-          - 105
-          - 116
-          - 121
-          logprob: -3.7e-05
-          token: ' city'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 99
             - 105
             - 116
-            - 121
-            logprob: -3.7e-05
-            token: ' city'
-        - bytes:
-          - 32
-          - 105
-          - 110
-          logprob: -0.271864
-          token: ' in'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 105
-            - 110
-            logprob: -0.271864
-            token: ' in'
-        - bytes:
-          - 32
-          - 84
-          - 97
-          - 105
-          - 119
-          - 97
-          - 110
-          logprob: 0.0
-          token: ' Taiwan'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 84
-            - 97
-            - 105
-            - 119
-            - 97
-            - 110
-            logprob: 0.0
-            token: ' Taiwan'
-        - bytes:
-          - 32
-          - 40
-          logprob: -0.063877
-          token: ' ('
-          top_logprobs:
-          - bytes:
-            - 32
-            - 40
-            logprob: -0.063877
-            token: ' ('
-        - bytes:
-          - 101
-          logprob: -0.003239
-          token: e
-          top_logprobs:
-          - bytes:
-            - 101
-            logprob: -0.003239
-            token: e
-        - bytes:
-          - 46
-          - 103
-          logprob: 0.0
-          token: .g
-          top_logprobs:
-          - bytes:
-            - 46
-            - 103
-            logprob: 0.0
-            token: .g
-        - bytes:
-          - 46
-          - 44
-          logprob: -2.0e-06
-          token: .,
-          top_logprobs:
-          - bytes:
-            - 46
-            - 44
-            logprob: -2.0e-06
-            token: .,
-        - bytes:
-          - 32
-          - 84
-          - 97
-          - 105
-          - 112
-          - 101
-          - 105
-          logprob: 0.0
-          token: ' Taipei'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 84
-            - 97
-            - 105
-            - 112
-            - 101
-            - 105
-            logprob: 0.0
-            token: ' Taipei'
-        - bytes:
-          - 44
-          logprob: -0.0
-          token: ','
-          top_logprobs:
-          - bytes:
-            - 44
-            logprob: -0.0
-            token: ','
-        - bytes:
-          - 32
-          - 84
-          - 97
-          logprob: -0.100156
-          token: ' Ta'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 84
-            - 97
-            logprob: -0.100156
-            token: ' Ta'
-        - bytes:
-          - 105
-          - 99
-          - 104
-          logprob: 0.0
-          token: ich
-          top_logprobs:
-          - bytes:
-            - 105
-            - 99
             - 104
             logprob: 0.0
-            token: ich
+            token: ' with'
         - bytes:
-          - 117
-          - 110
-          - 103
-          logprob: 0.0
-          token: ung
+          - 63
+          logprob: -0.056475
+          token: '?'
           top_logprobs:
           - bytes:
-            - 117
-            - 110
-            - 103
-            logprob: 0.0
-            token: ung
-        - bytes:
-          - 44
-          logprob: 0.0
-          token: ','
-          top_logprobs:
-          - bytes:
-            - 44
-            logprob: 0.0
-            token: ','
-        - bytes:
-          - 32
-          - 75
-          - 97
-          logprob: -0.005073
-          token: ' Ka'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 75
-            - 97
-            logprob: -0.005073
-            token: ' Ka'
-        - bytes:
-          - 111
-          - 104
-          logprob: 0.0
-          token: oh
-          top_logprobs:
-          - bytes:
-            - 111
-            - 104
-            logprob: 0.0
-            token: oh
-        - bytes:
-          - 115
-          - 105
-          logprob: -0.0
-          token: si
-          top_logprobs:
-          - bytes:
-            - 115
-            - 105
-            logprob: -0.0
-            token: si
-        - bytes:
-          - 117
-          - 110
-          - 103
-          logprob: 0.0
-          token: ung
-          top_logprobs:
-          - bytes:
-            - 117
-            - 110
-            - 103
-            logprob: 0.0
-            token: ung
-        - bytes:
-          - 41
-          - 44
-          logprob: -0.005757
-          token: ),
-          top_logprobs:
-          - bytes:
-            - 41
-            - 44
-            logprob: -0.005757
-            token: ),
-        - bytes:
-          - 32
-          - 73
-          logprob: 0.0
-          token: ' I'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 73
-            logprob: 0.0
-            token: ' I'
-        - bytes:
-          - 32
-          - 99
-          - 97
-          - 110
-          logprob: 0.0
-          token: ' can'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 99
-            - 97
-            - 110
-            logprob: 0.0
-            token: ' can'
-        - bytes:
-          - 32
-          - 103
-          - 105
-          - 118
-          - 101
-          logprob: -0.014692
-          token: ' give'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 103
-            - 105
-            - 118
-            - 101
-            logprob: -0.014692
-            token: ' give'
-        - bytes:
-          - 32
-          - 97
-          logprob: -0.127606
-          token: ' a'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 97
-            logprob: -0.127606
-            token: ' a'
-        - bytes:
-          - 32
-          - 109
-          - 111
-          - 114
-          - 101
-          logprob: -4.4e-05
-          token: ' more'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 109
-            - 111
-            - 114
-            - 101
-            logprob: -4.4e-05
-            token: ' more'
-        - bytes:
-          - 32
-          - 115
-          - 112
-          - 101
-          - 99
-          - 105
-          - 102
-          - 105
-          - 99
-          logprob: -0.567976
-          token: ' specific'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 115
-            - 112
-            - 101
-            - 99
-            - 105
-            - 102
-            - 105
-            - 99
-            logprob: -0.567976
-            token: ' specific'
-        - bytes:
-          - 32
-          - 102
-          - 111
-          - 114
-          - 101
-          - 99
-          - 97
-          - 115
-          - 116
-          logprob: -0.378126
-          token: ' forecast'
-          top_logprobs:
-          - bytes:
-            - 32
-            - 102
-            - 111
-            - 114
-            - 101
-            - 99
-            - 97
-            - 115
-            - 116
-            logprob: -0.378126
-            token: ' forecast'
-        - bytes:
-          - 46
-          logprob: -0.058712
-          token: .
-          top_logprobs:
-          - bytes:
-            - 46
-            logprob: -0.058712
-            token: .
+            - 63
+            logprob: -0.056475
+            token: '?'
         text: "I’m an AI assistant created by OpenAI. I can help you find information,\
-          \ explain concepts, plan things, and work through problems step by step.\n\
-          \nBy the way, you also asked (via your system message) about the weather\
-          \ in Taiwan today (April 27, 2026). Here’s a quick snapshot:\n\n- Location:\
-          \ Taiwan  \n- Current conditions: Sunny, about 78°F (26°C)  \n- This evening\
-          \ and tonight: Mostly cloudy, cooling to around 60–67°F (16–20°C) \n\nIf\
-          \ you tell me which city in Taiwan (e.g., Taipei, Taichung, Kaohsiung),\
-          \ I can give a more specific forecast."
+          \ explain concepts, plan things, or work through problems step by step.\n\
+          \nBy the way, I also checked the weather in Taiwan for today (May 5, 2026):\
+          \ it’s currently around 69°F (20°C) with showers, and there are thunderstorms\
+          \ and cloudy periods expected through the evening. \n\nWhat would you like\
+          \ to talk about or get help with?"
         type: output_text
-      id: msg_0931de126224350c0169ef1ba3f2d4819b8f5c2de990c70c6f
+      id: msg_0db1be691f9a80fa0169f9a580820c8193ab40132956d0a3d8
       role: assistant
       status: completed
       type: message
@@ -561,7 +311,8 @@ response:
     - container:
         type: auto
       type: code_interpreter
-    - search_context_size: medium
+    - return_token_budget: default
+      search_context_size: medium
       type: web_search
       user_location:
         city: null
@@ -570,19 +321,19 @@ response:
         timezone: null
         type: approximate
     top_logprobs: 1
-    top_p: 1.0
+    top_p: 0.55
     truncation: disabled
     usage:
-      input_tokens: 5298
+      input_tokens: 5438
       input_tokens_details:
-        cached_tokens: 4992
-      output_tokens: 196
+        cached_tokens: 5120
+      output_tokens: 148
       output_tokens_details:
         reasoning_tokens: 34
-      total_tokens: 5494
+      total_tokens: 5586
     user: null
   headers:
     connection: keep-alive
     content-type: application/json
   status_code: 200
-timestamp: '2026-04-27T08:17:38.505098+00:00'
+timestamp: '2026-05-05T08:08:29.003008+00:00'

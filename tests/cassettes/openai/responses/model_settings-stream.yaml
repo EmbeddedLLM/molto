@@ -1,4 +1,4 @@
-filename: 2026-04-27-019dce03-4f04-7582-abab-a802a1829007
+filename: 2026-05-05-019df72d-d64d-7fe3-9413-bd661216ac94
 request:
   body:
     include:
@@ -29,18 +29,19 @@ request:
         type: auto
       type: code_interpreter
     top_logprobs: 1
+    top_p: 0.55
   headers:
     accept: application/json
     accept-encoding: gzip, deflate
     authorization: Bearer ***
     connection: keep-alive
-    content-length: '682'
+    content-length: '695'
     content-type: application/json
     user-agent: pydantic-ai/1.85.0
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 019dce03-4f04-7582-abab-a802a1829007
+request_id: 019df72d-d64d-7fe3-9413-bd661216ac94
 response:
   headers:
     connection: keep-alive
@@ -49,8 +50,8 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"resp_062865ce5780ffed0169ef1b78c4d8819982eb79c4d2a457c7","object":"response","created_at":1777277816,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
-    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"resp_03bbd1069af6cd550169f9a556a7888195869a967207d4711e","object":"response","created_at":1777968470,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -59,8 +60,8 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"resp_062865ce5780ffed0169ef1b78c4d8819982eb79c4d2a457c7","object":"response","created_at":1777277816,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
-    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_03bbd1069af6cd550169f9a556a7888195869a967207d4711e","object":"response","created_at":1777968470,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '
@@ -69,7 +70,7 @@ response:
   - 'event: response.output_item.added
 
     '
-  - 'data: {"type":"response.output_item.added","item":{"id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","type":"web_search_call","status":"in_progress"},"output_index":0,"sequence_number":2}
+  - 'data: {"type":"response.output_item.added","item":{"id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","type":"web_search_call","status":"in_progress"},"output_index":0,"sequence_number":2}
 
     '
   - '
@@ -78,7 +79,7 @@ response:
   - 'event: response.web_search_call.in_progress
 
     '
-  - 'data: {"type":"response.web_search_call.in_progress","item_id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","output_index":0,"sequence_number":3}
+  - 'data: {"type":"response.web_search_call.in_progress","item_id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","output_index":0,"sequence_number":3}
 
     '
   - '
@@ -87,7 +88,7 @@ response:
   - 'event: response.web_search_call.searching
 
     '
-  - 'data: {"type":"response.web_search_call.searching","item_id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","output_index":0,"sequence_number":4}
+  - 'data: {"type":"response.web_search_call.searching","item_id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","output_index":0,"sequence_number":4}
 
     '
   - '
@@ -96,7 +97,7 @@ response:
   - 'event: response.web_search_call.completed
 
     '
-  - 'data: {"type":"response.web_search_call.completed","item_id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","output_index":0,"sequence_number":5}
+  - 'data: {"type":"response.web_search_call.completed","item_id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","output_index":0,"sequence_number":5}
 
     '
   - '
@@ -105,7 +106,7 @@ response:
   - 'event: response.output_item.done
 
     '
-  - 'data: {"type":"response.output_item.done","item":{"id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+  - 'data: {"type":"response.output_item.done","item":{"id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
     Taiwan"],"query":"weather: Taiwan","sources":[{"type":"api","name":"oai-weather"}]}},"output_index":0,"sequence_number":6}
 
     '
@@ -115,7 +116,7 @@ response:
   - 'event: response.output_item.added
 
     '
-  - 'data: {"type":"response.output_item.added","item":{"id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":1,"sequence_number":7}
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":1,"sequence_number":7}
 
     '
   - '
@@ -124,7 +125,7 @@ response:
   - 'event: response.content_part.added
 
     '
-  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":8}
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":8}
 
     '
   - '
@@ -134,20 +135,19 @@ response:
 
     '
   - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"I’m an
-    AI assistant created by OpenAI. I can","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[73],"logprob":-0.0000917420256882906,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.0000917420256882906,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.0,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.0,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.016541017219424248,"token":"
-    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.016541017219424248,"token":"
-    an"}]},{"bytes":[32,65,73],"logprob":-2.339278580620885e-6,"token":" AI","top_logprobs":[{"bytes":[32,65,73],"logprob":-2.339278580620885e-6,"token":"
-    AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-9.729906196298543e-6,"token":"
-    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-9.729906196298543e-6,"token":"
-    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.0011209264630451798,"token":"
-    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.0011209264630451798,"token":"
-    created"}]},{"bytes":[32,98,121],"logprob":-0.000010206720617134124,"token":"
-    by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.000010206720617134124,"token":"
+    AI assistant created by OpenAI. I can","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[73],"logprob":-0.000024034345187828876,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.000024034345187828876,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.0,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.0,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.4179249703884125,"token":"
+    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.4179249703884125,"token":"
+    an"}]},{"bytes":[32,65,73],"logprob":-8.061054359131958e-6,"token":" AI","top_logprobs":[{"bytes":[32,65,73],"logprob":-8.061054359131958e-6,"token":"
+    AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-8.537868779967539e-6,"token":"
+    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-8.537868779967539e-6,"token":"
+    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.0019751458894461393,"token":"
+    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.0019751458894461393,"token":"
+    created"}]},{"bytes":[32,98,121],"logprob":-0.00010556964843999594,"token":" by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.00010556964843999594,"token":"
     by"}]},{"bytes":[32,79,112,101,110],"logprob":0.0,"token":" Open","top_logprobs":[{"bytes":[32,79,112,101,110],"logprob":0.0,"token":"
-    Open"}]},{"bytes":[65,73],"logprob":0.0,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":0.0,"token":"AI"}]},{"bytes":[46],"logprob":-0.11990466713905334,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.11990466713905334,"token":"."}]},{"bytes":[32,73],"logprob":-0.0004353181866463274,"token":"
-    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.0004353181866463274,"token":"
-    I"}]},{"bytes":[32,99,97,110],"logprob":-0.04073312506079674,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.04073312506079674,"token":"
-    can"}]}],"obfuscation":"3HyD","output_index":1,"sequence_number":9}
+    Open"}]},{"bytes":[65,73],"logprob":0.0,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":0.0,"token":"AI"}]},{"bytes":[46],"logprob":-0.5175556540489197,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.5175556540489197,"token":"."}]},{"bytes":[32,73],"logprob":-0.039060384035110474,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.039060384035110474,"token":"
+    I"}]},{"bytes":[32,99,97,110],"logprob":-0.04659261554479599,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.04659261554479599,"token":"
+    can"}]}],"obfuscation":"obKO","output_index":1,"sequence_number":9}
 
     '
   - '
@@ -157,43 +157,34 @@ response:
 
     '
   - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" help you
-    find information, answer questions, and work through problems in many areas (travel
-    planning, learning topics, writing, coding, etc.).\n\n","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.05623515322804451,"token":"
-    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.05623515322804451,"token":"
-    help"}]},{"bytes":[32,121,111,117],"logprob":-0.06390464305877686,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.06390464305877686,"token":"
-    you"}]},{"bytes":[32,102,105,110,100],"logprob":-0.5274600386619568,"token":"
-    find","top_logprobs":[{"bytes":[32,102,105,110,100],"logprob":-0.5274600386619568,"token":"
-    find"}]},{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.0002922022540587932,"token":"
-    information","top_logprobs":[{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.0002922022540587932,"token":"
-    information"}]},{"bytes":[44],"logprob":-3.128163257315464e-7,"token":",","top_logprobs":[{"bytes":[44],"logprob":-3.128163257315464e-7,"token":","}]},{"bytes":[32,97,110,115,119,101,114],"logprob":-2.609231472015381,"token":"
-    answer","top_logprobs":[{"bytes":[32,101,120,112,108,97,105,110],"logprob":-0.1873563975095749,"token":"
-    explain"}]},{"bytes":[32,113,117,101,115,116,105,111,110,115],"logprob":0.0,"token":"
-    questions","top_logprobs":[{"bytes":[32,113,117,101,115,116,105,111,110,115],"logprob":0.0,"token":"
-    questions"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,97,110,100],"logprob":-0.018323423340916634,"token":"
-    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.018323423340916634,"token":"
-    and"}]},{"bytes":[32,119,111,114,107],"logprob":-0.0123162055388093,"token":"
-    work","top_logprobs":[{"bytes":[32,119,111,114,107],"logprob":-0.0123162055388093,"token":"
-    work"}]},{"bytes":[32,116,104,114,111,117,103,104],"logprob":-7.941850526549388e-6,"token":"
-    through","top_logprobs":[{"bytes":[32,116,104,114,111,117,103,104],"logprob":-7.941850526549388e-6,"token":"
-    through"}]},{"bytes":[32,112,114,111,98,108,101,109,115],"logprob":-0.01980060711503029,"token":"
-    problems","top_logprobs":[{"bytes":[32,112,114,111,98,108,101,109,115],"logprob":-0.01980060711503029,"token":"
-    problems"}]},{"bytes":[32,105,110],"logprob":-0.3469965159893036,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.3469965159893036,"token":"
-    in"}]},{"bytes":[32,109,97,110,121],"logprob":-0.26803240180015564,"token":" many","top_logprobs":[{"bytes":[32,109,97,110,121],"logprob":-0.26803240180015564,"token":"
-    many"}]},{"bytes":[32,97,114,101,97,115],"logprob":-0.4274613559246063,"token":"
-    areas","top_logprobs":[{"bytes":[32,97,114,101,97,115],"logprob":-0.4274613559246063,"token":"
-    areas"}]},{"bytes":[32,40],"logprob":-0.05608570575714111,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.05608570575714111,"token":"
-    ("}]},{"bytes":[116,114,97,118,101,108],"logprob":-0.7516477108001709,"token":"travel","top_logprobs":[{"bytes":[116,114,97,118,101,108],"logprob":-0.7516477108001709,"token":"travel"}]},{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.7395103573799133,"token":"
-    planning","top_logprobs":[{"bytes":[44],"logprob":-0.6770103573799133,"token":","}]},{"bytes":[44],"logprob":-3.128163257315464e-7,"token":",","top_logprobs":[{"bytes":[44],"logprob":-3.128163257315464e-7,"token":","}]},{"bytes":[32,108,101,97,114,110,105,110,103],"logprob":-1.0634539127349854,"token":"
-    learning","top_logprobs":[{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-1.0009539127349854,"token":"
-    explanations"}]},{"bytes":[32,116,111,112,105,99,115],"logprob":-0.5469176769256592,"token":"
-    topics","top_logprobs":[{"bytes":[32,116,111,112,105,99,115],"logprob":-0.5469176769256592,"token":"
-    topics"}]},{"bytes":[44],"logprob":-0.0006383348954841495,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0006383348954841495,"token":","}]},{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.6588243246078491,"token":"
-    writing","top_logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.6588243246078491,"token":"
-    writing"}]},{"bytes":[44],"logprob":-0.1529504805803299,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.1529504805803299,"token":","}]},{"bytes":[32,99,111,100,105,110,103],"logprob":-0.00510793412104249,"token":"
-    coding","top_logprobs":[{"bytes":[32,99,111,100,105,110,103],"logprob":-0.00510793412104249,"token":"
-    coding"}]},{"bytes":[44],"logprob":-0.033511411398649216,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.033511411398649216,"token":","}]},{"bytes":[32,101,116,99],"logprob":-0.02050136588513851,"token":"
-    etc","top_logprobs":[{"bytes":[32,101,116,99],"logprob":-0.02050136588513851,"token":"
-    etc"}]},{"bytes":[46,41,46,10,10],"logprob":-0.0123078478500247,"token":".).\n\n","top_logprobs":[{"bytes":[46,41,46,10,10],"logprob":-0.0123078478500247,"token":".).\n\n"}]}],"obfuscation":"yK1WUAUFisClCK","output_index":1,"sequence_number":10}
+    look things up, explain concepts, plan trips, write and edit text, analyze data,","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.46930578351020813,"token":"
+    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.46930578351020813,"token":"
+    help"}]},{"bytes":[32,121,111,117],"logprob":-0.13469868898391724,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.13469868898391724,"token":"
+    you"}]},{"bytes":[32,108,111,111,107],"logprob":-1.1506028175354004,"token":"
+    look","top_logprobs":[{"bytes":[32,102,105,110,100],"logprob":-0.9474777579307556,"token":"
+    find"}]},{"bytes":[32,116,104,105,110,103,115],"logprob":-0.058320559561252594,"token":"
+    things","top_logprobs":[{"bytes":[32,116,104,105,110,103,115],"logprob":-0.058320559561252594,"token":"
+    things"}]},{"bytes":[32,117,112],"logprob":0.0,"token":" up","top_logprobs":[{"bytes":[32,117,112],"logprob":0.0,"token":"
+    up"}]},{"bytes":[44],"logprob":-0.000050020742492051795,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000050020742492051795,"token":","}]},{"bytes":[32,101,120,112,108,97,105,110],"logprob":-0.0066977269016206264,"token":"
+    explain","top_logprobs":[{"bytes":[32,101,120,112,108,97,105,110],"logprob":-0.0066977269016206264,"token":"
+    explain"}]},{"bytes":[32,99,111,110,99,101,112,116,115],"logprob":-0.0014613081002607942,"token":"
+    concepts","top_logprobs":[{"bytes":[32,99,111,110,99,101,112,116,115],"logprob":-0.0014613081002607942,"token":"
+    concepts"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,112,108,97,110],"logprob":-0.06878762692213058,"token":"
+    plan","top_logprobs":[{"bytes":[32,112,108,97,110],"logprob":-0.06878762692213058,"token":"
+    plan"}]},{"bytes":[32,116,114,105,112,115],"logprob":-0.4405151605606079,"token":"
+    trips","top_logprobs":[{"bytes":[32,116,114,105,112,115],"logprob":-0.4405151605606079,"token":"
+    trips"}]},{"bytes":[44],"logprob":-0.001526644453406334,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.001526644453406334,"token":","}]},{"bytes":[32,119,114,105,116,101],"logprob":-0.3657265603542328,"token":"
+    write","top_logprobs":[{"bytes":[32,119,114,105,116,101],"logprob":-0.3657265603542328,"token":"
+    write"}]},{"bytes":[32,97,110,100],"logprob":-0.24512332677841187,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.24512332677841187,"token":"
+    and"}]},{"bytes":[32,101,100,105,116],"logprob":-0.5820023417472839,"token":"
+    edit","top_logprobs":[{"bytes":[32,101,100,105,116],"logprob":-0.5820023417472839,"token":"
+    edit"}]},{"bytes":[32,116,101,120,116],"logprob":-0.00020592445798683912,"token":"
+    text","top_logprobs":[{"bytes":[32,116,101,120,116],"logprob":-0.00020592445798683912,"token":"
+    text"}]},{"bytes":[44],"logprob":-0.00014489953173324466,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.00014489953173324466,"token":","}]},{"bytes":[32,97,110,97,108,121,122,101],"logprob":-0.7554517984390259,"token":"
+    analyze","top_logprobs":[{"bytes":[32,97,110,97,108,121,122,101],"logprob":-0.7554517984390259,"token":"
+    analyze"}]},{"bytes":[32,100,97,116,97],"logprob":-0.0003433296224102378,"token":"
+    data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.0003433296224102378,"token":"
+    data"}]},{"bytes":[44],"logprob":-0.004648115020245314,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.004648115020245314,"token":","}]}],"obfuscation":"Auxyfv","output_index":1,"sequence_number":10}
 
     '
   - '
@@ -202,9 +193,71 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"You also
-    asked about the weather in Taiwan today (April 27, 2026). Here’s a quick snapshot
-    for Taiwan overall:   \n","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[],"obfuscation":"4HfWxT7gryA1Hp","output_index":1,"sequence_number":11}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and more.\n\nYou
+    also have a standing request about the weather in Taiwan today (May 5, ","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[32,97,110,100],"logprob":-0.003572150133550167,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.003572150133550167,"token":"
+    and"}]},{"bytes":[32,109,111,114,101],"logprob":-0.0037142152432352304,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.0037142152432352304,"token":"
+    more"}]},{"bytes":[46,10,10],"logprob":-0.0868753045797348,"token":".\n\n","top_logprobs":[{"bytes":[46,10,10],"logprob":-0.0868753045797348,"token":".\n\n"}]},{"bytes":[89,111,117],"logprob":-0.35550418496131897,"token":"You","top_logprobs":[{"bytes":[89,111,117],"logprob":-0.35550418496131897,"token":"You"}]},{"bytes":[32,97,108,115,111],"logprob":-0.2333110272884369,"token":"
+    also","top_logprobs":[{"bytes":[32,97,108,115,111],"logprob":-0.2333110272884369,"token":"
+    also"}]},{"bytes":[32,104,97,118,101],"logprob":-0.03717293590307236,"token":"
+    have","top_logprobs":[{"bytes":[32,104,97,118,101],"logprob":-0.03717293590307236,"token":"
+    have"}]},{"bytes":[32,97],"logprob":-0.02257087267935276,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.02257087267935276,"token":"
+    a"}]},{"bytes":[32,115,116,97,110,100,105,110,103],"logprob":-0.08568466454744339,"token":"
+    standing","top_logprobs":[{"bytes":[32,115,116,97,110,100,105,110,103],"logprob":-0.08568466454744339,"token":"
+    standing"}]},{"bytes":[32,114,101,113,117,101,115,116],"logprob":-0.01043420284986496,"token":"
+    request","top_logprobs":[{"bytes":[32,114,101,113,117,101,115,116],"logprob":-0.01043420284986496,"token":"
+    request"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.10169947892427444,"token":"
+    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.10169947892427444,"token":"
+    about"}]},{"bytes":[32,116,104,101],"logprob":-0.14161773025989532,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.14161773025989532,"token":"
+    the"}]},{"bytes":[32,119,101,97,116,104,101,114],"logprob":-6.2729995988775045e-6,"token":"
+    weather","top_logprobs":[{"bytes":[32,119,101,97,116,104,101,114],"logprob":-6.2729995988775045e-6,"token":"
+    weather"}]},{"bytes":[32,105,110],"logprob":-6.704273118884885e-7,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-6.704273118884885e-7,"token":"
+    in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":-7.896309739408025e-7,"token":"
+    Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":-7.896309739408025e-7,"token":"
+    Taiwan"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.0011740362970158458,"token":"
+    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.0011740362970158458,"token":"
+    today"}]},{"bytes":[32,40],"logprob":-0.7496675848960876,"token":" (","top_logprobs":[{"bytes":[44],"logprob":-0.6715425848960876,"token":","}]},{"bytes":[77,97,121],"logprob":-7.896309739408025e-7,"token":"May","top_logprobs":[{"bytes":[77,97,121],"logprob":-7.896309739408025e-7,"token":"May"}]},{"bytes":[32],"logprob":0.0,"token":"
+    ","top_logprobs":[{"bytes":[32],"logprob":0.0,"token":" "}]},{"bytes":[53],"logprob":0.0,"token":"5","top_logprobs":[{"bytes":[53],"logprob":0.0,"token":"5"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32],"logprob":0.0,"token":"
+    ","top_logprobs":[{"bytes":[32],"logprob":0.0,"token":" "}]}],"obfuscation":"H0ykWjOpR","output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"2026),
+    so here’s a quick update based on current data:\n\n- Location:","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[50,48,50],"logprob":0.0,"token":"202","top_logprobs":[{"bytes":[50,48,50],"logprob":0.0,"token":"202"}]},{"bytes":[54],"logprob":0.0,"token":"6","top_logprobs":[{"bytes":[54],"logprob":0.0,"token":"6"}]},{"bytes":[41,44],"logprob":-0.06157006695866585,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.06157006695866585,"token":"),"}]},{"bytes":[32,115,111],"logprob":-1.7432603272027336e-6,"token":"
+    so","top_logprobs":[{"bytes":[32,115,111],"logprob":-1.7432603272027336e-6,"token":"
+    so"}]},{"bytes":[32,104,101,114,101],"logprob":-0.016863875091075897,"token":"
+    here","top_logprobs":[{"bytes":[32,104,101,114,101],"logprob":-0.016863875091075897,"token":"
+    here"}]},{"bytes":[226,128,153,115],"logprob":-0.01270670909434557,"token":"’s","top_logprobs":[{"bytes":[226,128,153,115],"logprob":-0.01270670909434557,"token":"’s"}]},{"bytes":[32,97],"logprob":-0.21919475495815277,"token":"
+    a","top_logprobs":[{"bytes":[32,97],"logprob":-0.21919475495815277,"token":" a"}]},{"bytes":[32,113,117,105,99,107],"logprob":-0.004963100887835026,"token":"
+    quick","top_logprobs":[{"bytes":[32,113,117,105,99,107],"logprob":-0.004963100887835026,"token":"
+    quick"}]},{"bytes":[32,117,112,100,97,116,101],"logprob":-0.6520271897315979,"token":"
+    update","top_logprobs":[{"bytes":[32,117,112,100,97,116,101],"logprob":-0.6520271897315979,"token":"
+    update"}]},{"bytes":[32,98,97,115,101,100],"logprob":-0.25281065702438354,"token":"
+    based","top_logprobs":[{"bytes":[32,98,97,115,101,100],"logprob":-0.25281065702438354,"token":"
+    based"}]},{"bytes":[32,111,110],"logprob":0.0,"token":" on","top_logprobs":[{"bytes":[32,111,110],"logprob":0.0,"token":"
+    on"}]},{"bytes":[32,99,117,114,114,101,110,116],"logprob":-0.11655187606811523,"token":"
+    current","top_logprobs":[{"bytes":[32,99,117,114,114,101,110,116],"logprob":-0.11655187606811523,"token":"
+    current"}]},{"bytes":[32,100,97,116,97],"logprob":-0.0009718484943732619,"token":"
+    data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.0009718484943732619,"token":"
+    data"}]},{"bytes":[58,10,10],"logprob":-0.11473093926906586,"token":":\n\n","top_logprobs":[{"bytes":[58,10,10],"logprob":-0.11473093926906586,"token":":\n\n"}]},{"bytes":[45],"logprob":-1.3856492842023727e-6,"token":"-","top_logprobs":[{"bytes":[45],"logprob":-1.3856492842023727e-6,"token":"-"}]},{"bytes":[32,76,111,99,97,116,105,111,110],"logprob":-0.04475000873208046,"token":"
+    Location","top_logprobs":[{"bytes":[32,76,111,99,97,116,105,111,110],"logprob":-0.04475000873208046,"token":"
+    Location"}]},{"bytes":[58],"logprob":-0.000051689596148207784,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000051689596148207784,"token":":"}]}],"obfuscation":"Y7SIjirXdF8sy","output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Taiwan
+    (general, island-wide overview)   ","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[],"obfuscation":"oawmwP","output_index":1,"sequence_number":13}
 
     '
   - '
@@ -214,17 +267,8 @@ response:
 
     '
   - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\n- Current
-    conditions: Sunny, about 78°F (26°C).  \n-","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[32,32,10,10],"logprob":-0.0025549731217324734,"token":"  \n\n","top_logprobs":[{"bytes":[32,32,10,10],"logprob":-0.0025549731217324734,"token":"  \n\n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.00822837557643652,"token":"
-    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.00822837557643652,"token":"
-    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.04045473784208298,"token":"
-    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.04045473784208298,"token":"
-    conditions"}]},{"bytes":[58],"logprob":-0.00005157039049663581,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.00005157039049663581,"token":":"}]},{"bytes":[32,83,117,110,110,121],"logprob":-0.014710577204823494,"token":"
-    Sunny","top_logprobs":[{"bytes":[32,83,117,110,110,121],"logprob":-0.014710577204823494,"token":"
-    Sunny"}]},{"bytes":[44],"logprob":-0.000019385402993066236,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019385402993066236,"token":","}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.08129492402076721,"token":"
-    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.08129492402076721,"token":"
-    about"}]},{"bytes":[32],"logprob":-0.00002081584716506768,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00002081584716506768,"token":"
-    "}]},{"bytes":[55,56],"logprob":-0.000023676733690081164,"token":"78","top_logprobs":[{"bytes":[55,56],"logprob":-0.000023676733690081164,"token":"78"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[50,54],"logprob":0.0,"token":"26","top_logprobs":[{"bytes":[50,54],"logprob":0.0,"token":"26"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.5490921139717102,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.5490921139717102,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]}],"obfuscation":"AP9VGKrpKHEa","output_index":1,"sequence_number":12}
+    conditions: Showers, around 69°F (20°C).  \n- This evening and tonight: Mostly
+    cloudy with periods of thunderstorms, temperatures around 60–64°F (16–18°C).\n","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[],"obfuscation":"nq1FmFrq6M","output_index":1,"sequence_number":14}
 
     '
   - '
@@ -233,40 +277,58 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" This evening
-    and tonight: Mostly cloudy, cooling to around 60–67°F (16–20°C).\n\nIf you tell
-    me the specific city or area in Taiwan (e.g.,","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.06492713838815689,"token":"
-    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.06492713838815689,"token":"
-    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":"
-    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.022709915414452553,"token":"
-    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.022709915414452553,"token":"
-    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.03934603929519653,"token":"
-    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.03934603929519653,"token":"
-    tonight"}]},{"bytes":[58],"logprob":-0.00002939851037808694,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.00002939851037808694,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.1567155122756958,"token":"
-    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.1567155122756958,"token":"
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\nIf you
+    tell me the specific city or area in Taiwan (e.g.,","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-3.531315314830863e-6,"token":"
+    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-3.531315314830863e-6,"token":"
+    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.4472307562828064,"token":"
+    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.4472307562828064,"token":"
+    conditions"}]},{"bytes":[58],"logprob":-0.0000793448489275761,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.0000793448489275761,"token":":"}]},{"bytes":[32,83,104,111,119],"logprob":-0.0006849141791462898,"token":"
+    Show","top_logprobs":[{"bytes":[32,83,104,111,119],"logprob":-0.0006849141791462898,"token":"
+    Show"}]},{"bytes":[101,114,115],"logprob":-2.1008713702030946e-6,"token":"ers","top_logprobs":[{"bytes":[101,114,115],"logprob":-2.1008713702030946e-6,"token":"ers"}]},{"bytes":[44],"logprob":-0.00033069768687710166,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.00033069768687710166,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.5231322050094604,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.5231322050094604,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000036550729419104755,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000036550729419104755,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0,"token":"69"}]},{"bytes":[194,176,70],"logprob":-5.512236498361744e-7,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-5.512236498361744e-7,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.00005407366916188039,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.00005407366916188039,"token":"
+    ("}]},{"bytes":[50,48],"logprob":-3.650518920039758e-6,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-3.650518920039758e-6,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.06684770435094833,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.06684770435094833,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.0019310165662318468,"token":"
+    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.0019310165662318468,"token":"
+    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":-4.320199877838604e-7,"token":"
+    evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":-4.320199877838604e-7,"token":"
+    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.10800708085298538,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.10800708085298538,"token":"
+    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.06489463150501251,"token":"
+    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.06489463150501251,"token":"
+    tonight"}]},{"bytes":[58],"logprob":-0.000013902033970225602,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000013902033970225602,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999446053057909,"token":"
+    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999446053057909,"token":"
     Mostly"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":" cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":"
-    cloudy"}]},{"bytes":[44],"logprob":-0.0033881450071930885,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0033881450071930885,"token":","}]},{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.17858880758285522,"token":"
-    cooling","top_logprobs":[{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.17858880758285522,"token":"
-    cooling"}]},{"bytes":[32,116,111],"logprob":-0.47212979197502136,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.47212979197502136,"token":"
-    to"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013856938108801842,"token":"
-    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013856938108801842,"token":"
-    around"}]},{"bytes":[32],"logprob":-0.0003757383383344859,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.0003757383383344859,"token":"
-    "}]},{"bytes":[54,48],"logprob":-0.05657891184091568,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.05657891184091568,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,55],"logprob":-0.03164849802851677,"token":"67","top_logprobs":[{"bytes":[54,55],"logprob":-0.03164849802851677,"token":"67"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000014378848391061183,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000014378848391061183,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[50,48],"logprob":-0.0001234428636962548,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-0.0001234428636962548,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.3975695073604584,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.3975695073604584,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.00006825890159234405,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.00006825890159234405,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
-    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-1.5048530030981055e-6,"token":"
-    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-1.5048530030981055e-6,"token":"
+    cloudy"}]},{"bytes":[32,119,105,116,104],"logprob":-0.04580896720290184,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.04580896720290184,"token":"
+    with"}]},{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.06419535726308823,"token":"
+    periods","top_logprobs":[{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.06419535726308823,"token":"
+    periods"}]},{"bytes":[32,111,102],"logprob":0.0,"token":" of","top_logprobs":[{"bytes":[32,111,102],"logprob":0.0,"token":"
+    of"}]},{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4.36574100604048e-6,"token":"
+    thunderstorms","top_logprobs":[{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4.36574100604048e-6,"token":"
+    thunderstorms"}]},{"bytes":[44],"logprob":-0.6472535729408264,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.6472535729408264,"token":","}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.0256110280752182,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.0256110280752182,"token":"
+    temperatures"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.30417388677597046,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.30417388677597046,"token":"
+    around"}]},{"bytes":[32],"logprob":-1.1472419600977446e-6,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-1.1472419600977446e-6,"token":"
+    "}]},{"bytes":[54,48],"logprob":0.0,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":0.0,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,52],"logprob":-1.9361264946837764e-7,"token":"64","top_logprobs":[{"bytes":[54,52],"logprob":-1.9361264946837764e-7,"token":"64"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":-1.9361264946837764e-7,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-1.9361264946837764e-7,"token":"
+    ("}]},{"bytes":[49,54],"logprob":-6.392202976712724e-6,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-6.392202976712724e-6,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[49,56],"logprob":0.0,"token":"18","top_logprobs":[{"bytes":[49,56],"logprob":0.0,"token":"18"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.2383444905281067,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.2383444905281067,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.008471199311316013,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.008471199311316013,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
+    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-0.0001757696009008214,"token":"
+    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-0.0001757696009008214,"token":"
     tell"}]},{"bytes":[32,109,101],"logprob":0.0,"token":" me","top_logprobs":[{"bytes":[32,109,101],"logprob":0.0,"token":"
-    me"}]},{"bytes":[32,116,104,101],"logprob":-0.11120849847793579,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.11120849847793579,"token":"
-    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002101606223732233,"token":"
-    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002101606223732233,"token":"
-    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-4.320199877838604e-7,"token":"
-    city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-4.320199877838604e-7,"token":"
-    city"}]},{"bytes":[32,111,114],"logprob":-0.03591029345989227,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.03591029345989227,"token":"
-    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.9055562019348145,"token":" area","top_logprobs":[{"bytes":[32,114,101,103,105,111,110],"logprob":-0.5305562019348145,"token":"
-    region"}]},{"bytes":[32,105,110],"logprob":-0.000411011598771438,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.000411011598771438,"token":"
+    me"}]},{"bytes":[32,116,104,101],"logprob":-0.6084967851638794,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.6084967851638794,"token":"
+    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.0020282079931348562,"token":"
+    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.0020282079931348562,"token":"
+    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-1.7432603272027336e-6,"token":"
+    city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-1.7432603272027336e-6,"token":"
+    city"}]},{"bytes":[32,111,114],"logprob":-0.07410604506731033,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.07410604506731033,"token":"
+    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.3442908823490143,"token":" area","top_logprobs":[{"bytes":[32,97,114,101,97],"logprob":-0.3442908823490143,"token":"
+    area"}]},{"bytes":[32,105,110],"logprob":-0.0002003218833124265,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.0002003218833124265,"token":"
     in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":"
-    Taiwan"}]},{"bytes":[32,40],"logprob":-0.00005204720582696609,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.00005204720582696609,"token":"
-    ("}]},{"bytes":[101],"logprob":-0.019597452133893967,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.019597452133893967,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-2.696889623621246e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-2.696889623621246e-6,"token":".,"}]}],"obfuscation":"VRHgFSa","output_index":1,"sequence_number":13}
+    Taiwan"}]},{"bytes":[32,40],"logprob":-0.0003273600013926625,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.0003273600013926625,"token":"
+    ("}]},{"bytes":[101],"logprob":-0.013018923811614513,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.013018923811614513,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-6.704273118884885e-7,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-6.704273118884885e-7,"token":".,"}]}],"obfuscation":"q0ntH7","output_index":1,"sequence_number":15}
 
     '
   - '
@@ -276,33 +338,30 @@ response:
 
     '
   - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Taipei,
-    Taichung, Kaohsiung, Tainan, Hualien), I can give a more precise forecast for
-    today.","item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
+    Taichung, Kaohsiung, Hualien), I can give a more precise forecast for today.","item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
     Taipei","top_logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
-    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.024683695286512375,"token":"
-    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.024683695286512375,"token":"
-    Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.04299920052289963,"token":"
-    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.04299920052289963,"token":"
-    Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-6.704273118884885e-7,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-6.704273118884885e-7,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.0026766068767756224,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0026766068767756224,"token":","}]},{"bytes":[32,84],"logprob":-0.5105119943618774,"token":"
-    T","top_logprobs":[{"bytes":[32,84],"logprob":-0.5105119943618774,"token":" T"}]},{"bytes":[97,105,110,97,110],"logprob":-0.010381938889622688,"token":"ainan","top_logprobs":[{"bytes":[97,105,110,97,110],"logprob":-0.010381938889622688,"token":"ainan"}]},{"bytes":[44],"logprob":-0.0028937978204339743,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0028937978204339743,"token":","}]},{"bytes":[32,72],"logprob":-2.339278580620885e-6,"token":"
-    H","top_logprobs":[{"bytes":[32,72],"logprob":-2.339278580620885e-6,"token":"
-    H"}]},{"bytes":[117,97,108],"logprob":-1.981667537620524e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-1.981667537620524e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-4.320199877838604e-7,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-4.320199877838604e-7,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
-    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-8.65707261255011e-6,"token":"
-    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-8.65707261255011e-6,"token":"
-    can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.005913746543228626,"token":"
-    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.005913746543228626,"token":"
-    give"}]},{"bytes":[32,97],"logprob":-0.38906461000442505,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.38906461000442505,"token":"
-    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000050020742492051795,"token":"
-    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000050020742492051795,"token":"
-    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0021564492490142584,"token":"
-    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0021564492490142584,"token":"
-    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988004207611084,"token":"
-    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988004207611084,"token":"
-    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.6384903788566589,"token":"
-    for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.6384903788566589,"token":"
-    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.4861219525337219,"token":"
-    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.4861219525337219,"token":"
-    today"}]},{"bytes":[46],"logprob":-0.32176733016967773,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.32176733016967773,"token":"."}]}],"obfuscation":"rbP","output_index":1,"sequence_number":14}
+    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.011412067338824272,"token":"
+    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.011412067338824272,"token":"
+    Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.040445927530527115,"token":"
+    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.040445927530527115,"token":"
+    Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-4.320199877838604e-7,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-4.320199877838604e-7,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.026708954945206642,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.026708954945206642,"token":","}]},{"bytes":[32,72],"logprob":-0.39700406789779663,"token":"
+    H","top_logprobs":[{"bytes":[32,72],"logprob":-0.39700406789779663,"token":" H"}]},{"bytes":[117,97,108],"logprob":-9.088346359931165e-7,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-9.088346359931165e-7,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-5.5577775128767826e-6,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-5.5577775128767826e-6,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-1.5048530030981055e-6,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-1.5048530030981055e-6,"token":"
+    can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.16795918345451355,"token":"
+    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.16795918345451355,"token":"
+    give"}]},{"bytes":[32,97],"logprob":-0.34425297379493713,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.34425297379493713,"token":"
+    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.00023846338444855064,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.00023846338444855064,"token":"
+    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0009842199506238103,"token":"
+    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0009842199506238103,"token":"
+    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.13553130626678467,"token":"
+    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.13553130626678467,"token":"
+    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.43026939034461975,"token":"
+    for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.43026939034461975,"token":"
+    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.011935919523239136,"token":"
+    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.011935919523239136,"token":"
+    today"}]},{"bytes":[46],"logprob":-0.066844142973423,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.066844142973423,"token":"."}]}],"obfuscation":"l1WdA06xPIW","output_index":1,"sequence_number":16}
 
     '
   - '
@@ -311,81 +370,88 @@ response:
   - 'event: response.output_text.done
 
     '
-  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","logprobs":[{"bytes":[32,32,10,10],"logprob":-0.0025549731217324734,"token":"  \n\n","top_logprobs":[{"bytes":[32,32,10,10],"logprob":-0.0025549731217324734,"token":"  \n\n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.00822837557643652,"token":"
-    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.00822837557643652,"token":"
-    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.04045473784208298,"token":"
-    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.04045473784208298,"token":"
-    conditions"}]},{"bytes":[58],"logprob":-0.00005157039049663581,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.00005157039049663581,"token":":"}]},{"bytes":[32,83,117,110,110,121],"logprob":-0.014710577204823494,"token":"
-    Sunny","top_logprobs":[{"bytes":[32,83,117,110,110,121],"logprob":-0.014710577204823494,"token":"
-    Sunny"}]},{"bytes":[44],"logprob":-0.000019385402993066236,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019385402993066236,"token":","}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.08129492402076721,"token":"
-    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.08129492402076721,"token":"
-    about"}]},{"bytes":[32],"logprob":-0.00002081584716506768,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00002081584716506768,"token":"
-    "}]},{"bytes":[55,56],"logprob":-0.000023676733690081164,"token":"78","top_logprobs":[{"bytes":[55,56],"logprob":-0.000023676733690081164,"token":"78"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[50,54],"logprob":0.0,"token":"26","top_logprobs":[{"bytes":[50,54],"logprob":0.0,"token":"26"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.5490921139717102,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.5490921139717102,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.06492713838815689,"token":"
-    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.06492713838815689,"token":"
-    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":"
-    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.022709915414452553,"token":"
-    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.022709915414452553,"token":"
-    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.03934603929519653,"token":"
-    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.03934603929519653,"token":"
-    tonight"}]},{"bytes":[58],"logprob":-0.00002939851037808694,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.00002939851037808694,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.1567155122756958,"token":"
-    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.1567155122756958,"token":"
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-3.531315314830863e-6,"token":"
+    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-3.531315314830863e-6,"token":"
+    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.4472307562828064,"token":"
+    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.4472307562828064,"token":"
+    conditions"}]},{"bytes":[58],"logprob":-0.0000793448489275761,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.0000793448489275761,"token":":"}]},{"bytes":[32,83,104,111,119],"logprob":-0.0006849141791462898,"token":"
+    Show","top_logprobs":[{"bytes":[32,83,104,111,119],"logprob":-0.0006849141791462898,"token":"
+    Show"}]},{"bytes":[101,114,115],"logprob":-2.1008713702030946e-6,"token":"ers","top_logprobs":[{"bytes":[101,114,115],"logprob":-2.1008713702030946e-6,"token":"ers"}]},{"bytes":[44],"logprob":-0.00033069768687710166,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.00033069768687710166,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.5231322050094604,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.5231322050094604,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000036550729419104755,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000036550729419104755,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0,"token":"69"}]},{"bytes":[194,176,70],"logprob":-5.512236498361744e-7,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-5.512236498361744e-7,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.00005407366916188039,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.00005407366916188039,"token":"
+    ("}]},{"bytes":[50,48],"logprob":-3.650518920039758e-6,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-3.650518920039758e-6,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.06684770435094833,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.06684770435094833,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.0019310165662318468,"token":"
+    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.0019310165662318468,"token":"
+    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":-4.320199877838604e-7,"token":"
+    evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":-4.320199877838604e-7,"token":"
+    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.10800708085298538,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.10800708085298538,"token":"
+    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.06489463150501251,"token":"
+    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.06489463150501251,"token":"
+    tonight"}]},{"bytes":[58],"logprob":-0.000013902033970225602,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000013902033970225602,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999446053057909,"token":"
+    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999446053057909,"token":"
     Mostly"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":" cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":"
-    cloudy"}]},{"bytes":[44],"logprob":-0.0033881450071930885,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0033881450071930885,"token":","}]},{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.17858880758285522,"token":"
-    cooling","top_logprobs":[{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.17858880758285522,"token":"
-    cooling"}]},{"bytes":[32,116,111],"logprob":-0.47212979197502136,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.47212979197502136,"token":"
-    to"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013856938108801842,"token":"
-    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013856938108801842,"token":"
-    around"}]},{"bytes":[32],"logprob":-0.0003757383383344859,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.0003757383383344859,"token":"
-    "}]},{"bytes":[54,48],"logprob":-0.05657891184091568,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.05657891184091568,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,55],"logprob":-0.03164849802851677,"token":"67","top_logprobs":[{"bytes":[54,55],"logprob":-0.03164849802851677,"token":"67"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000014378848391061183,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000014378848391061183,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[50,48],"logprob":-0.0001234428636962548,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-0.0001234428636962548,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.3975695073604584,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.3975695073604584,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.00006825890159234405,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.00006825890159234405,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
-    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-1.5048530030981055e-6,"token":"
-    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-1.5048530030981055e-6,"token":"
+    cloudy"}]},{"bytes":[32,119,105,116,104],"logprob":-0.04580896720290184,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.04580896720290184,"token":"
+    with"}]},{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.06419535726308823,"token":"
+    periods","top_logprobs":[{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.06419535726308823,"token":"
+    periods"}]},{"bytes":[32,111,102],"logprob":0.0,"token":" of","top_logprobs":[{"bytes":[32,111,102],"logprob":0.0,"token":"
+    of"}]},{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4.36574100604048e-6,"token":"
+    thunderstorms","top_logprobs":[{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4.36574100604048e-6,"token":"
+    thunderstorms"}]},{"bytes":[44],"logprob":-0.6472535729408264,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.6472535729408264,"token":","}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.0256110280752182,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.0256110280752182,"token":"
+    temperatures"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.30417388677597046,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.30417388677597046,"token":"
+    around"}]},{"bytes":[32],"logprob":-1.1472419600977446e-6,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-1.1472419600977446e-6,"token":"
+    "}]},{"bytes":[54,48],"logprob":0.0,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":0.0,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,52],"logprob":-1.9361264946837764e-7,"token":"64","top_logprobs":[{"bytes":[54,52],"logprob":-1.9361264946837764e-7,"token":"64"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":-1.9361264946837764e-7,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-1.9361264946837764e-7,"token":"
+    ("}]},{"bytes":[49,54],"logprob":-6.392202976712724e-6,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-6.392202976712724e-6,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[49,56],"logprob":0.0,"token":"18","top_logprobs":[{"bytes":[49,56],"logprob":0.0,"token":"18"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.2383444905281067,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.2383444905281067,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.008471199311316013,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.008471199311316013,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
+    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-0.0001757696009008214,"token":"
+    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-0.0001757696009008214,"token":"
     tell"}]},{"bytes":[32,109,101],"logprob":0.0,"token":" me","top_logprobs":[{"bytes":[32,109,101],"logprob":0.0,"token":"
-    me"}]},{"bytes":[32,116,104,101],"logprob":-0.11120849847793579,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.11120849847793579,"token":"
-    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002101606223732233,"token":"
-    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002101606223732233,"token":"
-    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-4.320199877838604e-7,"token":"
-    city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-4.320199877838604e-7,"token":"
-    city"}]},{"bytes":[32,111,114],"logprob":-0.03591029345989227,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.03591029345989227,"token":"
-    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.9055562019348145,"token":" area","top_logprobs":[{"bytes":[32,114,101,103,105,111,110],"logprob":-0.5305562019348145,"token":"
-    region"}]},{"bytes":[32,105,110],"logprob":-0.000411011598771438,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.000411011598771438,"token":"
+    me"}]},{"bytes":[32,116,104,101],"logprob":-0.6084967851638794,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.6084967851638794,"token":"
+    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.0020282079931348562,"token":"
+    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.0020282079931348562,"token":"
+    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-1.7432603272027336e-6,"token":"
+    city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-1.7432603272027336e-6,"token":"
+    city"}]},{"bytes":[32,111,114],"logprob":-0.07410604506731033,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.07410604506731033,"token":"
+    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.3442908823490143,"token":" area","top_logprobs":[{"bytes":[32,97,114,101,97],"logprob":-0.3442908823490143,"token":"
+    area"}]},{"bytes":[32,105,110],"logprob":-0.0002003218833124265,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.0002003218833124265,"token":"
     in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":"
-    Taiwan"}]},{"bytes":[32,40],"logprob":-0.00005204720582696609,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.00005204720582696609,"token":"
-    ("}]},{"bytes":[101],"logprob":-0.019597452133893967,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.019597452133893967,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-2.696889623621246e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-2.696889623621246e-6,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
+    Taiwan"}]},{"bytes":[32,40],"logprob":-0.0003273600013926625,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.0003273600013926625,"token":"
+    ("}]},{"bytes":[101],"logprob":-0.013018923811614513,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.013018923811614513,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-6.704273118884885e-7,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-6.704273118884885e-7,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
     Taipei","top_logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
-    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.024683695286512375,"token":"
-    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.024683695286512375,"token":"
-    Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.04299920052289963,"token":"
-    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.04299920052289963,"token":"
-    Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-6.704273118884885e-7,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-6.704273118884885e-7,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.0026766068767756224,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0026766068767756224,"token":","}]},{"bytes":[32,84],"logprob":-0.5105119943618774,"token":"
-    T","top_logprobs":[{"bytes":[32,84],"logprob":-0.5105119943618774,"token":" T"}]},{"bytes":[97,105,110,97,110],"logprob":-0.010381938889622688,"token":"ainan","top_logprobs":[{"bytes":[97,105,110,97,110],"logprob":-0.010381938889622688,"token":"ainan"}]},{"bytes":[44],"logprob":-0.0028937978204339743,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0028937978204339743,"token":","}]},{"bytes":[32,72],"logprob":-2.339278580620885e-6,"token":"
-    H","top_logprobs":[{"bytes":[32,72],"logprob":-2.339278580620885e-6,"token":"
-    H"}]},{"bytes":[117,97,108],"logprob":-1.981667537620524e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-1.981667537620524e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-4.320199877838604e-7,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-4.320199877838604e-7,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
-    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-8.65707261255011e-6,"token":"
-    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-8.65707261255011e-6,"token":"
-    can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.005913746543228626,"token":"
-    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.005913746543228626,"token":"
-    give"}]},{"bytes":[32,97],"logprob":-0.38906461000442505,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.38906461000442505,"token":"
-    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000050020742492051795,"token":"
-    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000050020742492051795,"token":"
-    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0021564492490142584,"token":"
-    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0021564492490142584,"token":"
-    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988004207611084,"token":"
-    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988004207611084,"token":"
-    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.6384903788566589,"token":"
-    for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.6384903788566589,"token":"
-    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.4861219525337219,"token":"
-    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.4861219525337219,"token":"
-    today"}]},{"bytes":[46],"logprob":-0.32176733016967773,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.32176733016967773,"token":"."}]}],"output_index":1,"sequence_number":15,"text":"I’m
-    an AI assistant created by OpenAI. I can help you find information, answer questions,
-    and work through problems in many areas (travel planning, learning topics, writing,
-    coding, etc.).\n\nYou also asked about the weather in Taiwan today (April 27,
-    2026). Here’s a quick snapshot for Taiwan overall:   \n\n- Current conditions:
-    Sunny, about 78°F (26°C).  \n- This evening and tonight: Mostly cloudy, cooling
-    to around 60–67°F (16–20°C).\n\nIf you tell me the specific city or area in Taiwan
-    (e.g., Taipei, Taichung, Kaohsiung, Tainan, Hualien), I can give a more precise
-    forecast for today."}
+    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.011412067338824272,"token":"
+    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.011412067338824272,"token":"
+    Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.040445927530527115,"token":"
+    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.040445927530527115,"token":"
+    Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-4.320199877838604e-7,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-4.320199877838604e-7,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.026708954945206642,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.026708954945206642,"token":","}]},{"bytes":[32,72],"logprob":-0.39700406789779663,"token":"
+    H","top_logprobs":[{"bytes":[32,72],"logprob":-0.39700406789779663,"token":" H"}]},{"bytes":[117,97,108],"logprob":-9.088346359931165e-7,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-9.088346359931165e-7,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-5.5577775128767826e-6,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-5.5577775128767826e-6,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-1.5048530030981055e-6,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-1.5048530030981055e-6,"token":"
+    can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.16795918345451355,"token":"
+    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.16795918345451355,"token":"
+    give"}]},{"bytes":[32,97],"logprob":-0.34425297379493713,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.34425297379493713,"token":"
+    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.00023846338444855064,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.00023846338444855064,"token":"
+    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0009842199506238103,"token":"
+    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.0009842199506238103,"token":"
+    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.13553130626678467,"token":"
+    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.13553130626678467,"token":"
+    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.43026939034461975,"token":"
+    for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.43026939034461975,"token":"
+    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.011935919523239136,"token":"
+    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.011935919523239136,"token":"
+    today"}]},{"bytes":[46],"logprob":-0.066844142973423,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.066844142973423,"token":"."}]}],"output_index":1,"sequence_number":17,"text":"I’m
+    an AI assistant created by OpenAI. I can help you look things up, explain concepts,
+    plan trips, write and edit text, analyze data, and more.\n\nYou also have a standing
+    request about the weather in Taiwan today (May 5, 2026), so here’s a quick update
+    based on current data:\n\n- Location: Taiwan (general, island-wide overview)   \n-
+    Current conditions: Showers, around 69°F (20°C).  \n- This evening and tonight:
+    Mostly cloudy with periods of thunderstorms, temperatures around 60–64°F (16–18°C).\n\nIf
+    you tell me the specific city or area in Taiwan (e.g., Taipei, Taichung, Kaohsiung,
+    Hualien), I can give a more precise forecast for today."}
 
     '
   - '
@@ -394,15 +460,15 @@ response:
   - 'event: response.content_part.done
 
     '
-  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"I’m
-    an AI assistant created by OpenAI. I can help you find information, answer questions,
-    and work through problems in many areas (travel planning, learning topics, writing,
-    coding, etc.).\n\nYou also asked about the weather in Taiwan today (April 27,
-    2026). Here’s a quick snapshot for Taiwan overall:   \n\n- Current conditions:
-    Sunny, about 78°F (26°C).  \n- This evening and tonight: Mostly cloudy, cooling
-    to around 60–67°F (16–20°C).\n\nIf you tell me the specific city or area in Taiwan
-    (e.g., Taipei, Taichung, Kaohsiung, Tainan, Hualien), I can give a more precise
-    forecast for today."},"sequence_number":16}
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"I’m
+    an AI assistant created by OpenAI. I can help you look things up, explain concepts,
+    plan trips, write and edit text, analyze data, and more.\n\nYou also have a standing
+    request about the weather in Taiwan today (May 5, 2026), so here’s a quick update
+    based on current data:\n\n- Location: Taiwan (general, island-wide overview)   \n-
+    Current conditions: Showers, around 69°F (20°C).  \n- This evening and tonight:
+    Mostly cloudy with periods of thunderstorms, temperatures around 60–64°F (16–18°C).\n\nIf
+    you tell me the specific city or area in Taiwan (e.g., Taipei, Taichung, Kaohsiung,
+    Hualien), I can give a more precise forecast for today."},"sequence_number":18}
 
     '
   - '
@@ -411,71 +477,76 @@ response:
   - 'event: response.output_item.done
 
     '
-  - 'data: {"type":"response.output_item.done","item":{"id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[32,32,10,10],"logprob":-0.002555,"token":"  \n\n","top_logprobs":[{"bytes":[32,32,10,10],"logprob":-0.002555,"token":"  \n\n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.008228,"token":"
-    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.008228,"token":"
-    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.040455,"token":"
-    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.040455,"token":"
-    conditions"}]},{"bytes":[58],"logprob":-0.000052,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000052,"token":":"}]},{"bytes":[32,83,117,110,110,121],"logprob":-0.014711,"token":"
-    Sunny","top_logprobs":[{"bytes":[32,83,117,110,110,121],"logprob":-0.014711,"token":"
-    Sunny"}]},{"bytes":[44],"logprob":-0.000019,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019,"token":","}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.081295,"token":"
-    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.081295,"token":"
-    about"}]},{"bytes":[32],"logprob":-0.000021,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000021,"token":"
-    "}]},{"bytes":[55,56],"logprob":-0.000024,"token":"78","top_logprobs":[{"bytes":[55,56],"logprob":-0.000024,"token":"78"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[50,54],"logprob":0.0,"token":"26","top_logprobs":[{"bytes":[50,54],"logprob":0.0,"token":"26"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.549092,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.549092,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.064927,"token":"
-    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.064927,"token":"
-    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":"
-    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.02271,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.02271,"token":"
-    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.039346,"token":"
-    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.039346,"token":"
-    tonight"}]},{"bytes":[58],"logprob":-0.000029,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000029,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.156716,"token":"
-    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.156716,"token":"
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-4e-6,"token":"
+    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-4e-6,"token":"
+    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.447231,"token":"
+    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.447231,"token":"
+    conditions"}]},{"bytes":[58],"logprob":-0.000079,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000079,"token":":"}]},{"bytes":[32,83,104,111,119],"logprob":-0.000685,"token":"
+    Show","top_logprobs":[{"bytes":[32,83,104,111,119],"logprob":-0.000685,"token":"
+    Show"}]},{"bytes":[101,114,115],"logprob":-2e-6,"token":"ers","top_logprobs":[{"bytes":[101,114,115],"logprob":-2e-6,"token":"ers"}]},{"bytes":[44],"logprob":-0.000331,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000331,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.523132,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.523132,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000037,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000037,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0,"token":"69"}]},{"bytes":[194,176,70],"logprob":-1e-6,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-1e-6,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000054,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000054,"token":" ("}]},{"bytes":[50,48],"logprob":-4e-6,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-4e-6,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.066848,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.066848,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.001931,"token":"
+    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.001931,"token":"
+    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":-0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":-0.0,"token":"
+    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.108007,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.108007,"token":"
+    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.064895,"token":"
+    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.064895,"token":"
+    tonight"}]},{"bytes":[58],"logprob":-0.000014,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000014,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999,"token":"
+    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999,"token":"
     Mostly"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":" cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":"
-    cloudy"}]},{"bytes":[44],"logprob":-0.003388,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.003388,"token":","}]},{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.178589,"token":"
-    cooling","top_logprobs":[{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.178589,"token":"
-    cooling"}]},{"bytes":[32,116,111],"logprob":-0.47213,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.47213,"token":"
-    to"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013857,"token":" around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013857,"token":"
-    around"}]},{"bytes":[32],"logprob":-0.000376,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000376,"token":"
-    "}]},{"bytes":[54,48],"logprob":-0.056579,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.056579,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,55],"logprob":-0.031648,"token":"67","top_logprobs":[{"bytes":[54,55],"logprob":-0.031648,"token":"67"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000014,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000014,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[50,48],"logprob":-0.000123,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-0.000123,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.39757,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.39757,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.000068,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.000068,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
-    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-2e-6,"token":"
-    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-2e-6,"token":"
+    cloudy"}]},{"bytes":[32,119,105,116,104],"logprob":-0.045809,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.045809,"token":"
+    with"}]},{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.064195,"token":"
+    periods","top_logprobs":[{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.064195,"token":"
+    periods"}]},{"bytes":[32,111,102],"logprob":0.0,"token":" of","top_logprobs":[{"bytes":[32,111,102],"logprob":0.0,"token":"
+    of"}]},{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4e-6,"token":"
+    thunderstorms","top_logprobs":[{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4e-6,"token":"
+    thunderstorms"}]},{"bytes":[44],"logprob":-0.647254,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.647254,"token":","}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.025611,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.025611,"token":"
+    temperatures"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.304174,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.304174,"token":"
+    around"}]},{"bytes":[32],"logprob":-1e-6,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-1e-6,"token":"
+    "}]},{"bytes":[54,48],"logprob":0.0,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":0.0,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,52],"logprob":-0.0,"token":"64","top_logprobs":[{"bytes":[54,52],"logprob":-0.0,"token":"64"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.0,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-6e-6,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-6e-6,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[49,56],"logprob":0.0,"token":"18","top_logprobs":[{"bytes":[49,56],"logprob":0.0,"token":"18"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.238344,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.238344,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.008471,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.008471,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
+    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-0.000176,"token":"
+    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-0.000176,"token":"
     tell"}]},{"bytes":[32,109,101],"logprob":0.0,"token":" me","top_logprobs":[{"bytes":[32,109,101],"logprob":0.0,"token":"
-    me"}]},{"bytes":[32,116,104,101],"logprob":-0.111208,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.111208,"token":"
-    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002102,"token":"
-    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002102,"token":"
-    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-0.0,"token":" city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-0.0,"token":"
-    city"}]},{"bytes":[32,111,114],"logprob":-0.03591,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.03591,"token":"
-    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.905556,"token":" area","top_logprobs":[{"bytes":[32,114,101,103,105,111,110],"logprob":-0.530556,"token":"
-    region"}]},{"bytes":[32,105,110],"logprob":-0.000411,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.000411,"token":"
+    me"}]},{"bytes":[32,116,104,101],"logprob":-0.608497,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.608497,"token":"
+    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002028,"token":"
+    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002028,"token":"
+    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-2e-6,"token":" city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-2e-6,"token":"
+    city"}]},{"bytes":[32,111,114],"logprob":-0.074106,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.074106,"token":"
+    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.344291,"token":" area","top_logprobs":[{"bytes":[32,97,114,101,97],"logprob":-0.344291,"token":"
+    area"}]},{"bytes":[32,105,110],"logprob":-0.0002,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.0002,"token":"
     in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":"
-    Taiwan"}]},{"bytes":[32,40],"logprob":-0.000052,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000052,"token":"
-    ("}]},{"bytes":[101],"logprob":-0.019597,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.019597,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-3e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-3e-6,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
+    Taiwan"}]},{"bytes":[32,40],"logprob":-0.000327,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000327,"token":"
+    ("}]},{"bytes":[101],"logprob":-0.013019,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.013019,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-1e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-1e-6,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
     Taipei","top_logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
-    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.024684,"token":"
-    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.024684,"token":" Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.042999,"token":"
-    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.042999,"token":" Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-1e-6,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-1e-6,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.002677,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.002677,"token":","}]},{"bytes":[32,84],"logprob":-0.510512,"token":"
-    T","top_logprobs":[{"bytes":[32,84],"logprob":-0.510512,"token":" T"}]},{"bytes":[97,105,110,97,110],"logprob":-0.010382,"token":"ainan","top_logprobs":[{"bytes":[97,105,110,97,110],"logprob":-0.010382,"token":"ainan"}]},{"bytes":[44],"logprob":-0.002894,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.002894,"token":","}]},{"bytes":[32,72],"logprob":-2e-6,"token":"
-    H","top_logprobs":[{"bytes":[32,72],"logprob":-2e-6,"token":" H"}]},{"bytes":[117,97,108],"logprob":-2e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-2e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-0.0,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.0,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
-    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-9e-6,"token":"
-    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-9e-6,"token":" can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.005914,"token":"
-    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.005914,"token":"
-    give"}]},{"bytes":[32,97],"logprob":-0.389065,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.389065,"token":"
-    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.00005,"token":" more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.00005,"token":"
-    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.002156,"token":"
-    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.002156,"token":"
-    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988,"token":"
-    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988,"token":"
-    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.63849,"token":" for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.63849,"token":"
-    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.486122,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.486122,"token":"
-    today"}]},{"bytes":[46],"logprob":-0.321767,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.321767,"token":"."}]}],"text":"I’m
-    an AI assistant created by OpenAI. I can help you find information, answer questions,
-    and work through problems in many areas (travel planning, learning topics, writing,
-    coding, etc.).\n\nYou also asked about the weather in Taiwan today (April 27,
-    2026). Here’s a quick snapshot for Taiwan overall:   \n\n- Current conditions:
-    Sunny, about 78°F (26°C).  \n- This evening and tonight: Mostly cloudy, cooling
-    to around 60–67°F (16–20°C).\n\nIf you tell me the specific city or area in Taiwan
-    (e.g., Taipei, Taichung, Kaohsiung, Tainan, Hualien), I can give a more precise
-    forecast for today."}],"role":"assistant"},"output_index":1,"sequence_number":17}
+    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.011412,"token":"
+    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.011412,"token":" Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.040446,"token":"
+    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.040446,"token":" Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-0.0,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-0.0,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.026709,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.026709,"token":","}]},{"bytes":[32,72],"logprob":-0.397004,"token":"
+    H","top_logprobs":[{"bytes":[32,72],"logprob":-0.397004,"token":" H"}]},{"bytes":[117,97,108],"logprob":-1e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-1e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-6e-6,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-6e-6,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-2e-6,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-2e-6,"token":" can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.167959,"token":"
+    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.167959,"token":"
+    give"}]},{"bytes":[32,97],"logprob":-0.344253,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.344253,"token":"
+    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000238,"token":" more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000238,"token":"
+    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.000984,"token":"
+    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.000984,"token":"
+    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.135531,"token":"
+    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.135531,"token":"
+    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.430269,"token":" for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.430269,"token":"
+    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.011936,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.011936,"token":"
+    today"}]},{"bytes":[46],"logprob":-0.066844,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.066844,"token":"."}]}],"text":"I’m
+    an AI assistant created by OpenAI. I can help you look things up, explain concepts,
+    plan trips, write and edit text, analyze data, and more.\n\nYou also have a standing
+    request about the weather in Taiwan today (May 5, 2026), so here’s a quick update
+    based on current data:\n\n- Location: Taiwan (general, island-wide overview)   \n-
+    Current conditions: Showers, around 69°F (20°C).  \n- This evening and tonight:
+    Mostly cloudy with periods of thunderstorms, temperatures around 60–64°F (16–18°C).\n\nIf
+    you tell me the specific city or area in Taiwan (e.g., Taipei, Taichung, Kaohsiung,
+    Hualien), I can give a more precise forecast for today."}],"role":"assistant"},"output_index":1,"sequence_number":19}
 
     '
   - '
@@ -484,77 +555,82 @@ response:
   - 'event: response.completed
 
     '
-  - 'data: {"type":"response.completed","response":{"id":"resp_062865ce5780ffed0169ef1b78c4d8819982eb79c4d2a457c7","object":"response","created_at":1777277816,"status":"completed","background":false,"completed_at":1777277819,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
-    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[{"id":"ws_062865ce5780ffed0169ef1b799f8881998a1dc6af82fc0176","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
-    Taiwan"],"query":"weather: Taiwan","sources":[{"type":"api","name":"oai-weather"}]}},{"id":"msg_062865ce5780ffed0169ef1b7a2ce081998284023ddc9b1b8f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[32,32,10,10],"logprob":-0.002555,"token":"  \n\n","top_logprobs":[{"bytes":[32,32,10,10],"logprob":-0.002555,"token":"  \n\n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.008228,"token":"
-    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-0.008228,"token":"
-    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.040455,"token":"
-    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.040455,"token":"
-    conditions"}]},{"bytes":[58],"logprob":-0.000052,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000052,"token":":"}]},{"bytes":[32,83,117,110,110,121],"logprob":-0.014711,"token":"
-    Sunny","top_logprobs":[{"bytes":[32,83,117,110,110,121],"logprob":-0.014711,"token":"
-    Sunny"}]},{"bytes":[44],"logprob":-0.000019,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019,"token":","}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.081295,"token":"
-    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.081295,"token":"
-    about"}]},{"bytes":[32],"logprob":-0.000021,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000021,"token":"
-    "}]},{"bytes":[55,56],"logprob":-0.000024,"token":"78","top_logprobs":[{"bytes":[55,56],"logprob":-0.000024,"token":"78"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[50,54],"logprob":0.0,"token":"26","top_logprobs":[{"bytes":[50,54],"logprob":0.0,"token":"26"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.549092,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.549092,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.064927,"token":"
-    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.064927,"token":"
-    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":0.0,"token":"
-    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.02271,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.02271,"token":"
-    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.039346,"token":"
-    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.039346,"token":"
-    tonight"}]},{"bytes":[58],"logprob":-0.000029,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000029,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.156716,"token":"
-    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.156716,"token":"
+  - 'data: {"type":"response.completed","response":{"id":"resp_03bbd1069af6cd550169f9a556a7888195869a967207d4711e","object":"response","created_at":1777968470,"status":"completed","background":false,"completed_at":1777968474,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[{"id":"ws_03bbd1069af6cd550169f9a557fd308195a4ad9876320e741f","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+    Taiwan"],"query":"weather: Taiwan","sources":[{"type":"api","name":"oai-weather"}]}},{"id":"msg_03bbd1069af6cd550169f9a5596a108195aa53bf18c57ccb4f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,67,117,114,114,101,110,116],"logprob":-4e-6,"token":"
+    Current","top_logprobs":[{"bytes":[32,67,117,114,114,101,110,116],"logprob":-4e-6,"token":"
+    Current"}]},{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.447231,"token":"
+    conditions","top_logprobs":[{"bytes":[32,99,111,110,100,105,116,105,111,110,115],"logprob":-0.447231,"token":"
+    conditions"}]},{"bytes":[58],"logprob":-0.000079,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000079,"token":":"}]},{"bytes":[32,83,104,111,119],"logprob":-0.000685,"token":"
+    Show","top_logprobs":[{"bytes":[32,83,104,111,119],"logprob":-0.000685,"token":"
+    Show"}]},{"bytes":[101,114,115],"logprob":-2e-6,"token":"ers","top_logprobs":[{"bytes":[101,114,115],"logprob":-2e-6,"token":"ers"}]},{"bytes":[44],"logprob":-0.000331,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000331,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.523132,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.523132,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000037,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000037,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0,"token":"69"}]},{"bytes":[194,176,70],"logprob":-1e-6,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-1e-6,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000054,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000054,"token":" ("}]},{"bytes":[50,48],"logprob":-4e-6,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-4e-6,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.066848,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.066848,"token":")."}]},{"bytes":[32,32,10],"logprob":0.0,"token":"  \n","top_logprobs":[{"bytes":[32,32,10],"logprob":0.0,"token":"  \n"}]},{"bytes":[45],"logprob":0.0,"token":"-","top_logprobs":[{"bytes":[45],"logprob":0.0,"token":"-"}]},{"bytes":[32,84,104,105,115],"logprob":-0.001931,"token":"
+    This","top_logprobs":[{"bytes":[32,84,104,105,115],"logprob":-0.001931,"token":"
+    This"}]},{"bytes":[32,101,118,101,110,105,110,103],"logprob":-0.0,"token":" evening","top_logprobs":[{"bytes":[32,101,118,101,110,105,110,103],"logprob":-0.0,"token":"
+    evening"}]},{"bytes":[32,97,110,100],"logprob":-0.108007,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.108007,"token":"
+    and"}]},{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.064895,"token":"
+    tonight","top_logprobs":[{"bytes":[32,116,111,110,105,103,104,116],"logprob":-0.064895,"token":"
+    tonight"}]},{"bytes":[58],"logprob":-0.000014,"token":":","top_logprobs":[{"bytes":[58],"logprob":-0.000014,"token":":"}]},{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999,"token":"
+    Mostly","top_logprobs":[{"bytes":[32,77,111,115,116,108,121],"logprob":-0.003999,"token":"
     Mostly"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":" cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":0.0,"token":"
-    cloudy"}]},{"bytes":[44],"logprob":-0.003388,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.003388,"token":","}]},{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.178589,"token":"
-    cooling","top_logprobs":[{"bytes":[32,99,111,111,108,105,110,103],"logprob":-0.178589,"token":"
-    cooling"}]},{"bytes":[32,116,111],"logprob":-0.47213,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.47213,"token":"
-    to"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013857,"token":" around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.013857,"token":"
-    around"}]},{"bytes":[32],"logprob":-0.000376,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000376,"token":"
-    "}]},{"bytes":[54,48],"logprob":-0.056579,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.056579,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,55],"logprob":-0.031648,"token":"67","top_logprobs":[{"bytes":[54,55],"logprob":-0.031648,"token":"67"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":0.0,"token":"
-    (","top_logprobs":[{"bytes":[32,40],"logprob":0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000014,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000014,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[50,48],"logprob":-0.000123,"token":"20","top_logprobs":[{"bytes":[50,48],"logprob":-0.000123,"token":"20"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.39757,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.39757,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.000068,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.000068,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
-    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-2e-6,"token":"
-    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-2e-6,"token":"
+    cloudy"}]},{"bytes":[32,119,105,116,104],"logprob":-0.045809,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.045809,"token":"
+    with"}]},{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.064195,"token":"
+    periods","top_logprobs":[{"bytes":[32,112,101,114,105,111,100,115],"logprob":-0.064195,"token":"
+    periods"}]},{"bytes":[32,111,102],"logprob":0.0,"token":" of","top_logprobs":[{"bytes":[32,111,102],"logprob":0.0,"token":"
+    of"}]},{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4e-6,"token":"
+    thunderstorms","top_logprobs":[{"bytes":[32,116,104,117,110,100,101,114,115,116,111,114,109,115],"logprob":-4e-6,"token":"
+    thunderstorms"}]},{"bytes":[44],"logprob":-0.647254,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.647254,"token":","}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.025611,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.025611,"token":"
+    temperatures"}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.304174,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.304174,"token":"
+    around"}]},{"bytes":[32],"logprob":-1e-6,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-1e-6,"token":"
+    "}]},{"bytes":[54,48],"logprob":0.0,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":0.0,"token":"60"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[54,52],"logprob":-0.0,"token":"64","top_logprobs":[{"bytes":[54,52],"logprob":-0.0,"token":"64"}]},{"bytes":[194,176,70],"logprob":0.0,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.0,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.0,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.0,"token":" ("}]},{"bytes":[49,54],"logprob":-6e-6,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-6e-6,"token":"16"}]},{"bytes":[226,128,147],"logprob":0.0,"token":"–","top_logprobs":[{"bytes":[226,128,147],"logprob":0.0,"token":"–"}]},{"bytes":[49,56],"logprob":0.0,"token":"18","top_logprobs":[{"bytes":[49,56],"logprob":0.0,"token":"18"}]},{"bytes":[194,176,67],"logprob":0.0,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0,"token":"°C"}]},{"bytes":[41,46,10,10],"logprob":-0.238344,"token":").\n\n","top_logprobs":[{"bytes":[41,46,10,10],"logprob":-0.238344,"token":").\n\n"}]},{"bytes":[73,102],"logprob":-0.008471,"token":"If","top_logprobs":[{"bytes":[73,102],"logprob":-0.008471,"token":"If"}]},{"bytes":[32,121,111,117],"logprob":0.0,"token":"
+    you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":0.0,"token":" you"}]},{"bytes":[32,116,101,108,108],"logprob":-0.000176,"token":"
+    tell","top_logprobs":[{"bytes":[32,116,101,108,108],"logprob":-0.000176,"token":"
     tell"}]},{"bytes":[32,109,101],"logprob":0.0,"token":" me","top_logprobs":[{"bytes":[32,109,101],"logprob":0.0,"token":"
-    me"}]},{"bytes":[32,116,104,101],"logprob":-0.111208,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.111208,"token":"
-    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002102,"token":"
-    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002102,"token":"
-    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-0.0,"token":" city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-0.0,"token":"
-    city"}]},{"bytes":[32,111,114],"logprob":-0.03591,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.03591,"token":"
-    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.905556,"token":" area","top_logprobs":[{"bytes":[32,114,101,103,105,111,110],"logprob":-0.530556,"token":"
-    region"}]},{"bytes":[32,105,110],"logprob":-0.000411,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.000411,"token":"
+    me"}]},{"bytes":[32,116,104,101],"logprob":-0.608497,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.608497,"token":"
+    the"}]},{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002028,"token":"
+    specific","top_logprobs":[{"bytes":[32,115,112,101,99,105,102,105,99],"logprob":-0.002028,"token":"
+    specific"}]},{"bytes":[32,99,105,116,121],"logprob":-2e-6,"token":" city","top_logprobs":[{"bytes":[32,99,105,116,121],"logprob":-2e-6,"token":"
+    city"}]},{"bytes":[32,111,114],"logprob":-0.074106,"token":" or","top_logprobs":[{"bytes":[32,111,114],"logprob":-0.074106,"token":"
+    or"}]},{"bytes":[32,97,114,101,97],"logprob":-0.344291,"token":" area","top_logprobs":[{"bytes":[32,97,114,101,97],"logprob":-0.344291,"token":"
+    area"}]},{"bytes":[32,105,110],"logprob":-0.0002,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.0002,"token":"
     in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":0.0,"token":"
-    Taiwan"}]},{"bytes":[32,40],"logprob":-0.000052,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000052,"token":"
-    ("}]},{"bytes":[101],"logprob":-0.019597,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.019597,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-3e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-3e-6,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
+    Taiwan"}]},{"bytes":[32,40],"logprob":-0.000327,"token":" (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000327,"token":"
+    ("}]},{"bytes":[101],"logprob":-0.013019,"token":"e","top_logprobs":[{"bytes":[101],"logprob":-0.013019,"token":"e"}]},{"bytes":[46,103],"logprob":0.0,"token":".g","top_logprobs":[{"bytes":[46,103],"logprob":0.0,"token":".g"}]},{"bytes":[46,44],"logprob":-1e-6,"token":".,","top_logprobs":[{"bytes":[46,44],"logprob":-1e-6,"token":".,"}]},{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
     Taipei","top_logprobs":[{"bytes":[32,84,97,105,112,101,105],"logprob":0.0,"token":"
-    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.024684,"token":"
-    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.024684,"token":" Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.042999,"token":"
-    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.042999,"token":" Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-1e-6,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-1e-6,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.002677,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.002677,"token":","}]},{"bytes":[32,84],"logprob":-0.510512,"token":"
-    T","top_logprobs":[{"bytes":[32,84],"logprob":-0.510512,"token":" T"}]},{"bytes":[97,105,110,97,110],"logprob":-0.010382,"token":"ainan","top_logprobs":[{"bytes":[97,105,110,97,110],"logprob":-0.010382,"token":"ainan"}]},{"bytes":[44],"logprob":-0.002894,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.002894,"token":","}]},{"bytes":[32,72],"logprob":-2e-6,"token":"
-    H","top_logprobs":[{"bytes":[32,72],"logprob":-2e-6,"token":" H"}]},{"bytes":[117,97,108],"logprob":-2e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-2e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-0.0,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.0,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
-    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-9e-6,"token":"
-    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-9e-6,"token":" can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.005914,"token":"
-    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.005914,"token":"
-    give"}]},{"bytes":[32,97],"logprob":-0.389065,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.389065,"token":"
-    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.00005,"token":" more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.00005,"token":"
-    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.002156,"token":"
-    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.002156,"token":"
-    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988,"token":"
-    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.40988,"token":"
-    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.63849,"token":" for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.63849,"token":"
-    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.486122,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.486122,"token":"
-    today"}]},{"bytes":[46],"logprob":-0.321767,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.321767,"token":"."}]}],"text":"I’m
-    an AI assistant created by OpenAI. I can help you find information, answer questions,
-    and work through problems in many areas (travel planning, learning topics, writing,
-    coding, etc.).\n\nYou also asked about the weather in Taiwan today (April 27,
-    2026). Here’s a quick snapshot for Taiwan overall:   \n\n- Current conditions:
-    Sunny, about 78°F (26°C).  \n- This evening and tonight: Mostly cloudy, cooling
-    to around 60–67°F (16–20°C).\n\nIf you tell me the specific city or area in Taiwan
-    (e.g., Taipei, Taichung, Kaohsiung, Tainan, Hualien), I can give a more precise
-    forecast for today."}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":5298,"input_tokens_details":{"cached_tokens":4992},"output_tokens":205,"output_tokens_details":{"reasoning_tokens":34},"total_tokens":5503},"user":null,"metadata":{}},"sequence_number":18}
+    Taipei"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,84,97],"logprob":-0.011412,"token":"
+    Ta","top_logprobs":[{"bytes":[32,84,97],"logprob":-0.011412,"token":" Ta"}]},{"bytes":[105,99,104],"logprob":0.0,"token":"ich","top_logprobs":[{"bytes":[105,99,104],"logprob":0.0,"token":"ich"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":0.0,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.0,"token":","}]},{"bytes":[32,75,97],"logprob":-0.040446,"token":"
+    Ka","top_logprobs":[{"bytes":[32,75,97],"logprob":-0.040446,"token":" Ka"}]},{"bytes":[111,104],"logprob":0.0,"token":"oh","top_logprobs":[{"bytes":[111,104],"logprob":0.0,"token":"oh"}]},{"bytes":[115,105],"logprob":-0.0,"token":"si","top_logprobs":[{"bytes":[115,105],"logprob":-0.0,"token":"si"}]},{"bytes":[117,110,103],"logprob":0.0,"token":"ung","top_logprobs":[{"bytes":[117,110,103],"logprob":0.0,"token":"ung"}]},{"bytes":[44],"logprob":-0.026709,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.026709,"token":","}]},{"bytes":[32,72],"logprob":-0.397004,"token":"
+    H","top_logprobs":[{"bytes":[32,72],"logprob":-0.397004,"token":" H"}]},{"bytes":[117,97,108],"logprob":-1e-6,"token":"ual","top_logprobs":[{"bytes":[117,97,108],"logprob":-1e-6,"token":"ual"}]},{"bytes":[105,101,110],"logprob":0.0,"token":"ien","top_logprobs":[{"bytes":[105,101,110],"logprob":0.0,"token":"ien"}]},{"bytes":[41,44],"logprob":-6e-6,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-6e-6,"token":"),"}]},{"bytes":[32,73],"logprob":0.0,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":0.0,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-2e-6,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-2e-6,"token":" can"}]},{"bytes":[32,103,105,118,101],"logprob":-0.167959,"token":"
+    give","top_logprobs":[{"bytes":[32,103,105,118,101],"logprob":-0.167959,"token":"
+    give"}]},{"bytes":[32,97],"logprob":-0.344253,"token":" a","top_logprobs":[{"bytes":[32,97],"logprob":-0.344253,"token":"
+    a"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000238,"token":" more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000238,"token":"
+    more"}]},{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.000984,"token":"
+    precise","top_logprobs":[{"bytes":[32,112,114,101,99,105,115,101],"logprob":-0.000984,"token":"
+    precise"}]},{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.135531,"token":"
+    forecast","top_logprobs":[{"bytes":[32,102,111,114,101,99,97,115,116],"logprob":-0.135531,"token":"
+    forecast"}]},{"bytes":[32,102,111,114],"logprob":-0.430269,"token":" for","top_logprobs":[{"bytes":[32,102,111,114],"logprob":-0.430269,"token":"
+    for"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.011936,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.011936,"token":"
+    today"}]},{"bytes":[46],"logprob":-0.066844,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.066844,"token":"."}]}],"text":"I’m
+    an AI assistant created by OpenAI. I can help you look things up, explain concepts,
+    plan trips, write and edit text, analyze data, and more.\n\nYou also have a standing
+    request about the weather in Taiwan today (May 5, 2026), so here’s a quick update
+    based on current data:\n\n- Location: Taiwan (general, island-wide overview)   \n-
+    Current conditions: Showers, around 69°F (20°C).  \n- This evening and tonight:
+    Mostly cloudy with periods of thunderstorms, temperatures around 60–64°F (16–18°C).\n\nIf
+    you tell me the specific city or area in Taiwan (e.g., Taipei, Taichung, Kaohsiung,
+    Hualien), I can give a more precise forecast for today."}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"effort":"none","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":{"input_tokens":5438,"input_tokens_details":{"cached_tokens":0},"output_tokens":217,"output_tokens_details":{"reasoning_tokens":34},"total_tokens":5655},"user":null,"metadata":{}},"sequence_number":20}
 
     '
   - '
 
     '
   status_code: 200
-timestamp: '2026-04-27T08:16:56.580849+00:00'
+timestamp: '2026-05-05T08:07:49.581266+00:00'

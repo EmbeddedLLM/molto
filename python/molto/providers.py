@@ -63,7 +63,6 @@ from molto.types.ir import (
 )
 from molto.types.openai.responses import (
     WEB_SEARCH_TOOL,
-    from_ir,
     from_ir_stream,
 )
 from molto.utils.exceptions import BadInputError
@@ -424,7 +423,11 @@ class OpenAIResponsesProvider(_Provider):
         output_stream: AsyncIterator[OutputIR],
     ):
         assert self._ir is not None
-        return await from_ir(self._ir, output_stream)
+        last_event = None
+        async for event in self.compose_outputs(output_stream):
+            last_event = event
+        assert last_event is not None
+        return last_event.response
 
 
 class OpenAIChatCompletionsProvider(_Provider):

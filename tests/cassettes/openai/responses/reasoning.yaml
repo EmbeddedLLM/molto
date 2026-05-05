@@ -1,0 +1,102 @@
+filename: 2026-05-05-019df732-9492-7a63-8920-6397d68d2eda
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content: How many Rs in strawberry?
+      role: user
+    model: gpt-5.1
+    reasoning:
+      effort: high
+      summary: detailed
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '192'
+    content-type: application/json
+    user-agent: pydantic-ai/1.85.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019df732-9492-7a63-8920-6397d68d2eda
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1777968786
+    created_at: 1777968781
+    error: null
+    frequency_penalty: 0.0
+    id: resp_000fed69abde67b50069f9a68d2908819a85e012c4e32fb824
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    object: response
+    output:
+    - encrypted_content: gAAAAABp-aaT8o2OkMwxNzFwk4ybaHHAy-H3brozRirnx3iUi8oKClO7i0OxDqr7RxPE5EVNjMhDqwKRc6-DWj1Fd0RA8H1UPe5OCi3LQE_NX7go7H2eF7roX8Jtj_y7qkMSyarEGn9T4KkUZR6XAo3GLOTcaZXXJwoP-8LMDC7DMiqr7jgMVS8vTkpVdujmE8SHQ68SB-4-AXJWg0vFaGJf-HSfZXl7O3acTPpQWOl3c5sq_mZT8cC4LRmKrMvV01iPct02i-EYOVy0K6ekLCl-hTXtxQgPqsPmt62IWRPXtoRmYPqSTisaIwX-PmRCzFWCZby9tK2GcFlwtUoW6L2w0vl70qdwhVMRSpvHKt7Lry9FPKORQhi772cqUCpLllaJTvqzut5ZzGE_nt50czB1qCNpel4iK28lrq47UXy3rbWOtrwOj6WTonazuTy7VT79vuuqx0yhWFDlB-VsVr6Emd9JlTW8J6D82vDHz0GQ7Gb7Cco7eViA4G0RD_4j-PhHxa4ywUUJjAzLUzSHKTjce-bU-UrTxywn03TJirB4He-x9N6g3XTsS1tqgxjFQ_ZR_9lj-ywyviUcsFHhDA4Xk_wvIgWBmnMDXa1IQj6yokWgOKckp0RqUcKoe6-HsobDtr11Q9ryj6y07BEGohAD7nPpy_RRR_5qDCdeVbNsARa2VBIfxviawyR9532Y6Mel7re7t8rNxEdjSbvshTDWMvgXwEk1ipVpLC3AxdizdCyRXAcBhc0OF-VsZWYqjLuLPCP0PyBFDMSPWMEtRoa2udc5sYsQE2ilPRvSaepgMSF2M6pClQFJ5jAXw3TdbkhiwE9zkAE_8CP0QbOka16UXtP4VtdP651mwWMuAKC_9BGXMl-gwOTTKsI2Tu9HVIeodRfGT4MP3FjlAitZKgY3iUkF1OMzcCjW2o-UIj62ujwphFIB20AP60QvOYYLk3L4H6GFGuw9SUYL5cEUyLCoPUZUFCmdPvg3JSyNV3OjvorYPXa0EAxk5L7-ViEoeosY7feqitaY1wGBOAd_wXIMY1QKO-QfAaCJLTbWZ_dHtp7zWdcqjPLG0OT2CRrGCkTFvzHuOB06jVO3Ki69yLkZQeLXCZFLqgcHePzgEKVGQfA3X2ZBNFLWz4BsweOqpp8NAb0qgoawOuln3qXUF8AIG8qoco4getfNYAY_10D9hsL4zj0JU8DWo34e6o1cigFiATCVWrwm-upzplzmf62XReXv_8ilM763gJwWtLruz_2EOEbHjmP-lB6PY-DoEILz-ichZqFDAm3tHeSXrZnp4joChNL0CA==
+      id: rs_000fed69abde67b50069f9a68dee78819ab775ecff92ae4637
+      summary:
+      - text: '**Counting letters in strawberry**
+
+
+          The user''s question is about counting the letter "r" in the word "strawberry."
+          I can break it down: in "strawberry," the letters are s, t, r, a, w, b,
+          e, r, r, y. When I look closely, there are three "r''s" located at positions
+          3, 8, and 9. They seem to be lowercase, and since "strawberry" doesn''t
+          have an uppercase "R," I can confidently say the answer is 3.'
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: There are **3** letter **“r”**s in **“strawberry.”**
+        type: output_text
+      id: msg_000fed69abde67b50069f9a6928940819a8948feac088d8dd5
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      effort: high
+      summary: detailed
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 12
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 114
+      output_tokens_details:
+        reasoning_tokens: 88
+      total_tokens: 126
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-05-05T08:13:00.434457+00:00'

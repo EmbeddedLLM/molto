@@ -48,9 +48,9 @@ EXPECTED_SETTINGS = {
     "temperature": 0.45,
     "tool_choice": "required",
     "top_logprobs": 1,
+    "top_p": 0.55,
     "frequency_penalty": 0.0,
     "presence_penalty": 0.0,
-    "top_p": 1.0,
     "truncation": "disabled",
 }
 
@@ -75,6 +75,7 @@ async def test_model_settings(stream: bool):
         temperature=EXPECTED_SETTINGS["temperature"],
         tool_choice=EXPECTED_SETTINGS["tool_choice"],
         top_logprobs=EXPECTED_SETTINGS["top_logprobs"],
+        top_p=EXPECTED_SETTINGS["top_p"],
         include=[
             "reasoning.encrypted_content",
             "code_interpreter_call.outputs",
