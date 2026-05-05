@@ -336,14 +336,6 @@ class Runner:
                         continue
             except UnexpectedModelBehavior as e:
                 yield AgentError(error=str(e), cause=repr(e.__cause__))
-            # print(messages)
-            # for m in messages:
-            #     print("--------")
-            #     if isinstance(m, ModelRequest):
-            #         print(m)
-            #     else:
-            #         for mm in m.parts:
-            #             print("> ", mm)
         t = perf_counter() - t0
         logger.debug(
             (
