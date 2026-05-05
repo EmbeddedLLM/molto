@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from time import time
 from typing import Annotated, Any, Literal, Union
 
@@ -26,11 +27,23 @@ from pydantic import (
 from pydantic_extra_types.timezone_name import TimeZoneName
 
 from molto.types.ir import (
+    AgentBuiltinToolCall,
+    AgentError,
     AgentMessage,
+    AgentMessageDelta,
+    AgentMessageEnd,
+    AgentMessageStart,
+    AgentRunResult,
     AgentThought,
+    AgentThoughtDelta,
+    AgentThoughtEnd,
+    AgentThoughtStart,
     AgentToolCall,
     AgentToolCalls,
+    AgentToolDelta,
+    AgentToolEnd,
     AgentToolResult,
+    AgentToolStart,
     AllowedToolsChoice,
     BuiltinToolChoice,
     CodeInterpreterTool,
@@ -47,6 +60,7 @@ from molto.types.ir import (
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
+    OutputIR,
     PromptTemplate,
     SystemMessage,
     TextFormat,
@@ -1491,7 +1505,7 @@ class vLLMResponsesRequest(BaseModel):
         ),
     ] = False
     temperature: Annotated[
-        float,
+        float | None,
         Field(
             gt=0,
             lt=2,
@@ -1501,7 +1515,7 @@ class vLLMResponsesRequest(BaseModel):
                 "We generally recommend altering this or `top_p` but not both."
             ),
         ),
-    ] = 1.0
+    ] = None
     text: Annotated[
         vLLMTextConfig | None,
         Field(
@@ -1564,7 +1578,7 @@ class vLLMResponsesRequest(BaseModel):
         ),
     ] = None
     top_p: Annotated[
-        float,
+        float | None,
         Field(
             ge=0,
             le=1,
@@ -1575,7 +1589,7 @@ class vLLMResponsesRequest(BaseModel):
                 "We generally recommend altering this or `temperature` but not both."
             ),
         ),
-    ] = 1.0
+    ] = None
 
     @field_validator("tools", mode="after")
     @classmethod
@@ -1980,12 +1994,6 @@ class OpenAIResponsesUsage(BaseModel):
 
 
 class OpenAIResponsesResponse(BaseModel):
-    def model_dump(self, *, exclude_none: bool = True, **kwargs: Any) -> dict[str, Any]:
-        return super().model_dump(exclude_none=exclude_none, **kwargs)
-
-    def model_dump_json(self, *, exclude_none: bool = True, **kwargs: Any) -> str:
-        return super().model_dump_json(exclude_none=exclude_none, **kwargs)
-
     background: Annotated[
         bool,
         Field(
@@ -2167,9 +2175,9 @@ class OpenAIResponsesResponse(BaseModel):
         ),
     ] = "in_progress"
     temperature: Annotated[
-        float,
+        float | None,
         Field(description=("What sampling temperature to use.")),
-    ] = 1.0
+    ] = None
     text: Annotated[
         OpenAITextConfig,
         Field(
@@ -2211,7 +2219,7 @@ class OpenAIResponsesResponse(BaseModel):
         ),
     ] = 0
     top_p: Annotated[
-        float,
+        float | None,
         Field(
             ge=0,
             le=1,
@@ -2220,7 +2228,7 @@ class OpenAIResponsesResponse(BaseModel):
                 "where the model considers the results of the tokens with `top_p` probability mass."
             ),
         ),
-    ] = 1.0
+    ] = None
     truncation: Annotated[
         Literal["auto", "disabled"],
         Field(description=("The truncation strategy to use for the model response.")),
@@ -2480,3 +2488,589 @@ class OpenAIResponsesStreamAnnotation(_OpenAIResponsesStream):
         Literal["response.output_text.annotation.added"],
         Field(description=("The type of the event.")),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Output IR → OpenAI Responses conversion (from_ir)
+# ---------------------------------------------------------------------------
+
+
+def _convert_ir_usage(usage) -> OpenAIResponsesUsage | None:
+    if usage is None:
+        return None
+    return OpenAIResponsesUsage(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        total_tokens=usage.total_tokens,
+        input_tokens_details=OpenAIInputTokenDetails(
+            cached_tokens=usage.input_tokens_details.cached_tokens,
+        ),
+        output_tokens_details=OpenAIOutputTokenDetails(
+            reasoning_tokens=usage.output_tokens_details.reasoning_tokens,
+        ),
+    )
+
+
+def _convert_ir_tool_choice(tc):
+    if isinstance(tc, str):
+        return tc
+    if isinstance(tc, BuiltinToolChoice):
+        return OpenAIBuiltinToolChoice(type=tc.name)
+    if isinstance(tc, FunctionToolChoice):
+        return OpenAIFunctionToolChoice(name=tc.name)
+    if isinstance(tc, McpToolChoice):
+        return OpenAIMcpToolChoice(server_label=tc.server_label, name=tc.name)
+    if isinstance(tc, AllowedToolsChoice):
+        tools = []
+        for e in tc.tools:
+            if isinstance(e, BuiltinToolChoice):
+                tools.append(OpenAIBuiltinToolChoice(type=e.name))
+            elif isinstance(e, FunctionToolChoice):
+                tools.append(OpenAIFunctionToolChoice(name=e.name))
+            elif isinstance(e, McpToolChoice):
+                tools.append(OpenAIMcpToolChoice(server_label=e.server_label, name=e.name))
+        return OpenAIAllowedToolsChoice(mode=tc.mode, tools=tools)
+    return tc
+
+
+def _convert_ir_tools(ir_tools):
+    if not ir_tools:
+        return []
+    result = []
+    for t in ir_tools:
+        if isinstance(t, FunctionTool):
+            result.append(
+                OpenAIResponsesFunctionTool(
+                    name=t.name,
+                    parameters=t.parameters,
+                    strict=t.strict,
+                    description=t.description,
+                )
+            )
+        elif isinstance(t, CodeInterpreterTool):
+            result.append(
+                OpenAIResponsesCodeTool(
+                    container=OpenAIResponsesCodeContainer(),
+                )
+            )
+        elif isinstance(t, WebSearchTool):
+            ws_kwargs: dict[str, Any] = {
+                "search_context_size": t.search_context_size,
+            }
+            if t.allowed_domains:
+                ws_kwargs["filters"] = OpenAIResponsesWebSearchFilters(
+                    allowed_domains=t.allowed_domains,
+                )
+            if t.user_location is not None:
+                ws_kwargs["user_location"] = OpenAIResponsesWebSearchUserLocation(
+                    city=t.user_location.city,
+                    country=t.user_location.country,
+                    region=t.user_location.region,
+                    timezone=t.user_location.timezone,
+                )
+            result.append(OpenAIResponsesWebSearchTool(**ws_kwargs))
+        elif isinstance(t, McpTool):
+            result.append(
+                OpenAIResponsesMcpTool(
+                    server_label=t.server_label,
+                    server_url=t.server_url,
+                    headers=t.headers,
+                    authorization=t.authorization,
+                    allowed_tools=t.allowed_tools,
+                    require_approval=t.require_approval,
+                )
+            )
+    return result
+
+
+def _build_response_from_ir(
+    ir: Input,
+    *,
+    status: str,
+    output: list | None = None,
+    error=None,
+    usage=None,
+    completed_at: int | None = None,
+    incomplete_details: str | None = None,
+) -> OpenAIResponsesResponse:
+    kwargs: dict = dict(
+        model=ir.model,
+        instructions=ir.instructions,
+        status=status,
+        output=output or [],
+        error=error,
+        usage=_convert_ir_usage(usage),
+        temperature=ir.temperature,
+        top_p=ir.top_p,
+    )
+    if status in ("completed", "failed", "incomplete", "cancelled") and completed_at is not None:
+        kwargs["completed_at"] = completed_at
+    if ir.max_output_tokens is not None:
+        kwargs["max_output_tokens"] = ir.max_output_tokens
+    if ir.max_tool_calls is not None:
+        kwargs["max_tool_calls"] = ir.max_tool_calls
+    if ir.parallel_tool_calls is not None:
+        kwargs["parallel_tool_calls"] = ir.parallel_tool_calls
+    if ir.reasoning_effort is not None or ir.reasoning_summary is not None:
+        kwargs["reasoning"] = OpenAIReasoningEffort(
+            **({} if ir.reasoning_effort is None else {"effort": ir.reasoning_effort}),
+            summary=ir.reasoning_summary,
+        )
+    if ir.top_logprobs is not None:
+        kwargs["top_logprobs"] = ir.top_logprobs
+    if ir.store is not None:
+        kwargs["store"] = ir.store
+    if ir.metadata is not None:
+        kwargs["metadata"] = ir.metadata
+    if ir.safety_identifier is not None:
+        kwargs["safety_identifier"] = ir.safety_identifier
+    if ir.prompt_cache_key is not None:
+        kwargs["prompt_cache_key"] = ir.prompt_cache_key
+    if ir.prompt_cache_retention is not None:
+        kwargs["prompt_cache_retention"] = ir.prompt_cache_retention
+    if ir.service_tier is not None:
+        kwargs["service_tier"] = ir.service_tier
+    if ir.tool_choice is not None:
+        kwargs["tool_choice"] = _convert_ir_tool_choice(ir.tool_choice)
+    if ir.previous_response_id is not None:
+        kwargs["previous_response_id"] = ir.previous_response_id
+    if ir.truncation is not None:
+        kwargs["truncation"] = ir.truncation
+    if ir.background is not None:
+        kwargs["background"] = ir.background
+    if ir.conversation_id is not None:
+        kwargs["conversation"] = OpenAIConversation(id=ir.conversation_id)
+    if ir.prompt is not None:
+        kwargs["prompt"] = OpenAIPromptTemplate(
+            id=ir.prompt.id,
+            variables=ir.prompt.variables,
+            version=ir.prompt.version,
+        )
+    if ir.tools is not None:
+        kwargs["tools"] = _convert_ir_tools(ir.tools)
+    text_format = None
+    if isinstance(ir.text_format, TextFormat):
+        text_format = OpenAITextFormat()
+    elif isinstance(ir.text_format, JsonObjectFormat):
+        text_format = OpenAIJsonObjectFormat()
+    elif isinstance(ir.text_format, JsonSchemaFormat):
+        text_format = OpenAIJsonSchemaFormat.model_validate(
+            {
+                "name": ir.text_format.name,
+                "schema": ir.text_format.json_schema,
+                "strict": ir.text_format.strict,
+                "description": ir.text_format.description,
+            }
+        )
+    if text_format is not None or ir.verbosity is not None:
+        kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=ir.verbosity)
+    if incomplete_details is not None:
+        kwargs["incomplete_details"] = OpenAIResponsesIncompleteDetails(reason=incomplete_details)
+    return OpenAIResponsesResponse(**kwargs)
+
+
+async def from_ir_stream(
+    ir: Input,
+    output_stream: AsyncIterator[OutputIR],
+) -> AsyncIterator[_OpenAIStreamEvent]:
+    seq = 0
+    output_index = 0
+    output_items: list = []
+    error: OpenAIResponsesResponseError | None = None
+
+    active_tools: dict[str, dict] = {}
+
+    current_text_id: str | None = None
+    current_text = ""
+
+    current_reasoning_id: str | None = None
+    current_reasoning = ""
+
+    captured_usage = None
+    captured_completed_at: int | None = None
+    captured_incomplete_details: str | None = None
+
+    initial_response = _build_response_from_ir(ir, status="in_progress")
+    yield OpenAIResponsesStream(
+        type="response.created",
+        response=initial_response,
+        sequence_number=seq,
+    )
+    seq += 1
+    yield OpenAIResponsesStream(
+        type="response.in_progress",
+        response=initial_response,
+        sequence_number=seq,
+    )
+    seq += 1
+
+    async for event in output_stream:
+        if isinstance(event, AgentMessageStart):
+            current_text = ""
+            current_text_id = event.id
+            yield OpenAIResponsesStreamOutput(
+                type="response.output_item.added",
+                item=OpenAIOutputItem(id=current_text_id, content=[], status="in_progress"),
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            yield OpenAIResponsesStreamPart(
+                type="response.content_part.added",
+                part=OpenAIOutputTextContent(text=""),
+                item_id=current_text_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+
+        elif isinstance(event, AgentMessageDelta):
+            current_text += event.content
+            yield OpenAIResponsesStreamText(
+                type="response.output_text.delta",
+                delta=event.content,
+                item_id=current_text_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+
+        elif isinstance(event, AgentMessageEnd):
+            yield OpenAIResponsesStreamText(
+                type="response.output_text.done",
+                text=current_text,
+                item_id=current_text_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            yield OpenAIResponsesStreamPart(
+                type="response.content_part.done",
+                part=OpenAIOutputTextContent(text=current_text, logprobs=event.logprobs or []),
+                item_id=current_text_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            completed_item = OpenAIOutputItem(
+                id=current_text_id,
+                content=[
+                    OpenAIOutputTextContent(text=current_text, logprobs=event.logprobs or [])
+                ],
+                status="completed",
+            )
+            output_items.append(completed_item)
+            yield OpenAIResponsesStreamOutput(
+                type="response.output_item.done",
+                item=completed_item,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            output_index += 1
+
+        elif isinstance(event, AgentThoughtStart):
+            current_reasoning = ""
+            current_reasoning_id = event.id
+            yield OpenAIResponsesStreamOutput(
+                type="response.output_item.added",
+                item=OpenAIReasoningItem(id=current_reasoning_id, status="in_progress"),
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+
+        elif isinstance(event, AgentThoughtDelta):
+            if event.content:
+                current_reasoning += event.content
+            yield OpenAIResponsesStreamText(
+                type="response.reasoning.delta",
+                delta=event.content,
+                item_id=current_reasoning_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+
+        elif isinstance(event, AgentThoughtEnd):
+            yield OpenAIResponsesStreamText(
+                type="response.reasoning.done",
+                text=current_reasoning,
+                item_id=current_reasoning_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            completed_item = OpenAIReasoningItem(
+                id=current_reasoning_id,
+                content=(
+                    [OpenAIReasoningContent(text=current_reasoning)] if current_reasoning else []
+                ),
+                status="completed",
+            )
+            output_items.append(completed_item)
+            yield OpenAIResponsesStreamOutput(
+                type="response.output_item.done",
+                item=completed_item,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            output_index += 1
+
+        elif isinstance(event, AgentToolStart):
+            item_id = uuid7_str("fc_")
+            active_tools[event.tool_call_id] = {
+                "id": item_id,
+                "tool_name": event.tool_name,
+                "args_buf": "",
+                "output_index": output_index,
+            }
+            yield OpenAIResponsesStreamOutput(
+                type="response.output_item.added",
+                item=OpenAIFunctionToolCall(
+                    id=item_id,
+                    call_id=event.tool_call_id,
+                    name=event.tool_name,
+                    arguments="",
+                    status="in_progress",
+                ),
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
+            output_index += 1
+
+        elif isinstance(event, AgentToolDelta):
+            tc = active_tools.get(event.tool_call_id)
+            if tc:
+                tc["args_buf"] += event.args
+                yield OpenAIResponsesStreamText(
+                    type="response.function_call_arguments.delta",
+                    delta=event.args,
+                    item_id=tc["id"],
+                    output_index=tc["output_index"],
+                    sequence_number=seq,
+                )
+                seq += 1
+
+        elif isinstance(event, AgentToolEnd):
+            tc = active_tools.get(event.tool_call_id)
+            if tc:
+                yield OpenAIResponsesStreamText(
+                    type="response.function_call_arguments.done",
+                    arguments=tc["args_buf"],
+                    item_id=tc["id"],
+                    output_index=tc["output_index"],
+                    sequence_number=seq,
+                )
+                seq += 1
+
+        elif isinstance(event, AgentRunResult):
+            captured_usage = event.usage
+            captured_completed_at = event.completed_at
+            captured_incomplete_details = event.incomplete_details
+            if (
+                captured_incomplete_details is None
+                and event.usage is not None
+                and ir.max_output_tokens is not None
+                and event.usage.output_tokens >= ir.max_output_tokens
+            ):
+                captured_incomplete_details = "max_output_tokens"
+                for item in output_items:
+                    if isinstance(item, OpenAIOutputItem):
+                        item.status = "incomplete"
+            for tool_call in event.tool_calls or []:
+                args_str = json.dumps(tool_call.args, ensure_ascii=False, separators=(",", ":"))
+                tc = active_tools.pop(tool_call.tool_call_id, None)
+                item_id = tc["id"]
+                item_output_index = tc["output_index"] if tc else output_index
+                completed_item = OpenAIFunctionToolCall(
+                    id=item_id,
+                    call_id=tool_call.tool_call_id,
+                    name=tool_call.tool_name,
+                    arguments=args_str,
+                    status="completed",
+                )
+                output_items.append(completed_item)
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.done",
+                    item=completed_item,
+                    output_index=item_output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+        elif isinstance(event, AgentBuiltinToolCall):
+            if event.tool_name == "web_search":
+                args = event.args or {}
+                result = event.result or {}
+                sources = [OpenAIWebSearchSource(**s) for s in result.get("sources", [])]
+                action = OpenAIWebSearchActionSearch(
+                    query=args.get("query", ""),
+                    queries=args.get("queries"),
+                    sources=sources or None,
+                )
+                completed_item = OpenAIWebSearchToolCall(
+                    id=event.tool_call_id,
+                    status=result.get("status", "completed"),
+                    action=action,
+                )
+                output_items.append(completed_item)
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.done",
+                    item=completed_item,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                output_index += 1
+
+            elif event.tool_name in ("code_execution", "code_interpreter"):
+                result = event.result or {}
+                args = event.args or {}
+                completed_item = OpenAICodeToolCall(
+                    id=event.tool_call_id,
+                    code=args.get("code"),
+                    container_id=args.get("container_id", ""),
+                    status=result.get("status", "completed"),
+                    outputs=result.get("outputs"),
+                )
+                output_items.append(completed_item)
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.done",
+                    item=completed_item,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                output_index += 1
+
+        elif isinstance(event, AgentError):
+            error = OpenAIResponsesResponseError(
+                code="server_error",
+                message=event.error,
+            )
+
+    final_status = "completed"
+    final_event_type = "response.completed"
+    if error is not None:
+        final_status = "failed"
+        final_event_type = "response.failed"
+    elif captured_incomplete_details is not None:
+        final_status = "incomplete"
+        final_event_type = "response.incomplete"
+    final_response = _build_response_from_ir(
+        ir,
+        status=final_status,
+        output=output_items,
+        error=error,
+        usage=captured_usage,
+        completed_at=captured_completed_at,
+        incomplete_details=captured_incomplete_details,
+    )
+    yield OpenAIResponsesStream(
+        type=final_event_type,
+        response=final_response,
+        sequence_number=seq,
+    )
+
+
+async def from_ir(
+    ir: Input,
+    output_stream: AsyncIterator[OutputIR],
+) -> OpenAIResponsesResponse:
+    response = None
+    builtin_items: list = []
+    last_message_id: str | None = None
+    async for event in output_stream:
+        if isinstance(event, AgentMessageStart):
+            last_message_id = event.id
+        elif isinstance(event, AgentBuiltinToolCall):
+            if event.tool_name == "web_search":
+                args = event.args or {}
+                result = event.result or {}
+                sources = [OpenAIWebSearchSource(**s) for s in result.get("sources", [])]
+                action = OpenAIWebSearchActionSearch(
+                    query=args.get("query", ""),
+                    queries=args.get("queries"),
+                    sources=sources or None,
+                )
+                builtin_items.append(
+                    OpenAIWebSearchToolCall(
+                        id=event.tool_call_id,
+                        status=result.get("status", "completed"),
+                        action=action,
+                    )
+                )
+            elif event.tool_name in ("code_execution", "code_interpreter"):
+                result = event.result or {}
+                args = event.args or {}
+                builtin_items.append(
+                    OpenAICodeToolCall(
+                        id=event.tool_call_id,
+                        code=args.get("code"),
+                        container_id=args.get("container_id", ""),
+                        status=result.get("status", "completed"),
+                        outputs=result.get("outputs"),
+                    )
+                )
+        elif isinstance(event, AgentRunResult):
+            output_items = list(builtin_items)
+            for tool_call in event.tool_calls or []:
+                output_items.append(
+                    OpenAIFunctionToolCall(
+                        id=uuid7_str("fc_"),
+                        call_id=tool_call.tool_call_id,
+                        name=tool_call.tool_name,
+                        arguments=json.dumps(
+                            tool_call.args, ensure_ascii=False, separators=(",", ":")
+                        ),
+                        status="completed",
+                    )
+                )
+            is_incomplete = event.incomplete_details is not None
+            if (
+                not is_incomplete
+                and event.usage is not None
+                and ir.max_output_tokens is not None
+                and event.usage.output_tokens >= ir.max_output_tokens
+            ):
+                is_incomplete = True
+                event.incomplete_details = "max_output_tokens"
+            if event.message:
+                output_items.append(
+                    OpenAIOutputItem(
+                        id=last_message_id,
+                        content=[
+                            OpenAIOutputTextContent(
+                                text=event.message,
+                                logprobs=event.logprobs or [],
+                            )
+                        ],
+                        status="incomplete" if is_incomplete else "completed",
+                    )
+                )
+            error = (
+                OpenAIResponsesResponseError(code="server_error", message=event.error)
+                if event.error
+                else None
+            )
+            if is_incomplete and error is None:
+                status = "incomplete"
+            elif error is not None:
+                status = "failed"
+            else:
+                status = "completed"
+            response = _build_response_from_ir(
+                ir,
+                status=status,
+                output=output_items,
+                error=error,
+                usage=event.usage,
+                completed_at=event.completed_at,
+                incomplete_details=event.incomplete_details,
+            )
+    if response is not None:
+        return response
+    return _build_response_from_ir(ir, status="completed")

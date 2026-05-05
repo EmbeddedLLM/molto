@@ -172,25 +172,25 @@ The Runner is the only module that directly interacts with the pydantic-ai execu
 ## Migration Checklist (current → target)
 
 **Input IR & request path:**
-- [ ] Define the Input IR (provider-agnostic sampling params, message history, tools, etc.).
-- [ ] Implement `to_ir()` on vendor request types. Refactor the current `as_run_settings()` on `vLLMResponsesRequest` — the provider-agnostic parts become `to_ir()`, the provider-specific parts move to the provider.
-- [ ] Remove the `from pydantic_ai.models.openai import OpenAIChatModelSettings` import from `types/openai/responses.py`.
+- [✅] Define the Input IR (provider-agnostic sampling params, message history, tools, etc.).
+- [✅] Implement `to_ir()` on vendor request types. Refactor the current `as_run_settings()` on `vLLMResponsesRequest` — the provider-agnostic parts become `to_ir()`, the provider-specific parts move to the provider.
+- [✅] Remove the `from pydantic_ai.models.openai import OpenAIChatModelSettings` import from `types/openai/responses.py`.
 
 **Output IR & response path:**
-- [ ] Define the Output IR (provider-agnostic response events for both streaming and non-streaming). Event start and end must be pure markers that carry no content — content is only delivered in delta events between them. One specific motivation: pydantic-ai sometimes mixes content into event markers — e.g. `TextPart` inside a `PartStartEvent` can already contain text content instead of being a pure start signal. The Output IR normalises these inconsistencies so that downstream type converters don't need to handle them.
-- [ ] Implement `from_ir()` on vendor type modules — accepts Output IR events and produces vendor-specific response objects and streaming events.
+- [✅] Define the Output IR (provider-agnostic response events for both streaming and non-streaming). Event start and end must be pure markers that carry no content — content is only delivered in delta events between them. One specific motivation: pydantic-ai sometimes mixes content into event markers — e.g. `TextPart` inside a `PartStartEvent` can already contain text content instead of being a pure start signal. The Output IR normalises these inconsistencies so that downstream type converters don't need to handle them.
+- [✅] Implement `from_ir()` on vendor type modules — accepts Output IR events and produces vendor-specific response objects and streaming events.
 
 **Runner:**
-- [ ] Implement `runner.py` with a `Runner` class that wraps pydantic-ai Agent instantiation and exposes `run_stream()`, normalising pydantic-ai output into Output IR. Non-streaming output is derived by providers consuming the stream.
+- [✅] Implement `runner.py` with a `Runner` class that wraps pydantic-ai Agent instantiation and exposes `run_stream()`, normalising pydantic-ai output into Output IR. Non-streaming output is derived by providers consuming the stream.
 
 **Providers (model provider — selected by `ir.model`):**
-- [ ] Implement `parse_agent_settings(ir)` — translate IR sampling parameters into provider-specific pydantic-ai settings (move `as_openai_chat_settings` logic from `vLLMResponsesRequest` here).
-- [ ] Implement `parse_run_settings(ir)` — translate IR into pydantic-ai run configuration (move provider-agnostic logic from `vLLMResponsesRequest.as_run_settings()` here).
+- [✅] Implement `parse_agent_settings(ir)` — translate IR sampling parameters into provider-specific pydantic-ai settings (move `as_openai_chat_settings` logic from `vLLMResponsesRequest` here).
+- [✅] Implement `parse_run_settings(ir)` — translate IR into pydantic-ai run configuration (move provider-agnostic logic from `vLLMResponsesRequest.as_run_settings()` here).
 - [ ] Add model provider implementations for additional backends (Anthropic, vLLM, etc.).
 
 **Providers (request provider — selected by input request type):**
-- [ ] Implement `compose_outputs(output_stream)` — consume Output IR event stream and yield vendor-specific streaming events via `Type.from_ir()`.
-- [ ] Implement `get_output(output_stream)` — consume Output IR event stream and return a single vendor-specific response via `Type.from_ir()`.
+- [✅] Implement `compose_outputs(output_stream)` — consume Output IR event stream and yield vendor-specific streaming events via `Type.from_ir()`.
+- [✅] Implement `get_output(output_stream)` — consume Output IR event stream and return a single vendor-specific response via `Type.from_ir()`.
 
 **Core:**
-- [ ] Wire the full pipeline into `Molto.chat()`: select `request_provider` by input type → `body.to_ir()` → select `model_provider` by `ir.model` → `model_provider.parse_agent_settings(ir)` + `model_provider.parse_run_settings(ir)` → `Runner(agent_settings, run_settings)` → `request_provider.compose_outputs()` / `request_provider.get_output()`.
+- [✅] Wire the full pipeline into `Molto.chat()`: select `request_provider` by input type → `body.to_ir()` → select `model_provider` by `ir.model` → `model_provider.parse_agent_settings(ir)` + `model_provider.parse_run_settings(ir)` → `Runner(agent_settings, run_settings)` → `request_provider.compose_outputs()` / `request_provider.get_output()`.

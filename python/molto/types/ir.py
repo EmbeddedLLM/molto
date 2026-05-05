@@ -101,8 +101,10 @@ class AgentThoughtDelta(_Message):
         Literal["agent.thought.delta"],
         Field(description="Message type."),
     ] = "agent.thought.delta"
-    content: str
-    signature: str
+    content: str | None = (
+        None  # in case of OpenAI sometimes the last delta of reasoning contains signature only.
+    )
+    signature: str | None = None
     id: str | None = None
 
 
@@ -451,8 +453,8 @@ class Input(BaseModel):
     input: str | list[InputHistoryItem] | None = None
 
     # Sampling parameters (provider renames/maps these for its backend)
-    temperature: float
-    top_p: float
+    temperature: float | None
+    top_p: float | None
     max_output_tokens: int | None
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None

@@ -193,10 +193,10 @@ class Runner:
                                     id=self._current_text_id,
                                 )
                         elif isinstance(event.delta, ThinkingPartDelta):
-                            if event.delta.content_delta or event.part.signature_delta:
+                            if event.delta.content_delta or event.delta.signature_delta:
                                 yield AgentThoughtDelta(
-                                    content=event.part.content_delta,
-                                    signature=event.part.signature_delta,
+                                    content=event.delta.content_delta,
+                                    signature=event.delta.signature_delta,
                                     id=self._current_thought_id,
                                 )
                         elif isinstance(event.delta, ToolCallPartDelta):
@@ -345,7 +345,7 @@ class Runner:
             #         for mm in m.parts:
             #             print("> ", mm)
         t = perf_counter() - t0
-        logger.info(
+        logger.debug(
             (
                 f'Agent "{self._agent_id}" run completed in {t:.1f} seconds '
                 f"({event_count:,d} events, {event_count / t:.2f} event/s, {len(messages):,d} messages)"
