@@ -98,18 +98,22 @@ class OpenAIResponsesProvider(_Provider):
     def __init__(self, ir: Input | None = None) -> None:
         self._ir = ir
 
-    async def parse_agent_settings(
-        self, ir: Input, http_client: AsyncClient | None = None
-    ) -> AgentSettings:
-        """Parse input IR into pydantic-ai agent settings."""
-        model = OpenAIResponsesModel(
-            model_name=ir.model.split("/")[-1],
-            provider=OpenAIProvider(
-                api_key=ENV_CONFIG.openai_api_key_plain,
-                http_client=http_client,
-            ),
-        )
+    @staticmethod
+    def _validate_sampling_params(ir: Input) -> None:
+        if ir.temperature is not None and not (0 <= ir.temperature <= 2):
+            raise BadInputError(
+                f"temperature must be between 0 and 2, got {ir.temperature}"
+            )
+        if (
+            ir.max_output_tokens is not None
+            and ir.max_output_tokens < 1
+        ):
+            raise BadInputError(
+                f"max_output_tokens must be at least 1, got {ir.max_output_tokens}"
+            )
 
+    @staticmethod
+    def _build_model_settings(ir: Input) -> OpenAIResponsesModelSettings:
         extra_body = ir.extra_body or {}
         tool_choice = ir.tool_choice
         if tool_choice == "auto" or tool_choice == "required":
@@ -160,17 +164,34 @@ class OpenAIResponsesProvider(_Provider):
                 ms_kwargs["openai_include_file_search_results"] = True
         if extra_body:
             ms_kwargs["extra_body"] = extra_body
-        model_settings = OpenAIResponsesModelSettings(**ms_kwargs)
-        return AgentSettings(
-            model=model,
-            model_settings=model_settings,
-            output_type=StructuredDict(
+        return OpenAIResponsesModelSettings(**ms_kwargs)
+
+    @staticmethod
+    def _build_output_type(ir: Input) -> Any:
+        if isinstance(ir.text_format, JsonSchemaFormat):
+            return StructuredDict(
                 ir.text_format.json_schema,
                 name=ir.text_format.name,
                 description=ir.text_format.description,
             )
-            if isinstance(ir.text_format, JsonSchemaFormat)
-            else [str, DeferredToolRequests],
+        return [str, DeferredToolRequests]
+
+    async def parse_agent_settings(
+        self, ir: Input, http_client: AsyncClient | None = None
+    ) -> AgentSettings:
+        self._validate_sampling_params(ir)
+        model = OpenAIResponsesModel(
+            model_name=ir.model.split("/")[-1],
+            provider=OpenAIProvider(
+                api_key=ENV_CONFIG.openai_api_key_plain,
+                http_client=http_client,
+            ),
+        )
+        model_settings = self._build_model_settings(ir)
+        return AgentSettings(
+            model=model,
+            model_settings=model_settings,
+            output_type=self._build_output_type(ir),
         )
 
     @staticmethod
@@ -315,85 +336,95 @@ class OpenAIResponsesProvider(_Provider):
 
         return message_history
 
-    async def parse_run_settings(self, ir: Input) -> RunSettings:
-        """Parse input IR into pydantic-ai run settings."""
-        # Collect function tools keyed by name
+    @staticmethod
+    def _collect_tools(
+        ir: Input,
+    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractToolset[Any]]]:
         function_tool_defs: dict[str, ToolDefinition] = {}
-        # Collect builtin tools keyed by canonical name ("code_interpreter", "web_search")
         builtin_tool_map: dict[str, AbstractToolset[Any]] = {}
-        if ir.tools:
-            for t in ir.tools:
-                if isinstance(t, FunctionTool):
-                    function_tool_defs[t.name] = ToolDefinition(
-                        name=t.name,
-                        description=t.description or "",
-                        parameters_json_schema=t.parameters,
-                        strict=t.strict,
-                    )
-                elif isinstance(t, CodeInterpreterTool):
-                    builtin_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
-                elif isinstance(t, WebSearchTool):
-                    ws_tool_kwargs: dict[str, Any] = {
-                        "search_context_size": t.search_context_size,
+        if not ir.tools:
+            return function_tool_defs, builtin_tool_map
+        for t in ir.tools:
+            if isinstance(t, FunctionTool):
+                function_tool_defs[t.name] = ToolDefinition(
+                    name=t.name,
+                    description=t.description or "",
+                    parameters_json_schema=t.parameters,
+                    strict=t.strict,
+                )
+            elif isinstance(t, CodeInterpreterTool):
+                builtin_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
+            elif isinstance(t, WebSearchTool):
+                ws_tool_kwargs: dict[str, Any] = {
+                    "search_context_size": t.search_context_size,
+                }
+                if t.allowed_domains:
+                    ws_tool_kwargs["allowed_domains"] = t.allowed_domains
+                if t.user_location is not None:
+                    ws_tool_kwargs["user_location"] = {
+                        k: v
+                        for k, v in {
+                            "city": t.user_location.city,
+                            "country": t.user_location.country,
+                            "region": t.user_location.region,
+                            "timezone": t.user_location.timezone,
+                        }.items()
+                        if v is not None
                     }
-                    if t.allowed_domains:
-                        ws_tool_kwargs["allowed_domains"] = t.allowed_domains
-                    if t.user_location is not None:
-                        ws_tool_kwargs["user_location"] = {
-                            k: v
-                            for k, v in {
-                                "city": t.user_location.city,
-                                "country": t.user_location.country,
-                                "region": t.user_location.region,
-                                "timezone": t.user_location.timezone,
-                            }.items()
-                            if v is not None
-                        }
-                    builtin_tool_map["web_search"] = OpenAIWebSearchTool(**ws_tool_kwargs)
-                elif isinstance(t, McpTool):
-                    pass  # TODO: wire MCP toolset
+                builtin_tool_map["web_search"] = OpenAIWebSearchTool(**ws_tool_kwargs)
+            elif isinstance(t, McpTool):
+                pass
+        return function_tool_defs, builtin_tool_map
 
-        # Apply tool_choice: filter both sets down to what the user selected
+    @staticmethod
+    def _apply_tool_choice(
+        ir: Input,
+        function_tool_defs: dict[str, ToolDefinition],
+        builtin_tool_map: dict[str, AbstractToolset[Any]],
+    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractToolset[Any]]]:
         tc = ir.tool_choice
-
         if tc == "none":
-            function_tool_defs.clear()
-            builtin_tool_map.clear()
-        elif tc == "auto":
-            pass
-        elif tc == "required":
-            if len(ir.tools) == 0:
+            return {}, {}
+        if tc == "auto":
+            return function_tool_defs, builtin_tool_map
+        if tc == "required":
+            if not ir.tools:
                 raise BadInputError(
                     "tool_choice cannot be 'auto' or 'required' if no tools are provided."
                 )
-        elif isinstance(tc, BuiltinToolChoice):
-            function_tool_defs.clear()
-            builtin_tool_map = {k: v for k, v in builtin_tool_map.items() if k == tc.name}
-        elif isinstance(tc, FunctionToolChoice):
+            return function_tool_defs, builtin_tool_map
+        if isinstance(tc, BuiltinToolChoice):
+            builtin_tool_map = {
+                k: v for k, v in builtin_tool_map.items() if k == tc.name
+            }
+            return {}, builtin_tool_map
+        if isinstance(tc, FunctionToolChoice):
             selected = function_tool_defs.get(tc.name)
             if selected is None:
                 raise BadInputError(
                     f"`tool_choice.name` {tc.name!r} is not present in effective tools."
                 )
-            function_tool_defs = {tc.name: selected}
-            builtin_tool_map.clear()
-        elif isinstance(tc, McpToolChoice):
-            function_tool_defs.clear()
-            builtin_tool_map.clear()
-            # TODO: activate the specific MCP tool
-        elif isinstance(tc, AllowedToolsChoice):
+            return {tc.name: selected}, {}
+        if isinstance(tc, McpToolChoice):
+            return {}, {}
+        if isinstance(tc, AllowedToolsChoice):
             allowed_function_names = {
                 e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
             }
-            allowed_builtin_names = {e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)}
-            function_tool_defs = {
-                k: v for k, v in function_tool_defs.items() if k in allowed_function_names
+            allowed_builtin_names = {
+                e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)
             }
-            builtin_tool_map = {
-                k: v for k, v in builtin_tool_map.items() if k in allowed_builtin_names
-            }
+            return (
+                {k: v for k, v in function_tool_defs.items() if k in allowed_function_names},
+                {k: v for k, v in builtin_tool_map.items() if k in allowed_builtin_names},
+            )
+        return function_tool_defs, builtin_tool_map
 
-        # Assemble toolsets from whatever survived filtering
+    async def parse_run_settings(self, ir: Input) -> RunSettings:
+        function_tool_defs, builtin_tool_map = self._collect_tools(ir)
+        function_tool_defs, builtin_tool_map = self._apply_tool_choice(
+            ir, function_tool_defs, builtin_tool_map
+        )
         toolsets: list[AbstractToolset[Any]] = []
         builtin_tools: list[AbstractBuiltinTool] = []
         if function_tool_defs:

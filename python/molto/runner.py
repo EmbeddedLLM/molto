@@ -59,9 +59,9 @@ from molto.types.ir import (
     Usage,
 )
 from molto.utils.exceptions import (
-    AuthorizationError,
     BadInputError,
     ContextOverflowError,
+    ExternalAuthError,
     ModelOverloadError,
     MoltoException,
     RateLimitExceedError,
@@ -101,7 +101,6 @@ class RunSettings(TypedDict):
     builtin_tools: list[AbstractBuiltinTool] | None
 
 
-# TODO: Add testing for exceptions
 def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
     if isinstance(exc, UnexpectedModelBehavior):
         return UnexpectedError(str(exc))
@@ -116,7 +115,7 @@ def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
                 return ContextOverflowError(msg)
             return BadInputError(msg)
         if status == 401:
-            return AuthorizationError(body)
+            return ExternalAuthError(body)
         if status == 403:
             return BadInputError(body)
         if status == 404:
