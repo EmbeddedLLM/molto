@@ -63,6 +63,26 @@ async def test_conversation(stream: bool):
 
     assert cassette_response["conversation"]["id"] == conversation_id
 
+    expected_response_id = cassette_response["id"]
+    cassette_rs = [o for o in cassette_response["output"] if o["type"] == "reasoning"]
+    assert len(cassette_rs) >= 1
+    expected_rs_id = cassette_rs[0]["id"]
+    cassette_msg = [o for o in cassette_response["output"] if o["type"] == "message"]
+    assert len(cassette_msg) == 1
+    expected_msg_id = cassette_msg[0]["id"]
+
+    stream_cassette_data = read_cassette(CASSETTE_PATH, stream=True)
+    stream_completed = [
+        line
+        for line in stream_cassette_data
+        if line.startswith("data: ") and '"type":"response.completed"' in line
+    ]
+    assert len(stream_completed) == 1
+    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
+    expected_molto_response_id = stream_resp["id"]
+    stream_msg = [o for o in stream_resp["output"] if o["type"] == "message"]
+    expected_molto_msg_id = stream_msg[0]["id"]
+
     # ── OpenAI SDK client ──────────────────────────────────────────────
     client = make_openai_client(handler, load_stream_cassette=stream)
     response = await client.responses.create(**req_body)
@@ -74,14 +94,17 @@ async def test_conversation(stream: bool):
         response = events[-1].response
     assert isinstance(response, Response)
 
+    assert response.id == expected_response_id
     assert response.status == "completed"
     assert response.conversation is not None
     assert response.conversation.id == conversation_id
 
     # Output: reasoning + message (OpenAI SDK includes both)
     assert len(response.output) == 2
+    assert response.output[0].id == expected_rs_id
     msg = response.output[1]
     assert isinstance(msg, ResponseOutputMessage)
+    assert msg.id == expected_msg_id
     assert msg.role == "assistant"
     assert msg.status == "completed"
     assert len(msg.content) == 1
@@ -130,6 +153,7 @@ async def test_conversation(stream: bool):
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
+    assert response.id == expected_molto_response_id
     assert response.status == "completed"
     assert response.conversation is not None
     assert isinstance(response.conversation, OpenAIConversation)
@@ -142,8 +166,7 @@ async def test_conversation(stream: bool):
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
-    assert msg_molto.id is not None
-    assert msg_molto.id.startswith("msg_")
+    assert msg_molto.id == expected_molto_msg_id
     assert len(msg_molto.content) >= 1
 
     text_molto = msg_molto.content[0]

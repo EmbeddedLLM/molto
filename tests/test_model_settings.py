@@ -124,6 +124,28 @@ async def test_model_settings(stream: bool):
             f"YAML cassette {key}={cassette_response[key]!r}, expected {expected!r}"
         )
 
+    expected_response_id = cassette_response["id"]
+    cassette_ws = [o for o in cassette_response["output"] if o["type"] == "web_search_call"]
+    assert len(cassette_ws) == 1
+    expected_ws_id = cassette_ws[0]["id"]
+    cassette_msg = [o for o in cassette_response["output"] if o["type"] == "message"]
+    assert len(cassette_msg) == 1
+    expected_msg_id = cassette_msg[0]["id"]
+
+    stream_cassette_data = read_cassette(cassette_path, stream=True)
+    stream_completed = [
+        line
+        for line in stream_cassette_data
+        if line.startswith("data: ") and '"type":"response.completed"' in line
+    ]
+    assert len(stream_completed) == 1
+    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
+    expected_molto_response_id = stream_resp["id"]
+    stream_ws = [o for o in stream_resp["output"] if o["type"] == "web_search_call"]
+    expected_molto_ws_id = stream_ws[0]["id"]
+    stream_msg = [o for o in stream_resp["output"] if o["type"] == "message"]
+    expected_molto_msg_id = stream_msg[0]["id"]
+
     # ── OpenAI SDK client ──────────────────────────────────────────────
     client = make_openai_client(handler, load_stream_cassette=stream)
     response = await client.responses.create(**req_body)
@@ -136,6 +158,7 @@ async def test_model_settings(stream: bool):
     assert isinstance(response, Response)
 
     # ── (2) Response-level fields parsed by the OpenAI SDK from the YAML ─
+    assert response.id == expected_response_id
     assert response.status == "completed"
     assert response.incomplete_details is None
     assert response.model == "gpt-5.1-2025-11-13"
@@ -152,6 +175,7 @@ async def test_model_settings(stream: bool):
     assert isinstance(ws, ResponseFunctionWebSearch)
     assert ws.type == "web_search_call"
     assert ws.status == "completed"
+    assert ws.id == expected_ws_id
     assert ws.action.type == "search"
     assert ws.action.query == "weather: Taiwan"
     assert ws.action.queries == ["weather: Taiwan"]
@@ -164,6 +188,7 @@ async def test_model_settings(stream: bool):
     msg = response.output[1]
     assert isinstance(msg, ResponseOutputMessage)
     assert msg.type == "message"
+    assert msg.id == expected_msg_id
     assert msg.role == "assistant"
     assert msg.status == "completed"
     assert len(msg.content) == 1
@@ -254,6 +279,7 @@ async def test_model_settings(stream: bool):
     # These must match the YAML/SDK values — i.e. Request → IR → Response
     # round-trips without drift.
     assert response.status == "completed"
+    assert response.id == expected_molto_response_id
     assert response.incomplete_details is None
     assert response.model == "openai/" + req_body["model"]
     for key, expected in EXPECTED_SETTINGS.items():
@@ -280,6 +306,7 @@ async def test_model_settings(stream: bool):
     assert isinstance(ws_molto, OpenAIWebSearchToolCall)
     assert ws_molto.type == "web_search_call"
     assert ws_molto.status == "completed"
+    assert ws_molto.id == expected_molto_ws_id
     assert ws_molto.action.type == "search"
     assert ws_molto.action.query == "weather: Taiwan"
     assert ws_molto.action.queries == ["weather: Taiwan"]
@@ -294,8 +321,7 @@ async def test_model_settings(stream: bool):
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
-    assert msg_molto.id is not None
-    assert msg_molto.id.startswith("msg_")
+    assert msg_molto.id == expected_molto_msg_id
     if stream:
         assert msg_molto.id == added_id
     assert len(msg_molto.content) >= 1

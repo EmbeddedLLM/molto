@@ -29,6 +29,8 @@ from pydantic_ai.builtin_tools import AbstractBuiltinTool
 from pydantic_ai.builtin_tools import CodeExecutionTool as OpenAICodeExecutionTool
 from pydantic_ai.builtin_tools import WebSearchTool as OpenAIWebSearchTool
 from pydantic_ai.models.openai import (
+    OpenAIChatModelSettings,
+    OpenAIModel,
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
@@ -60,6 +62,12 @@ from molto.types.ir import (
     TextPart,
     UserMessage,
     WebSearchTool,
+)
+from molto.types.openai.chat_completions import (
+    from_ir as chat_from_ir,
+)
+from molto.types.openai.chat_completions import (
+    from_ir_stream as chat_from_ir_stream,
 )
 from molto.types.openai.responses import (
     WEB_SEARCH_TOOL,
@@ -101,13 +109,8 @@ class OpenAIResponsesProvider(_Provider):
     @staticmethod
     def _validate_sampling_params(ir: Input) -> None:
         if ir.temperature is not None and not (0 <= ir.temperature <= 2):
-            raise BadInputError(
-                f"temperature must be between 0 and 2, got {ir.temperature}"
-            )
-        if (
-            ir.max_output_tokens is not None
-            and ir.max_output_tokens < 1
-        ):
+            raise BadInputError(f"temperature must be between 0 and 2, got {ir.temperature}")
+        if ir.max_output_tokens is not None and ir.max_output_tokens < 1:
             raise BadInputError(
                 f"max_output_tokens must be at least 1, got {ir.max_output_tokens}"
             )
@@ -394,9 +397,7 @@ class OpenAIResponsesProvider(_Provider):
                 )
             return function_tool_defs, builtin_tool_map
         if isinstance(tc, BuiltinToolChoice):
-            builtin_tool_map = {
-                k: v for k, v in builtin_tool_map.items() if k == tc.name
-            }
+            builtin_tool_map = {k: v for k, v in builtin_tool_map.items() if k == tc.name}
             return {}, builtin_tool_map
         if isinstance(tc, FunctionToolChoice):
             selected = function_tool_defs.get(tc.name)
@@ -411,9 +412,7 @@ class OpenAIResponsesProvider(_Provider):
             allowed_function_names = {
                 e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
             }
-            allowed_builtin_names = {
-                e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)
-            }
+            allowed_builtin_names = {e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)}
             return (
                 {k: v for k, v in function_tool_defs.items() if k in allowed_function_names},
                 {k: v for k, v in builtin_tool_map.items() if k in allowed_builtin_names},
@@ -462,563 +461,92 @@ class OpenAIResponsesProvider(_Provider):
 
 
 class OpenAIChatCompletionsProvider(_Provider):
-    pass
+    def __init__(self, ir: Input | None = None) -> None:
+        self._ir = ir
 
+    @staticmethod
+    def _build_model_settings(ir: Input) -> OpenAIChatModelSettings:
+        ms_kwargs: dict[str, Any] = {}
+        if ir.temperature is not None:
+            ms_kwargs["temperature"] = ir.temperature
+        if ir.top_p is not None:
+            ms_kwargs["top_p"] = ir.top_p
+        if ir.max_output_tokens is not None:
+            ms_kwargs["max_tokens"] = ir.max_output_tokens
+        if ir.reasoning_effort is not None:
+            ms_kwargs["openai_reasoning_effort"] = ir.reasoning_effort
+        if ir.top_logprobs is not None:
+            ms_kwargs["openai_logprobs"] = True
+            ms_kwargs["openai_top_logprobs"] = ir.top_logprobs
+        if ir.parallel_tool_calls is not None:
+            ms_kwargs["parallel_tool_calls"] = ir.parallel_tool_calls
+        return OpenAIChatModelSettings(**ms_kwargs)
 
-#     def parse_agent_settings(self) -> AgentSettings:
-#         """
-#         These parameters are not supported by Responses API:
-#         - id
-#         - n
-#         - presence_penalty
-#         - frequency_penalty
-#         - logit_bias
-#         - stop / stop_sequences
-#         - seed
+    @staticmethod
+    def _build_output_type(ir: Input) -> Any:
+        if isinstance(ir.text_format, JsonSchemaFormat):
+            return StructuredDict(
+                ir.text_format.json_schema,
+                name=ir.text_format.name,
+                description=ir.text_format.description,
+            )
+        return [str, DeferredToolRequests]
 
-#         These parameters are not supported by vLLM:
-#         - user / openai_user
-#         - service_tier / openai_service_tier
-#         - prediction / openai_prediction
-#         - safety_identifier
-#         - prompt_cache_key / openai_prompt_cache_key
-#         - prompt_cache_retention / openai_prompt_cache_retention
+    async def parse_agent_settings(
+        self, ir: Input, http_client: AsyncClient | None = None
+    ) -> AgentSettings:
+        model = OpenAIModel(
+            model_name=ir.model.split("/")[-1],
+            provider=OpenAIProvider(
+                api_key=ENV_CONFIG.openai_api_key_plain,
+                http_client=http_client,
+            ),
+        )
+        model_settings = self._build_model_settings(ir)
+        return AgentSettings(
+            model=model,
+            model_settings=model_settings,
+            output_type=self._build_output_type(ir),
+        )
 
-#         Unused OpenAIChatModelSettings fields:
-#         - timeout: float | Timeout
-#         - extra_headers: dict[str, str]
-#         - extra_body: object
+    async def parse_run_settings(self, ir: Input) -> RunSettings:
+        function_tool_defs, _builtin_tool_map = OpenAIResponsesProvider._collect_tools(ir)
+        tc = ir.tool_choice
+        if tc == "none":
+            function_tool_defs = {}
+        elif isinstance(tc, FunctionToolChoice):
+            selected = function_tool_defs.get(tc.name)
+            if selected is None:
+                raise BadInputError(
+                    f"`tool_choice.name` {tc.name!r} is not present in effective tools."
+                )
+            function_tool_defs = {tc.name: selected}
+        toolsets: list[AbstractToolset[Any]] = []
+        if function_tool_defs:
+            toolsets.append(ExternalToolset(tool_defs=list(function_tool_defs.values())))
+        return RunSettings(
+            message_history=OpenAIResponsesProvider.convert_input_to_messages(ir.input)
+            if ir.input is not None
+            else [],
+            instructions=ir.instructions,
+            toolsets=toolsets or None,
+            usage_limits=UsageLimits(tool_calls_limit=ir.max_tool_calls),
+        )
 
-#         vLLMResponses fields that are mapped in `as_run_settings`:
-#         - input
-#         - instructions
-#         - tools
-#         - tool_choice
-#         - previous_response_id
+    async def compose_outputs(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ):
+        assert self._ir is not None
+        async for event in chat_from_ir_stream(self._ir, output_stream):
+            yield event
 
-#         vLLMResponses fields that are used when creating Agent:
-#         - model
-
-#         vLLMResponses fields that are not used:
-#         - metadata
-#         """
-#         kwargs: dict[str, Any] = self.model_dump(exclude_unset=True, exclude_none=True)
-
-#         max_output_tokens = kwargs.pop("max_output_tokens", None)
-#         if max_output_tokens:
-#             kwargs["max_tokens"] = max_output_tokens
-#         reasoning_effort = kwargs.pop("reasoning", {}).get("effort")
-#         if reasoning_effort:
-#             kwargs["openai_reasoning_effort"] = reasoning_effort
-#         top_logprobs = kwargs.pop("top_logprobs", None)
-#         if top_logprobs:
-#             kwargs["openai_logprobs"] = True
-#             kwargs["openai_top_logprobs"] = top_logprobs
-#         else:
-#             kwargs["openai_logprobs"] = False
-
-#         return OpenAIChatModelSettings(**kwargs)
-
-#     async def parse_run_settings(self, ir) -> RunSettings:
-#         """
-#         Converts the request into a dictionary of run settings for Pydantic AI.
-
-#         Notes:
-
-#         If system prompt is "A" and instructions is "B", then pydantic ai will form this history:
-#         ```yaml
-#         messages:
-#         - content: A
-#         role: system
-#         - content: B
-#         role: system
-#         - content: Hi.
-#         role: user
-#         ```
-#         """
-#         # mcp_tool_name_map: dict[str, McpToolRef] = {}
-#         # mcp_internal_name_by_ref: dict[McpToolRef, str] = {}
-
-#         # def _register_internal_mcp_tool(ref: McpToolRef) -> str:
-#         #     existing_name = mcp_internal_name_by_ref.get(ref)
-#         #     if existing_name is not None:
-#         #         return existing_name
-#         #     try:
-#         #         internal_tool_name = build_internal_mcp_tool_name(
-#         #             server_label=ref.server_label,
-#         #             tool_name=ref.tool_name,
-#         #             existing_map=mcp_tool_name_map,
-#         #         )
-#         #     except ValueError as exc:
-#         #         raise BadInputError(str(exc)) from exc
-#         #     mcp_tool_name_map[internal_tool_name] = ref
-#         #     mcp_internal_name_by_ref[ref] = internal_tool_name
-#         #     return internal_tool_name
-
-#         # if not isinstance(self.input, str):
-#         #     historical_mcp_refs = sorted(
-#         #         {
-#         #             McpToolRef(server_label=msg.server_label, tool_name=msg.name)
-#         #             for msg in self.input
-#         #             if isinstance(msg, OpenAIMcpToolCall)
-#         #         },
-#         #         key=lambda ref: (ref.server_label, ref.tool_name),
-#         #     )
-#         #     for ref in historical_mcp_refs:
-#         #         _register_internal_mcp_tool(ref)
-
-#         # Process chat history
-#         # `previous_response_id` hydration is implemented in Layer 4 (ResponseStore). This method expects
-#         # `self.input` to already include any prior context/tool outputs that should be part of the upstream prompt.
-#         if isinstance(self.input, str):
-#             message_history = [
-#                 ModelRequest(parts=[UserPromptPart(content=self.input)]),
-#             ]
-#         else:
-#             message_history = []
-#             for msg in self.input:
-#                 if isinstance(msg, (OpenAIInputMessage, OpenAIInputItem)):
-#                     if msg.role in ("system", "developer"):
-#                         if not isinstance(msg.content, str):
-#                             # NOTE: Can system prompt be non-string?
-#                             raise BadInputError("System prompt must be a string.")
-#                         message_history.append(
-#                             ModelRequest(parts=[SystemPromptPart(content=msg.content)])
-#                         )
-#                         continue
-
-#                     if msg.role == "user":
-#                         if isinstance(msg.content, str):
-#                             message_history.append(
-#                                 ModelRequest(parts=[UserPromptPart(content=msg.content)])
-#                             )
-#                         else:
-#                             message_history.append(
-#                                 ModelRequest(
-#                                     parts=[
-#                                         UserPromptPart(
-#                                             content=[
-#                                                 c.text
-#                                                 if isinstance(c, OpenAITextContent)
-#                                                 else ImageUrl(
-#                                                     url=c.image_url,
-#                                                     vendor_metadata=dict(detail=c.detail),
-#                                                 )
-#                                                 for c in msg.content
-#                                             ]
-#                                         )
-#                                     ]
-#                                 )
-#                             )
-#                         continue
-
-#                     if msg.role == "assistant":
-#                         if not isinstance(msg.content, str):
-#                             raise BadInputError(
-#                                 "Assistant message input must be a string. "
-#                                 "To replay assistant outputs, use `OpenAIOutputItem`."
-#                             )
-#                         message_history.append(
-#                             ModelResponse(
-#                                 parts=[TextPart(content=msg.content, id=None)],
-#                                 # NOTE: Do we need to provide the provider name?
-#                                 # provider_name="openai",
-#                             )
-#                         )
-#                         continue
-
-#                     raise BadInputError(f"Invalid message role: {msg.role}")
-
-#                 if isinstance(msg, OpenAIOutputItem):
-#                     msg_id = msg.id
-#                     for content_item in msg.content:
-#                         if isinstance(content_item, OpenAIOutputTextContent):
-#                             message_history.append(
-#                                 ModelResponse(
-#                                     parts=[TextPart(content=content_item.text, id=msg_id)],
-#                                     # provider_name="openai",
-#                                 )
-#                             )
-#                         elif isinstance(content_item, OpenAIOutputRefusal):
-#                             message_history.append(
-#                                 ModelResponse(
-#                                     parts=[TextPart(content=content_item.refusal, id=msg_id)],
-#                                     # provider_name="openai",
-#                                 )
-#                             )
-#                         else:
-#                             raise BadInputError(
-#                                 f"Invalid assistant content type: {type(content_item)}"
-#                             )
-#                     continue
-
-#                 if isinstance(msg, OpenAIReasoningItem):
-#                     msg_id = msg.id
-#                     content = ""
-#                     if msg.content:
-#                         content = "".join(c.text for c in msg.content)
-#                     if (not msg.encrypted_content) and msg.summary:
-#                         content = "".join(c.text for c in msg.summary)
-#                     message_history.append(
-#                         ModelResponse(
-#                             parts=[
-#                                 ThinkingPart(
-#                                     content=content,
-#                                     signature=msg.encrypted_content,
-#                                     id=msg_id,
-#                                     # provider_name="openai",
-#                                 )
-#                             ],
-#                             # provider_name="openai",
-#                         )
-#                     )
-#                     continue
-
-#                 if isinstance(msg, OpenAIFunctionToolCall):
-#                     msg_id = msg.id
-#                     message_history.append(
-#                         ModelResponse(
-#                             parts=[
-#                                 ToolCallPart(
-#                                     tool_name=msg.name,
-#                                     args=msg.arguments,
-#                                     tool_call_id=msg.call_id,
-#                                     id=msg_id,
-#                                 )
-#                             ],
-#                             # provider_name="openai",
-#                         )
-#                     )
-#                     continue
-
-#                 if isinstance(msg, OpenAIFunctionToolOutput):
-#                     tool_name: str = next(
-#                         (
-#                             i.name
-#                             for i in self.input
-#                             if isinstance(i, OpenAIFunctionToolCall) and i.call_id == msg.call_id
-#                         ),
-#                         "",
-#                     )
-#                     tool_output: str
-#                     if isinstance(msg.output, str):
-#                         tool_output = msg.output
-#                     else:
-#                         tool_output = json.dumps(
-#                             [c.model_dump(mode="python") for c in msg.output],
-#                             ensure_ascii=False,
-#                             separators=(",", ":"),
-#                         )
-#                     message_history.append(
-#                         ModelRequest(
-#                             parts=[
-#                                 ToolReturnPart(
-#                                     tool_name=tool_name,
-#                                     # TODO: Handle list[OpenAITextContent | OpenAIImageContent]
-#                                     content=tool_output,
-#                                     tool_call_id=msg.call_id,
-#                                 ),
-#                             ]
-#                         )
-#                     )
-#                     continue
-
-#                 if isinstance(msg, OpenAICodeToolCall):
-#                     msg_id = msg.id
-#                     message_history.append(
-#                         ModelResponse(
-#                             parts=[
-#                                 BuiltinToolCallPart(
-#                                     tool_name="code_execution",
-#                                     args={
-#                                         "container_id": msg.container_id,
-#                                         "code": msg.code,
-#                                     },
-#                                     tool_call_id=msg_id,
-#                                     # provider_name="openai",
-#                                 ),
-#                                 BuiltinToolReturnPart(
-#                                     tool_name="code_execution",
-#                                     content={"status": "completed"},
-#                                     tool_call_id=msg_id,
-#                                     # provider_name="openai",
-#                                 ),
-#                             ],
-#                             # provider_name="openai",
-#                         )
-#                     )
-#                     continue
-
-#                 if isinstance(msg, OpenAIWebSearchToolCall):
-#                     msg_id = msg.id
-#                     action_payload = (
-#                         msg.action.model_dump(mode="python", exclude_none=True)
-#                         if msg.action is not None
-#                         else {}
-#                     )
-#                     message_history.append(
-#                         ModelResponse(
-#                             parts=[
-#                                 BuiltinToolCallPart(
-#                                     tool_name=WEB_SEARCH_TOOL,
-#                                     args=action_payload,
-#                                     tool_call_id=msg_id,
-#                                 ),
-#                                 BuiltinToolReturnPart(
-#                                     tool_name=WEB_SEARCH_TOOL,
-#                                     content={"status": msg.status, "action": action_payload},
-#                                     tool_call_id=msg_id,
-#                                 ),
-#                             ]
-#                         )
-#                     )
-#                     continue
-
-#                 # if isinstance(msg, OpenAIMcpToolCall):
-#                 #     msg_id = msg.id
-#                 #     internal_tool_name = _register_internal_mcp_tool(
-#                 #         McpToolRef(server_label=msg.server_label, tool_name=msg.name)
-#                 #     )
-#                 #     mcp_args: dict[str, Any] = {}
-#                 #     try:
-#                 #         parsed_args = json.loads(msg.arguments)
-#                 #         if isinstance(parsed_args, dict):
-#                 #             mcp_args = parsed_args
-#                 #     except Exception:
-#                 #         mcp_args = {}
-#                 #     tool_return_content: dict[str, Any] = {"status": msg.status}
-#                 #     if msg.output is not None:
-#                 #         tool_return_content["output"] = msg.output
-#                 #     if msg.error is not None:
-#                 #         tool_return_content["error"] = msg.error
-#                 #     message_history.append(
-#                 #         ModelResponse(
-#                 #             parts=[
-#                 #                 BuiltinToolCallPart(
-#                 #                     tool_name=internal_tool_name,
-#                 #                     args=mcp_args,
-#                 #                     tool_call_id=msg_id,
-#                 #                 ),
-#                 #                 BuiltinToolReturnPart(
-#                 #                     tool_name=internal_tool_name,
-#                 #                     content=tool_return_content,
-#                 #                     tool_call_id=msg_id,
-#                 #                 ),
-#                 #             ]
-#                 #         )
-#                 #     )
-#                 #     continue
-
-#                 raise BadInputError(f"Invalid message type: {type(msg)}")
-
-#         # TODO: Re-enable this
-#         # Process tool list
-#         # builtin_tools: list[Tool] = []
-#         # deferred_tools: list[ToolDefinition] = []
-#         # mcp_declarations: dict[str, OpenAIResponsesMcpTool] = {}
-#         # mcp_servers: dict[str, ResolvedMcpServerTools] = {}
-#         # selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
-#         # if self.tools:
-#         #     for t in self.tools:
-#         #         match t:
-#         #             case OpenAIResponsesFunctionTool():
-#         #                 if t.name.startswith(HOSTED_MCP_INTERNAL_PREFIX):
-#         #                     raise BadInputError(
-#         #                         f"Function tool names starting with {HOSTED_MCP_INTERNAL_PREFIX!r} are reserved."
-#         #                     )
-#         #                 deferred_tools.append(
-#         #                     ToolDefinition(
-#         #                         name=t.name,
-#         #                         parameters_json_schema=t.parameters,
-#         #                         strict=t.strict,
-#         #                         description=t.description,
-#         #                     )
-#         #                 )
-#         #             case vLLMResponsesCodeTool():
-#         #                 builtin_tools.append(TOOLS[CODE_INTERPRETER_TOOL])
-#         #             case OpenAIResponsesWebSearchTool():
-#         #                 builtin_tools.append(TOOLS[WEB_SEARCH_TOOL])
-#         #             case OpenAIResponsesMcpTool():
-#         #                 if t.server_label in mcp_declarations:
-#         #                     raise BadInputError(
-#         #                         "Duplicate MCP declarations are not allowed for the same "
-#         #                         f"`server_label`: {t.server_label!r}."
-#         #                     )
-#         #                 mcp_declarations[t.server_label] = t
-#         #             case _:
-#         #                 raise BadInputError(f"Invalid tool type: {type(t)}")
-
-#         # if mcp_declarations:
-#         #     mcp_servers = await resolve_mcp_declarations(
-#         #         declarations=mcp_declarations,
-#         #         builtin_mcp_runtime_client=builtin_mcp_runtime_client,
-#         #         request_remote_enabled=request_remote_enabled,
-#         #         request_remote_url_checks_enabled=request_remote_url_checks_enabled,
-#         #         request_remote_toolset_builder=build_request_remote_toolset,
-#         #     )
-
-#         internal_tool_choice_instruction: str | None = None
-
-#         if self.tool_choice == "auto":
-#             pass
-#         elif self.tool_choice == "none":
-#             builtin_tools = []
-#             deferred_tools = []
-#             mcp_servers = {}
-#             selected_mcp_tool_infos_by_server = {}
-#         elif self.tool_choice == "required":
-#             if not builtin_tools and not deferred_tools and not mcp_servers:
-#                 raise BadInputError(
-#                     '`tool_choice="required"` requires at least one effective tool.'
-#                 )
-#             internal_tool_choice_instruction = _build_required_tool_choice_instruction(kind="any")
-#         elif isinstance(self.tool_choice, OpenAIAllowedToolsChoice):
-#             # TODO: Re-enable
-#             # (
-#             #     builtin_tools,
-#             #     deferred_tools,
-#             #     mcp_servers,
-#             #     selected_mcp_tool_infos_by_server,
-#             # ) = _apply_allowed_tools_choice(
-#             #     choice=self.tool_choice,
-#             #     builtin_tools=builtin_tools,
-#             #     deferred_tools=deferred_tools,
-#             #     mcp_servers=mcp_servers,
-#             # )
-#             if self.tool_choice.mode == "auto":
-#                 pass
-#             else:
-#                 if not builtin_tools and not deferred_tools and not mcp_servers:
-#                     raise BadInputError(
-#                         '`tool_choice.allowed_tools` with `mode="required"` '
-#                         "requires at least one effective tool."
-#                     )
-#                 internal_tool_choice_instruction = _build_required_tool_choice_instruction(
-#                     kind="allowed"
-#                 )
-#         elif isinstance(self.tool_choice, OpenAIHostedToolChoice):
-#             requested_builtin = _normalize_hosted_tool_type(self.tool_choice.type)
-#             builtin_tools = [t for t in builtin_tools if t.name == requested_builtin]
-#             if not builtin_tools:
-#                 raise BadInputError(
-#                     f"`tool_choice.type={self.tool_choice.type!r}` references a built-in tool "
-#                     "not present in effective tools."
-#                 )
-#             deferred_tools = []
-#             mcp_servers = {}
-#             selected_mcp_tool_infos_by_server = {}
-#             internal_tool_choice_instruction = _build_required_tool_choice_instruction(
-#                 kind="builtin",
-#                 builtin_name=requested_builtin,
-#             )
-#         elif isinstance(self.tool_choice, OpenAIFunctionToolChoice):
-#             builtin_tools = []
-#             deferred_tools = [t for t in deferred_tools if t.name == self.tool_choice.name]
-#             if not deferred_tools:
-#                 raise BadInputError(
-#                     f"`tool_choice.name` {self.tool_choice.name!r} is not present in effective tools."
-#                 )
-#             mcp_servers = {}
-#             selected_mcp_tool_infos_by_server = {}
-#             internal_tool_choice_instruction = _build_required_tool_choice_instruction(
-#                 kind="function",
-#                 function_name=self.tool_choice.name,
-#             )
-#         elif isinstance(self.tool_choice, OpenAIMcpToolChoice):
-#             if not mcp_servers:
-#                 raise BadInputError(
-#                     '`tool_choice.type="mcp"` requires at least one MCP tool declaration.'
-#                 )
-#             selected_server = mcp_servers.get(self.tool_choice.server_label)
-#             if selected_server is None:
-#                 raise BadInputError(
-#                     '`tool_choice.type="mcp"` references a `server_label` '
-#                     "not present in effective tools."
-#                 )
-#             selected_tools = selected_server.allowed_tool_infos
-#             if self.tool_choice.name is not None:
-#                 if self.tool_choice.name not in selected_tools:
-#                     raise BadInputError(
-#                         f"`tool_choice.name` {self.tool_choice.name!r} is not allowed for "
-#                         f"server {self.tool_choice.server_label!r}."
-#                     )
-#                 selected_tools = {self.tool_choice.name: selected_tools[self.tool_choice.name]}
-#             mcp_servers = {self.tool_choice.server_label: selected_server}
-#             selected_mcp_tool_infos_by_server = {self.tool_choice.server_label: selected_tools}  # noqa: F841
-#             builtin_tools = []
-#             deferred_tools = []
-#             internal_tool_choice_instruction = _build_required_tool_choice_instruction(
-#                 kind="mcp",
-#                 server_label=self.tool_choice.server_label,
-#                 mcp_tool_name=self.tool_choice.name,
-#             )
-#         else:
-#             raise BadInputError(f"Invalid `tool_choice` provided: {self.tool_choice}.")
-
-#         # TODO: Re-enable this
-#         # mcp_resolved_tools: list[ResolvedMcpTool] = []
-#         # for server_label, server_runtime in sorted(mcp_servers.items()):
-#         #     tool_infos = selected_mcp_tool_infos_by_server.get(
-#         #         server_label, server_runtime.allowed_tool_infos
-#         #     )
-#         #     for tool_name, tool_info in tool_infos.items():
-#         #         normalized_schema = _normalize_mcp_input_schema(
-#         #             server_label=server_label,
-#         #             tool_name=tool_name,
-#         #             input_schema=tool_info.input_schema,
-#         #         )
-#         #         ref = McpToolRef(
-#         #             server_label=server_label,
-#         #             tool_name=tool_name,
-#         #             mode=server_runtime.mode,
-#         #         )
-#         #         internal_tool_name = _register_internal_mcp_tool(ref)
-
-#         #         description = (
-#         #             tool_info.description.strip()
-#         #             if isinstance(tool_info.description, str) and tool_info.description.strip()
-#         #             else f"MCP tool {server_label}:{tool_name}"
-#         #         )
-#         #         mcp_resolved_tools.append(
-#         #             ResolvedMcpTool(
-#         #                 internal_name=internal_tool_name,
-#         #                 ref=ref,
-#         #                 mcp_toolset=server_runtime.mcp_toolset,
-#         #                 mcp_tool_name=tool_name,
-#         #                 description=description,
-#         #                 input_schema=normalized_schema,
-#         #                 schema_validator=Draft202012Validator(normalized_schema),
-#         #                 secret_values=server_runtime.secret_values,
-#         #                 mcp_tool=server_runtime.allowed_mcp_tools_by_name.get(tool_name),
-#         #             )
-#         #         )
-#         toolsets: list[AbstractToolset[Any]] = []
-#         if builtin_tools:
-#             toolsets.append(FunctionToolset(tools=builtin_tools))
-#         # TODO: Re-enable this
-#         # if mcp_resolved_tools:
-#         #     toolsets.append(
-#         #         McpGatewayToolset(
-#         #             tools=mcp_resolved_tools,
-#         #             id="vllm_responses_mcp",
-#         #         )
-#         #     )
-#         if deferred_tools:
-#             toolsets.append(ExternalToolset(tool_defs=deferred_tools))
-#         run_settings: AgentRunSettings = {
-#             "message_history": message_history,
-#             "instructions": _merge_internal_instructions(
-#                 user_instructions=self.instructions,
-#                 internal_instruction=internal_tool_choice_instruction,
-#             ),
-#             "toolsets": toolsets or None,
-#             # Parity note: do not enforce request `max_tool_calls` in pydantic_ai runtime limits.
-#             # Keep `max_tool_calls` as request/response metadata only, matching observed OpenAI behavior.
-#             # Preserve pydantic_ai default request_limit safety guard for non-terminating loops.
-#             "usage_limits": UsageLimits(tool_calls_limit=None),
-#         }
-#         # return run_settings, builtin_tools, mcp_tool_name_map
-#         return run_settings, builtin_tools
+    async def get_output(
+        self,
+        output_stream: AsyncIterator[OutputIR],
+    ):
+        assert self._ir is not None
+        return await chat_from_ir(self._ir, output_stream)
 
 
 class AnthropicMessagesProvider(_Provider):

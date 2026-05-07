@@ -97,6 +97,22 @@ async def test_text_config_json_schema(stream: bool):
     assert cassette_args["name"] == EXPECTED_NAME
     assert "job" in cassette_args
 
+    cassette_fc = cassette_response["output"][0]
+    expected_response_id = cassette_response["id"]
+    expected_fc_id = cassette_fc["id"]
+    expected_call_id = cassette_fc["call_id"]
+    expected_name = cassette_fc["name"]
+
+    stream_cassette_data = read_cassette(CASSETTE_PATH, stream=True)
+    stream_completed = [
+        line
+        for line in stream_cassette_data
+        if line.startswith("data: ") and '"type":"response.completed"' in line
+    ]
+    assert len(stream_completed) == 1
+    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
+    expected_molto_response_id = stream_resp["id"]
+
     # ── (2) OpenAI SDK client — sends the wire body verbatim ───────────
     client = make_openai_client(handler, load_stream_cassette=stream)
     response = await client.responses.create(**req_body)
@@ -109,11 +125,14 @@ async def test_text_config_json_schema(stream: bool):
         response = events[-1].response
     assert isinstance(response, Response)
 
+    assert response.id == expected_response_id
     assert response.status == "completed"
 
     sdk_calls = [o for o in response.output if isinstance(o, ResponseFunctionToolCall)]
     assert len(sdk_calls) == 1
-    assert sdk_calls[0].name == "final_result"
+    assert sdk_calls[0].name == expected_name
+    assert sdk_calls[0].id == expected_fc_id
+    assert sdk_calls[0].call_id == expected_call_id
     assert sdk_calls[0].status == "completed"
     sdk_args = json_loads(sdk_calls[0].arguments)
     assert sdk_args["name"] == EXPECTED_NAME
@@ -146,6 +165,7 @@ async def test_text_config_json_schema(stream: bool):
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
+    assert response.id == expected_molto_response_id
     assert response.status == "completed"
 
     # The caller's json_schema text format must round-trip back through from_ir.

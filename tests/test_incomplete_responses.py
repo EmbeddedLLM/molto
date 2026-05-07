@@ -75,6 +75,20 @@ async def test_incomplete_response(stream: bool):
         )
     assert cassette_response["incomplete_details"]["reason"] == "max_output_tokens"
 
+    expected_response_id = cassette_response["id"]
+    expected_msg_id = cassette_response["output"][0]["id"]
+
+    stream_cassette_data = read_cassette(cassette_path, stream=True)
+    stream_incomplete = [
+        line
+        for line in stream_cassette_data
+        if line.startswith("data: ") and '"type":"response.incomplete"' in line
+    ]
+    assert len(stream_incomplete) == 1
+    stream_resp = json_loads(stream_incomplete[0][len("data: ") :])["response"]
+    expected_molto_response_id = stream_resp["id"]
+    expected_molto_msg_id = stream_resp["output"][0]["id"]
+
     client = make_openai_client(handler, load_stream_cassette=stream)
     response = await client.responses.create(**req_body)
     if stream:
@@ -87,6 +101,7 @@ async def test_incomplete_response(stream: bool):
     assert isinstance(response, Response)
 
     # ── (2) OpenAI SDK response — parsed from the YAML cassette ────────
+    assert response.id == expected_response_id
     assert response.status == "incomplete"
     assert response.incomplete_details is not None
     assert response.incomplete_details.reason == "max_output_tokens"
@@ -98,6 +113,7 @@ async def test_incomplete_response(stream: bool):
     msg = response.output[0]
     assert isinstance(msg, ResponseOutputMessage)
     assert msg.type == "message"
+    assert msg.id == expected_msg_id
     assert msg.role == "assistant"
     assert msg.status == "incomplete"
     assert len(msg.content) == 1
@@ -166,6 +182,7 @@ async def test_incomplete_response(stream: bool):
     assert isinstance(response, OpenAIResponsesResponse)
 
     # ── (3) Molto response — must agree with the YAML/SDK values ───────
+    assert response.id == expected_molto_response_id
     assert response.status == "incomplete"
     assert response.incomplete_details is not None
     assert response.incomplete_details.reason == "max_output_tokens"
@@ -179,8 +196,7 @@ async def test_incomplete_response(stream: bool):
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "incomplete"
-    assert msg_molto.id is not None
-    assert msg_molto.id.startswith("msg_")
+    assert msg_molto.id == expected_molto_msg_id
     if stream:
         assert msg_molto.id == added_id
     assert len(msg_molto.content) == 1

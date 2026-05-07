@@ -188,7 +188,9 @@ class Runner:
                         )
                 else:
                     self._tool_id2name[_tool_call_id] = _tool_name
-                    yield AgentToolStart(tool_call_id=_tool_call_id, tool_name=_tool_name)
+                    yield AgentToolStart(
+                        tool_call_id=_tool_call_id, tool_name=_tool_name, id=event.part.id
+                    )
                     if event.part.has_content():
                         yield AgentToolDelta(
                             tool_call_id=_tool_call_id,
@@ -200,6 +202,7 @@ class Runner:
                     "tool_name": event.part.tool_name,
                     "tool_call_id": event.part.tool_call_id,
                     "args": event.part.args if isinstance(event.part.args, dict) else None,
+                    "id": event.part.id,
                 }
             elif isinstance(event.part, BuiltinToolReturnPart):
                 tc = self._builtin_tool_calls.get(event.part.tool_call_id)
@@ -209,6 +212,7 @@ class Runner:
                         tool_call_id=tc["tool_call_id"],
                         args=tc.get("args"),
                         result=event.part.content,
+                        id=tc.get("id"),
                     )
 
         elif isinstance(event, PartDeltaEvent):
@@ -268,12 +272,15 @@ class Runner:
                 tc = self._builtin_tool_calls.get(event.part.tool_call_id)
                 if tc:
                     tc["args"] = event.part.args if isinstance(event.part.args, dict) else None
+                    if event.part.id is not None:
+                        tc["id"] = event.part.id
 
         elif isinstance(event, FunctionToolCallEvent):
             yield AgentToolCall(
                 tool_call_id=event.tool_call_id,
                 tool_name=event.part.tool_name,
                 args=event.part.args_as_dict(),
+                id=event.part.id,
             )
 
         elif isinstance(event, FunctionToolResultEvent):
@@ -303,8 +310,11 @@ class Runner:
         _completed_at = int(event.result.timestamp().timestamp())
         _logprobs = None
         _incomplete_details = None
+        _provider_response_id = None
         for msg in reversed(event.result.new_messages()):
             if isinstance(msg, ModelResponse):
+                if msg.provider_response_id is not None:
+                    _provider_response_id = msg.provider_response_id
                 if msg.provider_details and "logprobs" in msg.provider_details:
                     _logprobs = msg.provider_details["logprobs"]
                 else:
@@ -338,6 +348,7 @@ class Runner:
                 completed_at=_completed_at,
                 logprobs=_logprobs,
                 incomplete_details=_incomplete_details,
+                provider_response_id=_provider_response_id,
             )
         else:
             if isinstance(_output, str):
@@ -352,6 +363,7 @@ class Runner:
                 completed_at=_completed_at,
                 logprobs=_logprobs,
                 incomplete_details=_incomplete_details,
+                provider_response_id=_provider_response_id,
             )
 
     async def run_stream(self) -> AsyncIterator[AgentEvent]:

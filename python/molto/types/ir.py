@@ -132,6 +132,7 @@ class AgentToolStart(_Message):
     ] = "agent.tool.start"
     tool_call_id: str
     tool_name: str
+    id: str | None = None
 
 
 class AgentToolDelta(_Message):
@@ -265,6 +266,7 @@ class AgentBuiltinToolCall(_Message):
     tool_call_id: str
     args: dict[str, Any] | None = None
     result: Any = None
+    id: str | None = None
 
 
 class AgentRunResult(_Message):
@@ -279,6 +281,7 @@ class AgentRunResult(_Message):
     incomplete_details: str | None = None
     completed_at: int | None = None
     logprobs: list[dict[str, Any]] | None = None
+    provider_response_id: str | None = None
 
 
 AgentEvent = Annotated[

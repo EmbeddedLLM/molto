@@ -84,6 +84,23 @@ async def test_reasoning(stream: bool):
 
     assert cassette_response["usage"]["output_tokens_details"]["reasoning_tokens"] > 0
 
+    expected_response_id = cassette_response["id"]
+    expected_rs_id = cassette_response["output"][0]["id"]
+    expected_msg_id = cassette_response["output"][1]["id"]
+
+    # Molto always reads the stream cassette internally
+    stream_cassette_data = read_cassette(CASSETTE_PATH, stream=True)
+    stream_completed = [
+        line
+        for line in stream_cassette_data
+        if line.startswith("data: ") and '"type":"response.completed"' in line
+    ]
+    assert len(stream_completed) == 1
+    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
+    expected_molto_response_id = stream_resp["id"]
+    expected_molto_rs_id = stream_resp["output"][0]["id"]
+    expected_molto_msg_id = stream_resp["output"][1]["id"]
+
     # ── (2) OpenAI SDK client ───────────────────────────────────────────
     client = make_openai_client(handler, load_stream_cassette=stream)
     response = await client.responses.create(**req_body)
@@ -99,6 +116,7 @@ async def test_reasoning(stream: bool):
         response = events[-1].response
     assert isinstance(response, Response)
 
+    assert response.id == expected_response_id
     assert response.status == "completed"
     assert response.reasoning is not None
     assert response.reasoning.effort == "high"
@@ -109,8 +127,7 @@ async def test_reasoning(stream: bool):
     sdk_reasoning = response.output[0]
     assert isinstance(sdk_reasoning, ResponseReasoningItem)
     assert sdk_reasoning.type == "reasoning"
-    assert sdk_reasoning.id is not None
-    assert sdk_reasoning.id.startswith("rs_")
+    assert sdk_reasoning.id == expected_rs_id
     assert sdk_reasoning.encrypted_content is not None
     assert len(sdk_reasoning.encrypted_content) > 0
     assert len(sdk_reasoning.summary) == 1
@@ -119,6 +136,7 @@ async def test_reasoning(stream: bool):
 
     sdk_message = response.output[1]
     assert isinstance(sdk_message, ResponseOutputMessage)
+    assert sdk_message.id == expected_msg_id
     assert sdk_message.role == "assistant"
     assert sdk_message.status == "completed"
     assert len(sdk_message.content) == 1
@@ -221,6 +239,8 @@ async def test_reasoning(stream: bool):
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
+    assert response.id == expected_molto_response_id
+
     assert response.status == "completed"
     assert response.reasoning is not None
     assert response.reasoning.effort == "high"
@@ -237,8 +257,7 @@ async def test_reasoning(stream: bool):
     molto_reasoning = response.output[0]
     assert isinstance(molto_reasoning, OpenAIReasoningItem)
     assert molto_reasoning.type == "reasoning"
-    assert molto_reasoning.id is not None
-    assert molto_reasoning.id.startswith("rs_")
+    assert molto_reasoning.id == expected_molto_rs_id
     assert len(molto_reasoning.content) >= 1
     assert molto_reasoning.content[0].type == "reasoning_text"
     assert len(molto_reasoning.content[0].text) > 0
@@ -249,8 +268,7 @@ async def test_reasoning(stream: bool):
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
-    assert msg_molto.id is not None
-    assert msg_molto.id.startswith("msg_")
+    assert msg_molto.id == expected_molto_msg_id
     assert len(msg_molto.content) >= 1
 
     text_molto = msg_molto.content[0]

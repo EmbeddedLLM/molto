@@ -2591,6 +2591,7 @@ def _build_response_from_ir(
     usage=None,
     completed_at: int | None = None,
     incomplete_details: str | None = None,
+    response_id: str | None = None,
 ) -> OpenAIResponsesResponse:
     kwargs: dict = dict(
         model=ir.model,
@@ -2602,6 +2603,8 @@ def _build_response_from_ir(
         temperature=ir.temperature,
         top_p=ir.top_p,
     )
+    if response_id is not None:
+        kwargs["id"] = response_id
     if status in ("completed", "failed", "incomplete", "cancelled") and completed_at is not None:
         kwargs["completed_at"] = completed_at
     if ir.max_output_tokens is not None:
@@ -2688,6 +2691,7 @@ async def from_ir_stream(
     captured_usage = None
     captured_completed_at: int | None = None
     captured_incomplete_details: str | None = None
+    captured_provider_response_id: str | None = None
 
     initial_response = _build_response_from_ir(ir, status="in_progress")
     yield OpenAIResponsesStream(
@@ -2818,7 +2822,7 @@ async def from_ir_stream(
             output_index += 1
 
         elif isinstance(event, AgentToolStart):
-            item_id = uuid7_str("fc_")
+            item_id = event.id or ""
             active_tools[event.tool_call_id] = {
                 "id": item_id,
                 "tool_name": event.tool_name,
@@ -2869,6 +2873,7 @@ async def from_ir_stream(
             captured_usage = event.usage
             captured_completed_at = event.completed_at
             captured_incomplete_details = event.incomplete_details
+            captured_provider_response_id = event.provider_response_id
             if (
                 captured_incomplete_details is None
                 and event.usage is not None
@@ -2911,7 +2916,7 @@ async def from_ir_stream(
                     sources=sources or None,
                 )
                 completed_item = OpenAIWebSearchToolCall(
-                    id=event.tool_call_id,
+                    id=event.id or event.tool_call_id,
                     status=result.get("status", "completed"),
                     action=action,
                 )
@@ -2929,7 +2934,7 @@ async def from_ir_stream(
                 result = event.result or {}
                 args = event.args or {}
                 completed_item = OpenAICodeToolCall(
-                    id=event.tool_call_id,
+                    id=event.id or event.tool_call_id,
                     code=args.get("code"),
                     container_id=args.get("container_id", ""),
                     status=result.get("status", "completed"),
@@ -2967,6 +2972,7 @@ async def from_ir_stream(
         usage=captured_usage,
         completed_at=captured_completed_at,
         incomplete_details=captured_incomplete_details,
+        response_id=captured_provider_response_id,
     )
     yield OpenAIResponsesStream(
         type=final_event_type,
@@ -2997,7 +3003,7 @@ async def from_ir(
                 )
                 builtin_items.append(
                     OpenAIWebSearchToolCall(
-                        id=event.tool_call_id,
+                        id=event.id or event.tool_call_id,
                         status=result.get("status", "completed"),
                         action=action,
                     )
@@ -3007,7 +3013,7 @@ async def from_ir(
                 args = event.args or {}
                 builtin_items.append(
                     OpenAICodeToolCall(
-                        id=event.tool_call_id,
+                        id=event.id or event.tool_call_id,
                         code=args.get("code"),
                         container_id=args.get("container_id", ""),
                         status=result.get("status", "completed"),
@@ -3016,10 +3022,11 @@ async def from_ir(
                 )
         elif isinstance(event, AgentRunResult):
             output_items = list(builtin_items)
+            captured_provider_response_id = event.provider_response_id
             for tool_call in event.tool_calls or []:
                 output_items.append(
                     OpenAIFunctionToolCall(
-                        id=uuid7_str("fc_"),
+                        id=tool_call.id or "",
                         call_id=tool_call.tool_call_id,
                         name=tool_call.tool_name,
                         arguments=json.dumps(
@@ -3069,6 +3076,7 @@ async def from_ir(
                 usage=event.usage,
                 completed_at=event.completed_at,
                 incomplete_details=event.incomplete_details,
+                response_id=captured_provider_response_id,
             )
     if response is not None:
         return response

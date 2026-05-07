@@ -8,7 +8,11 @@ from molto.providers import (
     OpenAIResponsesProvider,
 )
 from molto.runner import Runner
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai.chat_completions import (
+    OpenAIChatCompletionChunk,
+    OpenAIChatCompletionRequest,
+    OpenAIChatCompletionResponse,
+)
 from molto.types.openai.responses import (
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
@@ -30,11 +34,16 @@ class Molto:
         self,
         body: OpenAIResponsesRequest | OpenAIChatCompletionRequest,
         prefer_openai_responses: bool = False,
-    ) -> OpenAIResponsesResponse | AsyncIterator[_OpenAIStreamEvent]:
+    ) -> (
+        OpenAIResponsesResponse
+        | AsyncIterator[_OpenAIStreamEvent]
+        | OpenAIChatCompletionResponse
+        | AsyncIterator[OpenAIChatCompletionChunk]
+    ):
         """Orchestrate the pipeline."""
         ir = body.to_ir()
         if isinstance(body, OpenAIChatCompletionRequest):
-            request_provider = OpenAIChatCompletionsProvider()
+            request_provider = OpenAIChatCompletionsProvider(ir=ir)
         elif isinstance(body, OpenAIResponsesRequest):
             request_provider = OpenAIResponsesProvider(ir=ir)
         else:
