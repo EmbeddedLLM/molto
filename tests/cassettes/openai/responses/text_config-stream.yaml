@@ -1,0 +1,245 @@
+filename: 2026-04-28-019dd311-ab89-7901-8f2d-68057c227010
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content: Who are you?
+      role: user
+    instructions: You are patrick jane, a consultant for the CBI
+    model: gpt-5.1
+    stream: true
+    tool_choice: required
+    tools:
+    - description: identity of the agent
+      name: final_result
+      parameters:
+        additionalProperties: false
+        properties:
+          job:
+            type: string
+          name:
+            type: string
+        required:
+        - name
+        - job
+        type: object
+      strict: true
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '469'
+    content-type: application/json
+    user-agent: pydantic-ai/1.85.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019dd311-ab89-7901-8f2d-68057c227010
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0409e439cf37ffab0069f066d45b28819b8a410d05d26e09cc","object":"response","created_at":1777362644,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"effort":"none","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"identity
+    of the agent","name":"final_result","parameters":{"properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"type":"object","additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0409e439cf37ffab0069f066d45b28819b8a410d05d26e09cc","object":"response","created_at":1777362644,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"effort":"none","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"identity
+    of the agent","name":"final_result","parameters":{"properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"type":"object","additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","type":"function_call","status":"in_progress","arguments":"","call_id":"call_XP5i5rpPU2b6llYTQ2cyn6Xp","name":"final_result"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"MMKxdRi6a46hiI","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"name","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"9dwQ4l5wT7sh","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"cEvtO19kMUU7n","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"Patrick","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"fKQzuciqr","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":" Jane","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"lqaHr7Pn3RV","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\",\"","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"uT3R0vF36wLub","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"job","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"1EhyfyIDky24a","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"zW3ElHOD0NI7F","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"Consult","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"7gdKhsAUS","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"ant","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"F2Ul4ZcQbdqOg","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":" for","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"eRnuenJ8lv5T","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":" the","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"w50kKFh5GX4B","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":" C","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"XxpYtcjUdWuaxQ","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"BI","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"8aiIctVkGnyev9","output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","obfuscation":"K9vYM5E95wPecb","output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}","item_id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","type":"function_call","status":"completed","arguments":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}","call_id":"call_XP5i5rpPU2b6llYTQ2cyn6Xp","name":"final_result"},"output_index":0,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0409e439cf37ffab0069f066d45b28819b8a410d05d26e09cc","object":"response","created_at":1777362644,"status":"completed","background":false,"completed_at":1777362645,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[{"id":"fc_0409e439cf37ffab0069f066d50678819b80dd050b41836533","type":"function_call","status":"completed","arguments":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}","call_id":"call_XP5i5rpPU2b6llYTQ2cyn6Xp","name":"final_result"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"effort":"none","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tools":[{"type":"function","description":"identity
+    of the agent","name":"final_result","parameters":{"properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"type":"object","additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":65,"input_tokens_details":{"cached_tokens":0},"output_tokens":34,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":99},"user":null,"metadata":{}},"sequence_number":20}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-04-28T07:50:43.849743+00:00'

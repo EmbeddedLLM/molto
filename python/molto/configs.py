@@ -1,7 +1,17 @@
+import sys
+
+from loguru import logger
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_HS256_SECRET_BYTES = 32
+
+LOGURU_FORMAT = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+    "<level>{level: <8}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+    "<level>{message}</level>"
+)
 
 
 class EnvConfig(BaseSettings):
@@ -45,3 +55,15 @@ class EnvConfig(BaseSettings):
 
 
 ENV_CONFIG = EnvConfig()
+
+
+def setup_logging() -> None:
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        level=ENV_CONFIG.log_level_stderr.upper(),
+        format=LOGURU_FORMAT,
+    )
+
+
+setup_logging()

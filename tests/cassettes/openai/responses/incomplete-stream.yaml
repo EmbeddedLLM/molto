@@ -1,0 +1,294 @@
+filename: 2026-04-13-019d8659-c668-7a53-92fc-bd2e364d603f
+request:
+  body:
+    input:
+    - content: You are a financial advisor
+      role: system
+    - content: Who are you?
+      role: user
+    instructions: You are a financial advisor for the user.
+    max_output_tokens: 20
+    model: gpt-4.1-nano
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '229'
+    content-type: application/json
+    user-agent: pydantic-ai/1.73.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019d8659-c668-7a53-92fc-bd2e364d603f
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_07725938cd0939f20069dcc303d520819a960cfd20a811e75d","object":"response","created_at":1776075523,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"You
+    are a financial advisor for the user.","max_output_tokens":20,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_07725938cd0939f20069dcc303d520819a960cfd20a811e75d","object":"response","created_at":1776075523,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":"You
+    are a financial advisor for the user.","max_output_tokens":20,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"I","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"Pn6hweruRJ4TudU","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" am","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"ivx6kBWA5FGrn","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" a","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"isH9PQEXJ6XE9b","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" financial","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"ziTO82","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" advisor","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"6NS1mlYL","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" here","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"Mok2I9t9YkM","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" to","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"GtlEzqsH9R03q","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" help","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"6hR5ODxKQvY","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" you","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"qAc0qoqwbDdJ","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" with","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"DxZSkI4aI3I","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" your","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"oPkGRYgj5UO","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" financial","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"npt2bE","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" questions","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"DfeRDP","output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":",","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"vrpKZTN2400IV5D","output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" planning","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"pjmFiLs","output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":",","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"ELwb2WDHSYou0a3","output_index":0,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"StIqtAZYf5Gu","output_index":0,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" strategies","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"0gEpF","output_index":0,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"ZYmptKTPnnolL7g","output_index":0,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" How","item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"obfuscation":"S9aXUSbu8kXO","output_index":0,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","logprobs":[],"output_index":0,"sequence_number":24,"text":"I
+    am a financial advisor here to help you with your financial questions, planning,
+    and strategies. How"}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"I
+    am a financial advisor here to help you with your financial questions, planning,
+    and strategies. How"},"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","type":"message","status":"incomplete","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"I
+    am a financial advisor here to help you with your financial questions, planning,
+    and strategies. How"}],"role":"assistant"},"output_index":0,"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.incomplete
+
+    '
+  - 'data: {"type":"response.incomplete","response":{"id":"resp_07725938cd0939f20069dcc303d520819a960cfd20a811e75d","object":"response","created_at":1776075523,"status":"incomplete","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":{"reason":"max_output_tokens"},"instructions":"You
+    are a financial advisor for the user.","max_output_tokens":20,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","output":[{"id":"msg_07725938cd0939f20069dcc3044f48819ab0cd297ff35b21d4","type":"message","status":"incomplete","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"I
+    am a financial advisor here to help you with your financial questions, planning,
+    and strategies. How"}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":33,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":53},"user":null,"metadata":{}},"sequence_number":27}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-04-13T10:18:43.688852+00:00'

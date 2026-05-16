@@ -1,0 +1,339 @@
+filename: 2026-05-05-019df72e-704a-7451-9039-ff132e0305f0
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    - code_interpreter_call.outputs
+    - web_search_call.action.sources
+    - message.output_text.logprobs
+    input:
+    - content: Who are you?
+      role: user
+    instructions: The user would like to know about the weather in Taiwan today.
+    max_output_tokens: 400
+    max_tool_calls: 1
+    model: gpt-5.1
+    parallel_tool_calls: true
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    safety_identifier: safety
+    service_tier: flex
+    store: false
+    stream: false
+    temperature: 0.45
+    tool_choice: required
+    tools:
+    - search_context_size: medium
+      type: web_search
+    - container:
+        type: auto
+      type: code_interpreter
+    top_logprobs: 1
+    top_p: 0.55
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '696'
+    content-type: application/json
+    user-agent: pydantic-ai/1.85.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019df72e-704a-7451-9039-ff132e0305f0
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1777968513
+    created_at: 1777968510
+    error: null
+    frequency_penalty: 0.0
+    id: resp_0db1be691f9a80fa0169f9a57df578819383f0ae39aee40987
+    incomplete_details: null
+    instructions: The user would like to know about the weather in Taiwan today.
+    max_output_tokens: 400
+    max_tool_calls: 1
+    metadata: {}
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    object: response
+    output:
+    - action:
+        queries:
+        - 'weather: Taiwan'
+        query: 'weather: Taiwan'
+        sources:
+        - name: oai-weather
+          type: api
+        type: search
+      id: ws_0db1be691f9a80fa0169f9a57f7710819393a93837d7d27df6
+      status: completed
+      type: web_search_call
+    - content:
+      - annotations: []
+        logprobs:
+        - bytes:
+          - 10
+          - 10
+          logprob: -0.001025
+          token: '
+
+
+            '
+          top_logprobs:
+          - bytes:
+            - 10
+            - 10
+            logprob: -0.001025
+            token: '
+
+
+              '
+        - bytes:
+          - 87
+          - 104
+          - 97
+          - 116
+          logprob: -0.000296
+          token: What
+          top_logprobs:
+          - bytes:
+            - 87
+            - 104
+            - 97
+            - 116
+            logprob: -0.000296
+            token: What
+        - bytes:
+          - 32
+          - 119
+          - 111
+          - 117
+          - 108
+          - 100
+          logprob: -0.0
+          token: ' would'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 119
+            - 111
+            - 117
+            - 108
+            - 100
+            logprob: -0.0
+            token: ' would'
+        - bytes:
+          - 32
+          - 121
+          - 111
+          - 117
+          logprob: 0.0
+          token: ' you'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 121
+            - 111
+            - 117
+            logprob: 0.0
+            token: ' you'
+        - bytes:
+          - 32
+          - 108
+          - 105
+          - 107
+          - 101
+          logprob: 0.0
+          token: ' like'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 108
+            - 105
+            - 107
+            - 101
+            logprob: 0.0
+            token: ' like'
+        - bytes:
+          - 32
+          - 116
+          - 111
+          logprob: -0.000166
+          token: ' to'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 116
+            - 111
+            logprob: -0.000166
+            token: ' to'
+        - bytes:
+          - 32
+          - 116
+          - 97
+          - 108
+          - 107
+          logprob: -0.60893
+          token: ' talk'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 116
+            - 97
+            - 108
+            - 107
+            logprob: -0.60893
+            token: ' talk'
+        - bytes:
+          - 32
+          - 97
+          - 98
+          - 111
+          - 117
+          - 116
+          logprob: -0.0
+          token: ' about'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 97
+            - 98
+            - 111
+            - 117
+            - 116
+            logprob: -0.0
+            token: ' about'
+        - bytes:
+          - 32
+          - 111
+          - 114
+          logprob: -1.4e-05
+          token: ' or'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 111
+            - 114
+            logprob: -1.4e-05
+            token: ' or'
+        - bytes:
+          - 32
+          - 103
+          - 101
+          - 116
+          logprob: -0.932845
+          token: ' get'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 103
+            - 101
+            - 116
+            logprob: -0.932845
+            token: ' get'
+        - bytes:
+          - 32
+          - 104
+          - 101
+          - 108
+          - 112
+          logprob: 0.0
+          token: ' help'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 104
+            - 101
+            - 108
+            - 112
+            logprob: 0.0
+            token: ' help'
+        - bytes:
+          - 32
+          - 119
+          - 105
+          - 116
+          - 104
+          logprob: 0.0
+          token: ' with'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 119
+            - 105
+            - 116
+            - 104
+            logprob: 0.0
+            token: ' with'
+        - bytes:
+          - 63
+          logprob: -0.056475
+          token: '?'
+          top_logprobs:
+          - bytes:
+            - 63
+            logprob: -0.056475
+            token: '?'
+        text: "I’m an AI assistant created by OpenAI. I can help you find information,\
+          \ explain concepts, plan things, or work through problems step by step.\n\
+          \nBy the way, I also checked the weather in Taiwan for today (May 5, 2026):\
+          \ it’s currently around 69°F (20°C) with showers, and there are thunderstorms\
+          \ and cloudy periods expected through the evening. \n\nWhat would you like\
+          \ to talk about or get help with?"
+        type: output_text
+      id: msg_0db1be691f9a80fa0169f9a580820c8193ab40132956d0a3d8
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    reasoning:
+      effort: none
+      summary: null
+    safety_identifier: safety
+    service_tier: flex
+    status: completed
+    store: false
+    temperature: 0.45
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tools:
+    - container:
+        type: auto
+      type: code_interpreter
+    - return_token_budget: default
+      search_context_size: medium
+      type: web_search
+      user_location:
+        city: null
+        country: US
+        region: null
+        timezone: null
+        type: approximate
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+    usage:
+      input_tokens: 5438
+      input_tokens_details:
+        cached_tokens: 5120
+      output_tokens: 148
+      output_tokens_details:
+        reasoning_tokens: 34
+      total_tokens: 5586
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-05-05T08:08:29.003008+00:00'

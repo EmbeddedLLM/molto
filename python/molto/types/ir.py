@@ -1,6 +1,7 @@
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai import ModelMessage
 
 RESPONSE_TOOL_NAME = "final_result"
 RESPONSE_KEY = "response"
@@ -20,15 +21,37 @@ class _MessageWithContent(_Message):
     ]
 
 
-class UserMessage(_MessageWithContent):
+class TextPart(BaseModel):
+    kind: Literal["text"] = "text"
+    text: str
+
+
+class ImagePart(BaseModel):
+    kind: Literal["image"] = "image"
+    url: str
+    detail: Literal["high", "low", "auto"] = "auto"
+
+
+ContentPart = Annotated[
+    Union[TextPart, ImagePart],
+    Field(discriminator="kind"),
+]
+
+
+class UserMessage(_Message):
     type: Annotated[
         Literal["user.message"],
         Field(description="Message type."),
     ] = "user.message"
-    content: Annotated[
-        str,
-        Field(description="Message content."),
-    ]
+    content: str | list[ContentPart]
+
+
+class SystemMessage(_Message):
+    type: Annotated[
+        Literal["system.message"],
+        Field(description="Message type."),
+    ] = "system.message"
+    content: str
 
 
 class AgentMessageStart(_Message):
@@ -36,6 +59,7 @@ class AgentMessageStart(_Message):
         Literal["agent.message.start"],
         Field(description="Message type."),
     ] = "agent.message.start"
+    id: str | None = None
 
 
 class AgentMessageDelta(_Message):
@@ -44,6 +68,7 @@ class AgentMessageDelta(_Message):
         Field(description="Message type."),
     ] = "agent.message.delta"
     content: str
+    id: str | None = None
 
 
 class AgentMessageEnd(_Message):
@@ -51,6 +76,8 @@ class AgentMessageEnd(_Message):
         Literal["agent.message.end"],
         Field(description="Message type."),
     ] = "agent.message.end"
+    logprobs: list[dict[str, Any]] | None = None
+    id: str | None = None
 
 
 class AgentMessage(_MessageWithContent):
@@ -58,6 +85,7 @@ class AgentMessage(_MessageWithContent):
         Literal["agent.message"],
         Field(description="Message type."),
     ] = "agent.message"
+    id: str | None = None
 
 
 class AgentThoughtStart(_Message):
@@ -65,6 +93,7 @@ class AgentThoughtStart(_Message):
         Literal["agent.thought.start"],
         Field(description="Message type."),
     ] = "agent.thought.start"
+    id: str | None = None
 
 
 class AgentThoughtDelta(_Message):
@@ -72,8 +101,11 @@ class AgentThoughtDelta(_Message):
         Literal["agent.thought.delta"],
         Field(description="Message type."),
     ] = "agent.thought.delta"
-    content: str
-    signature: str
+    content: str | None = (
+        None  # in case of OpenAI sometimes the last delta of reasoning contains signature only.
+    )
+    signature: str | None = None
+    id: str | None = None
 
 
 class AgentThoughtEnd(_Message):
@@ -81,6 +113,7 @@ class AgentThoughtEnd(_Message):
         Literal["agent.thought.end"],
         Field(description="Message type."),
     ] = "agent.thought.end"
+    id: str | None = None
 
 
 class AgentThought(_MessageWithContent):
@@ -88,6 +121,8 @@ class AgentThought(_MessageWithContent):
         Literal["agent.thought"],
         Field(description="Message type."),
     ] = "agent.thought"
+    signature: str | None = None
+    id: str | None = None
 
 
 class AgentToolStart(_Message):
@@ -95,6 +130,9 @@ class AgentToolStart(_Message):
         Literal["agent.tool.start"],
         Field(description="Message type."),
     ] = "agent.tool.start"
+    tool_call_id: str
+    tool_name: str
+    id: str | None = None
 
 
 class AgentToolDelta(_Message):
@@ -102,6 +140,7 @@ class AgentToolDelta(_Message):
         Literal["agent.tool.delta"],
         Field(description="Message type."),
     ] = "agent.tool.delta"
+    tool_call_id: str
     tool_name: str
     args: str
 
@@ -111,12 +150,14 @@ class AgentToolEnd(_Message):
         Literal["agent.tool.end"],
         Field(description="Message type."),
     ] = "agent.tool.end"
+    tool_call_id: str
 
 
 class AgentToolCall(BaseModel):
     tool_call_id: str
     tool_name: str
     args: dict[str, Any]
+    id: str | None = None
 
 
 class AgentToolCalls(_Message):
@@ -146,6 +187,103 @@ class AgentError(_Message):
     cause: str
 
 
+class InputMcpToolCall(_Message):
+    type: Annotated[
+        Literal["input.mcp.call"],
+        Field(description="Message type."),
+    ] = "input.mcp.call"
+    id: str
+    server_label: str
+    name: str
+    arguments: str
+    status: str
+    output: str | None = None
+    error: str | None = None
+
+
+class InputCodeToolCall(_Message):
+    type: Annotated[
+        Literal["input.code.call"],
+        Field(description="Message type."),
+    ] = "input.code.call"
+    id: str
+    code: str | None = None
+    container_id: str
+    status: str
+    outputs: list[Any] | None = None
+
+
+class InputWebSearchToolCall(_Message):
+    type: Annotated[
+        Literal["input.web_search.call"],
+        Field(description="Message type."),
+    ] = "input.web_search.call"
+    id: str
+    status: str
+    action: dict[str, Any] | None = None
+
+
+InputHistoryItem = Annotated[
+    Union[
+        UserMessage,
+        SystemMessage,
+        AgentMessage,
+        AgentThought,
+        AgentToolCalls,
+        AgentToolResult,
+        InputMcpToolCall,
+        InputCodeToolCall,
+        InputWebSearchToolCall,
+    ],
+    Field(discriminator="type"),
+]
+
+
+class InputTokensDetails(BaseModel):
+    cached_tokens: int = 0
+
+
+class OutputTokensDetails(BaseModel):
+    reasoning_tokens: int = 0
+
+
+class Usage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    input_tokens_details: InputTokensDetails = Field(default_factory=InputTokensDetails)
+    output_tokens_details: OutputTokensDetails = Field(default_factory=OutputTokensDetails)
+
+
+class AgentBuiltinToolCall(_Message):
+    """A completed builtin tool call (web_search, code_interpreter) with its result."""
+
+    type: Annotated[
+        Literal["agent.builtin_tool.call"],
+        Field(description="Message type."),
+    ] = "agent.builtin_tool.call"
+    tool_name: str
+    tool_call_id: str
+    args: dict[str, Any] | None = None
+    result: Any = None
+    id: str | None = None
+
+
+class AgentRunResult(_Message):
+    type: Annotated[
+        Literal["agent.run.result"],
+        Field(description="Message type."),
+    ] = "agent.run.result"
+    tool_calls: list[AgentToolCall] | None = None
+    message: str | None = None
+    error: str | None = None
+    usage: Usage | None = None
+    incomplete_details: str | None = None
+    completed_at: int | None = None
+    logprobs: list[dict[str, Any]] | None = None
+    provider_response_id: str | None = None
+
+
 AgentEvent = Annotated[
     Union[
         AgentMessageStart,
@@ -161,7 +299,9 @@ AgentEvent = Annotated[
         AgentToolEnd,
         AgentToolCall,
         AgentToolResult,
+        AgentBuiltinToolCall,
         AgentError,
+        AgentRunResult,
     ],
     Field(discriminator="type"),
 ]
@@ -175,3 +315,178 @@ NormalisedHistoryItem = Annotated[
     ],
     Field(discriminator="type"),
 ]
+
+# The Output IR is the stream of AgentEvent values produced by Runner.run_stream().
+OutputIR = AgentEvent
+
+
+# ---------------------------------------------------------------------------
+# Input IR — provider-agnostic request bundle produced by Type.to_ir()
+# ---------------------------------------------------------------------------
+
+
+class TextFormat(BaseModel):
+    kind: Literal["text"] = "text"
+
+
+class JsonObjectFormat(BaseModel):
+    kind: Literal["json_object"] = "json_object"
+
+
+class JsonSchemaFormat(BaseModel):
+    kind: Literal["json_schema"] = "json_schema"
+    name: str
+    json_schema: dict[str, Any]
+    strict: bool = False
+    description: str | None = None
+
+
+TextOutputFormat = Annotated[
+    Union[TextFormat, JsonObjectFormat, JsonSchemaFormat],
+    Field(discriminator="kind"),
+]
+
+
+# ---- Tool types ----
+
+
+class FunctionTool(BaseModel):
+    kind: Literal["function"] = "function"
+    name: str
+    parameters: dict[str, Any]
+    strict: bool = True
+    description: str | None = None
+
+
+class CodeInterpreterTool(BaseModel):
+    kind: Literal["code_interpreter"] = "code_interpreter"
+
+
+class WebSearchUserLocation(BaseModel):
+    city: str | None = None
+    country: str | None = None  # 2-letter ISO country code
+    region: str | None = None
+    timezone: str | None = None  # IANA timezone string
+
+
+class WebSearchTool(BaseModel):
+    kind: Literal["web_search"] = "web_search"
+    search_context_size: Literal["low", "medium", "high"] = "medium"
+    allowed_domains: list[str] = Field(default_factory=list)
+    user_location: WebSearchUserLocation | None = None
+
+
+class McpTool(BaseModel):
+    kind: Literal["mcp"] = "mcp"
+    server_label: str
+    server_url: str | None = None
+    headers: dict[str, str] | None = None
+    authorization: str | None = None
+    allowed_tools: list[str] | None = None
+    require_approval: str | None = None
+
+
+Tool = Annotated[
+    Union[FunctionTool, CodeInterpreterTool, WebSearchTool, McpTool],
+    Field(discriminator="kind"),
+]
+
+
+# ---- Tool choice types ----
+
+
+class BuiltinToolChoice(BaseModel):
+    kind: Literal["builtin"] = "builtin"
+    name: Literal["code_interpreter", "web_search"]
+
+
+class FunctionToolChoice(BaseModel):
+    kind: Literal["function"] = "function"
+    name: str
+
+
+class McpToolChoice(BaseModel):
+    kind: Literal["mcp"] = "mcp"
+    server_label: str
+    name: str | None = None
+
+
+_SpecificToolChoice = Annotated[
+    Union[BuiltinToolChoice, FunctionToolChoice, McpToolChoice],
+    Field(discriminator="kind"),
+]
+
+
+class AllowedToolsChoice(BaseModel):
+    kind: Literal["allowed_tools"] = "allowed_tools"
+    mode: Literal["auto", "required"]
+    tools: list[_SpecificToolChoice]
+
+
+ToolChoice = Union[
+    Literal["none", "auto", "required"],
+    Annotated[
+        Union[AllowedToolsChoice, BuiltinToolChoice, FunctionToolChoice, McpToolChoice],
+        Field(discriminator="kind"),
+    ],
+]
+
+
+class PromptTemplate(BaseModel):
+    id: str
+    variables: dict[str, Any] | None = None
+    version: str | None = None
+
+
+# ---- Input ----
+
+
+class Input(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Routing
+    model: str
+    stream: bool | None = None
+
+    # Conversation (pydantic-ai abstraction)
+    message_history: list[ModelMessage] = Field(default_factory=list)
+    instructions: str | None
+
+    # Normalised input history — set by to_ir(); provider converts to message_history via parse_run_settings
+    input: str | list[InputHistoryItem] | None = None
+
+    # Sampling parameters (provider renames/maps these for its backend)
+    temperature: float | None
+    top_p: float | None
+    max_output_tokens: int | None
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
+    reasoning_summary: Literal["auto", "concise", "detailed"] | None
+    top_logprobs: int | None
+    parallel_tool_calls: bool | None = None
+    max_tool_calls: int | None
+
+    # Text output format
+    text_format: TextOutputFormat | None
+    verbosity: Literal["low", "medium", "high"] | None = None
+
+    # Tools
+    tools: list[Tool] | None
+    tool_choice: ToolChoice | None
+
+    # Passthrough metadata
+    include: list[str] | None
+    store: bool | None = None
+    previous_response_id: str | None
+    metadata: dict[str, Any] | None
+
+    # OpenAI Responses-specific passthrough fields
+    background: bool | None = None
+    conversation_id: str | None = None
+    prompt: PromptTemplate | None = None
+    prompt_cache_key: str | None = None
+    prompt_cache_retention: str | None = None
+    safety_identifier: str | None = None
+    service_tier: str | None = None
+    stream_obfuscation: bool | None = None
+    truncation: Literal["auto", "disabled"] | None = None
+    extra_body: dict[str, Any] | None = None
