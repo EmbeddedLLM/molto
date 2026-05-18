@@ -148,7 +148,6 @@ async def test_text_config_json_schema(stream: bool, cassette_manager):
     messages = [o for o in response.output if isinstance(o, OpenAIOutputItem)]
     assert len(messages) == 1
     msg = messages[-1]
-    assert isinstance(msg, OpenAIOutputItem)
     assert msg.role == "assistant"
     assert msg.status == "completed"
     text_part = msg.content[0]

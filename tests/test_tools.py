@@ -263,7 +263,6 @@ async def test_builtin_tools_web_search(stream: bool, cassette_manager):
     molto_ws_items = [o for o in response.output if isinstance(o, OpenAIWebSearchToolCall)]
     assert len(molto_ws_items) == 1
     molto_ws = molto_ws_items[0]
-    assert isinstance(molto_ws, OpenAIWebSearchToolCall)
     assert molto_ws.type == "web_search_call"
     assert molto_ws.status == "completed"
     assert molto_ws.id == sdk_ref_ws.id
