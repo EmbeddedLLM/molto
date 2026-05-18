@@ -137,9 +137,7 @@ def make_handler(
 ) -> partial[httpx.Response]:
     cassette = read_yaml(cassette_path)
     resp = cassette.get("response")
-    is_error = (
-        resp is not None and isinstance(resp, dict) and resp.get("status_code", 200) >= 400
-    )
+    is_error = resp is not None and isinstance(resp, dict) and resp.get("status_code", 200) >= 400
 
     if is_error:
         status_code: int = resp["status_code"]
