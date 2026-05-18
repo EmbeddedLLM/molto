@@ -137,7 +137,9 @@ def make_handler(
 ) -> partial[httpx.Response]:
     cassette = read_yaml(cassette_path)
     resp = cassette.get("response")
-    is_error = resp is not None and isinstance(resp, dict) and "status_code" in resp
+    is_error = (
+        resp is not None and isinstance(resp, dict) and resp.get("status_code", 200) >= 400
+    )
 
     if is_error:
         status_code: int = resp["status_code"]
@@ -148,7 +150,9 @@ def make_handler(
     def handler(request: httpx.Request, load_stream_cassette: bool) -> httpx.Response:
         if is_error:
             if isinstance(error_body, str):
-                return httpx.Response(status_code, content=error_body.encode(), headers=error_headers)
+                return httpx.Response(
+                    status_code, content=error_body.encode(), headers=error_headers
+                )
             return httpx.Response(status_code, json=error_body, headers=error_headers)
 
         try:
