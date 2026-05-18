@@ -458,6 +458,8 @@ class Input(BaseModel):
     # Sampling parameters (provider renames/maps these for its backend)
     temperature: float | None
     top_p: float | None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
     max_output_tokens: int | None
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None
@@ -480,7 +482,7 @@ class Input(BaseModel):
     metadata: dict[str, Any] | None
 
     # OpenAI Responses-specific passthrough fields
-    background: bool | None = None
+    # background: bool | None = None
     conversation_id: str | None = None
     prompt: PromptTemplate | None = None
     prompt_cache_key: str | None = None
