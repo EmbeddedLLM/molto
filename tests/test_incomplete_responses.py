@@ -1,11 +1,4 @@
 import pytest
-from openai.types.responses import (
-    Response,
-    ResponseIncompleteEvent,
-    ResponseOutputMessage,
-    ResponseTextDeltaEvent,
-)
-from openai.types.responses.response_output_text import ResponseOutputText
 
 from molto.types.openai.responses import (
     OpenAIOutputItem,
@@ -17,18 +10,17 @@ from molto.types.openai.responses import (
     OpenAIResponsesStreamText,
     _OpenAIStreamEvent,
 )
-from molto.utils.io import json_loads
 from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
+    assert_usage,
+    extract_cassette_response,
+    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
-    make_openai_client,
     prepend_model_prefix,
-    read_cassette,
 )
 
-# Settings expected to round-trip Request → YAML cassette → Response.
 EXPECTED_SETTINGS = {
     "max_output_tokens": 20,
     "instructions": "You are a financial advisor for the user.",
@@ -56,18 +48,9 @@ async def test_incomplete_response(stream: bool):
         ["model", "input", "instructions", "max_output_tokens"],
     )
 
-    # ── (1) Verify the YAML cassette response carries every setting ────
-    cassette_data = read_cassette(cassette_path, stream=stream)
-    if stream:
-        incomplete_frames = [
-            line
-            for line in cassette_data
-            if line.startswith("data: ") and '"type":"response.incomplete"' in line
-        ]
-        assert len(incomplete_frames) == 1
-        cassette_response = json_loads(incomplete_frames[0][len("data: ") :])["response"]
-    else:
-        cassette_response = cassette_data
+    cassette_response = extract_cassette_response(
+        cassette_path, stream=stream, terminal_event_type="response.incomplete"
+    )
 
     for key, expected in EXPECTED_SETTINGS.items():
         assert cassette_response[key] == expected, (
@@ -75,61 +58,11 @@ async def test_incomplete_response(stream: bool):
         )
     assert cassette_response["incomplete_details"]["reason"] == "max_output_tokens"
 
-    expected_response_id = cassette_response["id"]
-    expected_msg_id = cassette_response["output"][0]["id"]
-
-    stream_cassette_data = read_cassette(cassette_path, stream=True)
-    stream_incomplete = [
-        line
-        for line in stream_cassette_data
-        if line.startswith("data: ") and '"type":"response.incomplete"' in line
-    ]
-    assert len(stream_incomplete) == 1
-    stream_resp = json_loads(stream_incomplete[0][len("data: ") :])["response"]
+    stream_resp = extract_stream_cassette_response(
+        cassette_path, terminal_event_type="response.incomplete"
+    )
     expected_molto_response_id = stream_resp["id"]
     expected_molto_msg_id = stream_resp["output"][0]["id"]
-
-    client = make_openai_client(handler, load_stream_cassette=stream)
-    response = await client.responses.create(**req_body)
-    if stream:
-        events = [r async for r in response]
-        assert ResponseTextDeltaEvent in {type(e) for e in events}
-        assert "response.output_text.delta" in {e.type for e in events}
-        assert ResponseIncompleteEvent in {type(e) for e in events}
-        assert isinstance(events[-1], ResponseIncompleteEvent)
-        response = events[-1].response
-    assert isinstance(response, Response)
-
-    # ── (2) OpenAI SDK response — parsed from the YAML cassette ────────
-    assert response.id == expected_response_id
-    assert response.status == "incomplete"
-    assert response.incomplete_details is not None
-    assert response.incomplete_details.reason == "max_output_tokens"
-    for key, expected in EXPECTED_SETTINGS.items():
-        actual = getattr(response, key)
-        assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
-
-    assert len(response.output) == 1
-    msg = response.output[0]
-    assert isinstance(msg, ResponseOutputMessage)
-    assert msg.type == "message"
-    assert msg.id == expected_msg_id
-    assert msg.role == "assistant"
-    assert msg.status == "incomplete"
-    assert len(msg.content) == 1
-
-    text_content = msg.content[0]
-    assert isinstance(text_content, ResponseOutputText)
-    assert text_content.type == "output_text"
-    assert len(text_content.text) > 0
-    assert "financial advisor" in text_content.text
-
-    assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens == 20
-    assert (
-        response.usage.total_tokens == response.usage.input_tokens + response.usage.output_tokens
-    )
 
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
@@ -181,7 +114,6 @@ async def test_incomplete_response(stream: bool):
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
-    # ── (3) Molto response — must agree with the YAML/SDK values ───────
     assert response.id == expected_molto_response_id
     assert response.status == "incomplete"
     assert response.incomplete_details is not None
@@ -207,9 +139,4 @@ async def test_incomplete_response(stream: bool):
     assert len(text_molto.text) > 0
     assert "financial advisor" in text_molto.text
 
-    assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens == 20
-    assert (
-        response.usage.total_tokens == response.usage.input_tokens + response.usage.output_tokens
-    )
+    assert_usage(response.usage, output_tokens_exact=20)

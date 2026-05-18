@@ -15,20 +15,22 @@ from molto.types.openai.responses import (
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStream,
-    OpenAIResponsesStreamOutput,
     OpenAIResponsesStreamText,
     OpenAIWebSearchToolCall,
     _OpenAIStreamEvent,
 )
-from molto.utils.io import json_loads
 from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
+    assert_stream_text_events,
+    assert_usage,
+    extract_cassette_response,
+    extract_output_ids,
+    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
-    read_cassette,
 )
 
 # Settings expected to round-trip Request → YAML cassette → Response (SDK/Molto).
@@ -76,6 +78,7 @@ async def test_model_settings(stream: bool):
         tool_choice=EXPECTED_SETTINGS["tool_choice"],
         top_logprobs=EXPECTED_SETTINGS["top_logprobs"],
         top_p=EXPECTED_SETTINGS["top_p"],
+        truncation=EXPECTED_SETTINGS["truncation"],
         include=[
             "reasoning.encrypted_content",
             "code_interpreter_call.outputs",
@@ -107,17 +110,7 @@ async def test_model_settings(stream: bool):
     )
 
     # ── (1) Verify the YAML cassette response carries every setting ────
-    cassette_data = read_cassette(cassette_path, stream=stream)
-    if stream:
-        completed_frames = [
-            line
-            for line in cassette_data
-            if line.startswith("data: ") and '"type":"response.completed"' in line
-        ]
-        assert len(completed_frames) == 1
-        cassette_response = json_loads(completed_frames[0][len("data: ") :])["response"]
-    else:
-        cassette_response = cassette_data
+    cassette_response = extract_cassette_response(cassette_path, stream=stream)
 
     for key, expected in EXPECTED_SETTINGS.items():
         assert cassette_response[key] == expected, (
@@ -125,26 +118,15 @@ async def test_model_settings(stream: bool):
         )
 
     expected_response_id = cassette_response["id"]
-    cassette_ws = [o for o in cassette_response["output"] if o["type"] == "web_search_call"]
-    assert len(cassette_ws) == 1
-    expected_ws_id = cassette_ws[0]["id"]
-    cassette_msg = [o for o in cassette_response["output"] if o["type"] == "message"]
-    assert len(cassette_msg) == 1
-    expected_msg_id = cassette_msg[0]["id"]
+    ids = extract_output_ids(cassette_response, "web_search_call", "message")
+    expected_ws_id = ids["web_search_call"]
+    expected_msg_id = ids["message"]
 
-    stream_cassette_data = read_cassette(cassette_path, stream=True)
-    stream_completed = [
-        line
-        for line in stream_cassette_data
-        if line.startswith("data: ") and '"type":"response.completed"' in line
-    ]
-    assert len(stream_completed) == 1
-    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
+    stream_resp = extract_stream_cassette_response(cassette_path)
     expected_molto_response_id = stream_resp["id"]
-    stream_ws = [o for o in stream_resp["output"] if o["type"] == "web_search_call"]
-    expected_molto_ws_id = stream_ws[0]["id"]
-    stream_msg = [o for o in stream_resp["output"] if o["type"] == "message"]
-    expected_molto_msg_id = stream_msg[0]["id"]
+    stream_ids = extract_output_ids(stream_resp, "web_search_call", "message")
+    expected_molto_ws_id = stream_ids["web_search_call"]
+    expected_molto_msg_id = stream_ids["message"]
 
     # ── OpenAI SDK client ──────────────────────────────────────────────
     client = make_openai_client(handler, load_stream_cassette=stream)
@@ -209,15 +191,9 @@ async def test_model_settings(stream: bool):
 
     # Usage
     assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens > 0
-    assert (
-        response.usage.total_tokens == response.usage.input_tokens + response.usage.output_tokens
-    )
+    assert_usage(response.usage, expect_reasoning=True)
     assert response.usage.input_tokens_details is not None
     assert response.usage.input_tokens_details.cached_tokens >= 0
-    assert response.usage.output_tokens_details is not None
-    assert response.usage.output_tokens_details.reasoning_tokens >= 0
 
     # ── Molto client (always streams internally) ───────────────────────
     client = make_molto_client(handler)
@@ -229,48 +205,7 @@ async def test_model_settings(stream: bool):
         assert isinstance(events[-1], OpenAIResponsesStream)
         assert events[-1].type == "response.completed"
 
-        msg_item_added = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput)
-            and e.type == "response.output_item.added"
-            and hasattr(e.item, "role")
-            and e.item.role == "assistant"
-        ]
-        msg_item_done = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput)
-            and e.type == "response.output_item.done"
-            and hasattr(e.item, "role")
-            and e.item.role == "assistant"
-        ]
-        assert len(msg_item_added) == 1
-        assert len(msg_item_done) == 1
-        added_id = msg_item_added[0].item.id
-        done_id = msg_item_done[0].item.id
-        assert added_id is not None
-        assert added_id.startswith("msg_")
-        assert added_id == done_id
-
-        text_deltas = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.delta"
-        ]
-        assert len(text_deltas) >= 1
-        for delta in text_deltas:
-            assert delta.item_id == added_id, (
-                f"delta item_id {delta.item_id!r} != added item id {added_id!r}"
-            )
-
-        text_done = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.done"
-        ]
-        assert len(text_done) == 1
-        assert text_done[0].item_id == added_id
+        added_id = assert_stream_text_events(events)
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
@@ -337,15 +272,9 @@ async def test_model_settings(stream: bool):
 
     # Usage
     assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens > 0
-    assert (
-        response.usage.total_tokens == response.usage.input_tokens + response.usage.output_tokens
-    )
+    assert_usage(response.usage, expect_reasoning=True)
     assert response.usage.input_tokens_details is not None
     assert response.usage.input_tokens_details.cached_tokens >= 0
-    assert response.usage.output_tokens_details is not None
-    assert response.usage.output_tokens_details.reasoning_tokens >= 0
 
 
 @pytest.mark.parametrize("max_tool_calls", [None, 1, 5])
