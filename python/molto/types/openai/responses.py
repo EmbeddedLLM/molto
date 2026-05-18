@@ -1737,12 +1737,12 @@ class vLLMResponsesRequest(BaseModel):
 
 
 class OpenAIResponsesRequest(vLLMResponsesRequest):
-    background: Annotated[
-        bool,
-        Field(
-            description="Whether to run the model response in the background.",
-        ),
-    ] = False
+    # background: Annotated[
+    #     bool,
+    #     Field(
+    #         description="Whether to run the model response in the background.",
+    #     ),
+    # ] = False
     conversation: Annotated[
         str | OpenAIConversation | None,
         Field(
@@ -1830,7 +1830,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "This response value may be different from the value set in the parameter."
             ),
         ),
-    ] = "auto"
+    ] = "default"
     stream_options: Annotated[
         OpenAIStreamOptions | None,
         Field(
@@ -1907,7 +1907,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
             conversation_id = self.conversation.id
         return ir.model_copy(
             update={
-                "background": self.background,
+                # "background": self.background,
                 "conversation_id": conversation_id,
                 "prompt": PromptTemplate(
                     id=self.prompt.id,
@@ -1993,12 +1993,12 @@ class OpenAIResponsesUsage(BaseModel):
 
 
 class OpenAIResponsesResponse(BaseModel):
-    background: Annotated[
-        bool,
-        Field(
-            description="Whether to run the model response in the background.",
-        ),
-    ] = False
+    # background: Annotated[
+    #     bool,
+    #     Field(
+    #         description="Whether to run the model response in the background.",
+    #     ),
+    # ] = False
     completed_at: Annotated[
         int | None,
         Field(
@@ -2240,6 +2240,14 @@ class OpenAIResponsesResponse(BaseModel):
             )
         ),
     ] = None
+
+    def __repr__(self) -> str:
+        fields = []
+        for name in self.model_fields:
+            value = getattr(self, name)
+            if value is not None:
+                fields.append(f"{name}={value!r}")
+        return f"{self.__class__.__name__}({', '.join(fields)})"
 
 
 class _OpenAIStreamEvent(BaseModel):
@@ -2638,8 +2646,8 @@ def _build_response_from_ir(
         kwargs["previous_response_id"] = ir.previous_response_id
     if ir.truncation is not None:
         kwargs["truncation"] = ir.truncation
-    if ir.background is not None:
-        kwargs["background"] = ir.background
+    # if ir.background is not None:
+    #     kwargs["background"] = ir.background
     if ir.conversation_id is not None:
         kwargs["conversation"] = OpenAIConversation(id=ir.conversation_id)
     if ir.prompt is not None:
