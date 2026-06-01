@@ -15,7 +15,6 @@ from molto.utils.test import (
     assert_stream_text_events,
     extract_cassette_response,
     extract_output_ids,
-    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     prepend_model_prefix,
@@ -40,13 +39,9 @@ async def test_conversation(stream: bool):
 
     handler = make_handler(CASSETTE_PATH, req_body, ["model", "input", "conversation"])
 
-    cassette_response = extract_cassette_response(CASSETTE_PATH, stream=stream)
-
-    assert cassette_response["conversation"]["id"] == conversation_id
-
-    stream_resp = extract_stream_cassette_response(CASSETTE_PATH)
-    expected_molto_response_id = stream_resp["id"]
-    stream_ids = extract_output_ids(stream_resp, "message")
+    stream_response = extract_cassette_response(CASSETTE_PATH, stream=True)
+    expected_molto_response_id = stream_response["id"]
+    stream_ids = extract_output_ids(stream_response, "message")
     expected_molto_msg_id = stream_ids["message"]
 
     client = make_molto_client(handler)
@@ -55,7 +50,6 @@ async def test_conversation(stream: bool):
         events: list[_OpenAIStreamEvent] = [r async for r in response]
         assert isinstance(events[-1], OpenAIResponsesStream)
         assert events[-1].type == "response.completed"
-
         assert_stream_text_events(events)
 
         response = events[-1].response

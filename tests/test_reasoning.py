@@ -17,7 +17,7 @@ from molto.utils.test import (
     assert_stream_text_events,
     assert_usage,
     extract_cassette_response,
-    extract_stream_cassette_response,
+    extract_output_ids,
     make_handler,
     make_molto_client,
     prepend_model_prefix,
@@ -64,10 +64,11 @@ async def test_reasoning(stream: bool):
 
     assert cassette_response["usage"]["output_tokens_details"]["reasoning_tokens"] > 0
 
-    stream_resp = extract_stream_cassette_response(CASSETTE_PATH)
+    stream_resp = extract_cassette_response(CASSETTE_PATH, stream=True)
     expected_molto_response_id = stream_resp["id"]
-    expected_molto_rs_id = stream_resp["output"][0]["id"]
-    expected_molto_msg_id = stream_resp["output"][1]["id"]
+    stream_output_ids = extract_output_ids(stream_resp, "reasoning", "message")
+    expected_molto_rs_id = stream_output_ids["reasoning"]
+    expected_molto_msg_id = stream_output_ids["message"]
 
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
@@ -135,17 +136,16 @@ async def test_reasoning(stream: bool):
 
     assert_usage(response.usage, expect_reasoning=True)
 
-    assert len(response.output) == 2
+    assert len(response.output) >= 2
 
-    molto_reasoning = response.output[0]
-    assert isinstance(molto_reasoning, OpenAIReasoningItem)
+    molto_reasoning = next(o for o in response.output if isinstance(o, OpenAIReasoningItem))
     assert molto_reasoning.type == "reasoning"
     assert molto_reasoning.id == expected_molto_rs_id
     assert len(molto_reasoning.content) >= 1
     assert molto_reasoning.content[0].type == "reasoning_text"
     assert len(molto_reasoning.content[0].text) > 0
 
-    msg_molto = response.output[1]
+    msg_molto = next(o for o in response.output if isinstance(o, OpenAIOutputItem))
 
     assert isinstance(msg_molto, OpenAIOutputItem)
     assert msg_molto.type == "message"

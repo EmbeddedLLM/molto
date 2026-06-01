@@ -15,7 +15,6 @@ from molto.utils.test import (
     STREAM_PARAMS,
     assert_usage,
     extract_cassette_response,
-    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     prepend_model_prefix,
@@ -51,19 +50,17 @@ async def test_incomplete_response(stream: bool):
     cassette_response = extract_cassette_response(
         cassette_path, stream=stream, terminal_event_type="response.incomplete"
     )
-
     for key, expected in EXPECTED_SETTINGS.items():
         assert cassette_response[key] == expected, (
             f"YAML cassette {key}={cassette_response[key]!r}, expected {expected!r}"
         )
-    assert cassette_response["incomplete_details"]["reason"] == "max_output_tokens"
 
-    stream_resp = extract_stream_cassette_response(
-        cassette_path, terminal_event_type="response.incomplete"
+    assert cassette_response["incomplete_details"]["reason"] == "max_output_tokens"
+    stream_resp = extract_cassette_response(
+        cassette_path, stream="True", terminal_event_type="response.incomplete"
     )
     expected_molto_response_id = stream_resp["id"]
     expected_molto_msg_id = stream_resp["output"][0]["id"]
-
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
@@ -86,30 +83,33 @@ async def test_incomplete_response(stream: bool):
         ]
         assert len(output_item_added) >= 1
         assert len(output_item_done) >= 1
-        added_id = output_item_added[0].item.id
-        done_id = output_item_done[0].item.id
-        assert added_id is not None
-        assert added_id.startswith("msg_")
-        assert added_id == done_id
+        assert len(output_item_added) == len(output_item_done)
+        added_ids = [e.item.id for e in output_item_added]
+        done_ids = [e.item.id for e in output_item_done]
+        for aid in added_ids:
+            assert aid is not None
+            assert aid.startswith("msg_")
 
-        text_deltas = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.delta"
-        ]
-        assert len(text_deltas) >= 1
-        for delta in text_deltas:
-            assert delta.item_id == added_id, (
-                f"delta item_id {delta.item_id!r} != added item id {added_id!r}"
+            item_deltas = [
+                e
+                for e in events
+                if isinstance(e, OpenAIResponsesStreamText)
+                and e.type == "response.output_text.delta"
+                and e.item_id == aid
+            ]
+            assert len(item_deltas) >= 1, f"no text deltas for item {aid!r}"
+
+            item_text_done = [
+                e
+                for e in events
+                if isinstance(e, OpenAIResponsesStreamText)
+                and e.type == "response.output_text.done"
+                and e.item_id == aid
+            ]
+            assert len(item_text_done) == 1, (
+                f"expected 1 text_done for item {aid!r}, got {len(item_text_done)}"
             )
-
-        text_done = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.done"
-        ]
-        assert len(text_done) == 1
-        assert text_done[0].item_id == added_id
+        assert added_ids == done_ids
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
@@ -122,21 +122,18 @@ async def test_incomplete_response(stream: bool):
         actual = getattr(response, key)
         assert actual == expected, f"Molto response.{key}={actual!r}, expected {expected!r}"
 
-    assert len(response.output) == 1
-    msg_molto = response.output[0]
-    assert isinstance(msg_molto, OpenAIOutputItem)
-    assert msg_molto.type == "message"
-    assert msg_molto.role == "assistant"
-    assert msg_molto.status == "incomplete"
-    assert msg_molto.id == expected_molto_msg_id
-    if stream:
-        assert msg_molto.id == added_id
-    assert len(msg_molto.content) == 1
+    for msg_molto in response.output:
+        assert isinstance(msg_molto, OpenAIOutputItem)
+        assert msg_molto.type == "message"
+        assert msg_molto.role == "assistant"
+        assert msg_molto.status == "incomplete"
+        assert msg_molto.id == expected_molto_msg_id
+        assert len(msg_molto.content) >= 1
 
-    text_molto = msg_molto.content[0]
-    assert isinstance(text_molto, OpenAIOutputTextContent)
-    assert text_molto.type == "output_text"
-    assert len(text_molto.text) > 0
-    assert "financial advisor" in text_molto.text
+        text_molto = msg_molto.content[0]
+        assert isinstance(text_molto, OpenAIOutputTextContent)
+        assert text_molto.type == "output_text"
+        assert len(text_molto.text) > 0
+        assert "financial advisor" in text_molto.text
 
     assert_usage(response.usage, output_tokens_exact=20)

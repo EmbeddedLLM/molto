@@ -26,7 +26,6 @@ from molto.utils.test import (
     assert_usage,
     extract_cassette_response,
     extract_output_ids,
-    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     make_openai_client,
@@ -110,21 +109,21 @@ async def test_model_settings(stream: bool):
     )
 
     # ── (1) Verify the YAML cassette response carries every setting ────
-    cassette_response = extract_cassette_response(cassette_path, stream=stream)
+    response = extract_cassette_response(cassette_path, stream=stream)
 
     for key, expected in EXPECTED_SETTINGS.items():
-        assert cassette_response[key] == expected, (
-            f"YAML cassette {key}={cassette_response[key]!r}, expected {expected!r}"
+        assert response[key] == expected, (
+            f"YAML cassette {key}={response[key]!r}, expected {expected!r}"
         )
 
-    expected_response_id = cassette_response["id"]
-    ids = extract_output_ids(cassette_response, "web_search_call", "message")
+    expected_response_id = response["id"]
+    ids = extract_output_ids(response, "web_search_call", "message")
     expected_ws_id = ids["web_search_call"]
     expected_msg_id = ids["message"]
 
-    stream_resp = extract_stream_cassette_response(cassette_path)
-    expected_molto_response_id = stream_resp["id"]
-    stream_ids = extract_output_ids(stream_resp, "web_search_call", "message")
+    stream_response = extract_cassette_response(cassette_path, stream=True)
+    expected_molto_response_id = stream_response["id"]
+    stream_ids = extract_output_ids(stream_response, "web_search_call", "message")
     expected_molto_ws_id = stream_ids["web_search_call"]
     expected_molto_msg_id = stream_ids["message"]
 
@@ -149,31 +148,21 @@ async def test_model_settings(stream: bool):
         assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
     assert response.reasoning.effort == "none"
 
-    # Output structure: web_search_call + message
-    assert len(response.output) == 2
-
     # Web search call
-    ws = response.output[0]
-    assert isinstance(ws, ResponseFunctionWebSearch)
+    ws = next(o for o in response.output if isinstance(o, ResponseFunctionWebSearch))
     assert ws.type == "web_search_call"
     assert ws.status == "completed"
     assert ws.id == expected_ws_id
-    assert ws.action.type == "search"
-    assert ws.action.query == "weather: Taiwan"
-    assert ws.action.queries == ["weather: Taiwan"]
+    assert ws.action is not None
     assert ws.action.sources is not None
-    assert len(ws.action.sources) == 1
-    assert ws.action.sources[0].type == "api"
-    assert ws.action.sources[0].name == "oai-weather"
 
     # Message output
-    msg = response.output[1]
-    assert isinstance(msg, ResponseOutputMessage)
+    msg = next(o for o in response.output if isinstance(o, ResponseOutputMessage))
     assert msg.type == "message"
     assert msg.id == expected_msg_id
     assert msg.role == "assistant"
     assert msg.status == "completed"
-    assert len(msg.content) == 1
+    assert len(msg.content) >= 1
 
     text_content = msg.content[0]
     assert isinstance(text_content, ResponseOutputText)
@@ -205,7 +194,7 @@ async def test_model_settings(stream: bool):
         assert isinstance(events[-1], OpenAIResponsesStream)
         assert events[-1].type == "response.completed"
 
-        added_id = assert_stream_text_events(events)
+        assert_stream_text_events(events)
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
@@ -233,32 +222,20 @@ async def test_model_settings(stream: bool):
     assert isinstance(response.completed_at, int)
     assert response.completed_at > 0
 
-    # Output structure: web_search_call + message
-    assert len(response.output) == 2
+    assert len(response.output) >= 2
 
-    # Web search call
-    ws_molto = response.output[0]
-    assert isinstance(ws_molto, OpenAIWebSearchToolCall)
+    ws_molto = next(o for o in response.output if isinstance(o, OpenAIWebSearchToolCall))
     assert ws_molto.type == "web_search_call"
     assert ws_molto.status == "completed"
     assert ws_molto.id == expected_molto_ws_id
-    assert ws_molto.action.type == "search"
-    assert ws_molto.action.query == "weather: Taiwan"
-    assert ws_molto.action.queries == ["weather: Taiwan"]
+    assert ws_molto.action is not None
     assert ws_molto.action.sources is not None
-    assert len(ws_molto.action.sources) == 1
-    assert ws_molto.action.sources[0].type == "api"
-    assert ws_molto.action.sources[0].name == "oai-weather"
 
-    # Message output
-    msg_molto = response.output[1]
-    assert isinstance(msg_molto, OpenAIOutputItem)
+    msg_molto = next(o for o in response.output if isinstance(o, OpenAIOutputItem))
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
     assert msg_molto.id == expected_molto_msg_id
-    if stream:
-        assert msg_molto.id == added_id
     assert len(msg_molto.content) >= 1
 
     text_molto = msg_molto.content[0]

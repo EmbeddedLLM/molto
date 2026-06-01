@@ -19,7 +19,6 @@ from molto.utils.test import (
     STREAM_PARAMS,
     extract_cassette_response,
     extract_output_ids,
-    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     prepend_model_prefix,
@@ -55,11 +54,11 @@ async def test_tool_choice_required(stream: bool):
     handler = make_handler(cassette_path, req_body, ["model", "input", "tool_choice"])
 
     cassette_resp = extract_cassette_response(cassette_path, stream=stream)
-    expected_fc = cassette_resp["output"][0]
-    expected_name = expected_fc["name"]
+    cassette_fc = next(o for o in cassette_resp["output"] if o["type"] == "function_call")
+    expected_name = cassette_fc["name"]
 
-    stream_resp = extract_stream_cassette_response(cassette_path)
-    stream_fc = stream_resp["output"][0]
+    stream_resp = extract_cassette_response(cassette_path, stream=True)
+    stream_fc = next(o for o in stream_resp["output"] if o["type"] == "function_call")
     expected_molto_response_id = stream_resp["id"]
     expected_molto_fc_id = stream_fc["id"]
     expected_molto_call_id = stream_fc["call_id"]
@@ -73,12 +72,11 @@ async def test_tool_choice_required(stream: bool):
         assert isinstance(events[-1], OpenAIResponsesStream)
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
-    assert isinstance(response.output, list)
-    assert isinstance(response.output[0], OpenAIFunctionToolCall)
-    assert response.output[0].name == expected_name
+    fc = next(o for o in response.output if isinstance(o, OpenAIFunctionToolCall))
+    assert fc.name == expected_name
     assert response.id == expected_molto_response_id
-    assert response.output[0].id == expected_molto_fc_id
-    assert response.output[0].call_id == expected_molto_call_id
+    assert fc.id == expected_molto_fc_id
+    assert fc.call_id == expected_molto_call_id
 
 
 EXPECTED_WEB_SEARCH_TOOL = {
@@ -134,7 +132,7 @@ async def test_builtin_tools_web_search(stream: bool):
     assert yaml_tool["filters"] == EXPECTED_WEB_SEARCH_TOOL["filters"]
     assert yaml_tool["user_location"] == EXPECTED_WEB_SEARCH_TOOL["user_location"]
 
-    stream_resp = extract_stream_cassette_response(cassette_path)
+    stream_resp = extract_cassette_response(cassette_path, stream=True)
     expected_molto_response_id = stream_resp["id"]
     stream_ids = extract_output_ids(stream_resp, "web_search_call", "message")
     expected_molto_ws_id = stream_ids["web_search_call"]

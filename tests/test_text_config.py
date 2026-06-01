@@ -15,7 +15,6 @@ from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
     extract_cassette_response,
-    extract_stream_cassette_response,
     make_handler,
     make_molto_client,
     prepend_model_prefix,
@@ -73,13 +72,13 @@ async def test_text_config_json_schema(stream: bool):
 
     assert cassette_response["text"]["format"]["type"] == "text"
     assert cassette_response["text"]["verbosity"] == "medium"
-    assert cassette_response["output"][0]["type"] == "function_call"
-    assert cassette_response["output"][0]["name"] == "final_result"
-    cassette_args = json_loads(cassette_response["output"][0]["arguments"])
+    cassette_fc = next(o for o in cassette_response["output"] if o["type"] == "function_call")
+    assert cassette_fc["name"] == "final_result"
+    cassette_args = json_loads(cassette_fc["arguments"])
     assert cassette_args["name"] == EXPECTED_NAME
     assert "job" in cassette_args
 
-    stream_resp = extract_stream_cassette_response(CASSETTE_PATH)
+    stream_resp = extract_cassette_response(CASSETTE_PATH, stream=True)
     expected_molto_response_id = stream_resp["id"]
 
     molto_req_body = dict(

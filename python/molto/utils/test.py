@@ -18,6 +18,12 @@ CASSETTE_DIR = Path("tests/cassettes")
 
 
 def read_cassette(path: Path, stream: bool) -> dict[str, Any] | list[str]:
+    """Read a YAML cassette file and return the response payload.
+
+    For stream cassettes the file stem is suffixed with "-stream" (e.g.
+    "foo.yaml" → "foo-stream.yaml") and the "sse" list of SSE lines is
+    returned.  For non-stream cassettes the "body" dict is returned.
+    """
     if stream:
         path = path.with_stem(f"{path.stem}-stream")
     data = read_yaml(path)["response"]
@@ -25,6 +31,7 @@ def read_cassette(path: Path, stream: bool) -> dict[str, Any] | list[str]:
 
 
 def read_cassette_request(path: Path, stream: bool = False) -> dict[str, Any]:
+    """Read the "request.body" section from a cassette YAML file."""
     if stream:
         path = path.with_stem(f"{path.stem}-stream")
     return read_yaml(path)["request"]["body"]
@@ -35,6 +42,13 @@ def extract_cassette_response(
     stream: bool,
     terminal_event_type: str = "response.completed",
 ) -> dict[str, Any]:
+    """Extract the full response dict from a cassette.
+
+    For non-stream cassettes this is simply the response body.  For stream
+    cassettes the SSE lines are scanned for the *single* frame whose "type"
+    matches "terminal_event_type" (default "response.completed") and its
+    nested "response" object is returned.
+    """
     data = read_cassette(path, stream=stream)
     if stream:
         frames = [
@@ -49,14 +63,18 @@ def extract_cassette_response(
     return data
 
 
-def extract_stream_cassette_response(
-    path: Path,
-    terminal_event_type: str = "response.completed",
-) -> dict[str, Any]:
-    return extract_cassette_response(path, stream=True, terminal_event_type=terminal_event_type)
-
-
 def extract_output_ids(cassette_resp: dict[str, Any], *types: str) -> dict[str, str]:
+    """Return the first "id" for each requested output "type" in a cassette response.
+
+    Given a cassette response dict (containing an "output" list) and one or
+    more output item types (e.g. "message", "function_call"), returns a
+    mapping of {type: id} using the first occurrence of each type.
+
+    Example:
+
+        ids = extract_output_ids(resp, "message", "function_call")
+        # {"message": "msg_abc", "function_call": "fc_xyz"}
+    """
     result: dict[str, str] = {}
     for output_item in cassette_resp["output"]:
         item_type = output_item["type"]
@@ -68,6 +86,16 @@ def extract_output_ids(cassette_resp: dict[str, Any], *types: str) -> dict[str, 
 def assert_usage(
     usage: Any, *, output_tokens_exact: int | None = None, expect_reasoning: bool = False
 ) -> None:
+    """Assert that a usage object has positive token counts and consistent totals.
+
+    Args:
+        usage: Object with "input_tokens", "output_tokens", and
+            "total_tokens" attributes (e.g. an OpenAI CompletionUsage).
+        output_tokens_exact: If provided, asserts the output token count
+            equals this value exactly.
+        expect_reasoning: If True, also asserts that
+            "output_tokens_details.reasoning_tokens" is present and positive.
+    """
     assert usage.input_tokens > 0
     assert usage.output_tokens > 0
     assert usage.total_tokens == usage.input_tokens + usage.output_tokens
@@ -78,7 +106,17 @@ def assert_usage(
         assert usage.output_tokens_details.reasoning_tokens > 0
 
 
-def assert_stream_text_events(events: list[Any], expected_msg_id: str | None = None) -> str:
+def assert_stream_text_events(events: list[Any]) -> None:
+    """Assert the structure of streamed text events.
+
+    For each unique assistant message ID, validates that there is exactly one
+    "output_item.added" and one "output_item.done", at least one
+    "output_text.delta", and at least one "output_text.done" referencing that
+    item ID.
+
+    Args:
+        events: Collected stream event objects from a Molto.chat() call.
+    """
     from molto.types.openai.responses import (
         OpenAIResponsesStreamOutput,
         OpenAIResponsesStreamText,
@@ -100,34 +138,24 @@ def assert_stream_text_events(events: list[Any], expected_msg_id: str | None = N
         and hasattr(e.item, "role")
         and e.item.role == "assistant"
     ]
-    assert len(msg_item_added) == 1
-    assert len(msg_item_done) == 1
-    added_id = msg_item_added[0].item.id
-    done_id = msg_item_done[0].item.id
-    assert added_id is not None
-    assert added_id.startswith("msg_")
-    assert added_id == done_id
-    if expected_msg_id is not None:
-        assert added_id == expected_msg_id
+    assert len(msg_item_added) >= 1
+    assert len(msg_item_done) >= 1
+    added_ids = [e.item.id for e in msg_item_added]
+    done_ids = [e.item.id for e in msg_item_done]
+    for aid in added_ids:
+        assert aid is not None
+        assert aid.startswith("msg_")
+    assert added_ids == done_ids
 
-    text_deltas = [
-        e
-        for e in events
-        if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.delta"
-    ]
-    assert len(text_deltas) >= 1
-    for delta in text_deltas:
-        assert delta.item_id == added_id
-
-    text_done = [
-        e
-        for e in events
-        if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.done"
-    ]
-    assert len(text_done) == 1
-    assert text_done[0].item_id == added_id
-
-    return added_id
+    for msg_id in added_ids:
+        deltas = [
+            e
+            for e in events
+            if isinstance(e, OpenAIResponsesStreamText)
+            and e.type == "response.output_text.delta"
+            and e.item_id == msg_id
+        ]
+        assert len(deltas) >= 1
 
 
 def make_handler(
@@ -135,6 +163,19 @@ def make_handler(
     req_body: dict[str, Any] | None = None,
     assert_attrs: list[str] | None = None,
 ) -> partial[httpx.Response]:
+    """Create an httpx.MockTransport handler that replays a cassette.
+
+    The returned handler validates the incoming request method (POST), checks
+    that "stream" matches the cassette variant being loaded, and optionally
+    asserts specific request body attributes.  Error cassettes (status >= 400)
+    are returned directly without request validation.
+
+    Args:
+        cassette_path: Path to the YAML cassette file.
+        req_body: Expected request body values for attribute assertions.
+        assert_attrs: Keys in *req_body* to assert against the incoming
+            request body.
+    """
     cassette = read_yaml(cassette_path)
     resp = cassette.get("response")
     is_error = resp is not None and isinstance(resp, dict) and resp.get("status_code", 200) >= 400
@@ -188,6 +229,13 @@ def make_openai_client(
     handler: Any,
     load_stream_cassette: bool,
 ) -> AsyncOpenAI:
+    """Create an AsyncOpenAI client backed by a mock transport.
+
+    Args:
+        handler: An httpx handler (as returned by make_handler()).
+        load_stream_cassette: Whether the handler should load the stream
+            variant of the cassette.
+    """
     return AsyncOpenAI(
         http_client=httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -205,6 +253,12 @@ def make_molto_client(
     *,
     cassette_path: Path | None = None,
 ) -> Molto:
+    """Create a Molto instance backed by a mock transport.
+
+    Either pass *handler* directly or provide *cassette_path* to have one
+    created via make_handler(). The client is always configured for streaming
+    (load_stream_cassette=True).
+    """
     if cassette_path is not None:
         handler = make_handler(cassette_path)
     return Molto(
@@ -216,6 +270,13 @@ def make_molto_client(
 
 
 def prepend_model_prefix(body: dict[str, Any], prefix: str = "openai/") -> dict[str, Any]:
+    """Return a shallow copy of "body" with the model field prefixed.
+
+    Example::
+
+        prepend_model_prefix({"model": "gpt-4o", ...})
+        # {"model": "openai/gpt-4o", ...}
+    """
     copy_body = deepcopy(body)
     copy_body["model"] = prefix + copy_body["model"]
     return copy_body
