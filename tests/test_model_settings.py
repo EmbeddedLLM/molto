@@ -108,7 +108,9 @@ async def test_model_settings(stream: bool):
 
     # ── Stream SDK reference (matches Molto's internal streaming) ──────
     ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [e async for e in await ref_client.responses.create(**{**req_body, "stream": True})]
+    ref_events = [
+        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
+    ]
     assert isinstance(ref_events[-1], ResponseCompletedEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_ws = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionWebSearch))

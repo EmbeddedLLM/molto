@@ -183,31 +183,35 @@ _SDK_TYPE_MAP: dict[str, str] = {
 
 # field -> event types that carry it (used for 1:1 payload comparison)
 _FIELD_CHECKS: dict[str, frozenset[str]] = {
-    "item_id": frozenset({
-        "response.output_text.delta",
-        "response.output_text.done",
-        "response.function_call_arguments.delta",
-        "response.function_call_arguments.done",
-        "response.reasoning.delta",
-        "response.reasoning.done",
-        "response.content_part.added",
-        "response.content_part.done",
-        "response.reasoning_summary_part.added",
-        "response.reasoning_summary_part.done",
-        "response.web_search_call.in_progress",
-        "response.web_search_call.searching",
-        "response.web_search_call.completed",
-        "response.code_interpreter_call.in_progress",
-        "response.code_interpreter_call.interpreting",
-        "response.code_interpreter_call.completed",
-        "response.code_interpreter_call_code.delta",
-        "response.code_interpreter_call_code.done",
-    }),
-    "delta": frozenset({
-        "response.output_text.delta",
-        "response.function_call_arguments.delta",
-        "response.reasoning.delta",
-    }),
+    "item_id": frozenset(
+        {
+            "response.output_text.delta",
+            "response.output_text.done",
+            "response.function_call_arguments.delta",
+            "response.function_call_arguments.done",
+            "response.reasoning.delta",
+            "response.reasoning.done",
+            "response.content_part.added",
+            "response.content_part.done",
+            "response.reasoning_summary_part.added",
+            "response.reasoning_summary_part.done",
+            "response.web_search_call.in_progress",
+            "response.web_search_call.searching",
+            "response.web_search_call.completed",
+            "response.code_interpreter_call.in_progress",
+            "response.code_interpreter_call.interpreting",
+            "response.code_interpreter_call.completed",
+            "response.code_interpreter_call_code.delta",
+            "response.code_interpreter_call_code.done",
+        }
+    ),
+    "delta": frozenset(
+        {
+            "response.output_text.delta",
+            "response.function_call_arguments.delta",
+            "response.reasoning.delta",
+        }
+    ),
     "text": frozenset({"response.output_text.done", "response.reasoning.done"}),
     "arguments": frozenset({"response.function_call_arguments.done"}),
 }

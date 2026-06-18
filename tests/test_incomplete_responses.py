@@ -70,15 +70,15 @@ async def test_incomplete_response(stream: bool):
         actual = getattr(sdk_response, key)
         assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
 
-    sdk_msg = next(
-        (o for o in sdk_response.output if isinstance(o, ResponseOutputMessage)), None
-    )
+    sdk_msg = next((o for o in sdk_response.output if isinstance(o, ResponseOutputMessage)), None)
     assert sdk_msg is not None
     assert sdk_msg.status == "incomplete"
 
     # ── Stream SDK reference (matches Molto's internal streaming) ──────
     ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [e async for e in await ref_client.responses.create(**{**req_body, "stream": True})]
+    ref_events = [
+        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
+    ]
     assert isinstance(ref_events[-1], ResponseIncompleteEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))

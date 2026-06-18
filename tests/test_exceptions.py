@@ -21,11 +21,13 @@ CASSETTE_DIR = Path("tests/cassettes/openai/exceptions")
 
 def _cassette_request_params(path: Path) -> dict:
     body = read_cassette_request(path)
-    params: dict[str, Any] = prepend_model_prefix({
-        "model": body["model"],
-        "input": body["input"],
-        "stream": False,
-    })
+    params: dict[str, Any] = prepend_model_prefix(
+        {
+            "model": body["model"],
+            "input": body["input"],
+            "stream": False,
+        }
+    )
     for key in ("reasoning", "max_output_tokens"):
         if key in body:
             params[key] = body[key]
