@@ -1,4 +1,11 @@
 import pytest
+from openai.types.responses import (
+    Response,
+    ResponseCompletedEvent,
+    ResponseFunctionToolCall,
+    ResponseFunctionWebSearch,
+    ResponseOutputMessage,
+)
 
 from molto.types.openai.responses import (
     OpenAIFunctionToolCall,
@@ -17,10 +24,12 @@ from molto.types.openai.responses import (
 from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
-    extract_cassette_response,
-    extract_output_ids,
+    assert_events_before_terminal,
+    assert_output_item_order,
+    assert_stream_events_match,
     make_handler,
     make_molto_client,
+    make_openai_client,
     prepend_model_prefix,
 )
 
@@ -53,30 +62,61 @@ async def test_tool_choice_required(stream: bool):
     cassette_path = CASSETTE_DIR / "openai" / "responses" / "tool_choice-required.yaml"
     handler = make_handler(cassette_path, req_body, ["model", "input", "tool_choice"])
 
-    cassette_resp = extract_cassette_response(cassette_path, stream=stream)
-    cassette_fc = next(o for o in cassette_resp["output"] if o["type"] == "function_call")
-    expected_name = cassette_fc["name"]
+    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
+    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    sdk_response = await sdk_client.responses.create(**req_body)
+    if stream:
+        sdk_events = [e async for e in sdk_response]
+        sdk_event_types = [e.type for e in sdk_events]
+        assert isinstance(sdk_events[-1], ResponseCompletedEvent)
+        assert sdk_event_types[-1] == "response.completed"
+        assert "response.function_call_arguments.delta" in sdk_event_types
 
-    stream_resp = extract_cassette_response(cassette_path, stream=True)
-    stream_fc = next(o for o in stream_resp["output"] if o["type"] == "function_call")
-    expected_molto_response_id = stream_resp["id"]
-    expected_molto_fc_id = stream_fc["id"]
-    expected_molto_call_id = stream_fc["call_id"]
+        assert_output_item_order(sdk_events)
 
+        assert_events_before_terminal(sdk_events, "response.function_call_arguments.delta")
+
+        sdk_response = sdk_events[-1].response
+    assert isinstance(sdk_response, Response)
+    assert sdk_response.status == "completed"
+
+    sdk_fc = next(o for o in sdk_response.output if isinstance(o, ResponseFunctionToolCall))
+    assert isinstance(sdk_fc, ResponseFunctionToolCall)
+    assert isinstance(sdk_fc.name, str) and len(sdk_fc.name) > 0
+    assert isinstance(sdk_fc.id, str) and len(sdk_fc.id) > 0
+    assert isinstance(sdk_fc.call_id, str) and len(sdk_fc.call_id) > 0
+
+    # ── Stream SDK reference (matches Molto's internal streaming) ──────
+    ref_client = make_openai_client(handler, load_stream_cassette=True)
+    ref_events = [e async for e in await ref_client.responses.create(**{**req_body, "stream": True})]
+    assert isinstance(ref_events[-1], ResponseCompletedEvent)
+    sdk_ref = ref_events[-1].response
+    sdk_ref_fc = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionToolCall))
+
+    # ── Molto client ───────────────────────────────────────────────────
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
+        event_types = [e.type for e in events]
         assert OpenAIResponsesStreamText in {type(e) for e in events}
-        assert "response.function_call_arguments.delta" in {e.type for e in events}
+        assert "response.function_call_arguments.delta" in event_types
         assert isinstance(events[-1], OpenAIResponsesStream)
+        assert event_types[-1] == "response.completed"
+
+        assert_output_item_order(events)
+
+        assert_stream_events_match(ref_events, events)
+
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
+
     fc = next(o for o in response.output if isinstance(o, OpenAIFunctionToolCall))
-    assert fc.name == expected_name
-    assert response.id == expected_molto_response_id
-    assert fc.id == expected_molto_fc_id
-    assert fc.call_id == expected_molto_call_id
+    assert isinstance(fc, OpenAIFunctionToolCall)
+    assert fc.name == sdk_ref_fc.name
+    assert response.id == sdk_ref.id
+    assert fc.id == sdk_ref_fc.id
+    assert fc.call_id == sdk_ref_fc.call_id
 
 
 EXPECTED_WEB_SEARCH_TOOL = {
@@ -100,7 +140,7 @@ async def test_builtin_tools_web_search(stream: bool):
     """Verify every field of `OpenAIResponsesWebSearchTool` (type,
     search_context_size, filters.allowed_domains, full user_location) is:
 
-    1. present verbatim in the cassette YAML (the recorded API response),
+    1. present and correct in the OpenAI SDK response (parsed from cassette),
     2. parsed correctly by the Molto pipeline (request IR → from_ir → response).
     """
 
@@ -122,28 +162,55 @@ async def test_builtin_tools_web_search(stream: bool):
         ["model", "input", "tool_choice"],
     )
 
-    cassette_response = extract_cassette_response(cassette_path, stream=stream)
-    cassette_tools = cassette_response["tools"]
-    assert isinstance(cassette_tools, list)
-    assert len(cassette_tools) == 1
-    yaml_tool = cassette_tools[0]
-    assert yaml_tool["type"] == EXPECTED_WEB_SEARCH_TOOL["type"]
-    assert yaml_tool["search_context_size"] == EXPECTED_WEB_SEARCH_TOOL["search_context_size"]
-    assert yaml_tool["filters"] == EXPECTED_WEB_SEARCH_TOOL["filters"]
-    assert yaml_tool["user_location"] == EXPECTED_WEB_SEARCH_TOOL["user_location"]
+    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
+    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    sdk_response = await sdk_client.responses.create(**req_body)
+    if stream:
+        sdk_events = [e async for e in sdk_response]
+        sdk_event_types = [e.type for e in sdk_events]
+        assert isinstance(sdk_events[-1], ResponseCompletedEvent)
+        assert sdk_event_types[-1] == "response.completed"
 
-    stream_resp = extract_cassette_response(cassette_path, stream=True)
-    expected_molto_response_id = stream_resp["id"]
-    stream_ids = extract_output_ids(stream_resp, "web_search_call", "message")
-    expected_molto_ws_id = stream_ids["web_search_call"]
-    expected_molto_msg_id = stream_ids["message"]
+        assert_output_item_order(sdk_events)
 
+        sdk_response = sdk_events[-1].response
+    assert isinstance(sdk_response, Response)
+    assert sdk_response.status == "completed"
+
+    # Validate the SDK parsed the tool configuration from the cassette
+    sdk_tools = sdk_response.tools
+    assert isinstance(sdk_tools, list) and len(sdk_tools) == 1
+    sdk_tool = sdk_tools[0]
+    assert sdk_tool.type == EXPECTED_WEB_SEARCH_TOOL["type"]
+    assert sdk_tool.search_context_size == EXPECTED_WEB_SEARCH_TOOL["search_context_size"]
+    assert sdk_tool.filters.allowed_domains == EXPECTED_WEB_SEARCH_TOOL["filters"]["allowed_domains"]
+    sdk_loc = sdk_tool.user_location
+    assert sdk_loc.city == EXPECTED_WEB_SEARCH_TOOL["user_location"]["city"]
+    assert sdk_loc.country == EXPECTED_WEB_SEARCH_TOOL["user_location"]["country"]
+    assert sdk_loc.region == EXPECTED_WEB_SEARCH_TOOL["user_location"]["region"]
+
+    sdk_ws = next(o for o in sdk_response.output if isinstance(o, ResponseFunctionWebSearch))
+    assert isinstance(sdk_ws, ResponseFunctionWebSearch)
+    assert sdk_ws.type == "web_search_call"
+    assert sdk_ws.status == "completed"
+    assert isinstance(sdk_ws.id, str) and len(sdk_ws.id) > 0
+
+    # ── Stream SDK reference (matches Molto's internal streaming) ──────
+    ref_client = make_openai_client(handler, load_stream_cassette=True)
+    ref_events = [e async for e in await ref_client.responses.create(**{**req_body, "stream": True})]
+    assert isinstance(ref_events[-1], ResponseCompletedEvent)
+    sdk_ref = ref_events[-1].response
+    sdk_ref_ws = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionWebSearch))
+    sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
+
+    # ── Molto client ───────────────────────────────────────────────────
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
+        event_types = [e.type for e in events]
         assert isinstance(events[-1], OpenAIResponsesStream)
-        assert events[-1].type == "response.completed"
+        assert event_types[-1] == "response.completed"
 
         ws_done = [
             e
@@ -154,19 +221,24 @@ async def test_builtin_tools_web_search(stream: bool):
         ]
         assert len(ws_done) == 1
         assert ws_done[0].item.status == "completed"
-        assert ws_done[0].item.id == expected_molto_ws_id
+        assert ws_done[0].item.id == sdk_ref_ws.id
+
+        assert_output_item_order(events)
+
+        assert_stream_events_match(ref_events, events)
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
-    assert response.id == expected_molto_response_id
+    assert response.id == sdk_ref.id
     assert isinstance(response.output, list)
 
     molto_ws_items = [o for o in response.output if isinstance(o, OpenAIWebSearchToolCall)]
     assert len(molto_ws_items) == 1
     molto_ws = molto_ws_items[0]
+    assert isinstance(molto_ws, OpenAIWebSearchToolCall)
     assert molto_ws.type == "web_search_call"
     assert molto_ws.status == "completed"
-    assert molto_ws.id == expected_molto_ws_id
+    assert molto_ws.id == sdk_ref_ws.id
 
     assert isinstance(molto_ws.action, OpenAIWebSearchActionSearch)
     assert molto_ws.action.type == "search"
@@ -201,7 +273,7 @@ async def test_builtin_tools_web_search(stream: bool):
 
     assistant_msgs = [o for o in response.output if getattr(o, "type", None) == "message"]
     assert len(assistant_msgs) == 1
-    assert assistant_msgs[0].id == expected_molto_msg_id
+    assert assistant_msgs[0].id == sdk_ref_msg.id
     assert assistant_msgs[0].role == "assistant"
     assert assistant_msgs[0].status == "completed"
     assert len(assistant_msgs[0].content) >= 1

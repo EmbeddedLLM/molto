@@ -1,4 +1,5 @@
 import pytest
+from openai.types.responses import Response, ResponseIncompleteEvent, ResponseOutputMessage
 
 from molto.types.openai.responses import (
     OpenAIOutputItem,
@@ -6,17 +7,19 @@ from molto.types.openai.responses import (
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStream,
-    OpenAIResponsesStreamOutput,
     OpenAIResponsesStreamText,
     _OpenAIStreamEvent,
 )
 from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
+    assert_output_item_order,
+    assert_stream_events_match,
+    assert_stream_text_events,
     assert_usage,
-    extract_cassette_response,
     make_handler,
     make_molto_client,
+    make_openai_client,
     prepend_model_prefix,
 )
 
@@ -47,74 +50,59 @@ async def test_incomplete_response(stream: bool):
         ["model", "input", "instructions", "max_output_tokens"],
     )
 
-    cassette_response = extract_cassette_response(
-        cassette_path, stream=stream, terminal_event_type="response.incomplete"
-    )
-    for key, expected in EXPECTED_SETTINGS.items():
-        assert cassette_response[key] == expected, (
-            f"YAML cassette {key}={cassette_response[key]!r}, expected {expected!r}"
-        )
+    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
+    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    sdk_response = await sdk_client.responses.create(**req_body)
+    if stream:
+        sdk_events = [e async for e in sdk_response]
+        sdk_event_types = [e.type for e in sdk_events]
+        assert isinstance(sdk_events[-1], ResponseIncompleteEvent)
+        assert sdk_event_types[-1] == "response.incomplete"
 
-    assert cassette_response["incomplete_details"]["reason"] == "max_output_tokens"
-    stream_resp = extract_cassette_response(
-        cassette_path, stream="True", terminal_event_type="response.incomplete"
+        assert_output_item_order(sdk_events)
+
+        sdk_response = sdk_events[-1].response
+    assert isinstance(sdk_response, Response)
+    assert sdk_response.status == "incomplete"
+    assert sdk_response.incomplete_details is not None
+    assert sdk_response.incomplete_details.reason == "max_output_tokens"
+    for key, expected in EXPECTED_SETTINGS.items():
+        actual = getattr(sdk_response, key)
+        assert actual == expected, f"OpenAI SDK response.{key}={actual!r}, expected {expected!r}"
+
+    sdk_msg = next(
+        (o for o in sdk_response.output if isinstance(o, ResponseOutputMessage)), None
     )
-    expected_molto_response_id = stream_resp["id"]
-    expected_molto_msg_id = stream_resp["output"][0]["id"]
+    assert sdk_msg is not None
+    assert sdk_msg.status == "incomplete"
+
+    # ── Stream SDK reference (matches Molto's internal streaming) ──────
+    ref_client = make_openai_client(handler, load_stream_cassette=True)
+    ref_events = [e async for e in await ref_client.responses.create(**{**req_body, "stream": True})]
+    assert isinstance(ref_events[-1], ResponseIncompleteEvent)
+    sdk_ref = ref_events[-1].response
+    sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
+
+    # ── Molto client ───────────────────────────────────────────────────
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
+        event_types = [e.type for e in events]
         assert OpenAIResponsesStreamText in {type(e) for e in events}
-        assert "response.output_text.delta" in {e.type for e in events}
+        assert "response.output_text.delta" in event_types
         assert isinstance(events[-1], OpenAIResponsesStream)
-        assert events[-1].type == "response.incomplete"
+        assert event_types[-1] == "response.incomplete"
 
-        output_item_added = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput)
-            and e.type == "response.output_item.added"
-        ]
-        output_item_done = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput) and e.type == "response.output_item.done"
-        ]
-        assert len(output_item_added) >= 1
-        assert len(output_item_done) >= 1
-        assert len(output_item_added) == len(output_item_done)
-        added_ids = [e.item.id for e in output_item_added]
-        done_ids = [e.item.id for e in output_item_done]
-        for aid in added_ids:
-            assert aid is not None
-            assert aid.startswith("msg_")
+        assert_output_item_order(events)
+        assert_stream_text_events(events)
 
-            item_deltas = [
-                e
-                for e in events
-                if isinstance(e, OpenAIResponsesStreamText)
-                and e.type == "response.output_text.delta"
-                and e.item_id == aid
-            ]
-            assert len(item_deltas) >= 1, f"no text deltas for item {aid!r}"
-
-            item_text_done = [
-                e
-                for e in events
-                if isinstance(e, OpenAIResponsesStreamText)
-                and e.type == "response.output_text.done"
-                and e.item_id == aid
-            ]
-            assert len(item_text_done) == 1, (
-                f"expected 1 text_done for item {aid!r}, got {len(item_text_done)}"
-            )
-        assert added_ids == done_ids
+        assert_stream_events_match(ref_events, events)
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
-    assert response.id == expected_molto_response_id
+    assert response.id == sdk_ref.id
     assert response.status == "incomplete"
     assert response.incomplete_details is not None
     assert response.incomplete_details.reason == "max_output_tokens"
@@ -127,7 +115,7 @@ async def test_incomplete_response(stream: bool):
         assert msg_molto.type == "message"
         assert msg_molto.role == "assistant"
         assert msg_molto.status == "incomplete"
-        assert msg_molto.id == expected_molto_msg_id
+        assert msg_molto.id == sdk_ref_msg.id
         assert len(msg_molto.content) >= 1
 
         text_molto = msg_molto.content[0]

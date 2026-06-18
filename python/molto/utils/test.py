@@ -157,6 +157,133 @@ def assert_stream_text_events(events: list[Any]) -> None:
         ]
         assert len(deltas) >= 1
 
+        done = [
+            e
+            for e in events
+            if isinstance(e, OpenAIResponsesStreamText)
+            and e.type == "response.output_text.done"
+            and e.item_id == msg_id
+        ]
+        assert len(done) == 1, f"expected 1 text_done for item {msg_id!r}, got {len(done)}"
+
+    assert_events_before_terminal(events, "response.output_text.delta")
+
+
+def assert_events_before_terminal(events: list[Any], event_type: str) -> None:
+    """Assert all events of "event_type" appear before the terminal stream event."""
+    indices = [i for i, event in enumerate(events) if event.type == event_type]
+    assert all(i < len(events) - 1 for i in indices)
+
+
+# TODO: Add a code interpreter stream parity test once a cassette is available.
+_SDK_TYPE_MAP: dict[str, str] = {
+    "response.reasoning_summary_text.delta": "response.reasoning.delta",
+    "response.reasoning_summary_text.done": "response.reasoning.done",
+}
+
+# field -> event types that carry it (used for 1:1 payload comparison)
+_FIELD_CHECKS: dict[str, frozenset[str]] = {
+    "item_id": frozenset({
+        "response.output_text.delta",
+        "response.output_text.done",
+        "response.function_call_arguments.delta",
+        "response.function_call_arguments.done",
+        "response.reasoning.delta",
+        "response.reasoning.done",
+        "response.content_part.added",
+        "response.content_part.done",
+        "response.reasoning_summary_part.added",
+        "response.reasoning_summary_part.done",
+        "response.web_search_call.in_progress",
+        "response.web_search_call.searching",
+        "response.web_search_call.completed",
+        "response.code_interpreter_call.in_progress",
+        "response.code_interpreter_call.interpreting",
+        "response.code_interpreter_call.completed",
+        "response.code_interpreter_call_code.delta",
+        "response.code_interpreter_call_code.done",
+    }),
+    "delta": frozenset({
+        "response.output_text.delta",
+        "response.function_call_arguments.delta",
+        "response.reasoning.delta",
+    }),
+    "text": frozenset({"response.output_text.done", "response.reasoning.done"}),
+    "arguments": frozenset({"response.function_call_arguments.done"}),
+}
+
+
+def _normalize_sdk_event_type(event_type: str) -> str:
+    """Return the Molto/OpenResponses event type matching an SDK event type."""
+    return _SDK_TYPE_MAP.get(event_type, event_type)
+
+
+def _normalized_event_types(events: list[Any]) -> list[str]:
+    """Return event types after applying SDK-to-Molto naming compatibility."""
+    return [_normalize_sdk_event_type(e.type) for e in events]
+
+
+def _assert_event_type_sequence_matches(sdk_events: list[Any], molto_events: list[Any]) -> None:
+    sdk_types = _normalized_event_types(sdk_events)
+    molto_types = [e.type for e in molto_events]
+    assert sdk_types == molto_types, (
+        f"Event type sequence mismatch\nSDK:   {sdk_types}\nMolto: {molto_types}"
+    )
+
+
+def _assert_matching_scalar_fields(event_type: str, sdk_event: Any, molto_event: Any) -> None:
+    for field, event_types in _FIELD_CHECKS.items():
+        if event_type in event_types:
+            assert getattr(sdk_event, field, None) == getattr(molto_event, field, None), (
+                f"{field} mismatch at {event_type}"
+            )
+
+
+def _assert_matching_output_item(event_type: str, sdk_event: Any, molto_event: Any) -> None:
+    if event_type not in {"response.output_item.added", "response.output_item.done"}:
+        return
+
+    sdk_item = getattr(sdk_event, "item", None)
+    molto_item = getattr(molto_event, "item", None)
+    if sdk_item is None or molto_item is None:
+        return
+
+    assert sdk_item.id == molto_item.id, f"item.id mismatch at {event_type}"
+    assert sdk_item.type == molto_item.type, f"item.type mismatch at {event_type}"
+
+
+def _assert_matching_terminal_response_id(
+    event_type: str, sdk_event: Any, molto_event: Any
+) -> None:
+    if event_type not in {"response.completed", "response.incomplete"}:
+        return
+
+    # Only compare response.id for terminal events: Molto uses a provisional UUID
+    # for response.created/in_progress that will not match the cassette ID.
+    sdk_response_id = getattr(getattr(sdk_event, "response", None), "id", None)
+    if sdk_response_id is not None:
+        molto_response_id = getattr(getattr(molto_event, "response", None), "id", None)
+        assert sdk_response_id == molto_response_id, f"response.id mismatch at {event_type}"
+
+
+def assert_output_item_order(events: list[Any]) -> None:
+    """Assert every output_item.added event precedes its corresponding output_item.done."""
+    added_indices = [i for i, e in enumerate(events) if e.type == "response.output_item.added"]
+    done_indices = [i for i, e in enumerate(events) if e.type == "response.output_item.done"]
+    assert len(added_indices) == len(done_indices)
+    assert all(added_indices[i] < done_indices[i] for i in range(len(added_indices)))
+
+
+def assert_stream_events_match(sdk_events: list[Any], molto_events: list[Any]) -> None:
+    """Assert SDK and Molto stream events have the same order and key payloads."""
+    _assert_event_type_sequence_matches(sdk_events, molto_events)
+
+    for sdk_event, molto_event in zip(sdk_events, molto_events, strict=True):
+        event_type = _normalize_sdk_event_type(sdk_event.type)
+        _assert_matching_scalar_fields(event_type, sdk_event, molto_event)
+        _assert_matching_output_item(event_type, sdk_event, molto_event)
+        _assert_matching_terminal_response_id(event_type, sdk_event, molto_event)
+
 
 def make_handler(
     cassette_path: Path,

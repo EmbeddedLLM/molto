@@ -40,6 +40,9 @@ from pydantic_ai.toolsets.abstract import AbstractToolset
 from molto.types.ir import (
     RESPONSE_TOOL_NAME,
     AgentBuiltinToolCall,
+    AgentBuiltinToolDelta,
+    AgentBuiltinToolEnd,
+    AgentBuiltinToolStart,
     AgentError,
     AgentEvent,
     AgentMessageDelta,
@@ -198,12 +201,19 @@ class Runner:
                             args=event.part.args_as_json_str(),
                         )
             elif isinstance(event.part, BuiltinToolCallPart):
+                args = event.part.args if isinstance(event.part.args, dict) else None
                 self._builtin_tool_calls[event.part.tool_call_id] = {
                     "tool_name": event.part.tool_name,
                     "tool_call_id": event.part.tool_call_id,
-                    "args": event.part.args if isinstance(event.part.args, dict) else None,
+                    "args": args,
                     "id": event.part.id,
                 }
+                yield AgentBuiltinToolStart(
+                    tool_name=event.part.tool_name,
+                    tool_call_id=event.part.tool_call_id,
+                    args=args,
+                    id=event.part.id,
+                )
             elif isinstance(event.part, BuiltinToolReturnPart):
                 tc = self._builtin_tool_calls.get(event.part.tool_call_id)
                 if tc:
@@ -232,7 +242,18 @@ class Runner:
             elif isinstance(event.delta, ToolCallPartDelta):
                 if event.delta.args_delta:
                     _delta_tool_call_id = event.delta.tool_call_id
-                    if (
+                    if _delta_tool_call_id in self._builtin_tool_calls:
+                        tc = self._builtin_tool_calls[_delta_tool_call_id]
+                        if isinstance(event.delta.args_delta, dict):
+                            args = tc.get("args") or {}
+                            args.update(event.delta.args_delta)
+                            tc["args"] = args
+                        yield AgentBuiltinToolDelta(
+                            tool_call_id=_delta_tool_call_id,
+                            tool_name=tc["tool_name"],
+                            args_delta=event.delta.args_delta,
+                        )
+                    elif (
                         self._structured_output_tool_id is not None
                         and _delta_tool_call_id == self._structured_output_tool_id
                     ):
@@ -270,10 +291,18 @@ class Runner:
                     yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
             elif isinstance(event.part, BuiltinToolCallPart):
                 tc = self._builtin_tool_calls.get(event.part.tool_call_id)
+                args = event.part.args if isinstance(event.part.args, dict) else None
                 if tc:
-                    tc["args"] = event.part.args if isinstance(event.part.args, dict) else None
+                    args = args if args is not None else tc.get("args")
+                    tc["args"] = args
                     if event.part.id is not None:
                         tc["id"] = event.part.id
+                yield AgentBuiltinToolEnd(
+                    tool_name=event.part.tool_name,
+                    tool_call_id=event.part.tool_call_id,
+                    args=args,
+                    id=event.part.id,
+                )
 
         elif isinstance(event, FunctionToolCallEvent):
             yield AgentToolCall(
