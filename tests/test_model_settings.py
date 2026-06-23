@@ -7,8 +7,8 @@ from openai.types.responses import (
     ResponseTextDeltaEvent,
 )
 from openai.types.responses.response_output_text import ResponseOutputText
-
-from molto.providers import OpenAIResponsesProvider
+from molto.providers import OpenAIChatCompletionsProvider, OpenAIResponsesProvider
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from molto.types.openai.responses import (
     OpenAIOutputItem,
     OpenAIOutputTextContent,
@@ -53,6 +53,65 @@ EXPECTED_SETTINGS = {
     "presence_penalty": 0.0,
     "truncation": "disabled",
 }
+
+
+def test_openai_shared_options_are_not_chat_specific():
+    req = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+        store=False,
+        prompt_cache_key="chat-cache",
+        prompt_cache_retention="24h",
+        service_tier="flex",
+        extra_body={"chat_only": True},
+    )
+
+    ir = req.to_ir()
+
+    assert ir.openai.store is False
+    assert ir.openai.prompt_cache_key == "chat-cache"
+    assert ir.openai.prompt_cache_retention == "24h"
+    assert ir.openai.service_tier == "flex"
+    assert ir.extra_body == {"chat_only": True}
+    assert "extra_body" in type(ir).model_fields
+    assert "extra_body" not in type(ir.responses).model_fields
+    assert ir.responses.include is None
+
+    model_settings = OpenAIChatCompletionsProvider._build_model_settings(ir)
+    assert model_settings["extra_body"] == {"chat_only": True}
+
+
+def test_responses_options_are_split_by_ownership():
+    req = OpenAIResponsesRequest(
+        model="openai/gpt-4.1-nano",
+        input=[{"role": "user", "content": "hi"}],
+        store=False,
+        prompt_cache_key="responses-cache",
+        prompt_cache_retention="24h",
+        service_tier="priority",
+        include=["reasoning.encrypted_content"],
+        previous_response_id="resp_previous",
+        safety_identifier="user-hash",
+        truncation="auto",
+        extra_body={"custom": "value"},
+    )
+
+    ir = req.to_ir()
+
+    assert ir.openai.store is False
+    assert ir.openai.prompt_cache_key == "responses-cache"
+    assert ir.openai.prompt_cache_retention == "24h"
+    assert ir.openai.service_tier == "priority"
+    assert ir.responses.include == ["reasoning.encrypted_content"]
+    assert ir.responses.previous_response_id == "resp_previous"
+    assert ir.responses.safety_identifier == "user-hash"
+    assert ir.responses.truncation == "auto"
+    assert ir.extra_body == {"custom": "value"}
+    assert "extra_body" in type(ir).model_fields
+
+    model_settings = OpenAIResponsesProvider._build_model_settings(ir)
+    assert model_settings["extra_body"]["custom"] == "value"
+    assert model_settings["extra_body"]["safety_identifier"] == "user-hash"
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)

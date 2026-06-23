@@ -8,8 +8,6 @@ from pydantic_ai import (
     Agent,
     AgentRunError,
     AgentRunResultEvent,
-    BuiltinToolCallPart,
-    BuiltinToolReturnPart,
     DeferredToolRequests,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -17,6 +15,8 @@ from pydantic_ai import (
     ModelMessage,
     ModelResponse,
     ModelSettings,
+    NativeToolCallPart,
+    NativeToolReturnPart,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -31,7 +31,6 @@ from pydantic_ai import (
     UserError,
     capture_run_messages,
 )
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model
 from pydantic_ai.output import OutputSpec
@@ -39,12 +38,12 @@ from pydantic_ai.toolsets.abstract import AbstractToolset
 
 from molto.types.ir import (
     RESPONSE_TOOL_NAME,
-    AgentBuiltinToolCall,
     AgentError,
     AgentEvent,
     AgentMessageDelta,
     AgentMessageEnd,
     AgentMessageStart,
+    AgentNativeToolCall,
     AgentRunResult,
     AgentThoughtDelta,
     AgentThoughtEnd,
@@ -83,7 +82,7 @@ class AgentSettings(TypedDict):
     http_client: AsyncClient
     output_type: OutputSpec = [str, DeferredToolRequests]
     # Unused for now but may be useful in the future for things like auto-adding capabilities based on IR features (e.g. tool choice)
-    capabilities: list[AbstractCapability[None]] | None = None
+    capabilities: list[AbstractCapability[Any]] | None = None
 
 
 class RunSettings(TypedDict):
@@ -98,7 +97,8 @@ class RunSettings(TypedDict):
     instructions: str | None
     toolsets: list[AbstractToolset[Any]] | None
     usage_limits: UsageLimits
-    builtin_tools: list[AbstractBuiltinTool] | None
+    # Native tools is constructed this way in Pydantic AI.
+    capabilities: list[AbstractCapability[Any]] | None
 
 
 def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
@@ -142,7 +142,7 @@ class Runner:
         self._agent_settings = agent_settings
         self._run_settings = run_settings
         self._tool_id2name: dict[str, str] = {}
-        self._builtin_tool_calls: dict[str, dict] = {}
+        self._native_tool_calls: dict[str, dict] = {}
         self._current_text_id: str | None = None
         self._current_thought_id: str | None = None
         # When `output_type` is a `StructuredDict(...)`, pydantic-ai routes
@@ -159,6 +159,7 @@ class Runner:
         )
 
     def _event_to_ir(self, event: Any) -> AsyncIterator[AgentEvent]:
+        print("event from runner:\n", event)
         if isinstance(event, PartStartEvent):
             if isinstance(event.part, TextPart):
                 self._current_text_id = event.part.id
@@ -197,17 +198,17 @@ class Runner:
                             tool_name=_tool_name,
                             args=event.part.args_as_json_str(),
                         )
-            elif isinstance(event.part, BuiltinToolCallPart):
-                self._builtin_tool_calls[event.part.tool_call_id] = {
+            elif isinstance(event.part, NativeToolCallPart):
+                self._native_tool_calls[event.part.tool_call_id] = {
                     "tool_name": event.part.tool_name,
                     "tool_call_id": event.part.tool_call_id,
                     "args": event.part.args if isinstance(event.part.args, dict) else None,
                     "id": event.part.id,
                 }
-            elif isinstance(event.part, BuiltinToolReturnPart):
-                tc = self._builtin_tool_calls.get(event.part.tool_call_id)
+            elif isinstance(event.part, NativeToolReturnPart):
+                tc = self._native_tool_calls.get(event.part.tool_call_id)
                 if tc:
-                    yield AgentBuiltinToolCall(
+                    yield AgentNativeToolCall(
                         tool_name=tc["tool_name"],
                         tool_call_id=tc["tool_call_id"],
                         args=tc.get("args"),
@@ -268,8 +269,8 @@ class Runner:
                     self._structured_output_tool_id = None
                 else:
                     yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
-            elif isinstance(event.part, BuiltinToolCallPart):
-                tc = self._builtin_tool_calls.get(event.part.tool_call_id)
+            elif isinstance(event.part, NativeToolCallPart):
+                tc = self._native_tool_calls.get(event.part.tool_call_id)
                 if tc:
                     tc["args"] = event.part.args if isinstance(event.part.args, dict) else None
                     if event.part.id is not None:
@@ -295,7 +296,7 @@ class Runner:
 
     def _result_to_ir(self, event: AgentRunResultEvent) -> AsyncIterator[AgentEvent]:
         _output = event.result.output
-        _raw_usage = event.result.usage()
+        _raw_usage = event.result.usage
         _usage = Usage(
             input_tokens=_raw_usage.input_tokens,
             output_tokens=_raw_usage.output_tokens,
@@ -307,7 +308,7 @@ class Runner:
                 reasoning_tokens=_raw_usage.details.get("reasoning_tokens", 0),
             ),
         )
-        _completed_at = int(event.result.timestamp().timestamp())
+        _completed_at = int(event.result.timestamp.timestamp())
         _logprobs = None
         _incomplete_details = None
         _provider_response_id = None

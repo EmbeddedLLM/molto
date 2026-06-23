@@ -27,12 +27,12 @@ from pydantic import (
 from pydantic_extra_types.timezone_name import TimeZoneName
 
 from molto.types.ir import (
-    AgentBuiltinToolCall,
     AgentError,
     AgentMessage,
     AgentMessageDelta,
     AgentMessageEnd,
     AgentMessageStart,
+    AgentNativeToolCall,
     AgentRunResult,
     AgentThought,
     AgentThoughtDelta,
@@ -45,7 +45,6 @@ from molto.types.ir import (
     AgentToolResult,
     AgentToolStart,
     AllowedToolsChoice,
-    BuiltinToolChoice,
     CodeInterpreterTool,
     ContentPart,
     FunctionTool,
@@ -60,8 +59,10 @@ from molto.types.ir import (
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
+    NativeToolChoice,
+    OpenAIOptions,
     OutputIR,
-    PromptTemplate,
+    ResponsesOptions,
     SystemMessage,
     TextFormat,
     TextPart,
@@ -69,6 +70,7 @@ from molto.types.ir import (
     WebSearchTool,
     WebSearchUserLocation,
 )
+from molto.types.openai._tool_args import _safe_tool_args, _serialize_tool_args
 from molto.utils import uuid7_str
 
 CODE_INTERPRETER_TOOL = "code_interpreter"
@@ -799,9 +801,9 @@ class OpenAITextConfig(BaseModel):
     ] = None
 
 
-class OpenAIBuiltinToolChoice(BaseModel):
+class OpenAINativeToolChoice(BaseModel):
     """
-    Indicates that the model should use a built-in tool to generate a response.
+    Indicates that the model should use a native tool to generate a response.
     """
 
     type: Annotated[
@@ -813,7 +815,7 @@ class OpenAIBuiltinToolChoice(BaseModel):
         ],
         Field(
             description=(
-                "The type of Built-in tool the model should to use. Allowed values are:\n"
+                "The type of native tool the model should use. Allowed values are:\n"
                 f"- `{CODE_INTERPRETER_TOOL}`\n"
                 "- `web_search`\n"
                 "- `web_search_preview`\n"
@@ -883,7 +885,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
         ),
     ]
     tools: Annotated[
-        list[OpenAIBuiltinToolChoice | OpenAIFunctionToolChoice | OpenAIMcpToolChoice],
+        list[OpenAINativeToolChoice | OpenAIFunctionToolChoice | OpenAIMcpToolChoice],
         Field(
             description=(
                 "A list of tool definitions that the model should be allowed to call. "
@@ -907,7 +909,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
 
     def validate_vllm_hosted_tools(self) -> None:
         if any(
-            isinstance(tool, OpenAIBuiltinToolChoice)
+            isinstance(tool, OpenAINativeToolChoice)
             and _normalize_hosted_tool_type(tool.type)
             not in {CODE_INTERPRETER_TOOL, WEB_SEARCH_TOOL}
             for tool in self.tools
@@ -920,7 +922,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
 # def _apply_allowed_tools_choice(
 #     *,
 #     choice: OpenAIAllowedToolsChoice,
-#     builtin_tools: list[Tool],
+#     native_tools: list[Tool],
 #     deferred_tools: list[ToolDefinition],
 #     mcp_servers: dict[str, ResolvedMcpServerTools],
 # ) -> tuple[
@@ -929,7 +931,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
 #     dict[str, ResolvedMcpServerTools],
 #     dict[str, dict[str, McpToolInfo]],
 # ]:
-#     allowed_builtin_names = {
+#     allowed_native_names = {
 #         _normalize_hosted_tool_type(tool.type)
 #         for tool in choice.tools
 #         if isinstance(tool, OpenAIHostedToolChoice)
@@ -955,12 +957,12 @@ class OpenAIAllowedToolsChoice(BaseModel):
 #             continue
 #         existing.add(tool.name)
 
-#     builtin_by_name = {tool.name: tool for tool in builtin_tools}
-#     missing_builtin_names = sorted(allowed_builtin_names - builtin_by_name.keys())
-#     if missing_builtin_names:
+#     native_by_name = {tool.name: tool for tool in native_tools}
+#     missing_native_names = sorted(allowed_native_names - native_by_name.keys())
+#     if missing_native_names:
 #         raise BadInputError(
-#             "`tool_choice.allowed_tools` references built-in tools not present in effective tools: "
-#             f"{missing_builtin_names!r}."
+#             "`tool_choice.allowed_tools` references native tools not present in effective tools: "
+#             f"{missing_native_names!r}."
 #         )
 
 #     deferred_by_name = {tool.name: tool for tool in deferred_tools}
@@ -999,7 +1001,7 @@ class OpenAIAllowedToolsChoice(BaseModel):
 #         filtered_mcp_servers[server_label] = server_runtime
 
 #     return (
-#         [tool for tool in builtin_tools if tool.name in allowed_builtin_names],
+#         [tool for tool in native_tools if tool.name in allowed_native_names],
 #         [tool for tool in deferred_tools if tool.name in allowed_function_names],
 #         filtered_mcp_servers,
 #         selected_mcp_tool_infos_by_server,
@@ -1011,7 +1013,7 @@ OpenAIToolChoice = Union[
     Annotated[
         Union[
             OpenAIAllowedToolsChoice,
-            OpenAIBuiltinToolChoice,
+            OpenAINativeToolChoice,
             OpenAIFunctionToolChoice,
             OpenAIMcpToolChoice,
         ],
@@ -1328,13 +1330,15 @@ def _convert_input(
             )
 
         elif isinstance(msg, OpenAIFunctionToolCall):
+            args, raw_args = _safe_tool_args(msg.arguments)
             result.append(
                 AgentToolCalls(
                     tool_calls=[
                         AgentToolCall(
                             tool_call_id=msg.call_id,
                             tool_name=msg.name,
-                            args=json.loads(msg.arguments) if msg.arguments else {},
+                            args=args,
+                            raw_args=raw_args,
                             id=msg.id,
                         )
                     ]
@@ -1430,22 +1434,16 @@ class vLLMResponsesRequest(BaseModel):
         int | None,
         Field(
             description=(
-                "The maximum number of total calls to built-in tools that can be processed in a response. "
-                "This maximum number applies across all built-in tool calls, not per individual tool. "
+                "The maximum number of total calls to native tools that can be processed in a response. "
+                "This maximum number applies across all native tool calls, not per individual tool. "
                 "Any further attempts to call a tool by the model will be ignored. "
                 "As of 2026-02-22, observed OpenAI runtime behavior is not always consistent with this documented rule across model/tool paths."
             ),
         ),
     ] = None
-    metadata: Annotated[
+    extra_body: Annotated[
         dict[str, Any] | None,
-        Field(
-            max_length=16,
-            description=(
-                "Set of key-value pairs that can be attached to an object. "
-                "This can be useful for storing additional information about the object in a structured format."
-            ),
-        ),
+        Field(description="Additional provider-specific request body fields."),
     ] = None
     include: Annotated[
         list[OpenAIResponsesInclude] | None,
@@ -1678,8 +1676,8 @@ class vLLMResponsesRequest(BaseModel):
         tc = self.tool_choice
         if isinstance(tc, str):
             ir_tool_choice = tc  # "none" | "auto" | "required"
-        elif isinstance(tc, OpenAIBuiltinToolChoice):
-            ir_tool_choice = BuiltinToolChoice(name=_normalize_hosted_tool_type(tc.type))
+        elif isinstance(tc, OpenAINativeToolChoice):
+            ir_tool_choice = NativeToolChoice(name=_normalize_hosted_tool_type(tc.type))
         elif isinstance(tc, OpenAIFunctionToolChoice):
             ir_tool_choice = FunctionToolChoice(name=tc.name)
         elif isinstance(tc, OpenAIMcpToolChoice):
@@ -1687,8 +1685,8 @@ class vLLMResponsesRequest(BaseModel):
         elif isinstance(tc, OpenAIAllowedToolsChoice):
             allowed = []
             for atool in tc.tools:
-                if isinstance(atool, OpenAIBuiltinToolChoice):
-                    allowed.append(BuiltinToolChoice(name=_normalize_hosted_tool_type(atool.type)))
+                if isinstance(atool, OpenAINativeToolChoice):
+                    allowed.append(NativeToolChoice(name=_normalize_hosted_tool_type(atool.type)))
                 elif isinstance(atool, OpenAIFunctionToolChoice):
                     allowed.append(FunctionToolChoice(name=atool.name))
                 elif isinstance(atool, OpenAIMcpToolChoice):
@@ -1726,23 +1724,19 @@ class vLLMResponsesRequest(BaseModel):
             top_logprobs=self.top_logprobs,
             parallel_tool_calls=self.parallel_tool_calls,
             max_tool_calls=self.max_tool_calls,
+            openai=OpenAIOptions(store=self.store),
+            responses=ResponsesOptions(
+                include=self.include,
+                previous_response_id=self.previous_response_id,
+            ),
+            extra_body=self.extra_body,
             text_format=text_format,
             tools=ir_tools,
             tool_choice=ir_tool_choice,
-            include=self.include,
-            store=self.store,
-            previous_response_id=self.previous_response_id,
-            metadata=self.metadata,
         )
 
 
 class OpenAIResponsesRequest(vLLMResponsesRequest):
-    background: Annotated[
-        bool,
-        Field(
-            description="Whether to run the model response in the background.",
-        ),
-    ] = False
     conversation: Annotated[
         str | OpenAIConversation | None,
         Field(
@@ -1779,12 +1773,6 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly "
                 "(like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program)."
             ),
-        ),
-    ] = None
-    prompt: Annotated[
-        OpenAIPromptTemplate | None,
-        Field(
-            description=("Reference to a prompt template and its variables."),
         ),
     ] = None
     prompt_cache_key: Annotated[
@@ -1905,28 +1893,29 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
             conversation_id = self.conversation
         elif self.conversation is not None:
             conversation_id = self.conversation.id
+        stream_obfuscation = (
+            self.stream_options.include_obfuscation if self.stream_options else None
+        )
         return ir.model_copy(
             update={
-                "background": self.background,
-                "conversation_id": conversation_id,
-                "prompt": PromptTemplate(
-                    id=self.prompt.id,
-                    variables=self.prompt.variables,
-                    version=self.prompt.version,
-                )
-                if self.prompt
-                else None,
-                "prompt_cache_key": self.prompt_cache_key,
-                "prompt_cache_retention": self.prompt_cache_retention,
-                "safety_identifier": self.safety_identifier,
-                "service_tier": self.service_tier,
-                "stream_obfuscation": self.stream_options.include_obfuscation
-                if self.stream_options
-                else None,
-                "truncation": self.truncation,
-                "verbosity": self.text.verbosity
-                if isinstance(self.text, OpenAITextConfig)
-                else None,
+                "openai": ir.openai.model_copy(
+                    update={
+                        "prompt_cache_key": self.prompt_cache_key,
+                        "prompt_cache_retention": self.prompt_cache_retention,
+                        "service_tier": self.service_tier,
+                    }
+                ),
+                "responses": ir.responses.model_copy(
+                    update={
+                        "conversation_id": conversation_id,
+                        "safety_identifier": self.safety_identifier,
+                        "stream_obfuscation": stream_obfuscation,
+                        "truncation": self.truncation,
+                        "verbosity": self.text.verbosity
+                        if isinstance(self.text, OpenAITextConfig)
+                        else None,
+                    }
+                ),
             }
         )
 
@@ -2059,8 +2048,8 @@ class OpenAIResponsesResponse(BaseModel):
         int | None,
         Field(
             description=(
-                "The maximum number of total calls to built-in tools that can be processed in a response. "
-                "This maximum number applies across all built-in tool calls, not per individual tool. "
+                "The maximum number of total calls to native tools that can be processed in a response. "
+                "This maximum number applies across all native tool calls, not per individual tool. "
                 "Any further attempts to call a tool by the model will be ignored. "
                 "As of 2026-02-22, observed OpenAI runtime behavior is not always consistent with this documented rule across model/tool paths."
             ),
@@ -2513,8 +2502,8 @@ def _convert_ir_usage(usage) -> OpenAIResponsesUsage | None:
 def _convert_ir_tool_choice(tc):
     if isinstance(tc, str):
         return tc
-    if isinstance(tc, BuiltinToolChoice):
-        return OpenAIBuiltinToolChoice(type=tc.name)
+    if isinstance(tc, NativeToolChoice):
+        return OpenAINativeToolChoice(type=tc.name)
     if isinstance(tc, FunctionToolChoice):
         return OpenAIFunctionToolChoice(name=tc.name)
     if isinstance(tc, McpToolChoice):
@@ -2522,8 +2511,8 @@ def _convert_ir_tool_choice(tc):
     if isinstance(tc, AllowedToolsChoice):
         tools = []
         for e in tc.tools:
-            if isinstance(e, BuiltinToolChoice):
-                tools.append(OpenAIBuiltinToolChoice(type=e.name))
+            if isinstance(e, NativeToolChoice):
+                tools.append(OpenAINativeToolChoice(type=e.name))
             elif isinstance(e, FunctionToolChoice):
                 tools.append(OpenAIFunctionToolChoice(name=e.name))
             elif isinstance(e, McpToolChoice):
@@ -2593,6 +2582,8 @@ def _build_response_from_ir(
     incomplete_details: str | None = None,
     response_id: str | None = None,
 ) -> OpenAIResponsesResponse:
+    openai = ir.openai
+    responses = ir.responses
     kwargs: dict = dict(
         model=ir.model,
         instructions=ir.instructions,
@@ -2620,34 +2611,24 @@ def _build_response_from_ir(
         )
     if ir.top_logprobs is not None:
         kwargs["top_logprobs"] = ir.top_logprobs
-    if ir.store is not None:
-        kwargs["store"] = ir.store
-    if ir.metadata is not None:
-        kwargs["metadata"] = ir.metadata
-    if ir.safety_identifier is not None:
-        kwargs["safety_identifier"] = ir.safety_identifier
-    if ir.prompt_cache_key is not None:
-        kwargs["prompt_cache_key"] = ir.prompt_cache_key
-    if ir.prompt_cache_retention is not None:
-        kwargs["prompt_cache_retention"] = ir.prompt_cache_retention
-    if ir.service_tier is not None:
-        kwargs["service_tier"] = ir.service_tier
+    if openai.store is not None:
+        kwargs["store"] = openai.store
+    if responses.safety_identifier is not None:
+        kwargs["safety_identifier"] = responses.safety_identifier
+    if openai.prompt_cache_key is not None:
+        kwargs["prompt_cache_key"] = openai.prompt_cache_key
+    if openai.prompt_cache_retention is not None:
+        kwargs["prompt_cache_retention"] = openai.prompt_cache_retention
+    if openai.service_tier is not None:
+        kwargs["service_tier"] = openai.service_tier
     if ir.tool_choice is not None:
         kwargs["tool_choice"] = _convert_ir_tool_choice(ir.tool_choice)
-    if ir.previous_response_id is not None:
-        kwargs["previous_response_id"] = ir.previous_response_id
-    if ir.truncation is not None:
-        kwargs["truncation"] = ir.truncation
-    if ir.background is not None:
-        kwargs["background"] = ir.background
-    if ir.conversation_id is not None:
-        kwargs["conversation"] = OpenAIConversation(id=ir.conversation_id)
-    if ir.prompt is not None:
-        kwargs["prompt"] = OpenAIPromptTemplate(
-            id=ir.prompt.id,
-            variables=ir.prompt.variables,
-            version=ir.prompt.version,
-        )
+    if responses.previous_response_id is not None:
+        kwargs["previous_response_id"] = responses.previous_response_id
+    if responses.truncation is not None:
+        kwargs["truncation"] = responses.truncation
+    if responses.conversation_id is not None:
+        kwargs["conversation"] = OpenAIConversation(id=responses.conversation_id)
     if ir.tools is not None:
         kwargs["tools"] = _convert_ir_tools(ir.tools)
     text_format = None
@@ -2664,8 +2645,8 @@ def _build_response_from_ir(
                 "description": ir.text_format.description,
             }
         )
-    if text_format is not None or ir.verbosity is not None:
-        kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=ir.verbosity)
+    if text_format is not None or responses.verbosity is not None:
+        kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=responses.verbosity)
     if incomplete_details is not None:
         kwargs["incomplete_details"] = OpenAIResponsesIncompleteDetails(reason=incomplete_details)
     return OpenAIResponsesResponse(**kwargs)
@@ -2885,9 +2866,13 @@ async def from_ir_stream(
                     if isinstance(item, OpenAIOutputItem):
                         item.status = "incomplete"
             for tool_call in event.tool_calls or []:
-                args_str = json.dumps(tool_call.args, ensure_ascii=False, separators=(",", ":"))
                 tc = active_tools.pop(tool_call.tool_call_id, None)
-                item_id = tc["id"]
+                args_str = (
+                    tc["args_buf"]
+                    if tc is not None
+                    else _serialize_tool_args(tool_call.args, tool_call.raw_args)
+                )
+                item_id = tc["id"] if tc is not None else tool_call.id or ""
                 item_output_index = tc["output_index"] if tc else output_index
                 completed_item = OpenAIFunctionToolCall(
                     id=item_id,
@@ -2905,7 +2890,7 @@ async def from_ir_stream(
                 )
                 seq += 1
 
-        elif isinstance(event, AgentBuiltinToolCall):
+        elif isinstance(event, AgentNativeToolCall):
             if event.tool_name == "web_search":
                 args = event.args or {}
                 result = event.result or {}
@@ -2986,12 +2971,12 @@ async def from_ir(
     output_stream: AsyncIterator[OutputIR],
 ) -> OpenAIResponsesResponse:
     response = None
-    builtin_items: list = []
+    native_items: list = []
     last_message_id: str | None = None
     async for event in output_stream:
         if isinstance(event, AgentMessageStart):
             last_message_id = event.id
-        elif isinstance(event, AgentBuiltinToolCall):
+        elif isinstance(event, AgentNativeToolCall):
             if event.tool_name == "web_search":
                 args = event.args or {}
                 result = event.result or {}
@@ -3001,7 +2986,7 @@ async def from_ir(
                     queries=args.get("queries"),
                     sources=sources or None,
                 )
-                builtin_items.append(
+                native_items.append(
                     OpenAIWebSearchToolCall(
                         id=event.id or event.tool_call_id,
                         status=result.get("status", "completed"),
@@ -3011,7 +2996,7 @@ async def from_ir(
             elif event.tool_name in ("code_execution", "code_interpreter"):
                 result = event.result or {}
                 args = event.args or {}
-                builtin_items.append(
+                native_items.append(
                     OpenAICodeToolCall(
                         id=event.id or event.tool_call_id,
                         code=args.get("code"),
@@ -3021,7 +3006,7 @@ async def from_ir(
                     )
                 )
         elif isinstance(event, AgentRunResult):
-            output_items = list(builtin_items)
+            output_items = list(native_items)
             captured_provider_response_id = event.provider_response_id
             for tool_call in event.tool_calls or []:
                 output_items.append(
@@ -3029,9 +3014,7 @@ async def from_ir(
                         id=tool_call.id or "",
                         call_id=tool_call.tool_call_id,
                         name=tool_call.tool_name,
-                        arguments=json.dumps(
-                            tool_call.args, ensure_ascii=False, separators=(",", ":")
-                        ),
+                        arguments=_serialize_tool_args(tool_call.args, tool_call.raw_args),
                         status="completed",
                     )
                 )
