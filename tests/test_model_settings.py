@@ -7,6 +7,7 @@ from openai.types.responses import (
     ResponseTextDeltaEvent,
 )
 from openai.types.responses.response_output_text import ResponseOutputText
+
 from molto.providers import OpenAIChatCompletionsProvider, OpenAIResponsesProvider
 from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from molto.types.openai.responses import (
