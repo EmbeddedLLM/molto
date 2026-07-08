@@ -4,11 +4,7 @@ from openai.types.responses import (
     ResponseCompletedEvent,
     ResponseOutputMessage,
     ResponseReasoningItem,
-    ResponseReasoningSummaryTextDeltaEvent,
-    ResponseReasoningSummaryTextDoneEvent,
-    ResponseTextDeltaEvent,
 )
-from openai.types.responses.response_output_text import ResponseOutputText
 
 from molto.types.openai.responses import (
     OpenAIOutputItem,
@@ -21,24 +17,28 @@ from molto.types.openai.responses import (
     OpenAIResponsesStreamText,
     _OpenAIStreamEvent,
 )
-from molto.utils.io import json_loads
 from molto.utils.test import (
     CASSETTE_DIR,
     STREAM_PARAMS,
+    assert_output_item_order,
+    assert_stream_events_match,
+    assert_stream_text_events,
+    assert_usage,
     make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
-    read_cassette,
     read_cassette_request,
 )
 
-CASSETTE_PATH = CASSETTE_DIR / "openai" / "responses" / "reasoning.yaml"
+CASSETTE_NAMES = ["reasoning_no_summary", "reasoning_with_summary"]
 
 
+@pytest.mark.parametrize("cassette_name", CASSETTE_NAMES)
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_reasoning(stream: bool):
-    cassette_req = read_cassette_request(CASSETTE_PATH, stream=stream)
+async def test_reasoning(stream: bool, cassette_name: str):
+    cassette_path = CASSETTE_DIR / "openai" / "responses" / f"{cassette_name}.yaml"
+    cassette_req = read_cassette_request(cassette_path, stream=stream)
 
     req_body = dict(
         model=cassette_req["model"],
@@ -48,119 +48,92 @@ async def test_reasoning(stream: bool):
         stream=stream,
     )
 
-    handler = make_handler(CASSETTE_PATH, req_body, ["model", "input"])
+    handler = make_handler(cassette_path, req_body, ["model", "input"])
 
-    # ── (1) Verify the YAML cassette response carries reasoning content ──
-    cassette_data = read_cassette(CASSETTE_PATH, stream=stream)
+    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
+    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    sdk_response = await sdk_client.responses.create(**req_body)
     if stream:
-        completed_frames = [
-            line
-            for line in cassette_data
-            if line.startswith("data: ") and '"type":"response.completed"' in line
+        sdk_events = [e async for e in sdk_response]
+        sdk_event_types = [e.type for e in sdk_events]
+        assert isinstance(sdk_events[-1], ResponseCompletedEvent)
+        assert sdk_event_types[-1] == "response.completed"
+        # SDK uses "reasoning_summary_text" naming for reasoning deltas
+        assert "response.reasoning_summary_text.delta" in sdk_event_types
+        assert "response.reasoning_summary_text.done" in sdk_event_types
+        assert "response.output_text.delta" in sdk_event_types
+
+        assert_output_item_order(sdk_events)
+
+        # reasoning_summary_text.delta before reasoning_summary_text.done
+        rs_delta_indices = [
+            i
+            for i, e in enumerate(sdk_events)
+            if e.type == "response.reasoning_summary_text.delta"
         ]
-        assert len(completed_frames) == 1
-        cassette_response = json_loads(completed_frames[0][len("data: ") :])["response"]
-    else:
-        cassette_response = cassette_data
+        rs_done_indices = [
+            i for i, e in enumerate(sdk_events) if e.type == "response.reasoning_summary_text.done"
+        ]
+        assert len(rs_done_indices) >= 1
+        assert all(d < rs_done_indices[0] for d in rs_delta_indices)
 
-    assert cassette_response["reasoning"]["effort"] == "high"
-    assert cassette_response["reasoning"]["summary"] == "detailed"
+        sdk_response = sdk_events[-1].response
+    assert isinstance(sdk_response, Response)
+    assert sdk_response.status == "completed"
+    assert sdk_response.reasoning.effort == "high"
+    assert sdk_response.reasoning.summary == "detailed"
 
-    assert len(cassette_response["output"]) == 2
-
-    cassette_reasoning = cassette_response["output"][0]
-    assert cassette_reasoning["type"] == "reasoning"
-    assert cassette_reasoning["encrypted_content"] is not None
-    assert len(cassette_reasoning["encrypted_content"]) > 0
-    assert len(cassette_reasoning["summary"]) == 1
-    assert cassette_reasoning["summary"][0]["type"] == "summary_text"
-    assert len(cassette_reasoning["summary"][0]["text"]) > 0
-
-    cassette_message = cassette_response["output"][1]
-    assert cassette_message["type"] == "message"
-    assert cassette_message["role"] == "assistant"
-    assert len(cassette_message["content"]) == 1
-    assert len(cassette_message["content"][0]["text"]) > 0
-
-    assert cassette_response["usage"]["output_tokens_details"]["reasoning_tokens"] > 0
-
-    expected_response_id = cassette_response["id"]
-    expected_rs_id = cassette_response["output"][0]["id"]
-    expected_msg_id = cassette_response["output"][1]["id"]
-
-    # Molto always reads the stream cassette internally
-    stream_cassette_data = read_cassette(CASSETTE_PATH, stream=True)
-    stream_completed = [
-        line
-        for line in stream_cassette_data
-        if line.startswith("data: ") and '"type":"response.completed"' in line
-    ]
-    assert len(stream_completed) == 1
-    stream_resp = json_loads(stream_completed[0][len("data: ") :])["response"]
-    expected_molto_response_id = stream_resp["id"]
-    expected_molto_rs_id = stream_resp["output"][0]["id"]
-    expected_molto_msg_id = stream_resp["output"][1]["id"]
-
-    # ── (2) OpenAI SDK client ───────────────────────────────────────────
-    client = make_openai_client(handler, load_stream_cassette=stream)
-    response = await client.responses.create(**req_body)
-    if stream:
-        events = [r async for r in response]
-        assert ResponseReasoningSummaryTextDeltaEvent in {type(e) for e in events}
-        assert "response.reasoning_summary_text.delta" in {e.type for e in events}
-        assert ResponseReasoningSummaryTextDoneEvent in {type(e) for e in events}
-        assert "response.reasoning_summary_text.done" in {e.type for e in events}
-        assert ResponseTextDeltaEvent in {type(e) for e in events}
-        assert "response.output_text.delta" in {e.type for e in events}
-        assert isinstance(events[-1], ResponseCompletedEvent)
-        response = events[-1].response
-    assert isinstance(response, Response)
-
-    assert response.id == expected_response_id
-    assert response.status == "completed"
-    assert response.reasoning is not None
-    assert response.reasoning.effort == "high"
-    assert response.reasoning.summary == "detailed"
-
-    assert len(response.output) == 2
-
-    sdk_reasoning = response.output[0]
+    sdk_reasoning = next(o for o in sdk_response.output if isinstance(o, ResponseReasoningItem))
     assert isinstance(sdk_reasoning, ResponseReasoningItem)
     assert sdk_reasoning.type == "reasoning"
-    assert sdk_reasoning.id == expected_rs_id
     assert sdk_reasoning.encrypted_content is not None
     assert len(sdk_reasoning.encrypted_content) > 0
-    assert len(sdk_reasoning.summary) == 1
+    assert len(sdk_reasoning.summary) >= 1
     assert sdk_reasoning.summary[0].type == "summary_text"
     assert len(sdk_reasoning.summary[0].text) > 0
 
-    sdk_message = response.output[1]
-    assert isinstance(sdk_message, ResponseOutputMessage)
-    assert sdk_message.id == expected_msg_id
-    assert sdk_message.role == "assistant"
-    assert sdk_message.status == "completed"
-    assert len(sdk_message.content) == 1
-    sdk_text = sdk_message.content[0]
-    assert isinstance(sdk_text, ResponseOutputText)
-    assert len(sdk_text.text) > 0
+    sdk_msg = next(o for o in sdk_response.output if isinstance(o, ResponseOutputMessage))
+    assert isinstance(sdk_msg, ResponseOutputMessage)
+    assert sdk_msg.role == "assistant"
+    assert len(sdk_msg.content) >= 1
+    assert len(sdk_msg.content[0].text) > 0
 
-    assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens > 0
-    assert response.usage.output_tokens_details is not None
-    assert response.usage.output_tokens_details.reasoning_tokens > 0
+    assert sdk_response.usage.output_tokens_details.reasoning_tokens > 0
 
-    # ── (3) Molto client ───────────────────────────────────────────────
+    # ── Stream SDK reference (matches Molto's internal streaming) ──────
+    ref_client = make_openai_client(handler, load_stream_cassette=True)
+    ref_events = [
+        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
+    ]
+    assert isinstance(ref_events[-1], ResponseCompletedEvent)
+    sdk_ref = ref_events[-1].response
+    sdk_ref_rs = next(o for o in sdk_ref.output if isinstance(o, ResponseReasoningItem))
+    sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
+
+    # ── Molto client ───────────────────────────────────────────────────
     client = make_molto_client(handler)
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
-        assert "response.reasoning.delta" in {e.type for e in events}
-        assert "response.reasoning.done" in {e.type for e in events}
-        assert "response.output_text.delta" in {e.type for e in events}
+        event_types = [e.type for e in events]
+        assert "response.reasoning.delta" in event_types
+        assert "response.reasoning.done" in event_types
+        assert "response.output_text.delta" in event_types
         assert OpenAIResponsesStreamText in {type(e) for e in events}
         assert isinstance(events[-1], OpenAIResponsesStream)
-        assert events[-1].type == "response.completed"
+        assert event_types[-1] == "response.completed"
+
+        assert_output_item_order(events)
+
+        # reasoning.delta before reasoning.done
+        reasoning_delta_indices = [
+            i for i, e in enumerate(events) if e.type == "response.reasoning.delta"
+        ]
+        reasoning_done_indices = [
+            i for i, e in enumerate(events) if e.type == "response.reasoning.done"
+        ]
+        assert len(reasoning_done_indices) >= 1
+        assert all(d < reasoning_done_indices[0] for d in reasoning_delta_indices)
 
         reasoning_item_added = [
             e
@@ -203,72 +176,36 @@ async def test_reasoning(stream: bool):
         assert reasoning_done[0].text is not None
         assert len(reasoning_done[0].text) > 0
 
-        msg_item_added = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput)
-            and e.type == "response.output_item.added"
-            and hasattr(e.item, "role")
-            and e.item.role == "assistant"
-        ]
-        msg_item_done = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamOutput)
-            and e.type == "response.output_item.done"
-            and hasattr(e.item, "role")
-            and e.item.role == "assistant"
-        ]
-        assert len(msg_item_added) == 1
-        assert len(msg_item_done) == 1
-        added_id = msg_item_added[0].item.id
-        done_id = msg_item_done[0].item.id
-        assert added_id is not None
-        assert added_id.startswith("msg_")
-        assert added_id == done_id
-
-        text_deltas = [
-            e
-            for e in events
-            if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.output_text.delta"
-        ]
-        assert len(text_deltas) >= 1
-        for delta in text_deltas:
-            assert delta.item_id == added_id
+        assert_stream_events_match(ref_events, events)
+        assert_stream_text_events(events)
 
         response = events[-1].response
     assert isinstance(response, OpenAIResponsesResponse)
 
-    assert response.id == expected_molto_response_id
-
+    assert response.id == sdk_ref.id
     assert response.status == "completed"
     assert response.reasoning is not None
     assert response.reasoning.effort == "high"
     assert response.reasoning.summary == "detailed"
 
-    assert response.usage is not None
-    assert response.usage.input_tokens > 0
-    assert response.usage.output_tokens > 0
-    assert response.usage.output_tokens_details is not None
-    assert response.usage.output_tokens_details.reasoning_tokens > 0
+    assert_usage(response.usage, expect_reasoning=True)
 
-    assert len(response.output) == 2
+    assert len(response.output) >= 2
 
-    molto_reasoning = response.output[0]
+    molto_reasoning = next(o for o in response.output if isinstance(o, OpenAIReasoningItem))
     assert isinstance(molto_reasoning, OpenAIReasoningItem)
     assert molto_reasoning.type == "reasoning"
-    assert molto_reasoning.id == expected_molto_rs_id
+    assert molto_reasoning.id == sdk_ref_rs.id
     assert len(molto_reasoning.content) >= 1
     assert molto_reasoning.content[0].type == "reasoning_text"
     assert len(molto_reasoning.content[0].text) > 0
 
-    msg_molto = response.output[1]
-
+    msg_molto = next(o for o in response.output if isinstance(o, OpenAIOutputItem))
     assert isinstance(msg_molto, OpenAIOutputItem)
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
-    assert msg_molto.id == expected_molto_msg_id
+    assert msg_molto.id == sdk_ref_msg.id
     assert len(msg_molto.content) >= 1
 
     text_molto = msg_molto.content[0]

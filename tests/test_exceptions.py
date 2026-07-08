@@ -1,13 +1,9 @@
-from functools import partial
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pytest
-import yaml
 from pydantic_ai import ModelHTTPError
 
-from molto import Molto
 from molto.providers import OpenAIResponsesProvider
 from molto.runner import _map_pydantic_ai_error
 from molto.types.ir import Input
@@ -18,23 +14,20 @@ from molto.utils.exceptions import (
     ExternalAuthError,
     ModelOverloadError,
 )
+from molto.utils.test import make_molto_client, prepend_model_prefix, read_cassette_request
 
 CASSETTE_DIR = Path("tests/cassettes/openai/exceptions")
 
 
-def _load_cassette(path: Path) -> dict:
-    with open(path) as f:
-        return yaml.safe_load(f)
-
-
 def _cassette_request_params(path: Path) -> dict:
-    cassette = _load_cassette(path)
-    body = cassette["request"]["body"]
-    params: dict[str, Any] = {
-        "model": f"openai/{body['model']}",
-        "input": body["input"],
-        "stream": False,
-    }
+    body = read_cassette_request(path)
+    params: dict[str, Any] = prepend_model_prefix(
+        {
+            "model": body["model"],
+            "input": body["input"],
+            "stream": False,
+        }
+    )
     for key in ("reasoning", "max_output_tokens"):
         if key in body:
             params[key] = body[key]
@@ -62,32 +55,6 @@ def _make_ir(**overrides) -> Input:
     return Input(**defaults)
 
 
-def _make_error_handler(cassette_path: Path):
-    cassette = _load_cassette(cassette_path)
-    resp = cassette["response"]
-    status_code: int = resp["status_code"]
-    body: Any = resp["body"]
-    raw_headers = resp.get("headers") or {}
-    headers = {k: v for k, v in raw_headers.items() if k.lower() != "content-length"}
-
-    def handler(request: httpx.Request, load_stream_cassette: bool) -> httpx.Response:
-        if isinstance(body, str):
-            return httpx.Response(status_code, content=body.encode(), headers=headers)
-        return httpx.Response(status_code, json=body, headers=headers)
-
-    return handler
-
-
-def _make_molto_from_cassette(cassette_path: Path) -> Molto:
-    handler = _make_error_handler(cassette_path)
-    return Molto(
-        http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(partial(handler, load_stream_cassette=True)),
-            base_url="http://testserver",
-        ),
-    )
-
-
 def _cassette(name: str) -> Path:
     return CASSETTE_DIR / f"{name}.yaml"
 
@@ -97,7 +64,7 @@ class TestBadInputError:
         path = _cassette("context_length_exceeded")
         assert path.exists(), f"Cassette not found: {path}"
 
-        molto = _make_molto_from_cassette(path)
+        molto = make_molto_client(cassette_path=path)
         req = OpenAIResponsesRequest(**_cassette_request_params(path))
         with pytest.raises(ContextOverflowError):
             await molto.chat(req)
@@ -120,7 +87,7 @@ class TestBadInputError:
         path = _cassette("thinking_budget_exceeding_max_tokens")
         assert path.exists(), f"Cassette not found: {path}"
 
-        molto = _make_molto_from_cassette(path)
+        molto = make_molto_client(cassette_path=path)
         req = OpenAIResponsesRequest(**_cassette_request_params(path))
         with pytest.raises(BadInputError):
             await molto.chat(req)
@@ -155,7 +122,7 @@ class TestExternalAuthError:
         path = _cassette("incorrect_api_key")
         assert path.exists(), f"Cassette not found: {path}"
 
-        molto = _make_molto_from_cassette(path)
+        molto = make_molto_client(cassette_path=path)
         req = OpenAIResponsesRequest(**_cassette_request_params(path))
         with pytest.raises(ExternalAuthError):
             await molto.chat(req)
@@ -164,7 +131,7 @@ class TestExternalAuthError:
         path = _cassette("missing_api_key")
         assert path.exists(), f"Cassette not found: {path}"
 
-        molto = _make_molto_from_cassette(path)
+        molto = make_molto_client(cassette_path=path)
         req = OpenAIResponsesRequest(**_cassette_request_params(path))
         with pytest.raises(ExternalAuthError):
             await molto.chat(req)

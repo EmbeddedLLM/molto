@@ -1,0 +1,104 @@
+filename: 2026-06-17-019ed377-d743-79b0-a9c6-50f93cc43589
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content: How many Rs in strawberry?
+      role: user
+    model: gpt-5.1
+    reasoning:
+      effort: high
+      summary: detailed
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '192'
+    content-type: application/json
+    user-agent: pydantic-ai/1.104.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019ed377-d743-79b0-a9c6-50f93cc43589
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1781664311
+    created_at: 1781664307
+    error: null
+    frequency_penalty: 0.0
+    id: resp_058bf5e158ccdc6d006a320a33eed881999f825a7be98a1fbd
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    object: response
+    output:
+    - content: []
+      encrypted_content: gAAAAABqMgo3o1GMfwHEjM-fXiuf49AypxI6zrfW3xfogw37bs0rWUC7WKN2hNsoQbVeiqzWPEk8hjZXd4cvTFTh2J7jvwRv8FdMMri8cKm1C4yeppdBJOlfukO-gssZaT13yIYhdgAkwuUgyGusdsuf0URo2Jg3-ZDirwO8b_O_rPzzxnE2tZPBIETplR1sxMtd8QhX7pHUaPnQB3UxsFpYh3b_sdCYeg4SaOnSH9211yltJpPZS2rQGPmolX7gmW4RjSR99SqdCLletWspb2JafdY_mAWuzY7uZSG-LNJSLb-ujmucTfQ9pT1T51c9wD8gZ7PjH39s78-MiMMLwfCbjhfTpTxvFr9jUyoBvBhMoQo-eCx9ebuDK4okgbJ0evqbtUd4qBMiB6uqYDpxeV5yCdWWtbjyb60D0YgsRcuREIZOG0IBa4LRAn_VOnUfIzs2dGl6yanc7pr31vl3ZxG5f_DokgERJteYwU_kR64bvITvz-cra2TQPDTtK08ZBpwuqXEyBWyq-wyxXuVeGkhK0hPV4YaMFlXcXp2UAEAl_OI3Hmrt2YFw28-Uyd_9LZqQmhQ2EelsYUqKZ473VULvXnrQlhQpuOqYLe0oKk9bjZpNavSGduC3OX7pzFnUj2QEx1Y61frC0A6miNmR0KsebNOPzl58XxptVsdpN84HsH7stHw8fUo336SPogPkGNfeZDF23RAEg03Iy1hwZB-xUqu8-1J7EBsmMBZ5ZDkCPa-XW6K3zXzbZLGrI88bO0jfXhP11FnrGZhcboQVhmpjpw6ppU9nKMDLngkLat6pmP3GOUoLs4rzde_c8JEn9XcuhdUZohUJCWzMy7B6ojAuSDybWNKDhTX7WFc4bmmucQjvD2lPxuxaVB5KE_MIL9VdaMjwx7aWQnhwMiQlMiZSCy1nrb2_rz0V9x4mEcyiYRwRyuQv-Xvklsk9GF2nL4EVHPB3lNgoJdH-w8-ATuOKsAu9x1EnUiPE7omd2RfT0VxG6YVdFSHtjccUCvslHpBHJ13m570jsk1SDcH_f71fDO2s7B-NGI2z2knL9OnfjPDYRFvGvZuQIYkNtL1JdNpgVkhgU_0K3hYU5l0j3jRql9SNoDWiM4gqfe0dvVhvnUep4pLMSrKkpF6-OFnci7Vmek79wydnRyf6noM3316s1JtU2iu2M0x7rFdYTlm-KseSKomCByCbll4SHVgQwXOHf0l2vHOs15ZkZ5eGm5AuSCelR8-N59u5TAW9ghtlmXI3M41cxGw=
+      id: rs_058bf5e158ccdc6d006a320a34cd38819981f5b416bedfdf26
+      summary:
+      - text: '**Counting letters in strawberry**
+
+
+          The user''s question is clear: they want to know how many times the letter
+          "R" appears in the word "strawberry." I''ll check the letters: s, t, r,
+          a, w, b, e, r, r, y. I see that "R" or "r" appears three times in total,
+          regardless of case. The answer is simple: there are 3 "R"s. I''ll keep it
+          concise as the user requested!'
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: There are **3** letters “r” in the word **strawberry**.
+        type: output_text
+      id: msg_058bf5e158ccdc6d006a320a373b5481998fccec3da52da182
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: current_turn
+      effort: high
+      summary: detailed
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 12
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 98
+      output_tokens_details:
+        reasoning_tokens: 74
+      total_tokens: 110
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-06-17T02:45:07.011451+00:00'

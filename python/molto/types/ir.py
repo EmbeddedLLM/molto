@@ -153,6 +153,38 @@ class AgentToolEnd(_Message):
     tool_call_id: str
 
 
+class AgentBuiltinToolStart(_Message):
+    type: Annotated[
+        Literal["agent.builtin_tool.start"],
+        Field(description="Message type."),
+    ] = "agent.builtin_tool.start"
+    tool_name: str
+    tool_call_id: str
+    args: dict[str, Any] | None = None
+    id: str | None = None
+
+
+class AgentBuiltinToolDelta(_Message):
+    type: Annotated[
+        Literal["agent.builtin_tool.delta"],
+        Field(description="Message type."),
+    ] = "agent.builtin_tool.delta"
+    tool_name: str
+    tool_call_id: str
+    args_delta: dict[str, Any] | str
+
+
+class AgentBuiltinToolEnd(_Message):
+    type: Annotated[
+        Literal["agent.builtin_tool.end"],
+        Field(description="Message type."),
+    ] = "agent.builtin_tool.end"
+    tool_name: str
+    tool_call_id: str
+    args: dict[str, Any] | None = None
+    id: str | None = None
+
+
 class AgentToolCall(BaseModel):
     tool_call_id: str
     tool_name: str
@@ -298,6 +330,9 @@ AgentEvent = Annotated[
         AgentToolStart,
         AgentToolDelta,
         AgentToolEnd,
+        AgentBuiltinToolStart,
+        AgentBuiltinToolDelta,
+        AgentBuiltinToolEnd,
         AgentToolCall,
         AgentToolResult,
         AgentNativeToolCall,
@@ -477,6 +512,8 @@ class Input(BaseModel):
     # Sampling parameters (provider renames/maps these for its backend)
     temperature: float | None
     top_p: float | None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
     max_output_tokens: int | None
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None
