@@ -4,6 +4,7 @@ from typing import Any, AsyncIterator, TypedDict
 
 from httpx import AsyncClient
 from loguru import logger
+from openai import APIError
 from pydantic_ai import (
     Agent,
     AgentRunError,
@@ -104,6 +105,11 @@ class RunSettings(TypedDict):
     builtin_tools: list[AbstractBuiltinTool] | None
 
 
+def _is_context_window_message(message: str) -> bool:
+    lowered = message.lower()
+    return "context" in lowered and ("length" in lowered or "token" in lowered or "window" in lowered)
+
+
 def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
     if isinstance(exc, UnexpectedModelBehavior):
         return UnexpectedError(str(exc))
@@ -114,7 +120,7 @@ def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
         body = str(exc.body) if exc.body else str(exc)
         if status == 400:
             msg = str(body)
-            if "context" in msg.lower() and ("length" in msg.lower() or "token" in msg.lower()):
+            if _is_context_window_message(msg):
                 return ContextOverflowError(msg)
             return BadInputError(msg)
         if status == 401:
@@ -132,6 +138,10 @@ def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
         return UnexpectedError(f"HTTP {status}: {body}")
     if isinstance(exc, AgentRunError):
         return UnexpectedError(str(exc))
+    if isinstance(exc, APIError):
+        msg = str(exc)
+        if _is_context_window_message(msg):
+            return ContextOverflowError(msg)
     return UnexpectedError(f"{type(exc).__name__}: {exc}")
 
 
@@ -406,12 +416,9 @@ class Runner:
                     event_count += 1
                     for ir_event in self._event_to_ir(event):
                         yield ir_event
-            except (UnexpectedModelBehavior, UserError, ModelHTTPError, AgentRunError) as e:
-                yield AgentError(error=str(e), cause=repr(e.__cause__))
-                raise _map_pydantic_ai_error(e) from e
             except Exception as e:
                 yield AgentError(error=str(e), cause=repr(e.__cause__))
-                raise UnexpectedError(str(e)) from e
+                raise _map_pydantic_ai_error(e) from e
         t = perf_counter() - t0
         logger.debug(
             (

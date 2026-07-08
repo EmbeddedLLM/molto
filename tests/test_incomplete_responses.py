@@ -11,16 +11,15 @@ from molto.types.openai.responses import (
     _OpenAIStreamEvent,
 )
 from molto.utils.test import (
-    CASSETTE_DIR,
     STREAM_PARAMS,
     assert_output_item_order,
     assert_stream_events_match,
     assert_stream_text_events,
     assert_usage,
-    make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
+    stream_reference_cassette_suffix,
 )
 
 EXPECTED_SETTINGS = {
@@ -30,7 +29,12 @@ EXPECTED_SETTINGS = {
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_incomplete_response(stream: bool):
+async def test_incomplete_response(stream: bool, cassette_manager):
+    """Compare incomplete Responses output against SDK-parsed cassettes.
+
+    Example:
+        # max_output_tokens=20 returns status "incomplete" with reason "max_output_tokens".
+    """
 
     req_body = dict(
         model="gpt-4.1-nano",
@@ -43,15 +47,14 @@ async def test_incomplete_response(stream: bool):
         stream=stream,
     )
 
-    cassette_path = CASSETTE_DIR / "openai" / "responses" / "incomplete.yaml"
-    handler = make_handler(
-        cassette_path,
-        req_body,
-        ["model", "input", "instructions", "max_output_tokens"],
-    )
+    assert_attrs = ["model", "input", "instructions", "max_output_tokens"]
 
-    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
-    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    # -- OpenAI SDK (parametrized stream) --------------------------------
+    sdk_client = make_openai_client(
+        cassette_manager,
+        expected_request_body=req_body,
+        assert_attrs=assert_attrs,
+    )
     sdk_response = await sdk_client.responses.create(**req_body)
     if stream:
         sdk_events = [e async for e in sdk_response]
@@ -74,17 +77,28 @@ async def test_incomplete_response(stream: bool):
     assert sdk_msg is not None
     assert sdk_msg.status == "incomplete"
 
-    # ── Stream SDK reference (matches Molto's internal streaming) ──────
-    ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [
-        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
-    ]
+    stream_ref_suffix = stream_reference_cassette_suffix(stream)
+
+    # -- Stream SDK reference (matches Molto's internal streaming) -------
+    stream_req_body = {**req_body, "stream": True}
+    ref_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
+    ref_events = [e async for e in await ref_client.responses.create(**stream_req_body)]
     assert isinstance(ref_events[-1], ResponseIncompleteEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
 
-    # ── Molto client ───────────────────────────────────────────────────
-    client = make_molto_client(handler)
+    # -- Molto client ----------------------------------------------------
+    client = make_molto_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]

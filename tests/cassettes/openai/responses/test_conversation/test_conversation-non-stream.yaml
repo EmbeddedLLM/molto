@@ -1,0 +1,107 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '224'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    conversation: conv_6a4e1201f8cc819780cb38bab453012501df79695edf428a
+    include:
+    - reasoning.encrypted_content
+    input:
+    - role: user
+      content: what joke was previously mentioned?
+    model: gpt-5-nano
+    stream: false
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: resp_01df79695edf428a006a4e120262388197abb36e1545f8764b
+    object: response
+    created_at: 1783501314
+    status: completed
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1783501318
+    conversation:
+      id: conv_6a4e1201f8cc819780cb38bab453012501df79695edf428a
+    error: null
+    frequency_penalty: 0.0
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    model: gpt-5-nano-2025-08-07
+    moderation: null
+    output:
+    - id: rs_01df79695edf428a006a4e1203675c8197bfad274c2d48a6c8
+      type: reasoning
+      content: []
+      encrypted_content: gAAAAABqThIH2mUmtpVORs5ucFiSIbCbudlajxaQQXWH-UwpuGGfCfEeieBTk1XoxWtgWayJlzKbfJzPmv2GvFjm7fKBp1PE2PZ1u_lwhl5XDDdoNcYtkeMMEzzcsxokJixo_0kRCO4u_1eVS8wJwB-acuBVQRfv8V5FOW9qiRC0P_TH-mdak5LvyjCFuOHMJm5CHhcPnO7VLo8LYCTDwbhBiynrMvx1BKoRUB-HkQjH7oZkp_H6GiBUvwg6ly9Cm_qpbT0n5B9OkVS-ZK-867KOX-G-ZJGY1qWYD733nzcEibqd9-Zetc0v9oQ7SYL-k3fv7k60CSt91oDP8UsuBXtfdR5KxPzmNhJiyh0nXVnaJuM4_YWLGaNwMTb4TVYWnKP1kNsN70_A250ToU3Ug279O1Og4YhARaCbhjGfY9YJMkawBTKTyh7m1Dy3Az9Rx0IL9F_MyL5yA6ayHZ2hMcZU9o0ITvsU3_4x_ihQavVJWHPOeM-39qZtW2C3bkgD9xbAtnQe-DPQZpDlzuJ_I7E66ryekSQmwUZwDVIsZZnl8X82kUHQOEQHInuB9FgDyqRLahskpr544iRbviN5sI_o61mU5KUOjOuj3PTet-hiiMUQS3AaqmBx72BNVPxNn0vwM5hsEkQutxKF_zw162UcvBuz24gAVzLlyvTsZRlarGTv1Riaex5jFUeRzwCP_8r4Cx5yr7haR_J1KxVyOFZs-MJsq6PrYtcU5rcVkCHkNlnlyCgsdAb53pioff8ELJdemFyTPOuhZnJqc7w48fB-wTLsOOjF4Zrv932eoMAmd8UQ10A2NJAq5aNC8OTyTDI8FW-2-m9KHf4RDBdHDm2gxrj296wOU_B_euKsoIueSSjWqbtHMx31GxvZe7DXrCkpFjpIb_q3qlS53o5BSO99pcd9tKEdTPfNNDHp8sDXVpJKFZilu009SpGGDd2iwTTuRGtzvjJkXJmMBcnnJpIxoEtuIi133OiSpkI25LYqVJ1J1EZnsPFjwkwKfn_HEa1er6r-KpG5DQcS_R3IA2nelUIJlyAoeo_cktN7HTbph4ZEkPKFeIs0AzA_VBfk548Kwc_ph-z91Q0N5n0u7I8OGq2WHsZC3sOgFl20gaIuG9JEgSmLvfDrU3v-wGUjbHg7ixPdRoTriHfi5B8k2B3fpYfagjD_3HudG39GbpQC_O0y-1MqryQLOn3Gsn3cnDLru9mVkuzXsEpjcCuOs3nooLpkK23w2qZC2W1zwe6kvjpUfKYrhmKXC8iGKF-4aUg8Il8deDTOQNIJkzBGnJfq-DB_I5nOoN9LoI2-EdpprumxHvSpp2cVRjMKJM7yL_MRQgeHUbtoNjzCtrwm71HMU4tQZqpOBavrnpPqg5YA6shnkN4mObkecetTLVpcrmDSw_yn7mpflv_bEeEM8dJbRTu4VUtaP-lsPXn1Hj0cnI8pL-HoCh29zvpTSC7_FIXjqFWO1Uk2wgClI28FfhLmypJuA5tBX4oC5PylfnpSsE4i8h2MlK9TrlQ2ZDInI73ctgh1azJI6-lhp5Iny85Xw2dWMDieltjQ9RCdH3Xby1dnHsUPH5OILH80KIOoC9gZ7H7O-G0jHcrkpGTfhjaBbKaqhAOCMSfix0wEjDddhDtFC3sjRmNXd4tI1NysRA__39xrF-WjLLWk6L0rpj7p7pPVPZR971l54BljGKo0dtMq4jWGSUtsQ70DR5exNylAP_0bfM7bQVO6CUHPS6Nq68Hg0KYqKGCuNNhdUelmzteSt-uOs6KRrdhdQYbNcZRc0jg4Pp6CXZZHmLBWMI51xeWSsZaLhkwzCcV6tJwHNz_M1kH-pNq7unqT7wPmDAB8I5VodtMcFNkihYUNCHe7CBd-Bpm0dkJaz2-t1wBZU7mA_MzawpBL9vL548Qd4rkHySFpEOQ68Cdn7Pe02RC0dSvwjTQv56mr-W87tuAquQurpxnjfVX4x9SFvYNjSPyk9vkMPsLa9ODMlSzi-ai-zQG6h0RMutLSrV9UysCsoPZimzwgZuUbylwVF1cDqLtrc0ggXhQUBeOWWzR_FyI0v494FG8pTtBvfJdDtRQfTTlzmlsS_A0Djywe0Y3Yedsreatpj0Ct0P1hD0lOE8EXjMdRU1Amuw5-FRYImdHvv_qZtiVlBDrLe7frOSEV0j8q8I92HGOmMNZ_Ho2q1tradeeFcoyXZ3E29kyEbcaMzcTNmTPDuiVHk6xGgYhuERC5EPsYj-STuy55shTiQ9WC-pjmjy-288xHuJ2DyJkMbxfGe7sLTDKASYsrLAmy_VhM8jlb5gYz3jZgcKh07dGUQdOCbHJMjKlBpbpfDubipn3yA3l9Tz3qULJVvKf98HBLXrOd6H4sB0NNTG6moZPvknSsxXLGo2niawO6rMeHneDdedv7yg-_3hbtdyDrQg8Dhn4Aeqoquk7KVEBXpLEAs56C3fnwHmUMEAq_CS34e5HMRz4jhJ7KBMbB3ow0dVNuVG8T5Yi1ZTbRzZ-EiqNGoRa051jl_XSVSQp0xfK30Em-BSCKNgAZPXoS_9Yo7zCAHX-gNVWLAOBA4luZuQuyATeHuJvoLdRanwksxcLU8GfhF11nFYzo2h2Jks529g48y8DgmQwd
+      summary: []
+    - id: msg_01df79695edf428a006a4e120610648197863294fff1c7ca2b
+      type: message
+      status: completed
+      content:
+      - type: output_text
+        annotations: []
+        logprobs: []
+        text: 'It was: "Why did the scarecrow win an award? Because he was outstanding
+          in his field!"'
+      role: assistant
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: current_turn
+      effort: medium
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 49
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 295
+      output_tokens_details:
+        reasoning_tokens: 256
+      total_tokens: 344
+    user: null
+    metadata: {}

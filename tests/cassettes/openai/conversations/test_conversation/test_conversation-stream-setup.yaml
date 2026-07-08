@@ -1,0 +1,29 @@
+request:
+  method: POST
+  path: /v1/conversations
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '189'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    items:
+    - role: user
+      content: Tell me a short joke about a scarecrow.
+    - role: assistant
+      content: Why did the scarecrow win an award? Because he was outstanding in his
+        field!
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: conv_6a4e11fd1ef08197868f262d1ea16f260f1c93e16473ce59
+    object: conversation
+    created_at: 1783501309
+    metadata: {}

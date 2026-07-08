@@ -1,0 +1,27 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '51'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    input: hi
+    model: gpt-4.1-nano
+    stream: true
+response:
+  status_code: 401
+  headers:
+    connection: keep-alive
+    content-length: '160'
+    content-type: application/json
+  body:
+    error:
+      message: Missing bearer or basic authentication in header
+      type: invalid_request_error
+      param: null
+      code: null

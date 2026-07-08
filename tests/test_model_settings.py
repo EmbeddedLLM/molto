@@ -20,17 +20,16 @@ from molto.types.openai.responses import (
     _OpenAIStreamEvent,
 )
 from molto.utils.test import (
-    CASSETTE_DIR,
     STREAM_PARAMS,
     assert_events_before_terminal,
     assert_output_item_order,
     assert_stream_events_match,
     assert_stream_text_events,
     assert_usage,
-    make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
+    stream_reference_cassette_suffix,
 )
 
 # Settings expected to round-trip Request → cassette → Response (SDK/Molto).
@@ -55,7 +54,12 @@ EXPECTED_SETTINGS = {
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_model_settings(stream: bool):
+async def test_model_settings(stream: bool, cassette_manager):
+    """Round-trip OpenAI Responses model settings through SDK and Molto.
+
+    Example:
+        # stream=False records/replays the default non-stream cassette and preserves service_tier.
+    """
 
     req_body = dict(
         model="gpt-5.1",
@@ -82,42 +86,51 @@ async def test_model_settings(stream: bool):
             "web_search_call.action.sources",
             "message.output_text.logprobs",
         ],
-        tools=[{"type": "web_search_preview"}, {"type": "code_interpreter"}],
+        tools=[
+            {"type": "web_search_preview"},
+            {"type": "code_interpreter", "container": {"type": "auto"}},
+        ],
         stream=stream,
     )
 
-    cassette_path = CASSETTE_DIR / "openai" / "responses" / "model_settings.yaml"
-    handler = make_handler(
-        cassette_path,
-        req_body,
-        [
-            "model",
-            "input",
-            "instructions",
-            "max_output_tokens",
-            "max_tool_calls",
-            "parallel_tool_calls",
-            "prompt_cache_key",
-            "prompt_cache_retention",
-            "safety_identifier",
-            "service_tier",
-            "temperature",
-            "top_logprobs",
-        ],
-    )
-
-    # ── Stream SDK reference (matches Molto's internal streaming) ──────
-    ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [
-        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
+    assert_attrs = [
+        "model",
+        "include",
+        "input",
+        "instructions",
+        "max_output_tokens",
+        "max_tool_calls",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_retention",
+        "safety_identifier",
+        "service_tier",
+        "temperature",
+        "top_logprobs",
     ]
+
+    stream_ref_suffix = stream_reference_cassette_suffix(stream)
+
+    # -- Stream SDK reference (matches Molto's internal streaming) -------
+    stream_req_body = {**req_body, "stream": True}
+    ref_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
+    ref_events = [e async for e in await ref_client.responses.create(**stream_req_body)]
     assert isinstance(ref_events[-1], ResponseCompletedEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_ws = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionWebSearch))
     sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
 
-    # ── OpenAI SDK client ──────────────────────────────────────────────
-    client = make_openai_client(handler, load_stream_cassette=stream)
+    # -- OpenAI SDK client ----------------------------------------------
+    client = make_openai_client(
+        cassette_manager,
+        expected_request_body=req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.responses.create(**req_body)
     if stream:
         events = [r async for r in response]
@@ -142,7 +155,6 @@ async def test_model_settings(stream: bool):
     assert response.reasoning.effort == "none"
 
     ws = next(o for o in response.output if isinstance(o, ResponseFunctionWebSearch))
-    assert isinstance(ws, ResponseFunctionWebSearch)
     assert ws.type == "web_search_call"
     assert ws.status == "completed"
     assert isinstance(ws.id, str) and len(ws.id) > 0
@@ -150,7 +162,6 @@ async def test_model_settings(stream: bool):
     assert ws.action.sources is not None
 
     msg = next(o for o in response.output if isinstance(o, ResponseOutputMessage))
-    assert isinstance(msg, ResponseOutputMessage)
     assert msg.type == "message"
     assert isinstance(msg.id, str) and len(msg.id) > 0
     assert msg.role == "assistant"
@@ -175,8 +186,13 @@ async def test_model_settings(stream: bool):
     assert response.usage.input_tokens_details is not None
     assert response.usage.input_tokens_details.cached_tokens >= 0
 
-    # ── Molto client (always streams internally) ───────────────────────
-    client = make_molto_client(handler)
+    # -- Molto client (always streams internally) -----------------------
+    client = make_molto_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
@@ -216,7 +232,6 @@ async def test_model_settings(stream: bool):
     assert len(response.output) >= 2
 
     ws_molto = next(o for o in response.output if isinstance(o, OpenAIWebSearchToolCall))
-    assert isinstance(ws_molto, OpenAIWebSearchToolCall)
     assert ws_molto.type == "web_search_call"
     assert ws_molto.status == "completed"
     assert ws_molto.id == sdk_ref_ws.id
@@ -224,7 +239,6 @@ async def test_model_settings(stream: bool):
     assert ws_molto.action.sources is not None
 
     msg_molto = next(o for o in response.output if isinstance(o, OpenAIOutputItem))
-    assert isinstance(msg_molto, OpenAIOutputItem)
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"
