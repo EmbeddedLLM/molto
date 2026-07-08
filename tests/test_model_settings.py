@@ -155,7 +155,6 @@ async def test_model_settings(stream: bool, cassette_manager):
     assert response.reasoning.effort == "none"
 
     ws = next(o for o in response.output if isinstance(o, ResponseFunctionWebSearch))
-    assert isinstance(ws, ResponseFunctionWebSearch)
     assert ws.type == "web_search_call"
     assert ws.status == "completed"
     assert isinstance(ws.id, str) and len(ws.id) > 0
@@ -163,7 +162,6 @@ async def test_model_settings(stream: bool, cassette_manager):
     assert ws.action.sources is not None
 
     msg = next(o for o in response.output if isinstance(o, ResponseOutputMessage))
-    assert isinstance(msg, ResponseOutputMessage)
     assert msg.type == "message"
     assert isinstance(msg.id, str) and len(msg.id) > 0
     assert msg.role == "assistant"
@@ -234,7 +232,6 @@ async def test_model_settings(stream: bool, cassette_manager):
     assert len(response.output) >= 2
 
     ws_molto = next(o for o in response.output if isinstance(o, OpenAIWebSearchToolCall))
-    assert isinstance(ws_molto, OpenAIWebSearchToolCall)
     assert ws_molto.type == "web_search_call"
     assert ws_molto.status == "completed"
     assert ws_molto.id == sdk_ref_ws.id
@@ -242,7 +239,6 @@ async def test_model_settings(stream: bool, cassette_manager):
     assert ws_molto.action.sources is not None
 
     msg_molto = next(o for o in response.output if isinstance(o, OpenAIOutputItem))
-    assert isinstance(msg_molto, OpenAIOutputItem)
     assert msg_molto.type == "message"
     assert msg_molto.role == "assistant"
     assert msg_molto.status == "completed"

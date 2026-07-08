@@ -240,7 +240,6 @@ async def test_reasoning(stream: bool, cassette_name: str, cassette_manager):
     assert len(response.output) >= 2
 
     molto_reasoning = next(o for o in response.output if isinstance(o, OpenAIReasoningItem))
-    assert isinstance(molto_reasoning, OpenAIReasoningItem)
     assert molto_reasoning.type == "reasoning"
     assert molto_reasoning.id == sdk_ref_rs.id
     if expect_summary:
