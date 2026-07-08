@@ -1,0 +1,105 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '171'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - role: user
+      content: How many Rs in strawberry?
+    model: gpt-5.1
+    reasoning:
+      effort: high
+    stream: false
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: resp_009b86c20cdf4176006a4e1254fd30819883b1a4b76abb37ce
+    object: response
+    created_at: 1783501397
+    status: completed
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1783501399
+    error: null
+    frequency_penalty: 0.0
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    output:
+    - id: rs_009b86c20cdf4176006a4e1255723c8198976bcd9b7d0c7dc1
+      type: reasoning
+      content: []
+      encrypted_content: gAAAAABqThJX9jtUl6_DUV39WcF3tnEuWwSp81GjYVwLpZYqemlVmoGUIcld493XDxLxAwhPHfXwdSQeusMckPCr-U2BeZ-hnT8ku7b42ESD8VEOE5Qfc-6osrAe0a-3YgTE0zEiO0wSXh7rtGRb0jB-6jnIhhqQo6Ec1o5f-F-A3dUgUCSQVx1RuPopTzjjkNLdwQZkfWn2pvqiWfHy5-2awdPYNZdqFbDnpxaQfotUVUSTvuWmtnzgPyKFdDQkM1tyEezglzZlwNEEJpimrsde42voLd8SW9q9jjrF5MiMyYjB2xPAGq_bEXiEsfTNjpxVr7M7O6qbs_Ul7lkNZGqVTnCtEoSx9MWmShjwEvLrI2LRHmWMD7gbAfOt92RVyptP5CSNm0U8CJXdCoBsqqXc8bUCKLgz2TevlH1wS0Y0H7n-wxfWVYH11NKPIGS75zyGibhqtmwgg3ggVWun9beionYF7ELlRGtLYZzCVOZRh65XIggv47YgJepoN6ozm_iA3agyxpFneepLjcpSMq814LTGxexlATqtQK7gEN4qMqvc9s0aO0EDKAkNklUsH3DJCbGlqqjEgScbUBHY2SEV2xex1DxBZGPrnGaSmDfeYcopb8ZJGRCpVP0QbAwU6d7eje0UJjpux-T6GPHdH_nStDfdU4MamXbBTeT-Z3VwOgAaKt2addSkyrCczFKGE9UXGyrTEJeIJBaMTv2bZTQV2ROlaJ3TgANdENV3iT8Ga1t2E95llKy7ED72YU9MqbHoZU54qE_5jVzIXtMFKwVlPxuOy7ULsDxzMQOqSWiYbEpHVo3-tSLCsx8kbQu20dKFYzBivpRiwzmQ-6ZyISwa7gn3vevnrNP62CykUbA2mP_5_CyM27A3kgUaLG_t4PWkmGvunXPTBc1kSPs6N80qNwMZgc1n6c-fBQhtQ0KeiDyhuD5QTWQBE0PGDHhz_TYQ0Lbe4jcdlq9w8yNPXl76NkTU_zsgJmpBwGn-CCkGxrWsZ8Amk1bAnv38RgQLU8LH3-eipVYTmiD4ABMKPmK0f-zLXxsYp66aNSa6-8loOxke4QFsQJhssGU9NPtNhcysyLSAO11_wT7mhIXSuGkAaUKUZinxW2vX34nY-eOHJ4IRVupOmCQEx-apD9R_p0HMPWdxaNBB_8UyUJWjmMQWyTruPUcMCkC0q3awgD4ZNKtbgx1Bum8Bf3gi9eLIQfgbqDXyxOiGAo5FgS1MOhP47ueZ85ZnYZeqxv7POgxHiSCsDPvuRMNjg4PN-TYVQHRhatL-HgHQA4e_Pnd6Tg54TLIk_8DyJQ==
+      summary: []
+    - id: msg_009b86c20cdf4176006a4e1256fbb88198b261af0271ac1c23
+      type: message
+      status: completed
+      content:
+      - type: output_text
+        annotations: []
+        logprobs: []
+        text: There are **3** letter “r”s in **strawberry**.
+      role: assistant
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: current_turn
+      effort: high
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 12
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 98
+      output_tokens_details:
+        reasoning_tokens: 75
+      total_tokens: 110
+    user: null
+    metadata: {}
