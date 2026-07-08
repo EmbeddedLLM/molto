@@ -28,6 +28,9 @@ from pydantic_extra_types.timezone_name import TimeZoneName
 
 from molto.types.ir import (
     AgentBuiltinToolCall,
+    AgentBuiltinToolDelta,
+    AgentBuiltinToolEnd,
+    AgentBuiltinToolStart,
     AgentError,
     AgentMessage,
     AgentMessageDelta,
@@ -73,6 +76,7 @@ from molto.utils import uuid7_str
 
 CODE_INTERPRETER_TOOL = "code_interpreter"
 WEB_SEARCH_TOOL = "web_search"
+DEFAULT_VERBOSITY = "medium"
 
 
 def _normalize_hosted_tool_type(tool_type: str) -> str:
@@ -1737,12 +1741,12 @@ class vLLMResponsesRequest(BaseModel):
 
 
 class OpenAIResponsesRequest(vLLMResponsesRequest):
-    background: Annotated[
-        bool,
-        Field(
-            description="Whether to run the model response in the background.",
-        ),
-    ] = False
+    # background: Annotated[
+    #     bool,
+    #     Field(
+    #         description="Whether to run the model response in the background.",
+    #     ),
+    # ] = False
     conversation: Annotated[
         str | OpenAIConversation | None,
         Field(
@@ -1830,7 +1834,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "This response value may be different from the value set in the parameter."
             ),
         ),
-    ] = "auto"
+    ] = "default"
     stream_options: Annotated[
         OpenAIStreamOptions | None,
         Field(
@@ -1907,7 +1911,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
             conversation_id = self.conversation.id
         return ir.model_copy(
             update={
-                "background": self.background,
+                # "background": self.background,
                 "conversation_id": conversation_id,
                 "prompt": PromptTemplate(
                     id=self.prompt.id,
@@ -1993,12 +1997,12 @@ class OpenAIResponsesUsage(BaseModel):
 
 
 class OpenAIResponsesResponse(BaseModel):
-    background: Annotated[
-        bool,
-        Field(
-            description="Whether to run the model response in the background.",
-        ),
-    ] = False
+    # background: Annotated[
+    #     bool,
+    #     Field(
+    #         description="Whether to run the model response in the background.",
+    #     ),
+    # ] = False
     completed_at: Annotated[
         int | None,
         Field(
@@ -2240,6 +2244,14 @@ class OpenAIResponsesResponse(BaseModel):
             )
         ),
     ] = None
+
+    def __repr__(self) -> str:
+        fields = []
+        for name in self.model_fields:
+            value = getattr(self, name)
+            if value is not None:
+                fields.append(f"{name}={value!r}")
+        return f"{self.__class__.__name__}({', '.join(fields)})"
 
 
 class _OpenAIStreamEvent(BaseModel):
@@ -2638,8 +2650,8 @@ def _build_response_from_ir(
         kwargs["previous_response_id"] = ir.previous_response_id
     if ir.truncation is not None:
         kwargs["truncation"] = ir.truncation
-    if ir.background is not None:
-        kwargs["background"] = ir.background
+    # if ir.background is not None:
+    #     kwargs["background"] = ir.background
     if ir.conversation_id is not None:
         kwargs["conversation"] = OpenAIConversation(id=ir.conversation_id)
     if ir.prompt is not None:
@@ -2665,7 +2677,10 @@ def _build_response_from_ir(
             }
         )
     if text_format is not None or ir.verbosity is not None:
-        kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=ir.verbosity)
+        kwargs["text"] = OpenAITextConfig(
+            format=text_format,
+            verbosity=ir.verbosity if ir.verbosity is not None else DEFAULT_VERBOSITY,
+        )
     if incomplete_details is not None:
         kwargs["incomplete_details"] = OpenAIResponsesIncompleteDetails(reason=incomplete_details)
     return OpenAIResponsesResponse(**kwargs)
@@ -2681,12 +2696,14 @@ async def from_ir_stream(
     error: OpenAIResponsesResponseError | None = None
 
     active_tools: dict[str, dict] = {}
+    active_builtin_tools: dict[str, dict] = {}
 
     current_text_id: str | None = None
     current_text = ""
 
     current_reasoning_id: str | None = None
     current_reasoning = ""
+    current_reasoning_has_summary = False
 
     captured_usage = None
     captured_completed_at: int | None = None
@@ -2774,6 +2791,7 @@ async def from_ir_stream(
 
         elif isinstance(event, AgentThoughtStart):
             current_reasoning = ""
+            current_reasoning_has_summary = False
             current_reasoning_id = event.id
             yield OpenAIResponsesStreamOutput(
                 type="response.output_item.added",
@@ -2785,25 +2803,46 @@ async def from_ir_stream(
 
         elif isinstance(event, AgentThoughtDelta):
             if event.content:
+                if not current_reasoning_has_summary:
+                    current_reasoning_has_summary = True
+                    yield OpenAIResponsesStreamPart(
+                        type="response.reasoning_summary_part.added",
+                        item_id=current_reasoning_id,
+                        part=OpenAIReasoningSummary(text=""),
+                        summary_index=0,
+                        output_index=output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 current_reasoning += event.content
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.delta",
-                delta=event.content,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.delta",
+                    delta=event.content,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
 
         elif isinstance(event, AgentThoughtEnd):
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.done",
-                text=current_reasoning,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+            if current_reasoning_has_summary:
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.done",
+                    text=current_reasoning,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamPart(
+                    type="response.reasoning_summary_part.done",
+                    item_id=current_reasoning_id,
+                    part=OpenAIReasoningSummary(text=current_reasoning),
+                    summary_index=0,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
             completed_item = OpenAIReasoningItem(
                 id=current_reasoning_id,
                 content=(
@@ -2869,6 +2908,136 @@ async def from_ir_stream(
                 )
                 seq += 1
 
+        elif isinstance(event, AgentBuiltinToolStart):
+            item_id = event.id or event.tool_call_id
+            active_builtin_tools[event.tool_call_id] = {
+                "id": item_id,
+                "tool_name": event.tool_name,
+                "args": event.args or {},
+                "output_index": output_index,
+                "status_event_sent": False,
+            }
+            if event.tool_name == "web_search":
+                item = OpenAIWebSearchToolCall(id=item_id, status="in_progress")
+                status_type = "response.web_search_call.in_progress"
+            elif event.tool_name in ("code_execution", "code_interpreter"):
+                args = event.args or {}
+                item = OpenAICodeToolCall(
+                    id=item_id,
+                    code=args.get("code"),
+                    container_id=args.get("container_id", ""),
+                    status="in_progress",
+                    outputs=None,
+                )
+                status_type = "response.code_interpreter_call.in_progress"
+            else:
+                item = None
+                status_type = None
+            if item is not None and status_type is not None:
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=item,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamText(
+                    type=status_type,
+                    item_id=item_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+
+        elif isinstance(event, AgentBuiltinToolDelta):
+            tc = active_builtin_tools.get(event.tool_call_id)
+            if tc:
+                if isinstance(event.args_delta, dict):
+                    tc["args"].update(event.args_delta)
+                if event.tool_name == "web_search" and not tc["status_event_sent"]:
+                    tc["status_event_sent"] = True
+                    yield OpenAIResponsesStreamText(
+                        type="response.web_search_call.searching",
+                        item_id=tc["id"],
+                        output_index=tc["output_index"],
+                        sequence_number=seq,
+                    )
+                    seq += 1
+                elif event.tool_name in ("code_execution", "code_interpreter"):
+                    if not tc["status_event_sent"]:
+                        tc["status_event_sent"] = True
+                        yield OpenAIResponsesStreamText(
+                            type="response.code_interpreter_call.interpreting",
+                            item_id=tc["id"],
+                            output_index=tc["output_index"],
+                            sequence_number=seq,
+                        )
+                        seq += 1
+                    code_delta = None
+                    if isinstance(event.args_delta, dict):
+                        code_delta = event.args_delta.get("code")
+                    elif isinstance(event.args_delta, str):
+                        code_delta = event.args_delta
+                    if code_delta:
+                        yield OpenAIResponsesStreamText(
+                            type="response.code_interpreter_call_code.delta",
+                            delta=code_delta,
+                            item_id=tc["id"],
+                            output_index=tc["output_index"],
+                            sequence_number=seq,
+                        )
+                        seq += 1
+
+        elif isinstance(event, AgentBuiltinToolEnd):
+            tc = active_builtin_tools.get(event.tool_call_id)
+            if tc:
+                if event.args:
+                    tc["args"] = event.args
+                if event.tool_name == "web_search":
+                    if not tc["status_event_sent"]:
+                        tc["status_event_sent"] = True
+                        yield OpenAIResponsesStreamText(
+                            type="response.web_search_call.searching",
+                            item_id=tc["id"],
+                            output_index=tc["output_index"],
+                            sequence_number=seq,
+                        )
+                        seq += 1
+                    yield OpenAIResponsesStreamText(
+                        type="response.web_search_call.completed",
+                        item_id=tc["id"],
+                        output_index=tc["output_index"],
+                        sequence_number=seq,
+                    )
+                    seq += 1
+                elif event.tool_name in ("code_execution", "code_interpreter"):
+                    if not tc["status_event_sent"]:
+                        tc["status_event_sent"] = True
+                        yield OpenAIResponsesStreamText(
+                            type="response.code_interpreter_call.interpreting",
+                            item_id=tc["id"],
+                            output_index=tc["output_index"],
+                            sequence_number=seq,
+                        )
+                        seq += 1
+                    code = (tc.get("args") or {}).get("code")
+                    if code:
+                        yield OpenAIResponsesStreamText(
+                            type="response.code_interpreter_call_code.done",
+                            code=code,
+                            item_id=tc["id"],
+                            output_index=tc["output_index"],
+                            sequence_number=seq,
+                        )
+                        seq += 1
+                    yield OpenAIResponsesStreamText(
+                        type="response.code_interpreter_call.completed",
+                        item_id=tc["id"],
+                        output_index=tc["output_index"],
+                        sequence_number=seq,
+                    )
+                    seq += 1
+
         elif isinstance(event, AgentRunResult):
             captured_usage = event.usage
             captured_completed_at = event.completed_at
@@ -2915,8 +3084,19 @@ async def from_ir_stream(
                     queries=args.get("queries"),
                     sources=sources or None,
                 )
+                tc = active_builtin_tools.pop(event.tool_call_id, None)
+                item_id = (tc or {}).get("id") or event.id or event.tool_call_id
+                item_output_index = (tc or {}).get("output_index", output_index)
+                if tc is None:
+                    yield OpenAIResponsesStreamOutput(
+                        type="response.output_item.added",
+                        item=OpenAIWebSearchToolCall(id=item_id, status="in_progress"),
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 completed_item = OpenAIWebSearchToolCall(
-                    id=event.id or event.tool_call_id,
+                    id=item_id,
                     status=result.get("status", "completed"),
                     action=action,
                 )
@@ -2924,17 +3104,35 @@ async def from_ir_stream(
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.done",
                     item=completed_item,
-                    output_index=output_index,
+                    output_index=item_output_index,
                     sequence_number=seq,
                 )
                 seq += 1
-                output_index += 1
+                if tc is not None or item_output_index == output_index:
+                    output_index = item_output_index + 1
 
             elif event.tool_name in ("code_execution", "code_interpreter"):
                 result = event.result or {}
                 args = event.args or {}
+                tc = active_builtin_tools.pop(event.tool_call_id, None)
+                item_id = (tc or {}).get("id") or event.id or event.tool_call_id
+                item_output_index = (tc or {}).get("output_index", output_index)
+                if tc is None:
+                    yield OpenAIResponsesStreamOutput(
+                        type="response.output_item.added",
+                        item=OpenAICodeToolCall(
+                            id=item_id,
+                            code=args.get("code"),
+                            container_id=args.get("container_id", ""),
+                            status="in_progress",
+                            outputs=None,
+                        ),
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 completed_item = OpenAICodeToolCall(
-                    id=event.id or event.tool_call_id,
+                    id=item_id,
                     code=args.get("code"),
                     container_id=args.get("container_id", ""),
                     status=result.get("status", "completed"),
@@ -2944,11 +3142,12 @@ async def from_ir_stream(
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.done",
                     item=completed_item,
-                    output_index=output_index,
+                    output_index=item_output_index,
                     sequence_number=seq,
                 )
                 seq += 1
-                output_index += 1
+                if tc is not None or item_output_index == output_index:
+                    output_index = item_output_index + 1
 
         elif isinstance(event, AgentError):
             error = OpenAIResponsesResponseError(
