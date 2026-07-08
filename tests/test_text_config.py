@@ -41,7 +41,16 @@ EXPECTED_NAME = "Patrick Jane"
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
 async def test_text_config_json_schema(stream: bool, cassette_manager):
-    """Compare JSON schema output across clients, not request encoding details."""
+    """Verify JSON schema behavior across clients, not wire-level encoding.
+
+    pydantic-ai represents `json_schema` as a required function tool, so the
+    cassette records a function-call flow rather than a native structured-output
+    request. Since no `json_schema` field reaches the OpenAI API directly, the
+    OpenAI SDK reports the default response format: `text.format.type="text"`.
+
+    Molto reconstructs the originally requested `json_schema` format from the IR,
+    so callers receive the format they configured.
+    """
 
     req_body = dict(
         model="gpt-4.1-nano",
@@ -148,6 +157,7 @@ async def test_text_config_json_schema(stream: bool, cassette_manager):
     messages = [o for o in response.output if isinstance(o, OpenAIOutputItem)]
     assert len(messages) == 1
     msg = messages[-1]
+    assert isinstance(msg, OpenAIOutputItem)
     assert msg.role == "assistant"
     assert msg.status == "completed"
     text_part = msg.content[0]
