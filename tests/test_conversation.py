@@ -42,6 +42,7 @@ async def test_conversation(stream: bool, cassette_manager):
     setup_client = make_openai_client(
         cassette_manager,
         cassette_suffix="setup",
+        cassette_endpoint="conversations",
         expected_request_body={"items": CONVERSATION_SETUP_ITEMS},
         assert_attrs=["items"],
     )

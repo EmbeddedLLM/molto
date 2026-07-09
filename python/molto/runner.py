@@ -107,7 +107,9 @@ class RunSettings(TypedDict):
 
 def _is_context_window_message(message: str) -> bool:
     lowered = message.lower()
-    return "context" in lowered and ("length" in lowered or "token" in lowered or "window" in lowered)
+    return "context" in lowered and (
+        "length" in lowered or "token" in lowered or "window" in lowered
+    )
 
 
 def _map_pydantic_ai_error(exc: Exception) -> MoltoException:

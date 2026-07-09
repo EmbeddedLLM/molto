@@ -214,8 +214,7 @@ async def test_reasoning(stream: bool, cassette_name: str, cassette_manager):
             reasoning_done = [
                 e
                 for e in events
-                if isinstance(e, OpenAIResponsesStreamText)
-                and e.type == "response.reasoning.done"
+                if isinstance(e, OpenAIResponsesStreamText) and e.type == "response.reasoning.done"
             ]
             assert len(reasoning_done) == 1
             assert reasoning_done[0].item_id == reasoning_id

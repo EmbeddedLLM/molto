@@ -726,6 +726,7 @@ def make_openai_client(
     cassette_manager: OpenAICassetteManager,
     *,
     cassette_suffix: str | None = None,
+    cassette_endpoint: str = "responses",
     expected_request_body: dict[str, Any] | None = None,
     assert_attrs: list[str] | None = None,
     api_key: str | None = None,
@@ -737,6 +738,9 @@ def make_openai_client(
         client.max_retries
         # 0
     """
+    if not cassette_manager.record:
+        cassette_manager.read(cassette_manager.cassette_path(cassette_endpoint, cassette_suffix))
+
     resolved_api_key = ENV_CONFIG.openai_api_key_plain if api_key is None else api_key
     if cassette_manager.record and api_key is None and not resolved_api_key:
         raise RuntimeError("OPENAI_API_KEY is required when recording cassettes")

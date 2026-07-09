@@ -6,6 +6,7 @@ import pytest
 from molto.utils.test import (
     OpenAICassetteManager,
     OpenAICassetteTransport,
+    make_openai_client,
     sanitize_request_body,
     sanitize_test_name,
 )
@@ -93,6 +94,20 @@ def test_missing_cassette_error_includes_record_command(tmp_path: Path) -> None:
     message = str(exc_info.value)
     assert str(path) in message
     assert manager.node_id in message
+    assert f"pytest --record-cassettes {manager.node_id}" in message
+
+
+def test_openai_client_reports_missing_cassette_before_request(tmp_path: Path) -> None:
+    """Fail with the cassette hint before the OpenAI SDK can wrap the error."""
+    manager = _manager(tmp_path)
+    path = manager.cassette_path("responses")
+
+    with pytest.raises(AssertionError) as exc_info:
+        make_openai_client(manager)
+
+    message = str(exc_info.value)
+    assert "Missing OpenAI cassette." in message
+    assert str(path) in message
     assert f"pytest --record-cassettes {manager.node_id}" in message
 
 
