@@ -8,6 +8,7 @@ from pydantic_ai import (
     BuiltinToolCallPart,
     BuiltinToolReturnPart,
     DeferredToolRequests,
+    NativeOutput,
     ExternalToolset,
     ImageUrl,
     ModelMessage,
@@ -172,10 +173,11 @@ class OpenAIResponsesProvider(_Provider):
     @staticmethod
     def _build_output_type(ir: Input) -> Any:
         if isinstance(ir.text_format, JsonSchemaFormat):
-            return StructuredDict(
-                ir.text_format.json_schema,
+            return NativeOutput(
+                StructuredDict(ir.text_format.json_schema),
                 name=ir.text_format.name,
                 description=ir.text_format.description,
+                strict=ir.text_format.strict,
             )
         return [str, DeferredToolRequests]
 

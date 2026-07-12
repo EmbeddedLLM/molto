@@ -41,6 +41,13 @@ RECORDED_HEADERS = {
     "x-run-id",
 }
 
+# These headers affect how OpenAI interprets the request and are stable across
+# the SDK and Molto clients. Other recorded headers are useful diagnostics but
+# include credentials, SDK versions, or transport-computed values.
+MATCHED_REQUEST_HEADERS = {
+    "content-type",
+}
+
 EXCLUDED_PLAYBACK_HEADERS = {
     "content-encoding",
     "content-length",
@@ -136,6 +143,26 @@ def sanitize_request_body(body: Any) -> Any:
     if isinstance(body, list):
         return [sanitize_request_body(item) for item in body]
     return body
+
+
+def _request_snapshot(request: httpx.Request, body: Any) -> dict[str, Any]:
+    """Return the sanitized request fields persisted in and matched against cassettes."""
+    return {
+        "method": request.method,
+        "path": _request_path(request),
+        "query_params": _request_query_params(request),
+        "headers": sanitize_headers(request.headers),
+        "body": sanitize_request_body(body),
+    }
+
+
+def _matched_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Return stable, semantically relevant request headers for replay matching."""
+    return {
+        key.lower(): value
+        for key, value in headers.items()
+        if key.lower() in MATCHED_REQUEST_HEADERS
+    }
 
 
 def _playback_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -243,11 +270,13 @@ class OpenAICassetteManager:
         """
         node_path = getattr(request.node, "path", None)
         module_name = Path(str(node_path)).stem if node_path is not None else "unknown_module"
+        root = Path(str(request.config.rootpath)) / CASSETTE_DIR
         return cls(
             node_name=request.node.name,
             node_id=request.node.nodeid,
             module_name=sanitize_test_name(module_name),
             record=record,
+            root=root,
         )
 
     @property
@@ -384,7 +413,7 @@ class OpenAICassetteTransport(httpx.AsyncBaseTransport):
 
         path = self.cassette_manager.path_for_request(request, self.cassette_suffix)
         if self._should_replay(path):
-            return self._response_from_cassette(request, path)
+            return self._response_from_cassette(request, request_body, path)
         return await self._record_response(request, body_bytes, request_body, path)
 
     async def aclose(self) -> None:
@@ -433,13 +462,58 @@ class OpenAICassetteTransport(httpx.AsyncBaseTransport):
             return True
         return path in self.cassette_manager.recorded_paths
 
-    def _response_from_cassette(self, request: httpx.Request, path: Path) -> httpx.Response:
+    def _assert_request_matches_cassette(
+        self,
+        request: httpx.Request,
+        request_body: Any,
+        path: Path,
+        cassette: dict[str, Any],
+    ) -> None:
+        """Fail with a field-level diff when replay traffic differs from its cassette."""
+        recorded = cassette.get("request")
+        assert isinstance(recorded, dict), f"Invalid cassette request at {path}"
+
+        actual = _request_snapshot(request, request_body)
+        differences: list[str] = []
+        for field_name in ("method", "path", "query_params", "body"):
+            expected_value = recorded.get(field_name)
+            actual_value = actual[field_name]
+            if actual_value != expected_value:
+                differences.append(
+                    f"{field_name}: recorded={expected_value!r}, actual={actual_value!r}"
+                )
+
+        recorded_headers = recorded.get("headers") or {}
+        assert isinstance(recorded_headers, dict), f"Invalid cassette request headers at {path}"
+        expected_headers = _matched_headers(recorded_headers)
+        actual_headers = _matched_headers(actual["headers"])
+        if actual_headers != expected_headers:
+            differences.append(
+                f"headers: recorded={expected_headers!r}, actual={actual_headers!r}"
+            )
+
+        assert not differences, "\n".join(
+            [
+                "OpenAI cassette request mismatch.",
+                f"path: {path}",
+                f"pytest node id: {self.cassette_manager.node_id}",
+                *differences,
+            ]
+        )
+
+    def _response_from_cassette(
+        self,
+        request: httpx.Request,
+        request_body: Any,
+        path: Path,
+    ) -> httpx.Response:
         """Convert a stored cassette into an httpx response for SDK parsing.
 
         Example:
             # A cassette response with an "sse" list replays as text/event-stream.
         """
         cassette = self.cassette_manager.read(path)
+        self._assert_request_matches_cassette(request, request_body, path, cassette)
         response = cassette["response"]
         status_code = response["status_code"]
         headers = _playback_headers(response.get("headers") or {})
@@ -489,13 +563,7 @@ class OpenAICassetteTransport(httpx.AsyncBaseTransport):
         response_headers = sanitize_headers(response.headers)
 
         cassette: dict[str, Any] = {
-            "request": {
-                "method": request.method,
-                "path": _request_path(request),
-                "query_params": _request_query_params(request),
-                "headers": sanitize_headers(request.headers),
-                "body": sanitize_request_body(request_body),
-            },
+            "request": _request_snapshot(request, request_body),
             "response": {
                 "status_code": response.status_code,
                 "headers": response_headers,

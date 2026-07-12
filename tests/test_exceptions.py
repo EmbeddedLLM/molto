@@ -21,21 +21,23 @@ CONTEXT_OVERFLOW_INPUT = "Repeat this exactly: " + ("x " * 300_000).strip()
 EXCEPTION_REQUESTS: dict[str, dict[str, Any]] = {
     "context_length_exceeded": {
         "model": "o3-mini",
-        "input": CONTEXT_OVERFLOW_INPUT,
+        "input": [{"role": "user", "content": CONTEXT_OVERFLOW_INPUT}],
+        "include": ["reasoning.encrypted_content"],
     },
     "thinking_budget_exceeding_max_tokens": {
         "model": "o4-mini",
-        "input": "Think very carefully about this.",
+        "input": [{"role": "user", "content": "Think very carefully about this."}],
+        "include": ["reasoning.encrypted_content"],
         "max_output_tokens": 1,
         "reasoning": {"effort": "high"},
     },
     "incorrect_api_key": {
         "model": "gpt-4.1-nano",
-        "input": "hi",
+        "input": [{"role": "user", "content": "hi"}],
     },
     "missing_api_key": {
         "model": "gpt-4.1-nano",
-        "input": "hi",
+        "input": [{"role": "user", "content": "hi"}],
     },
 }
 
@@ -50,15 +52,6 @@ EXCEPTION_STATUS_CODES = {
 def _provider_error_request_body(name: str) -> dict[str, Any]:
     """Return the provider request body used for error cassette replay."""
     return {**EXCEPTION_REQUESTS[name], "stream": True}
-
-
-def _molto_provider_error_request_body(name: str) -> dict[str, Any]:
-    """Return the OpenAI request body pydantic-ai sends for Molto replay."""
-    body = _provider_error_request_body(name)
-    return {
-        **body,
-        "input": [{"role": "user", "content": body["input"]}],
-    }
 
 
 async def _record_or_replay_provider_error(
@@ -151,7 +144,7 @@ class TestBadInputError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="context_length_exceeded",
-            expected_request_body=_molto_provider_error_request_body("context_length_exceeded"),
+            expected_request_body=_provider_error_request_body("context_length_exceeded"),
             assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("context_length_exceeded"))
@@ -184,7 +177,7 @@ class TestBadInputError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="thinking_budget_exceeding_max_tokens",
-            expected_request_body=_molto_provider_error_request_body(
+            expected_request_body=_provider_error_request_body(
                 "thinking_budget_exceeding_max_tokens"
             ),
             assert_attrs=["model", "input"],
@@ -234,7 +227,7 @@ class TestExternalAuthError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="incorrect_api_key",
-            expected_request_body=_molto_provider_error_request_body("incorrect_api_key"),
+            expected_request_body=_provider_error_request_body("incorrect_api_key"),
             assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("incorrect_api_key"))
@@ -252,7 +245,7 @@ class TestExternalAuthError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="missing_api_key",
-            expected_request_body=_molto_provider_error_request_body("missing_api_key"),
+            expected_request_body=_provider_error_request_body("missing_api_key"),
             assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("missing_api_key"))

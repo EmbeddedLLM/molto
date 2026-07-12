@@ -11,7 +11,11 @@ request:
     content-type: application/json
     user-agent: AsyncOpenAI/Python 2.30.0
   body:
-    input: Think very carefully about this.
+    input:
+      - role: user
+        content: Think very carefully about this.
+    include:
+      - reasoning.encrypted_content
     max_output_tokens: 1
     model: o4-mini
     reasoning:

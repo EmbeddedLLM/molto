@@ -7,11 +7,13 @@ from openai.types.responses import (
 )
 
 from molto.types.openai.responses import (
+    OpenAIJsonSchemaFormat,
     OpenAIOutputItem,
     OpenAIOutputTextContent,
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStream,
+    OpenAITextConfig,
     _OpenAIStreamEvent,
 )
 from molto.utils.io import json_loads
@@ -144,6 +146,15 @@ async def test_text_config_json_schema(stream: bool, cassette_manager):
 
     assert response.id == sdk_ref.id
     assert response.status == "completed"
+
+    assert isinstance(response.text, OpenAITextConfig)
+    assert response.text.verbosity == "medium"
+    assert isinstance(response.text.format, OpenAIJsonSchemaFormat)
+    assert response.text.format.type == "json_schema"
+    assert response.text.format.name == "final_result"
+    assert response.text.format.strict is True
+    for key in ("type", "properties", "required", "additionalProperties"):
+        assert response.text.format.schema_[key] == STRUCT_SCHEMA[key]
 
     messages = [o for o in response.output if isinstance(o, OpenAIOutputItem)]
     assert len(messages) == 1

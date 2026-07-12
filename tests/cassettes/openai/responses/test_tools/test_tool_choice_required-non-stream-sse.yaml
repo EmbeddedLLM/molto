@@ -30,6 +30,7 @@ request:
         required:
         - number
         additionalProperties: false
+      strict: true
 response:
   status_code: 200
   headers:

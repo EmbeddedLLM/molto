@@ -33,7 +33,8 @@ request:
     temperature: 0.45
     tool_choice: required
     tools:
-    - type: web_search_preview
+    - type: web_search
+      search_context_size: medium
     - type: code_interpreter
       container:
         type: auto

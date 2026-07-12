@@ -11,7 +11,9 @@ request:
     content-type: application/json
     user-agent: AsyncOpenAI/Python 2.30.0
   body:
-    input: hi
+    input:
+      - role: user
+        content: hi
     model: gpt-4.1-nano
     stream: true
 response:

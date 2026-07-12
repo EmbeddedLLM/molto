@@ -53,6 +53,31 @@ EXPECTED_SETTINGS = {
 }
 
 
+def test_responses_request_omits_implicit_defaults_from_ir() -> None:
+    """Forward only explicitly supplied Responses request defaults to the provider."""
+    implicit = OpenAIResponsesRequest(model="gpt-5-nano", input="Hello!").to_ir()
+    assert implicit.parallel_tool_calls is None
+    assert implicit.store is None
+    assert implicit.tool_choice is None
+    assert implicit.service_tier is None
+    assert implicit.truncation is None
+
+    explicit = OpenAIResponsesRequest(
+        model="gpt-5-nano",
+        input="Hello!",
+        parallel_tool_calls=True,
+        store=True,
+        tool_choice="auto",
+        service_tier="default",
+        truncation="disabled",
+    ).to_ir()
+    assert explicit.parallel_tool_calls is True
+    assert explicit.store is True
+    assert explicit.tool_choice == "auto"
+    assert explicit.service_tier == "default"
+    assert explicit.truncation == "disabled"
+
+
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
 async def test_model_settings(stream: bool, cassette_manager):
     """Round-trip OpenAI Responses model settings through SDK and Molto.
@@ -87,7 +112,7 @@ async def test_model_settings(stream: bool, cassette_manager):
             "message.output_text.logprobs",
         ],
         tools=[
-            {"type": "web_search_preview"},
+            {"type": "web_search", "search_context_size": "medium"},
             {"type": "code_interpreter", "container": {"type": "auto"}},
         ],
         stream=stream,

@@ -57,6 +57,7 @@ async def test_tool_choice_required(stream: bool, cassette_manager):
                     "required": ["number"],
                     "additionalProperties": False,
                 },
+                "strict": True,
             },
         ],
         tool_choice="required",

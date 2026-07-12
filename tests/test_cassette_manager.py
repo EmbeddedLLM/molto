@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -78,6 +79,22 @@ def test_cassette_path_uses_optional_cassette_suffix(tmp_path: Path) -> None:
     )
 
 
+def test_manager_from_pytest_request_anchors_root_to_pytest_root(tmp_path: Path) -> None:
+    """Resolve cassettes from pytest's root instead of the shell working directory."""
+    request = SimpleNamespace(
+        node=SimpleNamespace(
+            name="test_demo[stream]",
+            nodeid="tests/test_demo.py::test_demo[stream]",
+            path=tmp_path / "tests" / "test_demo.py",
+        ),
+        config=SimpleNamespace(rootpath=tmp_path),
+    )
+
+    manager = OpenAICassetteManager.from_pytest_request(request, record=False)
+
+    assert manager.root == tmp_path / "tests" / "cassettes"
+
+
 def test_missing_cassette_error_includes_record_command(tmp_path: Path) -> None:
     """Report missing playback cassettes with path, node id, and record command.
 
@@ -144,7 +161,13 @@ async def test_non_stream_playback_returns_json_body(tmp_path: Path) -> None:
     manager.write(
         manager.cassette_path("responses"),
         {
-            "request": {},
+            "request": {
+                "method": "POST",
+                "path": "/v1/responses",
+                "query_params": {},
+                "headers": {"content-type": "application/json"},
+                "body": {"stream": False},
+            },
             "response": {
                 "status_code": 200,
                 "headers": {"content-type": "application/json"},
@@ -163,6 +186,88 @@ async def test_non_stream_playback_returns_json_body(tmp_path: Path) -> None:
     assert response.json() == {"id": "resp_test", "status": "completed"}
 
 
+async def test_playback_rejects_explicit_request_defaults(tmp_path: Path) -> None:
+    """Reject replay when the request serializes fields absent from the cassette."""
+    manager = _manager(tmp_path, "test_json[adapter-defaults]")
+    manager.write(
+        manager.cassette_path("responses"),
+        {
+            "request": {
+                "method": "POST",
+                "path": "/v1/responses",
+                "query_params": {},
+                "headers": {"content-type": "application/json"},
+                "body": {"model": "gpt-4.1", "input": "hi", "stream": True},
+            },
+            "response": {
+                "status_code": 200,
+                "headers": {"content-type": "application/json"},
+                "body": {"id": "resp_test", "status": "completed"},
+            },
+        },
+    )
+    client = httpx.AsyncClient(
+        transport=OpenAICassetteTransport(manager, cassette_suffix=None),
+        base_url="https://api.openai.com",
+    )
+
+    with pytest.raises(AssertionError, match="OpenAI cassette request mismatch"):
+        await client.post(
+            "/v1/responses",
+            json={
+                "model": "gpt-4.1",
+                "input": [{"role": "user", "content": "hi"}],
+                "parallel_tool_calls": True,
+                "service_tier": "default",
+                "store": True,
+                "stream": True,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+            },
+        )
+
+
+async def test_playback_rejects_request_mismatch(tmp_path: Path) -> None:
+    """Reject replay when the actual request differs from the recorded request."""
+    manager = _manager(tmp_path, "test_json[mismatch]")
+    path = manager.cassette_path("responses")
+    manager.write(
+        path,
+        {
+            "request": {
+                "method": "POST",
+                "path": "/v1/responses",
+                "query_params": {},
+                "headers": {"content-type": "application/json"},
+                "body": {"model": "gpt-4.1", "stream": False},
+            },
+            "response": {
+                "status_code": 200,
+                "headers": {"content-type": "application/json"},
+                "body": {"id": "resp_test", "status": "completed"},
+            },
+        },
+    )
+    client = httpx.AsyncClient(
+        transport=OpenAICassetteTransport(manager, cassette_suffix=None),
+        base_url="https://api.openai.com",
+    )
+
+    with pytest.raises(AssertionError) as exc_info:
+        await client.put(
+            "/v1/responses/other?different=1",
+            headers={"content-type": "application/vnd.openai.test+json"},
+            json={"model": "wrong"},
+        )
+
+    message = str(exc_info.value)
+    assert "OpenAI cassette request mismatch." in message
+    assert str(path) in message
+    assert manager.node_id in message
+    for field_name in ("method", "path", "query_params", "body", "headers"):
+        assert field_name in message
+
+
 async def test_streaming_sse_playback_returns_event_stream(tmp_path: Path) -> None:
     """Replay an SSE cassette as text/event-stream content.
 
@@ -175,7 +280,13 @@ async def test_streaming_sse_playback_returns_event_stream(tmp_path: Path) -> No
     manager.write(
         manager.cassette_path("responses"),
         {
-            "request": {},
+            "request": {
+                "method": "POST",
+                "path": "/v1/responses",
+                "query_params": {},
+                "headers": {"content-type": "application/json"},
+                "body": {"stream": True},
+            },
             "response": {
                 "status_code": 200,
                 "headers": {"content-type": "text/event-stream; charset=utf-8"},

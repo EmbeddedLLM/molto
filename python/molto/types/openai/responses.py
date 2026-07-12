@@ -1681,7 +1681,9 @@ class vLLMResponsesRequest(BaseModel):
         # Normalize tool_choice
         tc = self.tool_choice
         if isinstance(tc, str):
-            ir_tool_choice = tc  # "none" | "auto" | "required"
+            ir_tool_choice = (
+                None if tc == "auto" and "tool_choice" not in self.model_fields_set else tc
+            )
         elif isinstance(tc, OpenAIBuiltinToolChoice):
             ir_tool_choice = BuiltinToolChoice(name=_normalize_hosted_tool_type(tc.type))
         elif isinstance(tc, OpenAIFunctionToolChoice):
@@ -1728,13 +1730,17 @@ class vLLMResponsesRequest(BaseModel):
             reasoning_effort=self.reasoning.effort if self.reasoning else None,
             reasoning_summary=self.reasoning.summary if self.reasoning else None,
             top_logprobs=self.top_logprobs,
-            parallel_tool_calls=self.parallel_tool_calls,
+            parallel_tool_calls=(
+                self.parallel_tool_calls
+                if "parallel_tool_calls" in self.model_fields_set
+                else None
+            ),
             max_tool_calls=self.max_tool_calls,
             text_format=text_format,
             tools=ir_tools,
             tool_choice=ir_tool_choice,
             include=self.include,
-            store=self.store,
+            store=self.store if "store" in self.model_fields_set else None,
             previous_response_id=self.previous_response_id,
             metadata=self.metadata,
         )
@@ -1923,11 +1929,13 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "prompt_cache_key": self.prompt_cache_key,
                 "prompt_cache_retention": self.prompt_cache_retention,
                 "safety_identifier": self.safety_identifier,
-                "service_tier": self.service_tier,
+                "service_tier": (
+                    self.service_tier if "service_tier" in self.model_fields_set else None
+                ),
                 "stream_obfuscation": self.stream_options.include_obfuscation
                 if self.stream_options
                 else None,
-                "truncation": self.truncation,
+                "truncation": self.truncation if "truncation" in self.model_fields_set else None,
                 "verbosity": self.text.verbosity
                 if isinstance(self.text, OpenAITextConfig)
                 else None,
