@@ -3,9 +3,6 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import ModelMessage
 
-RESPONSE_TOOL_NAME = "final_result"
-RESPONSE_KEY = "response"
-
 
 class _Message(BaseModel):
     type: Annotated[

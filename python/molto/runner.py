@@ -39,7 +39,6 @@ from pydantic_ai.output import OutputSpec
 from pydantic_ai.toolsets.abstract import AbstractToolset
 
 from molto.types.ir import (
-    RESPONSE_TOOL_NAME,
     AgentBuiltinToolCall,
     AgentBuiltinToolDelta,
     AgentBuiltinToolEnd,
@@ -160,15 +159,6 @@ class Runner:
         self._builtin_tool_calls: dict[str, dict] = {}
         self._current_text_id: str | None = None
         self._current_thought_id: str | None = None
-        # When `output_type` is a `StructuredDict(...)`, pydantic-ai routes
-        # structured output through an internal `final_result` tool call. Track
-        # that tool call so the runner can surface it as a text message rather
-        # than a tool-call event in the IR.
-        _output_type = self._agent_settings["output_type"]
-        self._structured_output_active = isinstance(_output_type, type) and getattr(
-            _output_type, "__is_model_like__", False
-        )
-        self._structured_output_tool_id: str | None = None
         self._agent = Agent(
             **self._agent_settings,
         )
@@ -192,26 +182,16 @@ class Runner:
             elif isinstance(event.part, ToolCallPart):
                 _tool_name = event.part.tool_name
                 _tool_call_id = event.part.tool_call_id
-                if self._structured_output_active and _tool_name == RESPONSE_TOOL_NAME:
-                    self._structured_output_tool_id = _tool_call_id
-                    self._current_text_id = _tool_call_id
-                    yield AgentMessageStart(id=_tool_call_id)
-                    if event.part.has_content():
-                        yield AgentMessageDelta(
-                            content=event.part.args_as_json_str(),
-                            id=_tool_call_id,
-                        )
-                else:
-                    self._tool_id2name[_tool_call_id] = _tool_name
-                    yield AgentToolStart(
-                        tool_call_id=_tool_call_id, tool_name=_tool_name, id=event.part.id
+                self._tool_id2name[_tool_call_id] = _tool_name
+                yield AgentToolStart(
+                    tool_call_id=_tool_call_id, tool_name=_tool_name, id=event.part.id
+                )
+                if event.part.has_content():
+                    yield AgentToolDelta(
+                        tool_call_id=_tool_call_id,
+                        tool_name=_tool_name,
+                        args=event.part.args_as_json_str(),
                     )
-                    if event.part.has_content():
-                        yield AgentToolDelta(
-                            tool_call_id=_tool_call_id,
-                            tool_name=_tool_name,
-                            args=event.part.args_as_json_str(),
-                        )
             elif isinstance(event.part, BuiltinToolCallPart):
                 args = event.part.args if isinstance(event.part.args, dict) else None
                 self._builtin_tool_calls[event.part.tool_call_id] = {
@@ -265,14 +245,6 @@ class Runner:
                             tool_name=tc["tool_name"],
                             args_delta=event.delta.args_delta,
                         )
-                    elif (
-                        self._structured_output_tool_id is not None
-                        and _delta_tool_call_id == self._structured_output_tool_id
-                    ):
-                        yield AgentMessageDelta(
-                            content=str(event.delta.args_delta),
-                            id=_delta_tool_call_id,
-                        )
                     else:
                         _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
                         yield AgentToolDelta(
@@ -292,15 +264,7 @@ class Runner:
                 yield AgentThoughtEnd(id=event.part.id)
                 self._current_thought_id = None
             elif isinstance(event.part, ToolCallPart):
-                if (
-                    self._structured_output_tool_id is not None
-                    and event.part.tool_call_id == self._structured_output_tool_id
-                ):
-                    yield AgentMessageEnd(id=event.part.tool_call_id)
-                    self._current_text_id = None
-                    self._structured_output_tool_id = None
-                else:
-                    yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
+                yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
             elif isinstance(event.part, BuiltinToolCallPart):
                 tc = self._builtin_tool_calls.get(event.part.tool_call_id)
                 args = event.part.args if isinstance(event.part.args, dict) else None
