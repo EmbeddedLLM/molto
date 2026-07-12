@@ -14,8 +14,8 @@ jobs:
     name: Unit-tests
     runs-on: ubuntu-latest
     env:
-      OPENAI_API_KEY: ""
-      MOLTO_OPENAI_API_KEY: ""
+      OPENAI_API_KEY: "DUMMY_KEY"
+      MOLTO_OPENAI_API_KEY: "DUMMY_KEY"
 
     steps:
       - name: Checkout code
