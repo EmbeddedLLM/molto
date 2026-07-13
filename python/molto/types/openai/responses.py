@@ -799,6 +799,7 @@ class OpenAITextConfig(BaseModel):
             ),
         ),
     ] = "medium"
+
     @property
     def requested_verbosity(self) -> Literal["low", "medium", "high"] | None:
         """Return verbosity only when the client explicitly supplied it."""
@@ -2587,6 +2588,7 @@ async def from_ir_stream(
     current_reasoning = ""
 
     captured_usage = None
+    current_reasoning_has_summary = False
     captured_completed_at: int | None = None
     captured_incomplete_details: str | None = None
     captured_provider_response_id: str | None = None
@@ -2669,9 +2671,9 @@ async def from_ir_stream(
             )
             seq += 1
             output_index += 1
-
         elif isinstance(event, AgentThoughtStart):
             current_reasoning = ""
+            current_reasoning_has_summary = False
             current_reasoning_id = event.id
             yield OpenAIResponsesStreamOutput(
                 type="response.output_item.added",
@@ -2682,26 +2684,47 @@ async def from_ir_stream(
             seq += 1
 
         elif isinstance(event, AgentThoughtDelta):
-            if event.content:
+            if event.content and ir.reasoning_summary is not None:
+                if not current_reasoning_has_summary:
+                    current_reasoning_has_summary = True
+                    yield OpenAIResponsesStreamPart(
+                        type="response.reasoning_summary_part.added",
+                        item_id=current_reasoning_id,
+                        part=OpenAIReasoningSummary(text=""),
+                        summary_index=0,
+                        output_index=output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 current_reasoning += event.content
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.delta",
-                delta=event.content,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.delta",
+                    delta=event.content,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
 
         elif isinstance(event, AgentThoughtEnd):
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.done",
-                text=current_reasoning,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+            if current_reasoning_has_summary:
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.done",
+                    text=current_reasoning,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamPart(
+                    type="response.reasoning_summary_part.done",
+                    item_id=current_reasoning_id,
+                    part=OpenAIReasoningSummary(text=current_reasoning),
+                    summary_index=0,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
             completed_item = OpenAIReasoningItem(
                 id=current_reasoning_id,
                 content=(
@@ -2717,6 +2740,8 @@ async def from_ir_stream(
                 sequence_number=seq,
             )
             seq += 1
+            output_index += 1
+
             output_index += 1
 
         elif isinstance(event, AgentToolStart):
