@@ -1067,6 +1067,7 @@ async def from_ir_stream(
     captured_chat_completion_id: str | None = None
 
     async for event in output_stream:
+        print("event from chat comp:\n", event)
         if isinstance(event, AgentMessageStart):
             yield _make_chunk(
                 created,

@@ -173,6 +173,7 @@ class Runner:
         )
 
     def _event_to_ir(self, event: Any) -> AsyncIterator[AgentEvent]:
+        print("event from runner:\n", event)
         if isinstance(event, PartStartEvent):
             if isinstance(event.part, TextPart):
                 self._current_text_id = event.part.id

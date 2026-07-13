@@ -2589,7 +2589,6 @@ async def from_ir_stream(
 
     current_reasoning_id: str | None = None
     current_reasoning = ""
-    current_reasoning_has_summary = False
 
     captured_usage = None
     captured_completed_at: int | None = None
@@ -2677,7 +2676,6 @@ async def from_ir_stream(
 
         elif isinstance(event, AgentThoughtStart):
             current_reasoning = ""
-            current_reasoning_has_summary = False
             current_reasoning_id = event.id
             yield OpenAIResponsesStreamOutput(
                 type="response.output_item.added",
@@ -2689,46 +2687,25 @@ async def from_ir_stream(
 
         elif isinstance(event, AgentThoughtDelta):
             if event.content:
-                if not current_reasoning_has_summary:
-                    current_reasoning_has_summary = True
-                    yield OpenAIResponsesStreamPart(
-                        type="response.reasoning_summary_part.added",
-                        item_id=current_reasoning_id,
-                        part=OpenAIReasoningSummary(text=""),
-                        summary_index=0,
-                        output_index=output_index,
-                        sequence_number=seq,
-                    )
-                    seq += 1
                 current_reasoning += event.content
-                yield OpenAIResponsesStreamText(
-                    type="response.reasoning.delta",
-                    delta=event.content,
-                    item_id=current_reasoning_id,
-                    output_index=output_index,
-                    sequence_number=seq,
-                )
-                seq += 1
+            yield OpenAIResponsesStreamText(
+                type="response.reasoning.delta",
+                delta=event.content,
+                item_id=current_reasoning_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
 
         elif isinstance(event, AgentThoughtEnd):
-            if current_reasoning_has_summary:
-                yield OpenAIResponsesStreamText(
-                    type="response.reasoning.done",
-                    text=current_reasoning,
-                    item_id=current_reasoning_id,
-                    output_index=output_index,
-                    sequence_number=seq,
-                )
-                seq += 1
-                yield OpenAIResponsesStreamPart(
-                    type="response.reasoning_summary_part.done",
-                    item_id=current_reasoning_id,
-                    part=OpenAIReasoningSummary(text=current_reasoning),
-                    summary_index=0,
-                    output_index=output_index,
-                    sequence_number=seq,
-                )
-                seq += 1
+            yield OpenAIResponsesStreamText(
+                type="response.reasoning.done",
+                text=current_reasoning,
+                item_id=current_reasoning_id,
+                output_index=output_index,
+                sequence_number=seq,
+            )
+            seq += 1
             completed_item = OpenAIReasoningItem(
                 id=current_reasoning_id,
                 content=(
@@ -2866,7 +2843,7 @@ async def from_ir_stream(
                     sources=sources or None,
                 )
                 completed_item = OpenAIWebSearchToolCall(
-                    id=item_id,
+                    id=event.id or event.tool_call_id,
                     status=result.get("status", "completed"),
                     action=action,
                 )
@@ -2874,7 +2851,7 @@ async def from_ir_stream(
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.done",
                     item=completed_item,
-                    output_index=item_output_index,
+                    output_index=output_index,
                     sequence_number=seq,
                 )
                 seq += 1
@@ -2937,7 +2914,7 @@ async def from_ir_stream(
                 yield OpenAIResponsesStreamOutput(
                     type="response.output_item.done",
                     item=completed_item,
-                    output_index=item_output_index,
+                    output_index=output_index,
                     sequence_number=seq,
                 )
                 seq += 1
