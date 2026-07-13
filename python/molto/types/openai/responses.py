@@ -799,7 +799,6 @@ class OpenAITextConfig(BaseModel):
             ),
         ),
     ] = "medium"
-
     @property
     def requested_verbosity(self) -> Literal["low", "medium", "high"] | None:
         """Return verbosity only when the client explicitly supplied it."""

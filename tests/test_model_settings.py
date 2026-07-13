@@ -102,7 +102,6 @@ def test_chat_request_omits_implicit_defaults_from_ir() -> None:
     assert explicit.parallel_tool_calls is True
     assert explicit.tool_choice == "auto"
 
-
 def test_openai_shared_options_are_not_chat_specific():
     req = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
