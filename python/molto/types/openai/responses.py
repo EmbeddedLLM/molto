@@ -799,6 +799,7 @@ class OpenAITextConfig(BaseModel):
             ),
         ),
     ] = "medium"
+
     @property
     def requested_verbosity(self) -> Literal["low", "medium", "high"] | None:
         """Return verbosity only when the client explicitly supplied it."""
@@ -807,9 +808,7 @@ class OpenAITextConfig(BaseModel):
         return self.verbosity
 
 
-
 class OpenAINativeToolChoice(BaseModel):
-
     """
     Indicates that the model should use a native tool to generate a response.
     """
@@ -925,8 +924,6 @@ class OpenAIAllowedToolsChoice(BaseModel):
             raise ValueError(
                 "vLLM does not support hosted tools other than code interpreter and web_search."
             )
-
-
 
 
 OpenAIToolChoice = Union[

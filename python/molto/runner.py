@@ -255,7 +255,7 @@ class Runner:
                 yield AgentThoughtEnd(id=event.part.id)
                 self._current_thought_id = None
             elif isinstance(event.part, ToolCallPart):
-                    yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
+                yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
             elif isinstance(event.part, NativeToolCallPart):
                 tc = self._native_tool_calls.get(event.part.tool_call_id)
                 if tc:

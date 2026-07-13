@@ -1013,8 +1013,6 @@ class _ToolCallAccumulator:
         )
 
 
-
-
 def _convert_usage(usage) -> ChatCompletionUsage | None:
     if usage is None:
         return None
@@ -1105,7 +1103,6 @@ async def from_ir_stream(
                     ChatCompletionStreamDelta(tool_calls=[tool_delta]),
                 )
 
-
         elif isinstance(event, AgentRunResult):
             captured_chat_completion_id = event.provider_response_id
             captured_usage = event.usage
@@ -1166,7 +1163,6 @@ async def from_ir(
 
         elif isinstance(event, AgentToolDelta):
             tool_calls.delta(event)
-
 
         elif isinstance(event, AgentRunResult):
             captured_usage = event.usage
