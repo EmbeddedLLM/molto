@@ -8,7 +8,8 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_output_text import ResponseOutputText
 
-from molto.providers import OpenAIResponsesProvider
+from molto.providers import OpenAIChatCompletionsProvider, OpenAIResponsesProvider
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from molto.types.openai.responses import (
     OpenAIOutputItem,
     OpenAIOutputTextContent,
@@ -57,25 +58,107 @@ def test_responses_request_omits_implicit_defaults_from_ir() -> None:
     """Forward only explicitly supplied Responses request defaults to the provider."""
     implicit = OpenAIResponsesRequest(model="gpt-5-nano", input="Hello!").to_ir()
     assert implicit.parallel_tool_calls is None
-    assert implicit.store is None
+    assert implicit.openai.store is None
+    assert implicit.stream is None
     assert implicit.tool_choice is None
-    assert implicit.service_tier is None
-    assert implicit.truncation is None
+    assert implicit.openai.service_tier is None
+    assert implicit.responses.truncation is None
 
     explicit = OpenAIResponsesRequest(
         model="gpt-5-nano",
         input="Hello!",
         parallel_tool_calls=True,
         store=True,
+        stream=False,
         tool_choice="auto",
         service_tier="default",
         truncation="disabled",
     ).to_ir()
     assert explicit.parallel_tool_calls is True
-    assert explicit.store is True
+    assert explicit.openai.store is True
+    assert explicit.stream is False
     assert explicit.tool_choice == "auto"
-    assert explicit.service_tier == "default"
-    assert explicit.truncation == "disabled"
+    assert explicit.openai.service_tier == "default"
+    assert explicit.responses.truncation == "disabled"
+
+
+def test_chat_request_omits_implicit_defaults_from_ir() -> None:
+    implicit = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+    ).to_ir()
+    assert implicit.stream is None
+    assert implicit.parallel_tool_calls is None
+    assert implicit.tool_choice is None
+
+    explicit = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=False,
+        parallel_tool_calls=True,
+        tool_choice="auto",
+    ).to_ir()
+    assert explicit.stream is False
+    assert explicit.parallel_tool_calls is True
+    assert explicit.tool_choice == "auto"
+
+def test_openai_shared_options_are_not_chat_specific():
+    req = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+        store=False,
+        prompt_cache_key="chat-cache",
+        prompt_cache_retention="24h",
+        service_tier="flex",
+        extra_body={"chat_only": True},
+    )
+
+    ir = req.to_ir()
+
+    assert ir.openai.store is False
+    assert ir.openai.prompt_cache_key == "chat-cache"
+    assert ir.openai.prompt_cache_retention == "24h"
+    assert ir.openai.service_tier == "flex"
+    assert ir.extra_body == {"chat_only": True}
+    assert "extra_body" in type(ir).model_fields
+    assert "extra_body" not in type(ir.responses).model_fields
+    assert ir.responses.include is None
+
+    model_settings = OpenAIChatCompletionsProvider._build_model_settings(ir)
+    assert model_settings["extra_body"] == {"chat_only": True}
+
+
+def test_responses_options_are_split_by_ownership():
+    req = OpenAIResponsesRequest(
+        model="openai/gpt-4.1-nano",
+        input=[{"role": "user", "content": "hi"}],
+        store=False,
+        prompt_cache_key="responses-cache",
+        prompt_cache_retention="24h",
+        service_tier="priority",
+        include=["reasoning.encrypted_content"],
+        previous_response_id="resp_previous",
+        safety_identifier="user-hash",
+        truncation="auto",
+        extra_body={"custom": "value"},
+    )
+
+    ir = req.to_ir()
+
+    assert ir.openai.store is False
+    assert ir.openai.prompt_cache_key == "responses-cache"
+    assert ir.openai.prompt_cache_retention == "24h"
+    assert ir.openai.service_tier == "priority"
+    assert ir.responses.include == ["reasoning.encrypted_content"]
+    assert ir.responses.previous_response_id == "resp_previous"
+    assert ir.responses.safety_identifier == "user-hash"
+    assert ir.responses.truncation == "auto"
+    assert ir.extra_body == {"custom": "value"}
+    assert "extra_body" in type(ir).model_fields
+
+    model_settings = OpenAIResponsesProvider._build_model_settings(ir)
+    assert model_settings["extra_body"]["custom"] == "value"
+    assert model_settings["extra_body"]["safety_identifier"] == "user-hash"
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)

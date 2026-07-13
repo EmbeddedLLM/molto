@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 from openai import APIConnectionError, APIError, APIStatusError
 from pydantic_ai import ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError
 
 from molto.providers import OpenAIResponsesProvider
 from molto.runner import _map_pydantic_ai_error
@@ -114,22 +115,8 @@ def _make_ir(**overrides) -> Input:
         parallel_tool_calls=None,
         max_tool_calls=None,
         text_format=None,
-        verbosity=None,
         tools=None,
         tool_choice=None,
-        include=None,
-        store=None,
-        previous_response_id=None,
-        metadata=None,
-        conversation_id=None,
-        prompt=None,
-        prompt_cache_key=None,
-        prompt_cache_retention=None,
-        safety_identifier=None,
-        service_tier=None,
-        stream_obfuscation=None,
-        truncation=None,
-        extra_body=None,
         stream=None,
     )
     defaults.update(overrides)
@@ -190,6 +177,21 @@ class TestBadInputError:
 
 
 class TestModelOverloadError:
+    def test_connection_error_preserves_cassette_assertion(self):
+        """Keep assertion detail through the SDK and model-error wrappers."""
+        assertion = AssertionError("OpenAI cassette request mismatch.")
+        connection_error = APIConnectionError(request=None)
+        connection_error.__cause__ = assertion
+        model_error = ModelAPIError("gpt-5-nano", "Connection error.")
+        model_error.__cause__ = connection_error
+
+        mapped = _map_pydantic_ai_error(model_error)
+
+        assert str(mapped) == (
+            "ModelAPIError: Connection error.\n"
+            "Caused by: AssertionError: OpenAI cassette request mismatch."
+        )
+
     async def test_network_connectivity_503(self):
         """Map HTTP 503 model errors to ModelOverloadError."""
         exc = ModelHTTPError(

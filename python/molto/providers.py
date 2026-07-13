@@ -5,8 +5,6 @@ from typing import Any
 
 from httpx import AsyncClient
 from pydantic_ai import (
-    BuiltinToolCallPart,
-    BuiltinToolReturnPart,
     DeferredToolRequests,
     ExternalToolset,
     ImageUrl,
@@ -14,6 +12,8 @@ from pydantic_ai import (
     ModelRequest,
     ModelResponse,
     NativeOutput,
+    NativeToolCallPart,
+    NativeToolReturnPart,
     StructuredDict,
     SystemPromptPart,
     ThinkingPart,
@@ -26,15 +26,16 @@ from pydantic_ai import (
 from pydantic_ai import (
     TextPart as PydanticAITextPart,
 )
-from pydantic_ai.builtin_tools import AbstractBuiltinTool
-from pydantic_ai.builtin_tools import CodeExecutionTool as OpenAICodeExecutionTool
-from pydantic_ai.builtin_tools import WebSearchTool as OpenAIWebSearchTool
+from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.models.openai import (
     OpenAIChatModelSettings,
     OpenAIModel,
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
+from pydantic_ai.native_tools import AbstractNativeTool
+from pydantic_ai.native_tools import CodeExecutionTool as OpenAICodeExecutionTool
+from pydantic_ai.native_tools import WebSearchTool as OpenAIWebSearchTool
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.toolsets.abstract import AbstractToolset
 
@@ -46,7 +47,6 @@ from molto.types.ir import (
     AgentToolCalls,
     AgentToolResult,
     AllowedToolsChoice,
-    BuiltinToolChoice,
     CodeInterpreterTool,
     FunctionTool,
     FunctionToolChoice,
@@ -58,6 +58,7 @@ from molto.types.ir import (
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
+    NativeToolChoice,
     OutputIR,
     SystemMessage,
     TextPart,
@@ -79,7 +80,7 @@ from molto.utils.exceptions import BadInputError
 
 class _Provider:
     async def parse_agent_settings(
-        self, ir, http_client: AsyncClient | None = None
+        self, ir, http_client: AsyncClient | None = None, *, api_key: str | None = None
     ) -> AgentSettings:
         """Parse input IR into pydantic-ai agent settings."""
         raise NotImplementedError
@@ -103,7 +104,7 @@ class _Provider:
         raise NotImplementedError
 
 
-class OpenAIResponsesProvider(_Provider):
+class _OpenAIProviderBase(_Provider):
     def __init__(self, ir: Input | None = None) -> None:
         self._ir = ir
 
@@ -117,18 +118,17 @@ class OpenAIResponsesProvider(_Provider):
             )
 
     @staticmethod
-    def _build_model_settings(ir: Input) -> OpenAIResponsesModelSettings:
-        extra_body = ir.extra_body or {}
-        tool_choice = ir.tool_choice
-        if tool_choice == "auto" or tool_choice == "required":
-            extra_body["tool_choice"] = tool_choice
-        if ir.safety_identifier is not None:
-            extra_body["safety_identifier"] = ir.safety_identifier
-        if ir.max_tool_calls is not None:
-            extra_body["max_tool_calls"] = ir.max_tool_calls
-        if ir.conversation_id is not None:
-            extra_body["conversation"] = ir.conversation_id
-        include = ir.include or []
+    def _build_openai_provider(
+        http_client: AsyncClient | None,
+        api_key: str | None,
+    ) -> OpenAIProvider:
+        return OpenAIProvider(
+            api_key=api_key or ENV_CONFIG.openai_api_key_plain,
+            http_client=http_client,
+        )
+
+    @staticmethod
+    def _build_common_model_settings(ir: Input) -> dict[str, Any]:
         ms_kwargs: dict[str, Any] = {}
         if ir.temperature is not None:
             ms_kwargs["temperature"] = ir.temperature
@@ -136,39 +136,18 @@ class OpenAIResponsesProvider(_Provider):
             ms_kwargs["top_p"] = ir.top_p
         if ir.max_output_tokens is not None:
             ms_kwargs["max_tokens"] = ir.max_output_tokens
-        if ir.reasoning_effort is not None:
-            ms_kwargs["openai_reasoning_effort"] = ir.reasoning_effort
-        if ir.reasoning_summary is not None:
-            ms_kwargs["openai_reasoning_summary"] = ir.reasoning_summary
         if ir.top_logprobs is not None:
             ms_kwargs["openai_logprobs"] = True
             ms_kwargs["openai_top_logprobs"] = ir.top_logprobs
         if ir.parallel_tool_calls is not None:
             ms_kwargs["parallel_tool_calls"] = ir.parallel_tool_calls
-        if ir.store is not None:
-            ms_kwargs["openai_store"] = ir.store
-        if ir.previous_response_id is not None:
-            ms_kwargs["openai_previous_response_id"] = ir.previous_response_id
-        if ir.service_tier is not None:
-            ms_kwargs["openai_service_tier"] = ir.service_tier
-        if ir.prompt_cache_key is not None:
-            ms_kwargs["openai_prompt_cache_key"] = ir.prompt_cache_key
-        if ir.prompt_cache_retention is not None:
-            ms_kwargs["openai_prompt_cache_retention"] = ir.prompt_cache_retention
-        if ir.truncation is not None:
-            ms_kwargs["openai_truncation"] = ir.truncation
-        if ir.verbosity is not None:
-            ms_kwargs["openai_text_verbosity"] = ir.verbosity
-        if include:
-            if "web_search_call.action.sources" in include:
-                ms_kwargs["openai_include_web_search_sources"] = True
-            if "code_interpreter_call.outputs" in include:
-                ms_kwargs["openai_include_code_execution_outputs"] = True
-            if "file_search_call.results" in include:
-                ms_kwargs["openai_include_file_search_results"] = True
-        if extra_body:
-            ms_kwargs["extra_body"] = extra_body
-        return OpenAIResponsesModelSettings(**ms_kwargs)
+        if ir.frequency_penalty is not None:
+            ms_kwargs["frequency_penalty"] = ir.frequency_penalty
+        if ir.presence_penalty is not None:
+            ms_kwargs["presence_penalty"] = ir.presence_penalty
+        if ir.extra_body:
+            ms_kwargs["extra_body"] = dict(ir.extra_body)
+        return ms_kwargs
 
     @staticmethod
     def _build_output_type(ir: Input) -> Any:
@@ -180,24 +159,6 @@ class OpenAIResponsesProvider(_Provider):
                 strict=ir.text_format.strict,
             )
         return [str, DeferredToolRequests]
-
-    async def parse_agent_settings(
-        self, ir: Input, http_client: AsyncClient | None = None
-    ) -> AgentSettings:
-        self._validate_sampling_params(ir)
-        model = OpenAIResponsesModel(
-            model_name=ir.model.split("/")[-1],
-            provider=OpenAIProvider(
-                api_key=ENV_CONFIG.openai_api_key_plain,
-                http_client=http_client,
-            ),
-        )
-        model_settings = self._build_model_settings(ir)
-        return AgentSettings(
-            model=model,
-            model_settings=model_settings,
-            output_type=self._build_output_type(ir),
-        )
 
     @staticmethod
     def convert_input_to_messages(input: str | list[InputHistoryItem]) -> list[ModelMessage]:
@@ -249,12 +210,13 @@ class OpenAIResponsesProvider(_Provider):
 
             elif isinstance(msg, AgentToolCalls):
                 for tc in msg.tool_calls:
+                    args = tc.raw_args if tc.raw_args is not None else json.dumps(tc.args)
                     message_history.append(
                         ModelResponse(
                             parts=[
                                 ToolCallPart(
                                     tool_name=tc.tool_name,
-                                    args=json.dumps(tc.args),
+                                    args=args,
                                     tool_call_id=tc.tool_call_id,
                                     id=tc.id,
                                 )
@@ -280,12 +242,12 @@ class OpenAIResponsesProvider(_Provider):
                 message_history.append(
                     ModelResponse(
                         parts=[
-                            BuiltinToolCallPart(
+                            NativeToolCallPart(
                                 tool_name="code_execution",
                                 args={"container_id": msg.container_id, "code": msg.code},
                                 tool_call_id=msg.id,
                             ),
-                            BuiltinToolReturnPart(
+                            NativeToolReturnPart(
                                 tool_name="code_execution",
                                 content={"status": "completed"},
                                 tool_call_id=msg.id,
@@ -299,12 +261,12 @@ class OpenAIResponsesProvider(_Provider):
                 message_history.append(
                     ModelResponse(
                         parts=[
-                            BuiltinToolCallPart(
+                            NativeToolCallPart(
                                 tool_name=WEB_SEARCH_TOOL,
                                 args=action,
                                 tool_call_id=msg.id,
                             ),
-                            BuiltinToolReturnPart(
+                            NativeToolReturnPart(
                                 tool_name=WEB_SEARCH_TOOL,
                                 content={"status": msg.status, "action": action},
                                 tool_call_id=msg.id,
@@ -318,12 +280,12 @@ class OpenAIResponsesProvider(_Provider):
                 message_history.append(
                     ModelResponse(
                         parts=[
-                            BuiltinToolCallPart(
+                            NativeToolCallPart(
                                 tool_name=f"mcp_{msg.server_label}_{msg.name}",
                                 args=args,
                                 tool_call_id=msg.id,
                             ),
-                            BuiltinToolReturnPart(
+                            NativeToolReturnPart(
                                 tool_name=f"mcp_{msg.server_label}_{msg.name}",
                                 content={
                                     "status": msg.status,
@@ -344,11 +306,11 @@ class OpenAIResponsesProvider(_Provider):
     @staticmethod
     def _collect_tools(
         ir: Input,
-    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractToolset[Any]]]:
+    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractNativeTool]]:
         function_tool_defs: dict[str, ToolDefinition] = {}
-        builtin_tool_map: dict[str, AbstractToolset[Any]] = {}
+        native_tool_map: dict[str, AbstractNativeTool] = {}
         if not ir.tools:
-            return function_tool_defs, builtin_tool_map
+            return function_tool_defs, native_tool_map
         for t in ir.tools:
             if isinstance(t, FunctionTool):
                 function_tool_defs[t.name] = ToolDefinition(
@@ -358,7 +320,7 @@ class OpenAIResponsesProvider(_Provider):
                     strict=t.strict,
                 )
             elif isinstance(t, CodeInterpreterTool):
-                builtin_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
+                native_tool_map["code_interpreter"] = OpenAICodeExecutionTool()
             elif isinstance(t, WebSearchTool):
                 ws_tool_kwargs: dict[str, Any] = {
                     "search_context_size": t.search_context_size,
@@ -376,31 +338,31 @@ class OpenAIResponsesProvider(_Provider):
                         }.items()
                         if v is not None
                     }
-                builtin_tool_map["web_search"] = OpenAIWebSearchTool(**ws_tool_kwargs)
+                native_tool_map["web_search"] = OpenAIWebSearchTool(**ws_tool_kwargs)
             elif isinstance(t, McpTool):
                 pass
-        return function_tool_defs, builtin_tool_map
+        return function_tool_defs, native_tool_map
 
     @staticmethod
     def _apply_tool_choice(
         ir: Input,
         function_tool_defs: dict[str, ToolDefinition],
-        builtin_tool_map: dict[str, AbstractToolset[Any]],
-    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractToolset[Any]]]:
+        native_tool_map: dict[str, AbstractNativeTool],
+    ) -> tuple[dict[str, ToolDefinition], dict[str, AbstractNativeTool]]:
         tc = ir.tool_choice
         if tc == "none":
             return {}, {}
         if tc == "auto":
-            return function_tool_defs, builtin_tool_map
+            return function_tool_defs, native_tool_map
         if tc == "required":
             if not ir.tools:
                 raise BadInputError(
                     "tool_choice cannot be 'auto' or 'required' if no tools are provided."
                 )
-            return function_tool_defs, builtin_tool_map
-        if isinstance(tc, BuiltinToolChoice):
-            builtin_tool_map = {k: v for k, v in builtin_tool_map.items() if k == tc.name}
-            return {}, builtin_tool_map
+            return function_tool_defs, native_tool_map
+        if isinstance(tc, NativeToolChoice):
+            native_tool_map = {k: v for k, v in native_tool_map.items() if k == tc.name}
+            return {}, native_tool_map
         if isinstance(tc, FunctionToolChoice):
             selected = function_tool_defs.get(tc.name)
             if selected is None:
@@ -414,33 +376,143 @@ class OpenAIResponsesProvider(_Provider):
             allowed_function_names = {
                 e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
             }
-            allowed_builtin_names = {e.name for e in tc.tools if isinstance(e, BuiltinToolChoice)}
+            allowed_native_names = {e.name for e in tc.tools if isinstance(e, NativeToolChoice)}
             return (
                 {k: v for k, v in function_tool_defs.items() if k in allowed_function_names},
-                {k: v for k, v in builtin_tool_map.items() if k in allowed_builtin_names},
+                {k: v for k, v in native_tool_map.items() if k in allowed_native_names},
             )
-        return function_tool_defs, builtin_tool_map
+        return function_tool_defs, native_tool_map
 
-    async def parse_run_settings(self, ir: Input) -> RunSettings:
-        function_tool_defs, builtin_tool_map = self._collect_tools(ir)
-        function_tool_defs, builtin_tool_map = self._apply_tool_choice(
-            ir, function_tool_defs, builtin_tool_map
-        )
+    @classmethod
+    def _apply_chat_tool_choice(
+        cls,
+        ir: Input,
+        function_tool_defs: dict[str, ToolDefinition],
+    ) -> dict[str, ToolDefinition]:
+        tc = ir.tool_choice
+        if tc == "none":
+            return {}
+        if tc in (None, "auto"):
+            return function_tool_defs
+        if tc == "required":
+            if not function_tool_defs:
+                raise BadInputError(
+                    "tool_choice cannot be 'required' if no function tools are provided."
+                )
+            return function_tool_defs
+        if isinstance(tc, FunctionToolChoice):
+            selected = function_tool_defs.get(tc.name)
+            if selected is None:
+                raise BadInputError(
+                    f"`tool_choice.name` {tc.name!r} is not present in effective tools."
+                )
+            return {tc.name: selected}
+        if isinstance(tc, AllowedToolsChoice):
+            allowed_function_names = {
+                e.name for e in tc.tools if isinstance(e, FunctionToolChoice)
+            }
+            selected = {k: v for k, v in function_tool_defs.items() if k in allowed_function_names}
+            if tc.mode == "required" and not selected:
+                raise BadInputError("allowed tool_choice requires at least one function tool.")
+            return selected
+        return function_tool_defs
+
+    @classmethod
+    def _build_run_settings(
+        cls,
+        ir: Input,
+        function_tool_defs: dict[str, ToolDefinition],
+        native_tool_map: dict[str, AbstractNativeTool] | None = None,
+    ) -> RunSettings:
         toolsets: list[AbstractToolset[Any]] = []
-        builtin_tools: list[AbstractBuiltinTool] = []
+        native_tools: list[AbstractNativeTool] = []
         if function_tool_defs:
             toolsets.append(ExternalToolset(tool_defs=list(function_tool_defs.values())))
-        if builtin_tool_map:
-            builtin_tools.extend(builtin_tool_map.values())
+        if native_tool_map:
+            native_tools.extend(native_tool_map.values())
         return RunSettings(
-            message_history=self.convert_input_to_messages(ir.input)
-            if ir.input is not None
-            else [],
+            message_history=(
+                cls.convert_input_to_messages(ir.input) if ir.input is not None else []
+            ),
             instructions=ir.instructions,
             toolsets=toolsets or None,
             usage_limits=UsageLimits(tool_calls_limit=ir.max_tool_calls),
-            builtin_tools=builtin_tools,
+            capabilities=[NativeTool(tool=t) for t in native_tools] or None,
         )
+
+
+class OpenAIResponsesProvider(_OpenAIProviderBase):
+    @staticmethod
+    def _build_model_settings(ir: Input) -> OpenAIResponsesModelSettings:
+        openai = ir.openai
+        responses = ir.responses
+        extra_body = dict(ir.extra_body or {})
+        tool_choice = ir.tool_choice
+        if tool_choice == "auto" or tool_choice == "required":
+            extra_body["tool_choice"] = tool_choice
+        if responses.safety_identifier is not None:
+            extra_body["safety_identifier"] = responses.safety_identifier
+        if ir.max_tool_calls is not None:
+            extra_body["max_tool_calls"] = ir.max_tool_calls
+        if responses.conversation_id is not None:
+            extra_body["conversation"] = responses.conversation_id
+
+        include = responses.include or []
+        ms_kwargs = OpenAIResponsesProvider._build_common_model_settings(ir)
+        if ir.reasoning_effort is not None:
+            ms_kwargs["openai_reasoning_effort"] = ir.reasoning_effort
+        if ir.reasoning_summary is not None:
+            ms_kwargs["openai_reasoning_summary"] = ir.reasoning_summary
+        if openai.store is not None:
+            ms_kwargs["openai_store"] = openai.store
+        if responses.previous_response_id is not None:
+            ms_kwargs["openai_previous_response_id"] = responses.previous_response_id
+        if openai.service_tier is not None:
+            ms_kwargs["openai_service_tier"] = openai.service_tier
+        if openai.prompt_cache_key is not None:
+            ms_kwargs["openai_prompt_cache_key"] = openai.prompt_cache_key
+        if openai.prompt_cache_retention is not None:
+            ms_kwargs["openai_prompt_cache_retention"] = openai.prompt_cache_retention
+        if responses.truncation is not None:
+            ms_kwargs["openai_truncation"] = responses.truncation
+        if responses.verbosity is not None:
+            ms_kwargs["openai_text_verbosity"] = responses.verbosity
+        if include:
+            if "web_search_call.action.sources" in include:
+                ms_kwargs["openai_include_web_search_sources"] = True
+            if "code_interpreter_call.outputs" in include:
+                ms_kwargs["openai_include_code_execution_outputs"] = True
+            if "file_search_call.results" in include:
+                ms_kwargs["openai_include_file_search_results"] = True
+        if extra_body:
+            ms_kwargs["extra_body"] = extra_body
+        return OpenAIResponsesModelSettings(**ms_kwargs)
+
+    async def parse_agent_settings(
+        self,
+        ir: Input,
+        http_client: AsyncClient | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> AgentSettings:
+        self._validate_sampling_params(ir)
+        model = OpenAIResponsesModel(
+            model_name=ir.model.split("/")[-1],
+            provider=self._build_openai_provider(http_client, api_key),
+        )
+        model_settings = self._build_model_settings(ir)
+        return AgentSettings(
+            model=model,
+            model_settings=model_settings,
+            output_type=self._build_output_type(ir),
+        )
+
+    async def parse_run_settings(self, ir: Input) -> RunSettings:
+        function_tool_defs, native_tool_map = self._collect_tools(ir)
+        function_tool_defs, native_tool_map = self._apply_tool_choice(
+            ir, function_tool_defs, native_tool_map
+        )
+        return self._build_run_settings(ir, function_tool_defs, native_tool_map)
 
     async def compose_outputs(
         self,
@@ -462,26 +534,21 @@ class OpenAIResponsesProvider(_Provider):
         return last_event.response
 
 
-class OpenAIChatCompletionsProvider(_Provider):
-    def __init__(self, ir: Input | None = None) -> None:
-        self._ir = ir
-
+class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
     @staticmethod
     def _build_model_settings(ir: Input) -> OpenAIChatModelSettings:
-        ms_kwargs: dict[str, Any] = {}
-        if ir.temperature is not None:
-            ms_kwargs["temperature"] = ir.temperature
-        if ir.top_p is not None:
-            ms_kwargs["top_p"] = ir.top_p
-        if ir.max_output_tokens is not None:
-            ms_kwargs["max_tokens"] = ir.max_output_tokens
+        openai = ir.openai
+        ms_kwargs = OpenAIChatCompletionsProvider._build_common_model_settings(ir)
         if ir.reasoning_effort is not None:
             ms_kwargs["openai_reasoning_effort"] = ir.reasoning_effort
-        if ir.top_logprobs is not None:
-            ms_kwargs["openai_logprobs"] = True
-            ms_kwargs["openai_top_logprobs"] = ir.top_logprobs
-        if ir.parallel_tool_calls is not None:
-            ms_kwargs["parallel_tool_calls"] = ir.parallel_tool_calls
+        if openai.store is not None:
+            ms_kwargs["openai_store"] = openai.store
+        if openai.service_tier is not None:
+            ms_kwargs["openai_service_tier"] = openai.service_tier
+        if openai.prompt_cache_key is not None:
+            ms_kwargs["openai_prompt_cache_key"] = openai.prompt_cache_key
+        if openai.prompt_cache_retention is not None:
+            ms_kwargs["openai_prompt_cache_retention"] = openai.prompt_cache_retention
         return OpenAIChatModelSettings(**ms_kwargs)
 
     @staticmethod
@@ -496,14 +563,16 @@ class OpenAIChatCompletionsProvider(_Provider):
         return [str, DeferredToolRequests]
 
     async def parse_agent_settings(
-        self, ir: Input, http_client: AsyncClient | None = None
+        self,
+        ir: Input,
+        http_client: AsyncClient | None = None,
+        *,
+        api_key: str | None = None,
     ) -> AgentSettings:
+        self._validate_sampling_params(ir)
         model = OpenAIModel(
             model_name=ir.model.split("/")[-1],
-            provider=OpenAIProvider(
-                api_key=ENV_CONFIG.openai_api_key_plain,
-                http_client=http_client,
-            ),
+            provider=self._build_openai_provider(http_client, api_key),
         )
         model_settings = self._build_model_settings(ir)
         return AgentSettings(
@@ -513,28 +582,9 @@ class OpenAIChatCompletionsProvider(_Provider):
         )
 
     async def parse_run_settings(self, ir: Input) -> RunSettings:
-        function_tool_defs, _builtin_tool_map = OpenAIResponsesProvider._collect_tools(ir)
-        tc = ir.tool_choice
-        if tc == "none":
-            function_tool_defs = {}
-        elif isinstance(tc, FunctionToolChoice):
-            selected = function_tool_defs.get(tc.name)
-            if selected is None:
-                raise BadInputError(
-                    f"`tool_choice.name` {tc.name!r} is not present in effective tools."
-                )
-            function_tool_defs = {tc.name: selected}
-        toolsets: list[AbstractToolset[Any]] = []
-        if function_tool_defs:
-            toolsets.append(ExternalToolset(tool_defs=list(function_tool_defs.values())))
-        return RunSettings(
-            message_history=OpenAIResponsesProvider.convert_input_to_messages(ir.input)
-            if ir.input is not None
-            else [],
-            instructions=ir.instructions,
-            toolsets=toolsets or None,
-            usage_limits=UsageLimits(tool_calls_limit=ir.max_tool_calls),
-        )
+        function_tool_defs, _native_tool_map = self._collect_tools(ir)
+        function_tool_defs = self._apply_chat_tool_choice(ir, function_tool_defs)
+        return self._build_run_settings(ir, function_tool_defs)
 
     async def compose_outputs(
         self,

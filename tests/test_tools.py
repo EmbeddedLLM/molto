@@ -155,8 +155,8 @@ EXPECTED_WEB_SEARCH_TOOL = {
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_builtin_tools_web_search(stream: bool, cassette_manager):
-    """Verify builtin web-search tool parity against SDK-parsed cassettes.
+async def test_native_tools_web_search(stream: bool, cassette_manager):
+    """Verify native web-search tool parity against SDK-parsed cassettes.
 
     Example:
         # stream=True records/replays the default stream cassette and yields a web_search_call.

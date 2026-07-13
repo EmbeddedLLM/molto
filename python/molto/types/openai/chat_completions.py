@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from time import time
 from typing import Annotated, Any, Literal, Union
@@ -23,6 +22,7 @@ from molto.types.ir import (
     AgentToolEnd,
     AgentToolResult,
     AgentToolStart,
+    AllowedToolsChoice,
     ContentPart,
     FunctionTool,
     FunctionToolChoice,
@@ -31,12 +31,14 @@ from molto.types.ir import (
     InputHistoryItem,
     JsonObjectFormat,
     JsonSchemaFormat,
+    OpenAIOptions,
     OutputIR,
     SystemMessage,
     TextFormat,
     TextPart,
     UserMessage,
 )
+from molto.types.openai._tool_args import _safe_tool_args, _serialize_tool_args
 from molto.utils import uuid7_str
 
 # ---------------------------------------------------------------------------
@@ -126,6 +128,10 @@ class ChatCompletionSystemMessage(_ChatCompletionMessage):
         str | None,
         Field(description="The contents of the system message."),
     ]
+    name: Annotated[
+        str | None,
+        Field(description="An optional name for the participant."),
+    ] = None
 
 
 class ChatCompletionUserMessage(_ChatCompletionMessage):
@@ -137,6 +143,10 @@ class ChatCompletionUserMessage(_ChatCompletionMessage):
         str | list[ChatCompletionContentPart] | None,
         Field(description="The contents of the user message."),
     ]
+    name: Annotated[
+        str | None,
+        Field(description="An optional name for the participant."),
+    ] = None
 
 
 class ChatCompletionAssistantMessage(_ChatCompletionMessage):
@@ -160,6 +170,10 @@ class ChatCompletionAssistantMessage(_ChatCompletionMessage):
         ChatCompletionFunctionCall | None,
         Field(description="Deprecated: use `tool_calls` instead."),
     ] = None
+    name: Annotated[
+        str | None,
+        Field(description="An optional name for the participant."),
+    ] = None
 
 
 class ChatCompletionToolMessage(_ChatCompletionMessage):
@@ -175,6 +189,10 @@ class ChatCompletionToolMessage(_ChatCompletionMessage):
         str,
         Field(description="Tool call that this message is responding to."),
     ]
+    name: Annotated[
+        str | None,
+        Field(description="An optional tool name."),
+    ] = None
 
 
 class ChatCompletionFunctionMessage(_ChatCompletionMessage):
@@ -219,9 +237,9 @@ class ChatCompletionFunction(BaseModel):
         Field(description="A description of what the function does."),
     ] = None
     parameters: Annotated[
-        dict[str, Any],
+        dict[str, Any] | None,
         Field(description="The parameters the function accepts as a JSON Schema object."),
-    ]
+    ] = None
     strict: Annotated[
         bool | None,
         Field(description="Whether to enable strict schema adherence."),
@@ -239,9 +257,54 @@ class ChatCompletionTool(BaseModel):
     ]
 
 
+class ChatCompletionToolChoiceFunction(BaseModel):
+    name: Annotated[
+        str,
+        Field(description="The name of the function to call."),
+    ]
+
+
+class ChatCompletionNamedToolChoice(BaseModel):
+    type: Annotated[
+        Literal["function"],
+        Field(description="The type of tool to call. Always `function`."),
+    ] = "function"
+    function: Annotated[
+        ChatCompletionToolChoiceFunction,
+        Field(description="The function to call."),
+    ]
+
+
+class ChatCompletionAllowedTool(BaseModel):
+    type: Annotated[
+        Literal["function"],
+        Field(description="The allowed tool type. Always `function`."),
+    ] = "function"
+    function: Annotated[
+        ChatCompletionToolChoiceFunction,
+        Field(description="The allowed function."),
+    ]
+
+
+class ChatCompletionAllowedToolsChoice(BaseModel):
+    type: Annotated[
+        Literal["allowed_tools"],
+        Field(description="Constrains the model to a subset of tools."),
+    ] = "allowed_tools"
+    mode: Annotated[
+        Literal["auto", "required"],
+        Field(description="Whether the model may or must call one of the allowed tools."),
+    ] = "auto"
+    tools: Annotated[
+        list[ChatCompletionAllowedTool],
+        Field(description="The allowed tools."),
+    ]
+
+
 ChatCompletionToolChoiceOption = Union[
     Literal["none", "auto", "required"],
-    ChatCompletionToolCall,
+    ChatCompletionNamedToolChoice,
+    ChatCompletionAllowedToolsChoice,
 ]
 
 
@@ -360,13 +423,6 @@ class OpenAIChatCompletionRequest(BaseModel):
             ),
         ),
     ] = None
-    n: Annotated[
-        int | None,
-        Field(
-            ge=1,
-            description="How many chat completion choices to generate for each input message.",
-        ),
-    ] = None
     presence_penalty: Annotated[
         float | None,
         Field(
@@ -393,20 +449,36 @@ class OpenAIChatCompletionRequest(BaseModel):
         Field(description="Up to 4 sequences where the API will stop generating further tokens."),
     ] = None
     stream: Annotated[
-        bool,
+        bool | None,
         Field(
             description="If set to true, the model response data will be streamed as it is generated."
         ),
-    ] = False
+    ] = None
     stream_options: Annotated[
         ChatCompletionStreamOptions | None,
         Field(description="Options for streaming response."),
     ] = None
+    store: Annotated[
+        bool | None,
+        Field(description="Whether to store the generated completion."),
+    ] = None
+    prompt_cache_key: Annotated[
+        str | None,
+        Field(description="Cache key for prompt prefix caching."),
+    ] = None
+    prompt_cache_retention: Annotated[
+        str | None,
+        Field(description="Retention policy for prompt cache entries."),
+    ] = None
+    service_tier: Annotated[
+        str | None,
+        Field(description="The service tier used to process the request."),
+    ] = None
     temperature: Annotated[
         float | None,
         Field(
-            gt=0,
-            lt=2,
+            ge=0,
+            le=2,
             description="What sampling temperature to use, between 0 and 2.",
         ),
     ] = None
@@ -423,13 +495,13 @@ class OpenAIChatCompletionRequest(BaseModel):
         Field(description="A list of tools the model may call."),
     ] = None
     tool_choice: Annotated[
-        ChatCompletionToolChoiceOption,
+        ChatCompletionToolChoiceOption | None,
         Field(description="Controls which tool is called by the model."),
-    ] = "auto"
+    ] = None
     parallel_tool_calls: Annotated[
-        bool,
+        bool | None,
         Field(description="Whether to enable parallel function calling."),
-    ] = True
+    ] = None
     user: Annotated[
         str | None,
         Field(description="A unique identifier representing your end-user."),
@@ -437,6 +509,10 @@ class OpenAIChatCompletionRequest(BaseModel):
     reasoning_effort: Annotated[
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None,
         Field(description="Constrains effort on reasoning for reasoning models."),
+    ] = None
+    extra_body: Annotated[
+        dict[str, Any] | None,
+        Field(description="Additional provider-specific request body fields."),
     ] = None
 
     def to_ir(self) -> Input:
@@ -447,15 +523,20 @@ class OpenAIChatCompletionRequest(BaseModel):
                 ir_tools.append(
                     FunctionTool(
                         name=t.function.name,
-                        parameters=t.function.parameters,
-                        strict=t.function.strict or True,
+                        parameters=t.function.parameters or {"type": "object", "properties": {}},
+                        strict=t.function.strict if t.function.strict is not None else True,
                         description=t.function.description,
                     )
                 )
 
         tc = self.tool_choice
-        if isinstance(tc, ChatCompletionToolCall):
+        if isinstance(tc, ChatCompletionNamedToolChoice):
             ir_tool_choice: Any = FunctionToolChoice(name=tc.function.name)
+        elif isinstance(tc, ChatCompletionAllowedToolsChoice):
+            ir_tool_choice = AllowedToolsChoice(
+                mode=tc.mode,
+                tools=[FunctionToolChoice(name=t.function.name) for t in tc.tools],
+            )
         else:
             ir_tool_choice = tc
 
@@ -478,6 +559,12 @@ class OpenAIChatCompletionRequest(BaseModel):
         return Input(
             model=self.model,
             stream=self.stream,
+            openai=OpenAIOptions(
+                store=self.store,
+                prompt_cache_key=self.prompt_cache_key,
+                prompt_cache_retention=self.prompt_cache_retention,
+                service_tier=self.service_tier,
+            ),
             input=_convert_messages(self.messages),
             instructions=None,
             temperature=self.temperature,
@@ -486,14 +573,14 @@ class OpenAIChatCompletionRequest(BaseModel):
             reasoning_effort=self.reasoning_effort,
             reasoning_summary=None,
             top_logprobs=self.top_logprobs if self.logprobs else None,
+            frequency_penalty=self.frequency_penalty,
+            presence_penalty=self.presence_penalty,
             parallel_tool_calls=self.parallel_tool_calls,
             max_tool_calls=None,
             text_format=text_format,
             tools=ir_tools,
             tool_choice=ir_tool_choice,
-            include=None,
-            previous_response_id=None,
-            metadata=None,
+            extra_body=self.extra_body,
         )
 
 
@@ -530,24 +617,31 @@ def _convert_messages(
                 result.append(UserMessage(content=""))
 
         elif isinstance(msg, ChatCompletionAssistantMessage):
+            tool_calls: list[AgentToolCall] = []
             if msg.tool_calls:
                 for tc in msg.tool_calls:
-                    result.append(
-                        AgentToolCalls(
-                            tool_calls=[
-                                AgentToolCall(
-                                    tool_call_id=tc.id,
-                                    tool_name=tc.function.name,
-                                    args=(
-                                        json.loads(tc.function.arguments)
-                                        if tc.function.arguments
-                                        else {}
-                                    ),
-                                )
-                            ]
+                    args, raw_args = _safe_tool_args(tc.function.arguments)
+                    tool_calls.append(
+                        AgentToolCall(
+                            tool_call_id=tc.id,
+                            tool_name=tc.function.name,
+                            args=args,
+                            raw_args=raw_args,
                         )
                     )
-            content_str = msg.content or ""
+            if msg.function_call is not None:
+                args, raw_args = _safe_tool_args(msg.function_call.arguments)
+                tool_calls.append(
+                    AgentToolCall(
+                        tool_call_id=uuid7_str("call_"),
+                        tool_name=msg.function_call.name,
+                        args=args,
+                        raw_args=raw_args,
+                    )
+                )
+            if tool_calls:
+                result.append(AgentToolCalls(tool_calls=tool_calls))
+            content_str = msg.content or msg.refusal or ""
             if content_str:
                 result.append(AgentMessage(content=content_str))
 
@@ -555,7 +649,7 @@ def _convert_messages(
             result.append(
                 AgentToolResult(
                     tool_call_id=msg.tool_call_id,
-                    tool_name="",
+                    tool_name=msg.name or "",
                     result=msg.content or "",
                 )
             )
@@ -608,7 +702,7 @@ class ChatCompletionTokenLogprob(BaseModel):
     top_logprobs: Annotated[
         list[ChatCompletionTokenLogprobTopLogprob],
         Field(description="List of the most likely tokens and their log probability."),
-    ] = []
+    ] = Field(default_factory=list)
 
 
 class ChatCompletionLogprobs(BaseModel):
@@ -631,6 +725,10 @@ class ChatCompletionResponseMessage(BaseModel):
         str | None,
         Field(description="The refusal message by the assistant."),
     ] = None
+    annotations: Annotated[
+        list[dict[str, Any]],
+        Field(description="Annotations for the assistant message."),
+    ] = Field(default_factory=list)
     tool_calls: Annotated[
         list[ChatCompletionToolCall] | None,
         Field(description="The tool calls generated by the model."),
@@ -639,6 +737,18 @@ class ChatCompletionResponseMessage(BaseModel):
         ChatCompletionFunctionCall | None,
         Field(description="Deprecated: use `tool_calls` instead."),
     ] = None
+
+
+class ChatCompletionPromptTokensDetails(BaseModel):
+    cached_tokens: int = 0
+    audio_tokens: int = 0
+
+
+class ChatCompletionCompletionTokensDetails(BaseModel):
+    reasoning_tokens: int = 0
+    audio_tokens: int = 0
+    accepted_prediction_tokens: int = 0
+    rejected_prediction_tokens: int = 0
 
 
 class ChatCompletionUsage(BaseModel):
@@ -654,6 +764,12 @@ class ChatCompletionUsage(BaseModel):
         int,
         Field(description="Total number of tokens used."),
     ]
+    prompt_tokens_details: ChatCompletionPromptTokensDetails = Field(
+        default_factory=ChatCompletionPromptTokensDetails
+    )
+    completion_tokens_details: ChatCompletionCompletionTokensDetails = Field(
+        default_factory=ChatCompletionCompletionTokensDetails
+    )
 
 
 FinishReason = Literal[
@@ -690,12 +806,12 @@ class ChatCompletionChoice(BaseModel):
 
 class OpenAIChatCompletionResponse(BaseModel):
     id: Annotated[
-        str,
+        str | None,
         Field(
-            default_factory=lambda: uuid7_str("chatcmpl-"),
+            default=None,
             description="A unique identifier for the chat completion.",
         ),
-    ]
+    ] = None
     choices: Annotated[
         list[ChatCompletionChoice],
         Field(description="A list of chat completion choices."),
@@ -715,6 +831,14 @@ class OpenAIChatCompletionResponse(BaseModel):
         Literal["chat.completion"],
         Field(description="The object type. Always `chat.completion`."),
     ] = "chat.completion"
+    service_tier: Annotated[
+        str | None,
+        Field(description="The service tier used to process the request."),
+    ] = None
+    system_fingerprint: Annotated[
+        str | None,
+        Field(description="The backend fingerprint that ran the model."),
+    ] = None
     usage: Annotated[
         ChatCompletionUsage | None,
         Field(description="Usage statistics for the completion request."),
@@ -724,6 +848,36 @@ class OpenAIChatCompletionResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Streaming response types
 # ---------------------------------------------------------------------------
+
+
+class ChatCompletionStreamFunctionCall(BaseModel):
+    name: Annotated[
+        str | None,
+        Field(description="The name of the function being called."),
+    ] = None
+    arguments: Annotated[
+        str | None,
+        Field(description="The partial arguments delta."),
+    ] = None
+
+
+class ChatCompletionStreamToolCall(BaseModel):
+    index: Annotated[
+        int,
+        Field(description="The index of the tool call in the choice."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="The ID of the tool call."),
+    ] = None
+    type: Annotated[
+        Literal["function"] | None,
+        Field(description="The type of the tool. Always `function` when present."),
+    ] = None
+    function: Annotated[
+        ChatCompletionStreamFunctionCall | None,
+        Field(description="Function call delta."),
+    ] = None
 
 
 class ChatCompletionStreamDelta(BaseModel):
@@ -736,8 +890,8 @@ class ChatCompletionStreamDelta(BaseModel):
         Field(description="The contents of the chunk message."),
     ] = None
     tool_calls: Annotated[
-        list[ChatCompletionToolCall] | None,
-        Field(description="The tool calls generated by the model."),
+        list[ChatCompletionStreamToolCall] | None,
+        Field(description="The tool call deltas generated by streamed model responses."),
     ] = None
     refusal: Annotated[
         str | None,
@@ -765,13 +919,14 @@ class ChatCompletionStreamChoice(BaseModel):
 
 
 class OpenAIChatCompletionChunk(BaseModel):
+    # TODO: Pydantic-ai does not provide id in streamings of Chat completions, could be a bug, if needed I will create PR in Pydantic-ai to fix it
     id: Annotated[
-        str,
+        str | None,
         Field(
-            default_factory=lambda: uuid7_str("chatcmpl-"),
+            default=None,
             description="A unique identifier for the chat completion chunk.",
         ),
-    ]
+    ] = None
     choices: Annotated[
         list[ChatCompletionStreamChoice],
         Field(description="A list of chat completion choices."),
@@ -791,6 +946,10 @@ class OpenAIChatCompletionChunk(BaseModel):
         Literal["chat.completion.chunk"],
         Field(description="The object type. Always `chat.completion.chunk`."),
     ] = "chat.completion.chunk"
+    system_fingerprint: Annotated[
+        str | None,
+        Field(description="The backend fingerprint that ran the model."),
+    ] = None
     usage: Annotated[
         ChatCompletionUsage | None,
         Field(description="Usage statistics for the completion request."),
@@ -801,15 +960,82 @@ class OpenAIChatCompletionChunk(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Output IR → Chat Completions conversion
+# Output IR → Chat Completions conversion (from_ir)
 # ---------------------------------------------------------------------------
 
 
+class _ToolCallAccumulator:
+    def __init__(self) -> None:
+        self._active: dict[str, dict[str, Any]] = {}
+        self._next_index = 0
+
+    def start(self, event: AgentToolStart) -> ChatCompletionStreamToolCall:
+        index = self._next_index
+        self._next_index += 1
+        self._active[event.tool_call_id] = {
+            "index": index,
+            "tool_name": event.tool_name,
+            "args_buf": "",
+        }
+        return ChatCompletionStreamToolCall(
+            index=index,
+            id=event.tool_call_id,
+            type="function",
+            function=ChatCompletionStreamFunctionCall(
+                name=event.tool_name,
+                arguments="",
+            ),
+        )
+
+    def delta(self, event: AgentToolDelta) -> ChatCompletionStreamToolCall | None:
+        tc = self._active.get(event.tool_call_id)
+        if tc is None:
+            return None
+        tc["args_buf"] += event.args
+        return ChatCompletionStreamToolCall(
+            index=tc["index"],
+            function=ChatCompletionStreamFunctionCall(arguments=event.args),
+        )
+
+    def finish(self, tool_call: AgentToolCall) -> ChatCompletionToolCall:
+        tc = self._active.pop(tool_call.tool_call_id, None)
+        name = tc["tool_name"] if tc else tool_call.tool_name
+        if tc:
+            arguments = tc["args_buf"]
+        else:
+            arguments = _serialize_tool_args(tool_call.args, tool_call.raw_args)
+        return ChatCompletionToolCall(
+            id=tool_call.tool_call_id,
+            function=ChatCompletionFunctionCall(
+                name=name,
+                arguments=arguments,
+            ),
+        )
+
+
+
+
+def _convert_usage(usage) -> ChatCompletionUsage | None:
+    if usage is None:
+        return None
+    return ChatCompletionUsage(
+        prompt_tokens=usage.input_tokens,
+        completion_tokens=usage.output_tokens,
+        total_tokens=usage.total_tokens,
+        prompt_tokens_details=ChatCompletionPromptTokensDetails(
+            cached_tokens=usage.input_tokens_details.cached_tokens,
+        ),
+        completion_tokens_details=ChatCompletionCompletionTokensDetails(
+            reasoning_tokens=usage.output_tokens_details.reasoning_tokens,
+        ),
+    )
+
+
 def _make_chunk(
-    completion_id: str,
     created: int,
     model: str,
     delta: ChatCompletionStreamDelta,
+    completion_id: str | None = None,
     finish_reason: FinishReason | None = None,
     usage: ChatCompletionUsage | None = None,
 ) -> OpenAIChatCompletionChunk:
@@ -835,96 +1061,53 @@ async def from_ir_stream(
     created = int(time())
     model = ir.model
 
-    current_text = ""
-    active_tools: dict[str, dict] = {}
+    tool_calls = _ToolCallAccumulator()
     captured_usage = None
     captured_finish_reason: FinishReason | None = None
-    provider_response_id: str | None = None
-
-    pending: list[OpenAIChatCompletionChunk] = [
-        _make_chunk(None, created, model, ChatCompletionStreamDelta(role="assistant")),
-    ]
+    captured_chat_completion_id: str | None = None
 
     async for event in output_stream:
         if isinstance(event, AgentMessageStart):
-            current_text = ""
+            yield _make_chunk(
+                created,
+                model,
+                ChatCompletionStreamDelta(role="assistant", content=""),
+            )
 
         elif isinstance(event, AgentMessageDelta):
-            current_text += event.content
-            pending.append(
-                _make_chunk(
-                    None,
-                    created,
-                    model,
-                    ChatCompletionStreamDelta(content=event.content),
-                ),
+            yield _make_chunk(
+                created,
+                model,
+                ChatCompletionStreamDelta(content=event.content),
             )
 
         elif isinstance(event, AgentMessageEnd):
             captured_finish_reason = "stop"
 
-        elif isinstance(event, AgentThoughtStart):
-            pass
-
-        elif isinstance(event, AgentThoughtDelta):
-            pass
-
-        elif isinstance(event, AgentThoughtEnd):
+        elif isinstance(event, (AgentThoughtStart, AgentThoughtDelta, AgentThoughtEnd)):
+            # Chat Completions does not expose reasoning content or summary events.
             pass
 
         elif isinstance(event, AgentToolStart):
-            active_tools[event.tool_call_id] = {
-                "tool_name": event.tool_name,
-                "args_buf": "",
-            }
-            pending.append(
-                _make_chunk(
-                    None,
-                    created,
-                    model,
-                    ChatCompletionStreamDelta(
-                        tool_calls=[
-                            ChatCompletionToolCall(
-                                id=event.tool_call_id,
-                                function=ChatCompletionFunctionCall(
-                                    name=event.tool_name,
-                                    arguments="",
-                                ),
-                            )
-                        ]
-                    ),
-                ),
+            yield _make_chunk(
+                created,
+                model,
+                ChatCompletionStreamDelta(tool_calls=[tool_calls.start(event)]),
             )
 
         elif isinstance(event, AgentToolDelta):
-            tc = active_tools.get(event.tool_call_id)
-            if tc:
-                tc["args_buf"] += event.args
-                pending.append(
-                    _make_chunk(
-                        None,
-                        created,
-                        model,
-                        ChatCompletionStreamDelta(
-                            tool_calls=[
-                                ChatCompletionToolCall(
-                                    id=event.tool_call_id,
-                                    function=ChatCompletionFunctionCall(
-                                        name=tc["tool_name"],
-                                        arguments=event.args,
-                                    ),
-                                )
-                            ]
-                        ),
-                    ),
+            tool_delta = tool_calls.delta(event)
+            if tool_delta is not None:
+                yield _make_chunk(
+                    created,
+                    model,
+                    ChatCompletionStreamDelta(tool_calls=[tool_delta]),
                 )
 
-        elif isinstance(event, AgentToolEnd):
-            pass
 
         elif isinstance(event, AgentRunResult):
+            captured_chat_completion_id = event.provider_response_id
             captured_usage = event.usage
-            provider_response_id = event.provider_response_id
             if event.tool_calls:
                 captured_finish_reason = "tool_calls"
             elif captured_finish_reason is None:
@@ -936,29 +1119,14 @@ async def from_ir_stream(
         elif isinstance(event, AgentError):
             captured_finish_reason = "stop"
 
-    usage = None
-    if captured_usage is not None:
-        usage = ChatCompletionUsage(
-            prompt_tokens=captured_usage.input_tokens,
-            completion_tokens=captured_usage.output_tokens,
-            total_tokens=captured_usage.total_tokens,
-        )
-
-    final = _make_chunk(
-        None,
+    yield _make_chunk(
         created,
         model,
         ChatCompletionStreamDelta(),
+        completion_id=captured_chat_completion_id,
         finish_reason=captured_finish_reason,
-        usage=usage,
+        usage=_convert_usage(captured_usage),
     )
-
-    completion_id = provider_response_id
-    for chunk in pending:
-        chunk.id = completion_id
-        yield chunk
-    final.id = completion_id
-    yield final
 
 
 async def from_ir(
@@ -969,11 +1137,11 @@ async def from_ir(
     model = ir.model
 
     current_text = ""
-    active_tools: dict[str, dict] = {}
+    tool_calls = _ToolCallAccumulator()
     captured_usage = None
     captured_finish_reason: FinishReason | None = None
     captured_logprobs: list[dict[str, Any]] | None = None
-    captured_response_id: str | None = None
+    captured_chat_completion_id: str | None = None
     tool_calls_result: list[ChatCompletionToolCall] = []
 
     async for event in output_stream:
@@ -988,46 +1156,24 @@ async def from_ir(
             if event.logprobs:
                 captured_logprobs = event.logprobs
 
+        elif isinstance(event, (AgentThoughtStart, AgentThoughtDelta, AgentThoughtEnd)):
+            # Chat Completions does not expose reasoning content or summary events.
+            pass
+
         elif isinstance(event, AgentToolStart):
-            active_tools[event.tool_call_id] = {
-                "tool_name": event.tool_name,
-                "args_buf": "",
-            }
+            tool_calls.start(event)
 
         elif isinstance(event, AgentToolDelta):
-            tc = active_tools.get(event.tool_call_id)
-            if tc:
-                tc["args_buf"] += event.args
+            tool_calls.delta(event)
 
-        elif isinstance(event, AgentToolEnd):
-            pass
 
         elif isinstance(event, AgentRunResult):
             captured_usage = event.usage
-            captured_response_id = event.provider_response_id
+            captured_chat_completion_id = event.provider_response_id
             if event.tool_calls:
                 captured_finish_reason = "tool_calls"
                 for tool_call in event.tool_calls:
-                    tc = active_tools.pop(tool_call.tool_call_id, None)
-                    tc_name = tc["tool_name"] if tc else tool_call.tool_name
-                    tc_args = (
-                        tc["args_buf"]
-                        if tc
-                        else json.dumps(
-                            tool_call.args,
-                            ensure_ascii=False,
-                            separators=(",", ":"),
-                        )
-                    )
-                    tool_calls_result.append(
-                        ChatCompletionToolCall(
-                            id=tool_call.tool_call_id,
-                            function=ChatCompletionFunctionCall(
-                                name=tc_name,
-                                arguments=tc_args,
-                            ),
-                        )
-                    )
+                    tool_calls_result.append(tool_calls.finish(tool_call))
 
             elif captured_finish_reason is None:
                 if event.incomplete_details is not None:
@@ -1041,14 +1187,6 @@ async def from_ir(
         elif isinstance(event, AgentError):
             captured_finish_reason = "stop"
 
-    usage = None
-    if captured_usage is not None:
-        usage = ChatCompletionUsage(
-            prompt_tokens=captured_usage.input_tokens,
-            completion_tokens=captured_usage.output_tokens,
-            total_tokens=captured_usage.total_tokens,
-        )
-
     logprobs = None
     if captured_logprobs:
         logprobs = ChatCompletionLogprobs(content=captured_logprobs)
@@ -1059,7 +1197,7 @@ async def from_ir(
     )
 
     return OpenAIChatCompletionResponse(
-        id=captured_response_id,
+        id=captured_chat_completion_id,
         choices=[
             ChatCompletionChoice(
                 index=0,
@@ -1070,5 +1208,6 @@ async def from_ir(
         ],
         created=created,
         model=model,
-        usage=usage,
+        usage=_convert_usage(captured_usage),
+        service_tier=ir.openai.service_tier,
     )
