@@ -202,7 +202,7 @@ class Runner:
                 self._native_tool_calls[event.part.tool_call_id] = {
                     "tool_name": event.part.tool_name,
                     "tool_call_id": event.part.tool_call_id,
-                    "args": args,
+                    "args": event.part.args if isinstance(event.part.args, dict) else None,
                     "id": event.part.id,
                 }
             elif isinstance(event.part, NativeToolReturnPart):
@@ -233,18 +233,7 @@ class Runner:
             elif isinstance(event.delta, ToolCallPartDelta):
                 if event.delta.args_delta:
                     _delta_tool_call_id = event.delta.tool_call_id
-                    if _delta_tool_call_id in self._builtin_tool_calls:
-                        tc = self._builtin_tool_calls[_delta_tool_call_id]
-                        if isinstance(event.delta.args_delta, dict):
-                            args = tc.get("args") or {}
-                            args.update(event.delta.args_delta)
-                            tc["args"] = args
-                        yield AgentBuiltinToolDelta(
-                            tool_call_id=_delta_tool_call_id,
-                            tool_name=tc["tool_name"],
-                            args_delta=event.delta.args_delta,
-                        )
-                    elif (
+                    if (
                         self._structured_output_tool_id is not None
                         and _delta_tool_call_id == self._structured_output_tool_id
                     ):
@@ -283,16 +272,9 @@ class Runner:
             elif isinstance(event.part, NativeToolCallPart):
                 tc = self._native_tool_calls.get(event.part.tool_call_id)
                 if tc:
-                    args = args if args is not None else tc.get("args")
-                    tc["args"] = args
+                    tc["args"] = event.part.args if isinstance(event.part.args, dict) else None
                     if event.part.id is not None:
                         tc["id"] = event.part.id
-                yield AgentBuiltinToolEnd(
-                    tool_name=event.part.tool_name,
-                    tool_call_id=event.part.tool_call_id,
-                    args=args,
-                    id=event.part.id,
-                )
 
         elif isinstance(event, FunctionToolCallEvent):
             yield AgentToolCall(
