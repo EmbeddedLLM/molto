@@ -189,6 +189,7 @@ class AgentToolCall(BaseModel):
     tool_call_id: str
     tool_name: str
     args: dict[str, Any]
+    raw_args: str | None = None
     id: str | None = None
 
 
@@ -287,13 +288,13 @@ class Usage(BaseModel):
     output_tokens_details: OutputTokensDetails = Field(default_factory=OutputTokensDetails)
 
 
-class AgentBuiltinToolCall(_Message):
-    """A completed builtin tool call (web_search, code_interpreter) with its result."""
+class AgentNativeToolCall(_Message):
+    """A completed native tool call (web_search, code_interpreter) with its result."""
 
     type: Annotated[
-        Literal["agent.builtin_tool.call"],
+        Literal["agent.native_tool.call"],
         Field(description="Message type."),
-    ] = "agent.builtin_tool.call"
+    ] = "agent.native_tool.call"
     tool_name: str
     tool_call_id: str
     args: dict[str, Any] | None = None
@@ -334,7 +335,7 @@ AgentEvent = Annotated[
         AgentBuiltinToolEnd,
         AgentToolCall,
         AgentToolResult,
-        AgentBuiltinToolCall,
+        AgentNativeToolCall,
         AgentError,
         AgentRunResult,
     ],
@@ -430,8 +431,8 @@ Tool = Annotated[
 # ---- Tool choice types ----
 
 
-class BuiltinToolChoice(BaseModel):
-    kind: Literal["builtin"] = "builtin"
+class NativeToolChoice(BaseModel):
+    kind: Literal["native"] = "native"
     name: Literal["code_interpreter", "web_search"]
 
 
@@ -447,7 +448,7 @@ class McpToolChoice(BaseModel):
 
 
 _SpecificToolChoice = Annotated[
-    Union[BuiltinToolChoice, FunctionToolChoice, McpToolChoice],
+    Union[NativeToolChoice, FunctionToolChoice, McpToolChoice],
     Field(discriminator="kind"),
 ]
 
@@ -461,16 +462,31 @@ class AllowedToolsChoice(BaseModel):
 ToolChoice = Union[
     Literal["none", "auto", "required"],
     Annotated[
-        Union[AllowedToolsChoice, BuiltinToolChoice, FunctionToolChoice, McpToolChoice],
+        Union[AllowedToolsChoice, NativeToolChoice, FunctionToolChoice, McpToolChoice],
         Field(discriminator="kind"),
     ],
 ]
 
 
-class PromptTemplate(BaseModel):
-    id: str
-    variables: dict[str, Any] | None = None
-    version: str | None = None
+class OpenAIOptions(BaseModel):
+    store: bool | None = None
+    prompt_cache_key: str | None = None
+    prompt_cache_retention: str | None = None
+    service_tier: str | None = None
+
+
+class ChatOptions(BaseModel):
+    pass
+
+
+class ResponsesOptions(BaseModel):
+    include: list[str] | None = None
+    previous_response_id: str | None = None
+    conversation_id: str | None = None
+    safety_identifier: str | None = None
+    stream_obfuscation: bool | None = None
+    truncation: Literal["auto", "disabled"] | None = None
+    verbosity: Literal["low", "medium", "high"] | None = None
 
 
 # ---- Input ----
@@ -482,6 +498,9 @@ class Input(BaseModel):
     # Routing
     model: str
     stream: bool | None = None
+    openai: OpenAIOptions = Field(default_factory=OpenAIOptions)
+    chat: ChatOptions = Field(default_factory=ChatOptions)
+    responses: ResponsesOptions = Field(default_factory=ResponsesOptions)
 
     # Conversation (pydantic-ai abstraction)
     message_history: list[ModelMessage] = Field(default_factory=list)
@@ -499,31 +518,16 @@ class Input(BaseModel):
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None
     top_logprobs: int | None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
     parallel_tool_calls: bool | None = None
     max_tool_calls: int | None
 
     # Text output format
     text_format: TextOutputFormat | None
-    verbosity: Literal["low", "medium", "high"] | None = None
 
     # Tools
     tools: list[Tool] | None
     tool_choice: ToolChoice | None
 
-    # Passthrough metadata
-    include: list[str] | None
-    store: bool | None = None
-    previous_response_id: str | None
-    metadata: dict[str, Any] | None
-
-    # OpenAI Responses-specific passthrough fields
-    # background: bool | None = None
-    conversation_id: str | None = None
-    prompt: PromptTemplate | None = None
-    prompt_cache_key: str | None = None
-    prompt_cache_retention: str | None = None
-    safety_identifier: str | None = None
-    service_tier: str | None = None
-    stream_obfuscation: bool | None = None
-    truncation: Literal["auto", "disabled"] | None = None
     extra_body: dict[str, Any] | None = None

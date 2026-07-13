@@ -47,22 +47,8 @@ def _make_ir(**overrides) -> Input:
         parallel_tool_calls=None,
         max_tool_calls=None,
         text_format=None,
-        verbosity=None,
         tools=None,
         tool_choice=None,
-        include=None,
-        store=None,
-        previous_response_id=None,
-        metadata=None,
-        conversation_id=None,
-        prompt=None,
-        prompt_cache_key=None,
-        prompt_cache_retention=None,
-        safety_identifier=None,
-        service_tier=None,
-        stream_obfuscation=None,
-        truncation=None,
-        extra_body=None,
         stream=None,
     )
     defaults.update(overrides)
@@ -73,6 +59,7 @@ def _cassette(name: str) -> Path:
     return CASSETTE_DIR / f"{name}.yaml"
 
 
+# TEMP
 class TestBadInputError:
     async def test_context_window_exceeded(self):
         path = _cassette("context_length_exceeded")
