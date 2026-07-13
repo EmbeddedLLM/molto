@@ -19,7 +19,6 @@ from molto.types.ir import (
     AgentToolCall,
     AgentToolCalls,
     AgentToolDelta,
-    AgentToolEnd,
     AgentToolResult,
     AgentToolStart,
     AllowedToolsChoice,
