@@ -4,6 +4,7 @@ from typing import Any, AsyncIterator, TypedDict
 
 from httpx import AsyncClient
 from loguru import logger
+from openai import APIError
 from pydantic_ai import (
     Agent,
     AgentRunError,
@@ -37,7 +38,6 @@ from pydantic_ai.output import OutputSpec
 from pydantic_ai.toolsets.abstract import AbstractToolset
 
 from molto.types.ir import (
-    RESPONSE_TOOL_NAME,
     AgentError,
     AgentEvent,
     AgentMessageDelta,
@@ -101,6 +101,25 @@ class RunSettings(TypedDict):
     capabilities: list[AbstractCapability[Any]] | None
 
 
+def _is_context_window_message(message: str) -> bool:
+    lowered = message.lower()
+    return "context" in lowered and (
+        "length" in lowered or "token" in lowered or "window" in lowered
+    )
+
+
+def _unexpected_error_message(exc: Exception) -> str:
+    """Keep the useful root-cause text when an API wrapper hides it."""
+    messages = [f"{type(exc).__name__}: {exc}"]
+    cause = exc.__cause__
+    while cause is not None:
+        cause_message = str(cause)
+        if cause_message and cause_message != str(exc):
+            messages.append(f"{type(cause).__name__}: {cause_message}")
+        cause = cause.__cause__
+    return "\nCaused by: ".join(messages)
+
+
 def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
     if isinstance(exc, UnexpectedModelBehavior):
         return UnexpectedError(str(exc))
@@ -111,7 +130,7 @@ def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
         body = str(exc.body) if exc.body else str(exc)
         if status == 400:
             msg = str(body)
-            if "context" in msg.lower() and ("length" in msg.lower() or "token" in msg.lower()):
+            if _is_context_window_message(msg):
                 return ContextOverflowError(msg)
             return BadInputError(msg)
         if status == 401:
@@ -128,8 +147,12 @@ def _map_pydantic_ai_error(exc: Exception) -> MoltoException:
             return ModelOverloadError(body)
         return UnexpectedError(f"HTTP {status}: {body}")
     if isinstance(exc, AgentRunError):
-        return UnexpectedError(str(exc))
-    return UnexpectedError(f"{type(exc).__name__}: {exc}")
+        return UnexpectedError(_unexpected_error_message(exc))
+    if isinstance(exc, APIError):
+        msg = str(exc)
+        if _is_context_window_message(msg):
+            return ContextOverflowError(msg)
+    return UnexpectedError(_unexpected_error_message(exc))
 
 
 class Runner:
@@ -145,15 +168,6 @@ class Runner:
         self._native_tool_calls: dict[str, dict] = {}
         self._current_text_id: str | None = None
         self._current_thought_id: str | None = None
-        # When `output_type` is a `StructuredDict(...)`, pydantic-ai routes
-        # structured output through an internal `final_result` tool call. Track
-        # that tool call so the runner can surface it as a text message rather
-        # than a tool-call event in the IR.
-        _output_type = self._agent_settings["output_type"]
-        self._structured_output_active = isinstance(_output_type, type) and getattr(
-            _output_type, "__is_model_like__", False
-        )
-        self._structured_output_tool_id: str | None = None
         self._agent = Agent(
             **self._agent_settings,
         )
@@ -178,26 +192,16 @@ class Runner:
             elif isinstance(event.part, ToolCallPart):
                 _tool_name = event.part.tool_name
                 _tool_call_id = event.part.tool_call_id
-                if self._structured_output_active and _tool_name == RESPONSE_TOOL_NAME:
-                    self._structured_output_tool_id = _tool_call_id
-                    self._current_text_id = _tool_call_id
-                    yield AgentMessageStart(id=_tool_call_id)
-                    if event.part.has_content():
-                        yield AgentMessageDelta(
-                            content=event.part.args_as_json_str(),
-                            id=_tool_call_id,
-                        )
-                else:
-                    self._tool_id2name[_tool_call_id] = _tool_name
-                    yield AgentToolStart(
-                        tool_call_id=_tool_call_id, tool_name=_tool_name, id=event.part.id
+                self._tool_id2name[_tool_call_id] = _tool_name
+                yield AgentToolStart(
+                    tool_call_id=_tool_call_id, tool_name=_tool_name, id=event.part.id
+                )
+                if event.part.has_content():
+                    yield AgentToolDelta(
+                        tool_call_id=_tool_call_id,
+                        tool_name=_tool_name,
+                        args=event.part.args_as_json_str(),
                     )
-                    if event.part.has_content():
-                        yield AgentToolDelta(
-                            tool_call_id=_tool_call_id,
-                            tool_name=_tool_name,
-                            args=event.part.args_as_json_str(),
-                        )
             elif isinstance(event.part, NativeToolCallPart):
                 self._native_tool_calls[event.part.tool_call_id] = {
                     "tool_name": event.part.tool_name,
@@ -233,21 +237,12 @@ class Runner:
             elif isinstance(event.delta, ToolCallPartDelta):
                 if event.delta.args_delta:
                     _delta_tool_call_id = event.delta.tool_call_id
-                    if (
-                        self._structured_output_tool_id is not None
-                        and _delta_tool_call_id == self._structured_output_tool_id
-                    ):
-                        yield AgentMessageDelta(
-                            content=str(event.delta.args_delta),
-                            id=_delta_tool_call_id,
-                        )
-                    else:
-                        _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
-                        yield AgentToolDelta(
-                            tool_call_id=_delta_tool_call_id,
-                            tool_name=_tool_name,
-                            args=str(event.delta.args_delta),
-                        )
+                    _tool_name = self._tool_id2name.get(_delta_tool_call_id, "")
+                    yield AgentToolDelta(
+                        tool_call_id=_delta_tool_call_id,
+                        tool_name=_tool_name,
+                        args=str(event.delta.args_delta),
+                    )
 
         elif isinstance(event, PartEndEvent):
             if isinstance(event.part, TextPart):
@@ -260,15 +255,7 @@ class Runner:
                 yield AgentThoughtEnd(id=event.part.id)
                 self._current_thought_id = None
             elif isinstance(event.part, ToolCallPart):
-                if (
-                    self._structured_output_tool_id is not None
-                    and event.part.tool_call_id == self._structured_output_tool_id
-                ):
-                    yield AgentMessageEnd(id=event.part.tool_call_id)
-                    self._current_text_id = None
-                    self._structured_output_tool_id = None
-                else:
-                    yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
+                yield AgentToolEnd(tool_call_id=event.part.tool_call_id)
             elif isinstance(event.part, NativeToolCallPart):
                 tc = self._native_tool_calls.get(event.part.tool_call_id)
                 if tc:
@@ -378,12 +365,9 @@ class Runner:
                     event_count += 1
                     for ir_event in self._event_to_ir(event):
                         yield ir_event
-            except (UnexpectedModelBehavior, UserError, ModelHTTPError, AgentRunError) as e:
-                yield AgentError(error=str(e), cause=repr(e.__cause__))
-                raise _map_pydantic_ai_error(e) from e
             except Exception as e:
                 yield AgentError(error=str(e), cause=repr(e.__cause__))
-                raise UnexpectedError(str(e)) from e
+                raise _map_pydantic_ai_error(e) from e
         t = perf_counter() - t0
         logger.debug(
             (

@@ -11,38 +11,60 @@ from molto.types.openai.responses import (
     _OpenAIStreamEvent,
 )
 from molto.utils.test import (
-    CASSETTE_DIR,
     STREAM_PARAMS,
     assert_output_item_order,
     assert_stream_events_match,
     assert_stream_text_events,
-    make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
-    read_cassette_request,
+    stream_reference_cassette_suffix,
 )
 
-CASSETTE_PATH = CASSETTE_DIR / "openai" / "responses" / "conversation.yaml"
+CONVERSATION_SETUP_ITEMS = [
+    {"role": "user", "content": "Tell me a short joke about a scarecrow."},
+    {
+        "role": "assistant",
+        "content": (
+            "Why did the scarecrow win an award? Because he was outstanding in his field!"
+        ),
+    },
+]
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_conversation(stream: bool):
-    cassette_req = read_cassette_request(CASSETTE_PATH, stream=stream)
-    conversation_id = cassette_req["conversation"]
+async def test_conversation(stream: bool, cassette_manager):
+    """Create/replay a provider conversation setup before testing response replay.
+
+    Example:
+        # cassette_suffix="setup" returns a conversation id used by the stream/non-stream request.
+    """
+    setup_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix="setup",
+        cassette_endpoint="conversations",
+        expected_request_body={"items": CONVERSATION_SETUP_ITEMS},
+        assert_attrs=["items"],
+    )
+    conversation = await setup_client.conversations.create(items=CONVERSATION_SETUP_ITEMS)
+    conversation_id = conversation.id
 
     req_body = dict(
-        model=cassette_req["model"],
-        input=cassette_req["input"],
+        model="gpt-5-nano",
+        input=[{"role": "user", "content": "what joke was previously mentioned?"}],
         conversation=conversation_id,
-        include=cassette_req.get("include"),
+        include=["reasoning.encrypted_content"],
         stream=stream,
     )
 
-    handler = make_handler(CASSETTE_PATH, req_body, ["model", "input", "conversation"])
+    assert_attrs = ["model", "input", "conversation"]
 
-    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
-    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    # -- OpenAI SDK (parametrized stream) --------------------------------
+    sdk_client = make_openai_client(
+        cassette_manager,
+        expected_request_body=req_body,
+        assert_attrs=assert_attrs,
+    )
     sdk_response = await sdk_client.responses.create(**req_body)
     if stream:
         sdk_events = [e async for e in sdk_response]
@@ -59,22 +81,32 @@ async def test_conversation(stream: bool):
     assert sdk_response.conversation.id == conversation_id
 
     sdk_msg = next(o for o in sdk_response.output if isinstance(o, ResponseOutputMessage))
-    assert isinstance(sdk_msg, ResponseOutputMessage)
     assert sdk_msg.role == "assistant"
     assert len(sdk_msg.content) >= 1
     assert "scarecrow" in sdk_msg.content[0].text
 
-    # ── Stream SDK reference (matches Molto's internal streaming) ──────
-    ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [
-        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
-    ]
+    stream_ref_suffix = stream_reference_cassette_suffix(stream)
+
+    # -- Stream SDK reference (matches Molto's internal streaming) -------
+    stream_req_body = {**req_body, "stream": True}
+    ref_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
+    ref_events = [e async for e in await ref_client.responses.create(**stream_req_body)]
     assert isinstance(ref_events[-1], ResponseCompletedEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
 
-    # ── Molto client ───────────────────────────────────────────────────
-    client = make_molto_client(handler)
+    # -- Molto client ----------------------------------------------------
+    client = make_molto_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]

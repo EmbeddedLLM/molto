@@ -19,7 +19,6 @@ from molto.types.ir import (
     AgentToolCall,
     AgentToolCalls,
     AgentToolDelta,
-    AgentToolEnd,
     AgentToolResult,
     AgentToolStart,
     AllowedToolsChoice,
@@ -449,11 +448,11 @@ class OpenAIChatCompletionRequest(BaseModel):
         Field(description="Up to 4 sequences where the API will stop generating further tokens."),
     ] = None
     stream: Annotated[
-        bool,
+        bool | None,
         Field(
             description="If set to true, the model response data will be streamed as it is generated."
         ),
-    ] = False
+    ] = None
     stream_options: Annotated[
         ChatCompletionStreamOptions | None,
         Field(description="Options for streaming response."),
@@ -495,13 +494,13 @@ class OpenAIChatCompletionRequest(BaseModel):
         Field(description="A list of tools the model may call."),
     ] = None
     tool_choice: Annotated[
-        ChatCompletionToolChoiceOption,
+        ChatCompletionToolChoiceOption | None,
         Field(description="Controls which tool is called by the model."),
-    ] = "auto"
+    ] = None
     parallel_tool_calls: Annotated[
-        bool,
+        bool | None,
         Field(description="Whether to enable parallel function calling."),
-    ] = True
+    ] = None
     user: Annotated[
         str | None,
         Field(description="A unique identifier representing your end-user."),
@@ -1013,16 +1012,6 @@ class _ToolCallAccumulator:
         )
 
 
-# Chat Completions can request reasoning effort and report reasoning token usage,
-# but it does not expose reasoning content or reasoning summary events in
-# assistant messages/chunks. Keep IR thought events out of Chat Completions
-# payloads instead of folding hidden reasoning into visible assistant content.
-def _ignore_reasoning_event(
-    _event: AgentThoughtStart | AgentThoughtDelta | AgentThoughtEnd,
-) -> None:
-    return None
-
-
 def _convert_usage(usage) -> ChatCompletionUsage | None:
     if usage is None:
         return None
@@ -1069,7 +1058,6 @@ async def from_ir_stream(
     created = int(time())
     model = ir.model
 
-    current_text = ""
     tool_calls = _ToolCallAccumulator()
     captured_usage = None
     captured_finish_reason: FinishReason | None = None
@@ -1083,10 +1071,8 @@ async def from_ir_stream(
                 model,
                 ChatCompletionStreamDelta(role="assistant", content=""),
             )
-            current_text = ""
 
         elif isinstance(event, AgentMessageDelta):
-            current_text += event.content
             yield _make_chunk(
                 created,
                 model,
@@ -1097,8 +1083,8 @@ async def from_ir_stream(
             captured_finish_reason = "stop"
 
         elif isinstance(event, (AgentThoughtStart, AgentThoughtDelta, AgentThoughtEnd)):
-            # Chat completions does not emit reasoning summaries
-            _ignore_reasoning_event(event)
+            # Chat Completions does not expose reasoning content or summary events.
+            pass
 
         elif isinstance(event, AgentToolStart):
             yield _make_chunk(
@@ -1115,9 +1101,6 @@ async def from_ir_stream(
                     model,
                     ChatCompletionStreamDelta(tool_calls=[tool_delta]),
                 )
-
-        elif isinstance(event, AgentToolEnd):
-            pass
 
         elif isinstance(event, AgentRunResult):
             captured_chat_completion_id = event.provider_response_id
@@ -1171,16 +1154,14 @@ async def from_ir(
                 captured_logprobs = event.logprobs
 
         elif isinstance(event, (AgentThoughtStart, AgentThoughtDelta, AgentThoughtEnd)):
-            _ignore_reasoning_event(event)
+            # Chat Completions does not expose reasoning content or summary events.
+            pass
 
         elif isinstance(event, AgentToolStart):
             tool_calls.start(event)
 
         elif isinstance(event, AgentToolDelta):
             tool_calls.delta(event)
-
-        elif isinstance(event, AgentToolEnd):
-            pass
 
         elif isinstance(event, AgentRunResult):
             captured_usage = event.usage

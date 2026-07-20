@@ -11,6 +11,7 @@ from pydantic_ai import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    NativeOutput,
     NativeToolCallPart,
     NativeToolReturnPart,
     StructuredDict,
@@ -151,10 +152,11 @@ class _OpenAIProviderBase(_Provider):
     @staticmethod
     def _build_output_type(ir: Input) -> Any:
         if isinstance(ir.text_format, JsonSchemaFormat):
-            return StructuredDict(
-                ir.text_format.json_schema,
+            return NativeOutput(
+                StructuredDict(ir.text_format.json_schema),
                 name=ir.text_format.name,
                 description=ir.text_format.description,
+                strict=ir.text_format.strict,
             )
         return [str, DeferredToolRequests]
 
@@ -548,6 +550,17 @@ class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
         if openai.prompt_cache_retention is not None:
             ms_kwargs["openai_prompt_cache_retention"] = openai.prompt_cache_retention
         return OpenAIChatModelSettings(**ms_kwargs)
+
+    @staticmethod
+    def _build_output_type(ir: Input) -> Any:
+        if isinstance(ir.text_format, JsonSchemaFormat):
+            return NativeOutput(
+                StructuredDict(ir.text_format.json_schema),
+                name=ir.text_format.name,
+                description=ir.text_format.description,
+                strict=ir.text_format.strict,
+            )
+        return [str, DeferredToolRequests]
 
     async def parse_agent_settings(
         self,

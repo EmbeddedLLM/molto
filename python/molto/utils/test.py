@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
-from functools import partial
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 from openai import AsyncOpenAI
 
 from molto import Molto
@@ -14,73 +16,572 @@ from molto.utils.io import json_loads, read_yaml
 
 STREAM_PARAMS = dict(argvalues=[True, False], ids=["stream", "non-stream"])
 
-CASSETTE_DIR = Path("tests/cassettes")
 
-
-def read_cassette(path: Path, stream: bool) -> dict[str, Any] | list[str]:
-    """Read a YAML cassette file and return the response payload.
-
-    For stream cassettes the file stem is suffixed with "-stream" (e.g.
-    "foo.yaml" → "foo-stream.yaml") and the "sse" list of SSE lines is
-    returned.  For non-stream cassettes the "body" dict is returned.
-    """
-    if stream:
-        path = path.with_stem(f"{path.stem}-stream")
-    data = read_yaml(path)["response"]
-    return data["sse"] if stream else data["body"]
-
-
-def read_cassette_request(path: Path, stream: bool = False) -> dict[str, Any]:
-    """Read the "request.body" section from a cassette YAML file."""
-    if stream:
-        path = path.with_stem(f"{path.stem}-stream")
-    return read_yaml(path)["request"]["body"]
-
-
-def extract_cassette_response(
-    path: Path,
-    stream: bool,
-    terminal_event_type: str = "response.completed",
-) -> dict[str, Any]:
-    """Extract the full response dict from a cassette.
-
-    For non-stream cassettes this is simply the response body.  For stream
-    cassettes the SSE lines are scanned for the *single* frame whose "type"
-    matches "terminal_event_type" (default "response.completed") and its
-    nested "response" object is returned.
-    """
-    data = read_cassette(path, stream=stream)
-    if stream:
-        frames = [
-            line
-            for line in data
-            if line.startswith("data: ") and f'"type":"{terminal_event_type}"' in line
-        ]
-        assert len(frames) == 1, (
-            f"Expected exactly one {terminal_event_type} frame, found {len(frames)}"
-        )
-        return json_loads(frames[0][len("data: ") :])["response"]
-    return data
-
-
-def extract_output_ids(cassette_resp: dict[str, Any], *types: str) -> dict[str, str]:
-    """Return the first "id" for each requested output "type" in a cassette response.
-
-    Given a cassette response dict (containing an "output" list) and one or
-    more output item types (e.g. "message", "function_call"), returns a
-    mapping of {type: id} using the first occurrence of each type.
+def stream_reference_cassette_suffix(stream: bool) -> str | None:
+    """Return the extra cassette suffix for Molto/internal streaming references.
 
     Example:
-
-        ids = extract_output_ids(resp, "message", "function_call")
-        # {"message": "msg_abc", "function_call": "fc_xyz"}
+        stream_reference_cassette_suffix(False)
+        # "sse"
     """
-    result: dict[str, str] = {}
-    for output_item in cassette_resp["output"]:
-        item_type = output_item["type"]
-        if item_type in types and item_type not in result:
-            result[item_type] = output_item["id"]
-    return result
+    return None if stream else "sse"
+
+
+CASSETTE_DIR = Path("tests/cassettes")
+
+RECORDED_HEADERS = {
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "cache-control",
+    "connection",
+    "content-length",
+    "content-type",
+    "user-agent",
+    "x-run-id",
+}
+
+# These headers affect how OpenAI interprets the request and are stable across
+# the SDK and Molto clients. Other recorded headers are useful diagnostics but
+# include credentials, SDK versions, or transport-computed values.
+MATCHED_REQUEST_HEADERS = {
+    "content-type",
+}
+
+EXCLUDED_PLAYBACK_HEADERS = {
+    "content-encoding",
+    "content-length",
+    "transfer-encoding",
+}
+
+SECRET_REQUEST_KEYS = {
+    "api_key",
+    "authorization",
+    "client_secret",
+    "password",
+    "secret",
+    "access_token",
+    "refresh_token",
+    "id_token",
+}
+
+
+def sanitize_test_name(name: str) -> str:
+    """Return the stable filesystem slug for a pytest node name.
+
+    Example:
+        sanitize_test_name("test_reasoning[stream-reasoning_no_summary]")
+        # "test_reasoning-stream-reasoning_no_summary"
+    """
+    slug = name.replace("[", "-").replace("]", "")
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug or "test"
+
+
+def openai_endpoint_from_path(path: str) -> str:
+    """Map an OpenAI request path to the cassette endpoint directory.
+
+    Example:
+        openai_endpoint_from_path("/v1/chat/completions")
+        # "chat_completions"
+    """
+    clean_path = path.strip("/")
+    if clean_path.startswith("v1/"):
+        clean_path = clean_path[len("v1/") :]
+    if clean_path.startswith("chat/completions"):
+        return "chat_completions"
+    return (clean_path.split("/", 1)[0] or "unknown").replace("-", "_")
+
+
+def mask_authorization(value: str) -> str:
+    """Mask an Authorization header value before writing a cassette.
+
+    Example:
+        mask_authorization("Bearer sk-test")
+        # "Bearer ***"
+    """
+    if not value:
+        return value
+    if value.lower().startswith("bearer "):
+        return "Bearer ***"
+    return "***"
+
+
+def sanitize_headers(headers: httpx.Headers) -> dict[str, str]:
+    """Filter headers to deterministic, shareable cassette metadata.
+
+    Example:
+        sanitize_headers(httpx.Headers({"authorization": "Bearer sk-test", "x-no": "1"}))
+        # {"authorization": "Bearer ***"}
+    """
+    filtered: dict[str, str] = {}
+    for key, value in sorted(headers.items(), key=lambda item: item[0].lower()):
+        lower_key = key.lower()
+        if lower_key not in RECORDED_HEADERS:
+            continue
+        filtered[key] = mask_authorization(value) if lower_key == "authorization" else value
+    return filtered
+
+
+def sanitize_request_body(body: Any) -> Any:
+    """Recursively scrub secret-looking request fields before recording.
+
+    Example:
+        sanitize_request_body({"model": "gpt-4.1", "api_key": "sk-test"})
+        # {"model": "gpt-4.1", "api_key": "***"}
+    """
+    if isinstance(body, dict):
+        scrubbed: dict[str, Any] = {}
+        for key, value in body.items():
+            key_lower = str(key).lower()
+            if key_lower in SECRET_REQUEST_KEYS or key_lower.endswith("_api_key"):
+                scrubbed[key] = "***"
+            else:
+                scrubbed[key] = sanitize_request_body(value)
+        return scrubbed
+    if isinstance(body, list):
+        return [sanitize_request_body(item) for item in body]
+    return body
+
+
+def _request_snapshot(request: httpx.Request, body: Any) -> dict[str, Any]:
+    """Return the sanitized request fields persisted in and matched against cassettes."""
+    return {
+        "method": request.method,
+        "path": _request_path(request),
+        "query_params": _request_query_params(request),
+        "headers": sanitize_headers(request.headers),
+        "body": sanitize_request_body(body),
+    }
+
+
+def _matched_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Return stable, semantically relevant request headers for replay matching."""
+    return {
+        key.lower(): value
+        for key, value in headers.items()
+        if key.lower() in MATCHED_REQUEST_HEADERS
+    }
+
+
+def _playback_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Remove transport-managed headers before replaying a response.
+
+    Example:
+        _playback_headers({"content-type": "application/json", "content-length": "10"})
+        # {"content-type": "application/json"}
+    """
+    return {k: v for k, v in headers.items() if k.lower() not in EXCLUDED_PLAYBACK_HEADERS}
+
+
+def _parse_request_body(body: bytes) -> Any:
+    """Parse an HTTP JSON request body, returning an empty dict for no body.
+
+    Example:
+        _parse_request_body(b'{"stream": true}')
+        # {"stream": True}
+    """
+    if not body:
+        return {}
+    return json_loads(body)
+
+
+def _decode_response_body(body: bytes, headers: httpx.Headers) -> Any:
+    """Decode a recorded response body according to its content type.
+
+    Example:
+        _decode_response_body(b'{"ok": true}', httpx.Headers({"content-type": "application/json"}))
+        # {"ok": True}
+    """
+    content_type = headers.get("content-type", "")
+    if "application/json" not in content_type:
+        return body.decode("utf-8")
+    return json_loads(body)
+
+
+def _body_to_sse_lines(body: bytes) -> list[str]:
+    """Split a streamed response body into newline-preserving SSE lines.
+
+    Example:
+        _body_to_sse_lines(b'data: {"type":"response.created"}\n\n')
+        # ['data: {"type":"response.created"}\n', '\n']
+    """
+    text = body.decode("utf-8")
+    return [f"{line}\n" for line in text.splitlines()]
+
+
+def _request_path(request: httpx.Request) -> str:
+    """Return a request path with a leading slash.
+
+    Example:
+        _request_path(httpx.Request("POST", "https://api.openai.com/v1/responses"))
+        # "/v1/responses"
+    """
+    path = request.url.path
+    return path if path.startswith("/") else f"/{path}"
+
+
+def _request_query_params(request: httpx.Request) -> dict[str, str]:
+    """Return request query parameters as cassette metadata.
+
+    Example:
+        _request_query_params(httpx.Request("GET", "https://example.test/a?limit=1"))
+        # {"limit": "1"}
+    """
+    return dict(request.url.params.multi_items())
+
+
+def _is_stream_request(body: Any) -> bool:
+    """Return whether a parsed request body asks OpenAI for streaming.
+
+    Example:
+        _is_stream_request({"stream": True})
+        # True
+    """
+    return isinstance(body, dict) and body.get("stream") is True
+
+
+@dataclass
+class OpenAICassetteManager:
+    """Resolve and persist per-test OpenAI SDK cassettes.
+
+    Example:
+        manager = OpenAICassetteManager("test_demo[stream]", "tests/test_demo.py::test_demo[stream]", "test_demo", False)
+        manager.cassette_path("responses")
+        # Path("tests/cassettes/openai/responses/test_demo/test_demo-stream.yaml")
+    """
+
+    node_name: str
+    node_id: str
+    module_name: str
+    record: bool
+    root: Path = CASSETTE_DIR
+    recorded_paths: set[Path] = field(default_factory=set)
+
+    @classmethod
+    def from_pytest_request(cls, request: Any, *, record: bool) -> "OpenAICassetteManager":
+        """Build a manager from pytest's fixture request object.
+
+        Example:
+            # For node name "test_demo[stream]" in tests/test_demo.py:
+            OpenAICassetteManager.from_pytest_request(request, record=False).module_name
+            # "test_demo"
+        """
+        node_path = getattr(request.node, "path", None)
+        module_name = Path(str(node_path)).stem if node_path is not None else "unknown_module"
+        root = Path(str(request.config.rootpath)) / CASSETTE_DIR
+        return cls(
+            node_name=request.node.name,
+            node_id=request.node.nodeid,
+            module_name=sanitize_test_name(module_name),
+            record=record,
+            root=root,
+        )
+
+    @property
+    def node_slug(self) -> str:
+        """Return the sanitized test name used in cassette filenames.
+
+        Example:
+            OpenAICassetteManager("test_a[one two]", "id", "mod", False).node_slug
+            # "test_a-one-two"
+        """
+        return sanitize_test_name(self.node_name)
+
+    def cassette_path(self, endpoint: str, cassette_suffix: str | None = None) -> Path:
+        """Return the cassette path for an endpoint and optional filename suffix.
+
+        Example:
+            manager = OpenAICassetteManager("test_a[stream]", "id", "test_a", False)
+            manager.cassette_path("responses")
+            # Path("tests/cassettes/openai/responses/test_a/test_a-stream.yaml")
+        """
+        if cassette_suffix is None:
+            filename = f"{self.node_slug}.yaml"
+        else:
+            suffix_slug = sanitize_test_name(cassette_suffix)
+            filename = f"{self.node_slug}-{suffix_slug}.yaml"
+        return self.root / "openai" / endpoint / self.module_name / filename
+
+    def path_for_request(self, request: httpx.Request, cassette_suffix: str | None) -> Path:
+        """Return the cassette path for an outgoing OpenAI request.
+
+        Example:
+            manager = OpenAICassetteManager("test_a", "id", "test_a", False)
+            request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+            manager.path_for_request(request, None)
+            # Path("tests/cassettes/openai/responses/test_a/test_a.yaml")
+        """
+        endpoint = openai_endpoint_from_path(_request_path(request))
+        return self.cassette_path(endpoint, cassette_suffix)
+
+    def read(self, path: Path) -> dict[str, Any]:
+        """Read a YAML cassette or raise a recording hint if it is missing.
+
+        Example:
+            # manager.read(Path("missing.yaml")) raises an AssertionError containing:
+            # "pytest --record-cassettes tests/test_demo.py::test_demo"
+        """
+        if not path.exists():
+            raise AssertionError(self.missing_cassette_message(path))
+        data = read_yaml(path)
+        assert isinstance(data, dict), f"Invalid cassette payload at {path}"
+        return data
+
+    def write(self, path: Path, cassette: dict[str, Any]) -> None:
+        """Write a cassette with stable YAML ordering and remember it for replay.
+
+        Example:
+            manager.write(Path("tests/cassettes/openai/responses/test_a/test_a-stream.yaml"), {"request": {}, "response": {}})
+            # path is written and added to manager.recorded_paths
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                cassette,
+                f,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+        self.recorded_paths.add(path)
+
+    def missing_cassette_message(self, path: Path) -> str:
+        """Return the actionable error shown when playback has no cassette.
+
+        Example:
+            manager = OpenAICassetteManager("test_a", "tests/test_a.py::test_a", "test_a", False)
+            "pytest --record-cassettes tests/test_a.py::test_a" in manager.missing_cassette_message(Path("x.yaml"))
+            # True
+        """
+        return "\n".join(
+            [
+                "Missing OpenAI cassette.",
+                f"path: {path}",
+                f"pytest node id: {self.node_id}",
+                f"record with: pytest --record-cassettes {self.node_id}",
+            ]
+        )
+
+
+class OpenAICassetteTransport(httpx.AsyncBaseTransport):
+    """httpx transport that replays or records one cassette filename suffix.
+
+    Example:
+        manager = OpenAICassetteManager("test_a", "id", "test_a", False)
+        transport = OpenAICassetteTransport(manager, cassette_suffix="sse", playback_only=True)
+        transport.cassette_suffix
+        # "sse"
+    """
+
+    def __init__(
+        self,
+        cassette_manager: OpenAICassetteManager,
+        *,
+        cassette_suffix: str | None = None,
+        playback_only: bool = False,
+        expected_request_body: dict[str, Any] | None = None,
+        assert_attrs: list[str] | None = None,
+    ) -> None:
+        """Initialize transport state for one cassette suffix.
+
+        Example:
+            manager = OpenAICassetteManager("test_a", "id", "test_a", False)
+            OpenAICassetteTransport(manager, cassette_suffix=None).cassette_suffix
+            # None
+        """
+        self.cassette_manager = cassette_manager
+        self.cassette_suffix = cassette_suffix
+        self.playback_only = playback_only
+        self.expected_request_body = expected_request_body
+        self.assert_attrs = assert_attrs or []
+        self._real_transport = None
+        if cassette_manager.record and not playback_only:
+            self._real_transport = httpx.AsyncHTTPTransport()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Handle an SDK request by replaying or recording the configured cassette suffix.
+
+        Example:
+            # In playback mode, POST /v1/responses with cassette_suffix "sse" reads:
+            # tests/cassettes/openai/responses/<module>/<test>-sse.yaml
+        """
+        body_bytes = await request.aread()
+        request_body = _parse_request_body(body_bytes)
+        self._assert_expected_request(request_body)
+
+        path = self.cassette_manager.path_for_request(request, self.cassette_suffix)
+        if self._should_replay(path):
+            return self._response_from_cassette(request, request_body, path)
+        return await self._record_response(request, body_bytes, request_body, path)
+
+    async def aclose(self) -> None:
+        """Close the underlying live transport when recording used one.
+
+        Example:
+            # After await transport.aclose(), any owned AsyncHTTPTransport is closed.
+        """
+        if self._real_transport is not None:
+            await self._real_transport.aclose()
+
+    def _assert_expected_request(self, request_body: Any) -> None:
+        """Assert selected JSON request fields match the expected request.
+
+        Example:
+            transport.expected_request_body = {"model": "gpt-4.1"}
+            transport.assert_attrs = ["model"]
+            transport._assert_expected_request({"model": "gpt-4.1"})
+            # None
+        """
+        if not self.expected_request_body:
+            return
+
+        attrs = list(self.assert_attrs)
+        if "stream" in self.expected_request_body and "stream" not in attrs:
+            attrs.append("stream")
+        if not attrs:
+            return
+
+        assert isinstance(request_body, dict), "Expected JSON object request body"
+        for attr in attrs:
+            assert request_body.get(attr) == self.expected_request_body[attr], (
+                f"Expected {attr} to be {self.expected_request_body[attr]!r}, "
+                f"got {request_body.get(attr)!r}"
+            )
+
+    def _should_replay(self, path: Path) -> bool:
+        """Return whether this request should use an existing cassette.
+
+        Example:
+            transport = OpenAICassetteTransport(manager, cassette_suffix="sse", playback_only=True)
+            transport._should_replay(Path("missing.yaml"))
+            # True
+        """
+        if self.playback_only or not self.cassette_manager.record:
+            return True
+        return path in self.cassette_manager.recorded_paths
+
+    def _assert_request_matches_cassette(
+        self,
+        request: httpx.Request,
+        request_body: Any,
+        path: Path,
+        cassette: dict[str, Any],
+    ) -> None:
+        """Fail with a field-level diff when replay traffic differs from its cassette."""
+        recorded = cassette.get("request")
+        assert isinstance(recorded, dict), f"Invalid cassette request at {path}"
+
+        actual = _request_snapshot(request, request_body)
+        differences: list[str] = []
+        for field_name in ("method", "path", "query_params", "body"):
+            expected_value = recorded.get(field_name)
+            actual_value = actual[field_name]
+            if actual_value != expected_value:
+                differences.append(
+                    f"{field_name}: recorded={expected_value!r}, actual={actual_value!r}"
+                )
+
+        recorded_headers = recorded.get("headers") or {}
+        assert isinstance(recorded_headers, dict), f"Invalid cassette request headers at {path}"
+        expected_headers = _matched_headers(recorded_headers)
+        actual_headers = _matched_headers(actual["headers"])
+        if actual_headers != expected_headers:
+            differences.append(
+                f"headers: recorded={expected_headers!r}, actual={actual_headers!r}"
+            )
+
+        assert not differences, "\n".join(
+            [
+                "OpenAI cassette request mismatch.",
+                f"path: {path}",
+                f"pytest node id: {self.cassette_manager.node_id}",
+                *differences,
+            ]
+        )
+
+    def _response_from_cassette(
+        self,
+        request: httpx.Request,
+        request_body: Any,
+        path: Path,
+    ) -> httpx.Response:
+        """Convert a stored cassette into an httpx response for SDK parsing.
+
+        Example:
+            # A cassette response with an "sse" list replays as text/event-stream.
+        """
+        cassette = self.cassette_manager.read(path)
+        self._assert_request_matches_cassette(request, request_body, path, cassette)
+        response = cassette["response"]
+        status_code = response["status_code"]
+        headers = _playback_headers(response.get("headers") or {})
+
+        if "sse" in response:
+            headers.setdefault("content-type", "text/event-stream; charset=utf-8")
+            return httpx.Response(
+                status_code,
+                content="".join(response["sse"]).encode("utf-8"),
+                headers=headers,
+                request=request,
+            )
+
+        body = response.get("body")
+        if isinstance(body, str):
+            return httpx.Response(
+                status_code,
+                content=body.encode("utf-8"),
+                headers=headers,
+                request=request,
+            )
+        return httpx.Response(status_code, json=body, headers=headers, request=request)
+
+    async def _record_response(
+        self,
+        request: httpx.Request,
+        body_bytes: bytes,
+        request_body: Any,
+        path: Path,
+    ) -> httpx.Response:
+        """Forward a request to OpenAI, write a sanitized cassette, and return it.
+
+        Example:
+            # A request body {"stream": True} records response["sse"].
+            # A request body {"stream": False} records response["body"].
+        """
+        assert self._real_transport is not None
+        real_request = httpx.Request(
+            request.method,
+            request.url,
+            headers=request.headers,
+            content=body_bytes,
+            extensions=request.extensions,
+        )
+        response = await self._real_transport.handle_async_request(real_request)
+        response_body = await response.aread()
+        response_headers = sanitize_headers(response.headers)
+
+        cassette: dict[str, Any] = {
+            "request": _request_snapshot(request, request_body),
+            "response": {
+                "status_code": response.status_code,
+                "headers": response_headers,
+            },
+        }
+
+        if _is_stream_request(request_body) and response.status_code == 200:
+            cassette["response"]["sse"] = _body_to_sse_lines(response_body)
+        else:
+            cassette["response"]["body"] = _decode_response_body(response_body, response.headers)
+
+        self.cassette_manager.write(path, cassette)
+        return httpx.Response(
+            response.status_code,
+            content=response_body,
+            headers=_playback_headers(dict(response.headers)),
+            request=request,
+        )
 
 
 def assert_usage(
@@ -236,11 +737,11 @@ def _assert_event_type_sequence_matches(sdk_events: list[Any], molto_events: lis
 
 
 def _assert_matching_scalar_fields(event_type: str, sdk_event: Any, molto_event: Any) -> None:
-    for field, event_types in _FIELD_CHECKS.items():
+    for field_name, event_types in _FIELD_CHECKS.items():
         if event_type in event_types:
-            assert getattr(sdk_event, field, None) == getattr(molto_event, field, None), (
-                f"{field} mismatch at {event_type}"
-            )
+            assert getattr(sdk_event, field_name, None) == getattr(
+                molto_event, field_name, None
+            ), f"{field_name} mismatch at {event_type}"
 
 
 def _assert_matching_output_item(event_type: str, sdk_event: Any, molto_event: Any) -> None:
@@ -289,113 +790,67 @@ def assert_stream_events_match(sdk_events: list[Any], molto_events: list[Any]) -
         _assert_matching_terminal_response_id(event_type, sdk_event, molto_event)
 
 
-def make_handler(
-    cassette_path: Path,
-    req_body: dict[str, Any] | None = None,
-    assert_attrs: list[str] | None = None,
-) -> partial[httpx.Response]:
-    """Create an httpx.MockTransport handler that replays a cassette.
-
-    The returned handler validates the incoming request method (POST), checks
-    that "stream" matches the cassette variant being loaded, and optionally
-    asserts specific request body attributes.  Error cassettes (status >= 400)
-    are returned directly without request validation.
-
-    Args:
-        cassette_path: Path to the YAML cassette file.
-        req_body: Expected request body values for attribute assertions.
-        assert_attrs: Keys in *req_body* to assert against the incoming
-            request body.
-    """
-    cassette = read_yaml(cassette_path)
-    resp = cassette.get("response")
-    is_error = resp is not None and isinstance(resp, dict) and resp.get("status_code", 200) >= 400
-
-    if is_error:
-        status_code: int = resp["status_code"]
-        error_body: Any = resp["body"]
-        raw_headers = resp.get("headers") or {}
-        error_headers = {k: v for k, v in raw_headers.items() if k.lower() != "content-length"}
-
-    def handler(request: httpx.Request, load_stream_cassette: bool) -> httpx.Response:
-        if is_error:
-            if isinstance(error_body, str):
-                return httpx.Response(
-                    status_code, content=error_body.encode(), headers=error_headers
-                )
-            return httpx.Response(status_code, json=error_body, headers=error_headers)
-
-        try:
-            assert request.method == "POST"
-            body = json_loads(request.content)
-            if req_body and assert_attrs:
-                for attr in assert_attrs:
-                    assert body.get(attr) == req_body[attr], (
-                        f"Expected {attr} to be {req_body[attr]!r}, got {body.get(attr)!r}"
-                    )
-            assert body.get("stream", False) is load_stream_cassette
-            data = read_cassette(cassette_path, stream=load_stream_cassette)
-            if load_stream_cassette:
-                return httpx.Response(
-                    200,
-                    content="".join(data).encode(),
-                    headers={"content-type": "text/event-stream; charset=utf-8"},
-                )
-            return httpx.Response(200, json=data)
-        except AssertionError as e:
-            return httpx.Response(
-                400,
-                json={"error": f"Assertions failed: {e!r}"},
-            )
-        except Exception as e:
-            return httpx.Response(
-                400,
-                json={"error": f"Invalid request: {e!r}"},
-            )
-
-    return handler
-
-
 def make_openai_client(
-    handler: Any,
-    load_stream_cassette: bool,
+    cassette_manager: OpenAICassetteManager,
+    *,
+    cassette_suffix: str | None = None,
+    cassette_endpoint: str = "responses",
+    expected_request_body: dict[str, Any] | None = None,
+    assert_attrs: list[str] | None = None,
+    api_key: str | None = None,
 ) -> AsyncOpenAI:
-    """Create an AsyncOpenAI client backed by a mock transport.
+    """Create an AsyncOpenAI client backed by cassette replay/recording.
 
-    Args:
-        handler: An httpx handler (as returned by make_handler()).
-        load_stream_cassette: Whether the handler should load the stream
-            variant of the cassette.
+    Example:
+        client = make_openai_client(manager)
+        client.max_retries
+        # 0
     """
+    if not cassette_manager.record:
+        cassette_manager.read(cassette_manager.cassette_path(cassette_endpoint, cassette_suffix))
+
+    resolved_api_key = ENV_CONFIG.openai_api_key_plain if api_key is None else api_key
+    if cassette_manager.record and api_key is None and not resolved_api_key:
+        raise RuntimeError("OPENAI_API_KEY is required when recording cassettes")
+    if not resolved_api_key and not cassette_manager.record:
+        resolved_api_key = "test-api-key"
     return AsyncOpenAI(
         http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(
-                partial(handler, load_stream_cassette=load_stream_cassette)
+            transport=OpenAICassetteTransport(
+                cassette_manager,
+                cassette_suffix=cassette_suffix,
+                expected_request_body=expected_request_body,
+                assert_attrs=assert_attrs,
             ),
-            base_url="http://testserver",
         ),
-        api_key=ENV_CONFIG.openai_api_key_plain,
-        max_retries=1,
+        api_key=resolved_api_key,
+        max_retries=0,
     )
 
 
 def make_molto_client(
-    handler: Any = None,
+    cassette_manager: OpenAICassetteManager,
     *,
-    cassette_path: Path | None = None,
+    cassette_suffix: str | None = None,
+    expected_request_body: dict[str, Any] | None = None,
+    assert_attrs: list[str] | None = None,
 ) -> Molto:
-    """Create a Molto instance backed by a mock transport.
+    """Create a Molto instance backed by playback-only cassette transport.
 
-    Either pass *handler* directly or provide *cassette_path* to have one
-    created via make_handler(). The client is always configured for streaming
-    (load_stream_cassette=True).
+    Example:
+        molto = make_molto_client(manager, cassette_suffix="sse")
+        isinstance(molto, Molto)
+        # True
     """
-    if cassette_path is not None:
-        handler = make_handler(cassette_path)
     return Molto(
         http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(partial(handler, load_stream_cassette=True)),
-            base_url="http://testserver",
+            transport=OpenAICassetteTransport(
+                cassette_manager,
+                cassette_suffix=cassette_suffix,
+                playback_only=True,
+                expected_request_body=expected_request_body,
+                assert_attrs=assert_attrs,
+            ),
         ),
     )
 

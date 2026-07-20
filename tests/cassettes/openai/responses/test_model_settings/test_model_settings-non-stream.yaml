@@ -1,0 +1,756 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '697'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    include:
+    - reasoning.encrypted_content
+    - code_interpreter_call.outputs
+    - web_search_call.action.sources
+    - message.output_text.logprobs
+    input:
+    - role: user
+      content: Who are you?
+    instructions: The user would like to know about the weather in Taiwan today.
+    max_output_tokens: 400
+    max_tool_calls: 1
+    model: gpt-5.1
+    parallel_tool_calls: true
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    safety_identifier: safety
+    service_tier: flex
+    store: false
+    stream: false
+    temperature: 0.45
+    tool_choice: required
+    tools:
+    - type: web_search
+      search_context_size: medium
+    - type: code_interpreter
+      container:
+        type: auto
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: resp_0a1a6e94e57c5bfe016a4e1235b7f08198b3fd6b58c996a265
+    object: response
+    created_at: 1783501365
+    status: completed
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1783501388
+    error: null
+    frequency_penalty: 0.0
+    incomplete_details: null
+    instructions: The user would like to know about the weather in Taiwan today.
+    max_output_tokens: 400
+    max_tool_calls: 1
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    output:
+    - id: ws_0a1a6e94e57c5bfe016a4e1237b3388198957041d2cdc2a8bd
+      type: web_search_call
+      status: completed
+      action:
+        type: search
+        queries:
+        - 'weather: Taiwan'
+        query: 'weather: Taiwan'
+        sources:
+        - type: api
+          name: oai-weather
+    - id: msg_0a1a6e94e57c5bfe016a4e123a7cc48198a1b604104ec3f604
+      type: message
+      status: completed
+      content:
+      - type: output_text
+        annotations: []
+        logprobs:
+        - bytes:
+          - 32
+          - 32
+          - 10
+          - 10
+          logprob: -3.5e-05
+          token: "  \n\n"
+          top_logprobs:
+          - bytes:
+            - 32
+            - 32
+            - 10
+            - 10
+            logprob: -3.5e-05
+            token: "  \n\n"
+        - bytes:
+          - 73
+          - 102
+          logprob: -8.9e-05
+          token: If
+          top_logprobs:
+          - bytes:
+            - 73
+            - 102
+            logprob: -8.9e-05
+            token: If
+        - bytes:
+          - 32
+          - 121
+          - 111
+          - 117
+          logprob: 0.0
+          token: ' you'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 121
+            - 111
+            - 117
+            logprob: 0.0
+            token: ' you'
+        - bytes:
+          - 32
+          - 116
+          - 101
+          - 108
+          - 108
+          logprob: -2.0e-05
+          token: ' tell'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 116
+            - 101
+            - 108
+            - 108
+            logprob: -2.0e-05
+            token: ' tell'
+        - bytes:
+          - 32
+          - 109
+          - 101
+          logprob: 0.0
+          token: ' me'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 109
+            - 101
+            logprob: 0.0
+            token: ' me'
+        - bytes:
+          - 32
+          - 116
+          - 104
+          - 101
+          logprob: -0.17667
+          token: ' the'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 116
+            - 104
+            - 101
+            logprob: -0.17667
+            token: ' the'
+        - bytes:
+          - 32
+          - 115
+          - 112
+          - 101
+          - 99
+          - 105
+          - 102
+          - 105
+          - 99
+          logprob: -0.002261
+          token: ' specific'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 115
+            - 112
+            - 101
+            - 99
+            - 105
+            - 102
+            - 105
+            - 99
+            logprob: -0.002261
+            token: ' specific'
+        - bytes:
+          - 32
+          - 99
+          - 105
+          - 116
+          - 121
+          logprob: -1.0e-06
+          token: ' city'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 99
+            - 105
+            - 116
+            - 121
+            logprob: -1.0e-06
+            token: ' city'
+        - bytes:
+          - 32
+          - 111
+          - 114
+          logprob: -0.029691
+          token: ' or'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 111
+            - 114
+            logprob: -0.029691
+            token: ' or'
+        - bytes:
+          - 32
+          - 99
+          - 111
+          - 117
+          - 110
+          - 116
+          - 121
+          logprob: -0.294933
+          token: ' county'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 99
+            - 111
+            - 117
+            - 110
+            - 116
+            - 121
+            logprob: -0.294933
+            token: ' county'
+        - bytes:
+          - 32
+          - 105
+          - 110
+          logprob: -0.001246
+          token: ' in'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 105
+            - 110
+            logprob: -0.001246
+            token: ' in'
+        - bytes:
+          - 32
+          - 84
+          - 97
+          - 105
+          - 119
+          - 97
+          - 110
+          logprob: 0.0
+          token: ' Taiwan'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 84
+            - 97
+            - 105
+            - 119
+            - 97
+            - 110
+            logprob: 0.0
+            token: ' Taiwan'
+        - bytes:
+          - 32
+          - 40
+          logprob: -0.011029
+          token: ' ('
+          top_logprobs:
+          - bytes:
+            - 32
+            - 40
+            logprob: -0.011029
+            token: ' ('
+        - bytes:
+          - 101
+          logprob: -0.000145
+          token: e
+          top_logprobs:
+          - bytes:
+            - 101
+            logprob: -0.000145
+            token: e
+        - bytes:
+          - 46
+          - 103
+          logprob: 0.0
+          token: .g
+          top_logprobs:
+          - bytes:
+            - 46
+            - 103
+            logprob: 0.0
+            token: .g
+        - bytes:
+          - 46
+          - 44
+          logprob: -0.0
+          token: .,
+          top_logprobs:
+          - bytes:
+            - 46
+            - 44
+            logprob: -0.0
+            token: .,
+        - bytes:
+          - 32
+          - 84
+          - 97
+          - 105
+          - 112
+          - 101
+          - 105
+          logprob: 0.0
+          token: ' Taipei'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 84
+            - 97
+            - 105
+            - 112
+            - 101
+            - 105
+            logprob: 0.0
+            token: ' Taipei'
+        - bytes:
+          - 44
+          logprob: -0.0
+          token: ','
+          top_logprobs:
+          - bytes:
+            - 44
+            logprob: -0.0
+            token: ','
+        - bytes:
+          - 32
+          - 84
+          - 97
+          logprob: -0.000578
+          token: ' Ta'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 84
+            - 97
+            logprob: -0.000578
+            token: ' Ta'
+        - bytes:
+          - 105
+          - 99
+          - 104
+          logprob: 0.0
+          token: ich
+          top_logprobs:
+          - bytes:
+            - 105
+            - 99
+            - 104
+            logprob: 0.0
+            token: ich
+        - bytes:
+          - 117
+          - 110
+          - 103
+          logprob: 0.0
+          token: ung
+          top_logprobs:
+          - bytes:
+            - 117
+            - 110
+            - 103
+            logprob: 0.0
+            token: ung
+        - bytes:
+          - 44
+          logprob: 0.0
+          token: ','
+          top_logprobs:
+          - bytes:
+            - 44
+            logprob: 0.0
+            token: ','
+        - bytes:
+          - 32
+          - 75
+          - 97
+          logprob: -0.00631
+          token: ' Ka'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 75
+            - 97
+            logprob: -0.00631
+            token: ' Ka'
+        - bytes:
+          - 111
+          - 104
+          logprob: 0.0
+          token: oh
+          top_logprobs:
+          - bytes:
+            - 111
+            - 104
+            logprob: 0.0
+            token: oh
+        - bytes:
+          - 115
+          - 105
+          logprob: -0.0
+          token: si
+          top_logprobs:
+          - bytes:
+            - 115
+            - 105
+            logprob: -0.0
+            token: si
+        - bytes:
+          - 117
+          - 110
+          - 103
+          logprob: 0.0
+          token: ung
+          top_logprobs:
+          - bytes:
+            - 117
+            - 110
+            - 103
+            logprob: 0.0
+            token: ung
+        - bytes:
+          - 44
+          logprob: -0.000466
+          token: ','
+          top_logprobs:
+          - bytes:
+            - 44
+            logprob: -0.000466
+            token: ','
+        - bytes:
+          - 32
+          - 72
+          logprob: -0.397004
+          token: ' H'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 72
+            logprob: -0.397004
+            token: ' H'
+        - bytes:
+          - 117
+          - 97
+          - 108
+          logprob: -2.0e-05
+          token: ual
+          top_logprobs:
+          - bytes:
+            - 117
+            - 97
+            - 108
+            logprob: -2.0e-05
+            token: ual
+        - bytes:
+          - 105
+          - 101
+          - 110
+          logprob: 0.0
+          token: ien
+          top_logprobs:
+          - bytes:
+            - 105
+            - 101
+            - 110
+            logprob: 0.0
+            token: ien
+        - bytes:
+          - 41
+          - 44
+          logprob: 0.0
+          token: ),
+          top_logprobs:
+          - bytes:
+            - 41
+            - 44
+            logprob: 0.0
+            token: ),
+        - bytes:
+          - 32
+          - 73
+          logprob: 0.0
+          token: ' I'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 73
+            logprob: 0.0
+            token: ' I'
+        - bytes:
+          - 32
+          - 99
+          - 97
+          - 110
+          logprob: -2.8e-05
+          token: ' can'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 99
+            - 97
+            - 110
+            logprob: -2.8e-05
+            token: ' can'
+        - bytes:
+          - 32
+          - 103
+          - 105
+          - 118
+          - 101
+          logprob: -0.049942
+          token: ' give'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 103
+            - 105
+            - 118
+            - 101
+            logprob: -0.049942
+            token: ' give'
+        - bytes:
+          - 32
+          - 97
+          logprob: -0.129428
+          token: ' a'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 97
+            logprob: -0.129428
+            token: ' a'
+        - bytes:
+          - 32
+          - 109
+          - 111
+          - 114
+          - 101
+          logprob: -8.4e-05
+          token: ' more'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 109
+            - 111
+            - 114
+            - 101
+            logprob: -8.4e-05
+            token: ' more'
+        - bytes:
+          - 32
+          - 112
+          - 114
+          - 101
+          - 99
+          - 105
+          - 115
+          - 101
+          logprob: -0.01937
+          token: ' precise'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 112
+            - 114
+            - 101
+            - 99
+            - 105
+            - 115
+            - 101
+            logprob: -0.01937
+            token: ' precise'
+        - bytes:
+          - 32
+          - 108
+          - 111
+          - 99
+          - 97
+          - 108
+          logprob: -0.929843
+          token: ' local'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 108
+            - 111
+            - 99
+            - 97
+            - 108
+            logprob: -0.929843
+            token: ' local'
+        - bytes:
+          - 32
+          - 102
+          - 111
+          - 114
+          - 101
+          - 99
+          - 97
+          - 115
+          - 116
+          logprob: -0.00236
+          token: ' forecast'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 102
+            - 111
+            - 114
+            - 101
+            - 99
+            - 97
+            - 115
+            - 116
+            logprob: -0.00236
+            token: ' forecast'
+        - bytes:
+          - 32
+          - 102
+          - 111
+          - 114
+          logprob: -0.376977
+          token: ' for'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 102
+            - 111
+            - 114
+            logprob: -0.376977
+            token: ' for'
+        - bytes:
+          - 32
+          - 116
+          - 111
+          - 100
+          - 97
+          - 121
+          logprob: -0.002042
+          token: ' today'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 116
+            - 111
+            - 100
+            - 97
+            - 121
+            logprob: -0.002042
+            token: ' today'
+        - bytes:
+          - 46
+          logprob: -0.00013
+          token: .
+          top_logprobs:
+          - bytes:
+            - 46
+            logprob: -0.00013
+            token: .
+        text: "I’m an AI assistant created by OpenAI. I can help answer questions,\
+          \ explain things, and assist with tasks like writing, planning, and problem‑solving.\n\
+          \nYou also have a standing request about the weather in Taiwan today (July\
+          \ 8, 2026). Here’s a quick summary based on current data:\n\n- Overall:\
+          \ Warm and cloudy across much of Taiwan, with a chance of thunderstorms\
+          \ in some areas this afternoon and evening.   \n- Example central forecast\
+          \ (representative city): Around 87°F (30°C) and cloudy now, with temperatures\
+          \ dropping to the low 70s°F (around 21–23°C) tonight.   \n\nIf you tell\
+          \ me the specific city or county in Taiwan (e.g., Taipei, Taichung, Kaohsiung,\
+          \ Hualien), I can give a more precise local forecast for today."
+      role: assistant
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    reasoning:
+      context: current_turn
+      effort: none
+      mode: standard
+      summary: null
+    safety_identifier: safety
+    service_tier: flex
+    store: false
+    temperature: 0.45
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 1
+    tools:
+    - type: code_interpreter
+      container:
+        type: auto
+    - type: web_search_preview
+      search_content_types:
+      - text
+      search_context_size: medium
+      user_location:
+        type: approximate
+        city: null
+        country: US
+        region: null
+        timezone: null
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+    usage:
+      input_tokens: 5324
+      input_tokens_details:
+        cached_tokens: 4992
+      output_tokens: 243
+      output_tokens_details:
+        reasoning_tokens: 34
+      total_tokens: 5567
+    user: null
+    metadata: {}

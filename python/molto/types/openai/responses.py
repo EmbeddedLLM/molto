@@ -789,7 +789,7 @@ class OpenAITextConfig(BaseModel):
         ),
     ] = None
     verbosity: Annotated[
-        Literal["low", "medium", "high"] | None,
+        Literal["low", "medium", "high"],
         Field(
             description=(
                 "Constrains the verbosity of the model's response. "
@@ -798,7 +798,14 @@ class OpenAITextConfig(BaseModel):
                 "Currently supported values are `low`, `medium`, and `high`."
             ),
         ),
-    ] = None
+    ] = "medium"
+
+    @property
+    def requested_verbosity(self) -> Literal["low", "medium", "high"] | None:
+        """Return verbosity only when the client explicitly supplied it."""
+        if "verbosity" not in self.model_fields_set:
+            return None
+        return self.verbosity
 
 
 class OpenAINativeToolChoice(BaseModel):
@@ -917,95 +924,6 @@ class OpenAIAllowedToolsChoice(BaseModel):
             raise ValueError(
                 "vLLM does not support hosted tools other than code interpreter and web_search."
             )
-
-
-# def _apply_allowed_tools_choice(
-#     *,
-#     choice: OpenAIAllowedToolsChoice,
-#     native_tools: list[Tool],
-#     deferred_tools: list[ToolDefinition],
-#     mcp_servers: dict[str, ResolvedMcpServerTools],
-# ) -> tuple[
-#     list[Tool],
-#     list[ToolDefinition],
-#     dict[str, ResolvedMcpServerTools],
-#     dict[str, dict[str, McpToolInfo]],
-# ]:
-#     allowed_native_names = {
-#         _normalize_hosted_tool_type(tool.type)
-#         for tool in choice.tools
-#         if isinstance(tool, OpenAIHostedToolChoice)
-#     }
-#     allowed_function_names = {
-#         tool.name for tool in choice.tools if isinstance(tool, OpenAIFunctionToolChoice)
-#     }
-#     allowed_mcp_names_by_server: dict[str, set[str] | None] = {}
-#     for tool in choice.tools:
-#         if not isinstance(tool, OpenAIMcpToolChoice):
-#             continue
-#         if tool.server_label not in allowed_mcp_names_by_server:
-#             if tool.name is None:
-#                 allowed_mcp_names_by_server[tool.server_label] = None
-#             else:
-#                 allowed_mcp_names_by_server[tool.server_label] = {tool.name}
-#             continue
-#         existing = allowed_mcp_names_by_server[tool.server_label]
-#         if existing is None:
-#             continue
-#         if tool.name is None:
-#             allowed_mcp_names_by_server[tool.server_label] = None
-#             continue
-#         existing.add(tool.name)
-
-#     native_by_name = {tool.name: tool for tool in native_tools}
-#     missing_native_names = sorted(allowed_native_names - native_by_name.keys())
-#     if missing_native_names:
-#         raise BadInputError(
-#             "`tool_choice.allowed_tools` references native tools not present in effective tools: "
-#             f"{missing_native_names!r}."
-#         )
-
-#     deferred_by_name = {tool.name: tool for tool in deferred_tools}
-#     missing_function_names = sorted(allowed_function_names - deferred_by_name.keys())
-#     if missing_function_names:
-#         raise BadInputError(
-#             "`tool_choice.allowed_tools` references function tools not present in effective tools: "
-#             f"{missing_function_names!r}."
-#         )
-
-#     selected_mcp_tool_infos_by_server: dict[str, dict[str, McpToolInfo]] = {}
-#     filtered_mcp_servers: dict[str, ResolvedMcpServerTools] = {}
-#     for server_label, allowed_names in allowed_mcp_names_by_server.items():
-#         server_runtime = mcp_servers.get(server_label)
-#         if server_runtime is None:
-#             raise BadInputError(
-#                 "`tool_choice.allowed_tools` references an MCP `server_label` "
-#                 "not present in effective tools."
-#             )
-#         if allowed_names is None:
-#             filtered_mcp_servers[server_label] = server_runtime
-#             continue
-#         missing_names = sorted(
-#             name for name in allowed_names if name not in server_runtime.allowed_tool_infos
-#         )
-#         if missing_names:
-#             raise BadInputError(
-#                 "`tool_choice.allowed_tools` references MCP tools not present in effective tools: "
-#                 f"server={server_label!r} names={missing_names!r}."
-#             )
-#         selected_mcp_tool_infos_by_server[server_label] = {
-#             name: tool_info
-#             for name, tool_info in server_runtime.allowed_tool_infos.items()
-#             if name in allowed_names
-#         }
-#         filtered_mcp_servers[server_label] = server_runtime
-
-#     return (
-#         [tool for tool in native_tools if tool.name in allowed_native_names],
-#         [tool for tool in deferred_tools if tool.name in allowed_function_names],
-#         filtered_mcp_servers,
-#         selected_mcp_tool_infos_by_server,
-#     )
 
 
 OpenAIToolChoice = Union[
@@ -1464,11 +1382,11 @@ class vLLMResponsesRequest(BaseModel):
         ),
     ]
     parallel_tool_calls: Annotated[
-        bool,
+        bool | None,
         Field(
             description="Whether to allow the model to run tool calls in parallel.",
         ),
-    ] = True
+    ] = None
     previous_response_id: Annotated[
         str | None,
         Field(
@@ -1488,19 +1406,19 @@ class vLLMResponsesRequest(BaseModel):
         ),
     ] = None
     store: Annotated[
-        bool,
+        bool | None,
         Field(
             description="Whether to store the generated model response for later retrieval via API.",
         ),
-    ] = True
+    ] = None
     stream: Annotated[
-        bool,
+        bool | None,
         Field(
             description=(
                 "If set to `true`, the model response data will be streamed to the client as it is generated using server-sent events."
             ),
         ),
-    ] = False
+    ] = None
     temperature: Annotated[
         float | None,
         Field(
@@ -1523,7 +1441,7 @@ class vLLMResponsesRequest(BaseModel):
         ),
     ] = None
     tool_choice: Annotated[
-        OpenAIToolChoice,
+        OpenAIToolChoice | None,
         Field(
             description=(
                 "Controls which (if any) tool is called by the model. "
@@ -1533,7 +1451,7 @@ class vLLMResponsesRequest(BaseModel):
                 "Alternatively, you can provide an `allowed_tools` list to constrain the model to a specific set of tools."
             ),
         ),
-    ] = "auto"
+    ] = None
     tools: Annotated[
         list[vLLMResponsesTool] | None,
         Field(
@@ -1674,8 +1592,13 @@ class vLLMResponsesRequest(BaseModel):
 
         # Normalize tool_choice
         tc = self.tool_choice
-        if isinstance(tc, str):
-            ir_tool_choice = tc  # "none" | "auto" | "required"
+        if tc is None:
+            ir_tool_choice = None
+        elif isinstance(tc, str):
+            ir_tool_choice = (
+                None if tc == "auto" and "tool_choice" not in self.model_fields_set else tc
+            )
+
         elif isinstance(tc, OpenAINativeToolChoice):
             ir_tool_choice = NativeToolChoice(name=_normalize_hosted_tool_type(tc.type))
         elif isinstance(tc, OpenAIFunctionToolChoice):
@@ -1722,7 +1645,11 @@ class vLLMResponsesRequest(BaseModel):
             reasoning_effort=self.reasoning.effort if self.reasoning else None,
             reasoning_summary=self.reasoning.summary if self.reasoning else None,
             top_logprobs=self.top_logprobs,
-            parallel_tool_calls=self.parallel_tool_calls,
+            parallel_tool_calls=(
+                self.parallel_tool_calls
+                if "parallel_tool_calls" in self.model_fields_set
+                else None
+            ),
             max_tool_calls=self.max_tool_calls,
             openai=OpenAIOptions(store=self.store),
             responses=ResponsesOptions(
@@ -1733,6 +1660,9 @@ class vLLMResponsesRequest(BaseModel):
             text_format=text_format,
             tools=ir_tools,
             tool_choice=ir_tool_choice,
+            include=self.include,
+            store=self.store if "store" in self.model_fields_set else None,
+            previous_response_id=self.previous_response_id,
         )
 
 
@@ -1748,18 +1678,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
         ),
     ] = None
     include: Annotated[
-        list[
-            Literal[
-                "web_search_call.action.sources",
-                "code_interpreter_call.outputs",
-                "computer_call_output.output.image_url",
-                "file_search_call.results",
-                "message.input_image.image_url",
-                "message.output_text.logprobs",
-                "reasoning.encrypted_content",
-            ]
-        ]
-        | None,
+        list[OpenAIResponsesInclude] | None,
         Field(
             description=(
                 "Specify additional output data to include in the model response. Currently supported values are:\n"
@@ -1805,7 +1724,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
         ),
     ] = None
     service_tier: Annotated[
-        Literal["auto", "default", "flex", "priority"],
+        Literal["auto", "default", "flex", "priority"] | None,
         Field(
             description=(
                 "Specifies the processing type used for serving the request.\n\n"
@@ -1818,7 +1737,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "This response value may be different from the value set in the parameter."
             ),
         ),
-    ] = "auto"
+    ] = None
     stream_options: Annotated[
         OpenAIStreamOptions | None,
         Field(
@@ -1868,7 +1787,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
         ),
     ] = None
     truncation: Annotated[
-        Literal["auto", "disabled"],
+        Literal["auto", "disabled"] | None,
         Field(
             description=(
                 "The truncation strategy to use for the model response. "
@@ -1877,7 +1796,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                 "`disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error."
             ),
         ),
-    ] = "disabled"
+    ] = None
 
     @field_validator("tool_choice", mode="after")
     @classmethod
@@ -1911,9 +1830,7 @@ class OpenAIResponsesRequest(vLLMResponsesRequest):
                         "safety_identifier": self.safety_identifier,
                         "stream_obfuscation": stream_obfuscation,
                         "truncation": self.truncation,
-                        "verbosity": self.text.verbosity
-                        if isinstance(self.text, OpenAITextConfig)
-                        else None,
+                        "verbosity": self.text.requested_verbosity if self.text else None,
                     }
                 ),
             }
@@ -2646,7 +2563,8 @@ def _build_response_from_ir(
             }
         )
     if text_format is not None or responses.verbosity is not None:
-        kwargs["text"] = OpenAITextConfig(format=text_format, verbosity=responses.verbosity)
+        text_kwargs = {} if responses.verbosity is None else {"verbosity": responses.verbosity}
+        kwargs["text"] = OpenAITextConfig(format=text_format, **text_kwargs)
     if incomplete_details is not None:
         kwargs["incomplete_details"] = OpenAIResponsesIncompleteDetails(reason=incomplete_details)
     return OpenAIResponsesResponse(**kwargs)
@@ -2670,6 +2588,7 @@ async def from_ir_stream(
     current_reasoning = ""
 
     captured_usage = None
+    current_reasoning_has_summary = False
     captured_completed_at: int | None = None
     captured_incomplete_details: str | None = None
     captured_provider_response_id: str | None = None
@@ -2752,9 +2671,9 @@ async def from_ir_stream(
             )
             seq += 1
             output_index += 1
-
         elif isinstance(event, AgentThoughtStart):
             current_reasoning = ""
+            current_reasoning_has_summary = False
             current_reasoning_id = event.id
             yield OpenAIResponsesStreamOutput(
                 type="response.output_item.added",
@@ -2765,26 +2684,47 @@ async def from_ir_stream(
             seq += 1
 
         elif isinstance(event, AgentThoughtDelta):
-            if event.content:
+            if event.content and ir.reasoning_summary is not None:
+                if not current_reasoning_has_summary:
+                    current_reasoning_has_summary = True
+                    yield OpenAIResponsesStreamPart(
+                        type="response.reasoning_summary_part.added",
+                        item_id=current_reasoning_id,
+                        part=OpenAIReasoningSummary(text=""),
+                        summary_index=0,
+                        output_index=output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 current_reasoning += event.content
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.delta",
-                delta=event.content,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.delta",
+                    delta=event.content,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
 
         elif isinstance(event, AgentThoughtEnd):
-            yield OpenAIResponsesStreamText(
-                type="response.reasoning.done",
-                text=current_reasoning,
-                item_id=current_reasoning_id,
-                output_index=output_index,
-                sequence_number=seq,
-            )
-            seq += 1
+            if current_reasoning_has_summary:
+                yield OpenAIResponsesStreamText(
+                    type="response.reasoning.done",
+                    text=current_reasoning,
+                    item_id=current_reasoning_id,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                yield OpenAIResponsesStreamPart(
+                    type="response.reasoning_summary_part.done",
+                    item_id=current_reasoning_id,
+                    part=OpenAIReasoningSummary(text=current_reasoning),
+                    summary_index=0,
+                    output_index=output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
             completed_item = OpenAIReasoningItem(
                 id=current_reasoning_id,
                 content=(
@@ -2800,6 +2740,8 @@ async def from_ir_stream(
                 sequence_number=seq,
             )
             seq += 1
+            output_index += 1
+
             output_index += 1
 
         elif isinstance(event, AgentToolStart):
@@ -2894,6 +2836,27 @@ async def from_ir_stream(
             if event.tool_name == "web_search":
                 args = event.args or {}
                 result = event.result or {}
+                item_id = event.id or event.tool_call_id
+                item_output_index = output_index
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=OpenAIWebSearchToolCall(id=item_id, status="in_progress"),
+                    output_index=item_output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                for status_type in (
+                    "response.web_search_call.in_progress",
+                    "response.web_search_call.searching",
+                    "response.web_search_call.completed",
+                ):
+                    yield OpenAIResponsesStreamText(
+                        type=status_type,
+                        item_id=item_id,
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
                 sources = [OpenAIWebSearchSource(**s) for s in result.get("sources", [])]
                 action = OpenAIWebSearchActionSearch(
                     query=args.get("query", ""),
@@ -2918,9 +2881,52 @@ async def from_ir_stream(
             elif event.tool_name in ("code_execution", "code_interpreter"):
                 result = event.result or {}
                 args = event.args or {}
+                item_id = event.id or event.tool_call_id
+                item_output_index = output_index
+                code = args.get("code")
+                yield OpenAIResponsesStreamOutput(
+                    type="response.output_item.added",
+                    item=OpenAICodeToolCall(
+                        id=item_id,
+                        code=code,
+                        container_id=args.get("container_id", ""),
+                        status="in_progress",
+                        outputs=None,
+                    ),
+                    output_index=item_output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
+                for status_type in (
+                    "response.code_interpreter_call.in_progress",
+                    "response.code_interpreter_call.interpreting",
+                ):
+                    yield OpenAIResponsesStreamText(
+                        type=status_type,
+                        item_id=item_id,
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
+                if code:
+                    yield OpenAIResponsesStreamText(
+                        type="response.code_interpreter_call_code.done",
+                        code=code,
+                        item_id=item_id,
+                        output_index=item_output_index,
+                        sequence_number=seq,
+                    )
+                    seq += 1
+                yield OpenAIResponsesStreamText(
+                    type="response.code_interpreter_call.completed",
+                    item_id=item_id,
+                    output_index=item_output_index,
+                    sequence_number=seq,
+                )
+                seq += 1
                 completed_item = OpenAICodeToolCall(
-                    id=event.id or event.tool_call_id,
-                    code=args.get("code"),
+                    id=item_id,
+                    code=code,
                     container_id=args.get("container_id", ""),
                     status=result.get("status", "completed"),
                     outputs=result.get("outputs"),

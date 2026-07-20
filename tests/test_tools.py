@@ -22,20 +22,24 @@ from molto.types.openai.responses import (
     _OpenAIStreamEvent,
 )
 from molto.utils.test import (
-    CASSETTE_DIR,
     STREAM_PARAMS,
     assert_events_before_terminal,
     assert_output_item_order,
     assert_stream_events_match,
-    make_handler,
     make_molto_client,
     make_openai_client,
     prepend_model_prefix,
+    stream_reference_cassette_suffix,
 )
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_tool_choice_required(stream: bool):
+async def test_tool_choice_required(stream: bool, cassette_manager):
+    """Compare required function-tool output against SDK-parsed cassettes.
+
+    Example:
+        # stream=False records/replays the default non-stream cassette and returns a function call.
+    """
 
     req_body = dict(
         model="gpt-4.1-nano",
@@ -53,17 +57,21 @@ async def test_tool_choice_required(stream: bool):
                     "required": ["number"],
                     "additionalProperties": False,
                 },
+                "strict": True,
             },
         ],
         tool_choice="required",
         stream=stream,
     )
 
-    cassette_path = CASSETTE_DIR / "openai" / "responses" / "tool_choice-required.yaml"
-    handler = make_handler(cassette_path, req_body, ["model", "input", "tool_choice"])
+    assert_attrs = ["model", "input", "tool_choice"]
 
-    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
-    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    # -- OpenAI SDK (parametrized stream) --------------------------------
+    sdk_client = make_openai_client(
+        cassette_manager,
+        expected_request_body=req_body,
+        assert_attrs=assert_attrs,
+    )
     sdk_response = await sdk_client.responses.create(**req_body)
     if stream:
         sdk_events = [e async for e in sdk_response]
@@ -81,22 +89,32 @@ async def test_tool_choice_required(stream: bool):
     assert sdk_response.status == "completed"
 
     sdk_fc = next(o for o in sdk_response.output if isinstance(o, ResponseFunctionToolCall))
-    assert isinstance(sdk_fc, ResponseFunctionToolCall)
     assert isinstance(sdk_fc.name, str) and len(sdk_fc.name) > 0
     assert isinstance(sdk_fc.id, str) and len(sdk_fc.id) > 0
     assert isinstance(sdk_fc.call_id, str) and len(sdk_fc.call_id) > 0
 
-    # ── Stream SDK reference (matches Molto's internal streaming) ──────
-    ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [
-        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
-    ]
+    stream_ref_suffix = stream_reference_cassette_suffix(stream)
+
+    # -- Stream SDK reference (matches Molto's internal streaming) -------
+    stream_req_body = {**req_body, "stream": True}
+    ref_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
+    ref_events = [e async for e in await ref_client.responses.create(**stream_req_body)]
     assert isinstance(ref_events[-1], ResponseCompletedEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_fc = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionToolCall))
 
-    # ── Molto client ───────────────────────────────────────────────────
-    client = make_molto_client(handler)
+    # -- Molto client ----------------------------------------------------
+    client = make_molto_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
@@ -114,7 +132,6 @@ async def test_tool_choice_required(stream: bool):
     assert isinstance(response, OpenAIResponsesResponse)
 
     fc = next(o for o in response.output if isinstance(o, OpenAIFunctionToolCall))
-    assert isinstance(fc, OpenAIFunctionToolCall)
     assert fc.name == sdk_ref_fc.name
     assert response.id == sdk_ref.id
     assert fc.id == sdk_ref_fc.id
@@ -138,12 +155,11 @@ EXPECTED_WEB_SEARCH_TOOL = {
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
-async def test_builtin_tools_web_search(stream: bool):
-    """Verify every field of `OpenAIResponsesWebSearchTool` (type,
-    search_context_size, filters.allowed_domains, full user_location) is:
+async def test_native_tools_web_search(stream: bool, cassette_manager):
+    """Verify native web-search tool parity against SDK-parsed cassettes.
 
-    1. present and correct in the OpenAI SDK response (parsed from cassette),
-    2. parsed correctly by the Molto pipeline (request IR → from_ir → response).
+    Example:
+        # stream=True records/replays the default stream cassette and yields a web_search_call.
     """
 
     req_body = dict(
@@ -155,17 +171,14 @@ async def test_builtin_tools_web_search(stream: bool):
         stream=stream,
     )
 
-    cassette_path = (
-        CASSETTE_DIR / "openai" / "responses" / "tools_choice-required-builtin-tools.yaml"
-    )
-    handler = make_handler(
-        cassette_path,
-        req_body,
-        ["model", "input", "tool_choice"],
-    )
+    assert_attrs = ["model", "input", "tool_choice"]
 
-    # ── OpenAI SDK (parametrized stream) ───────────────────────────────
-    sdk_client = make_openai_client(handler, load_stream_cassette=stream)
+    # -- OpenAI SDK (parametrized stream) --------------------------------
+    sdk_client = make_openai_client(
+        cassette_manager,
+        expected_request_body=req_body,
+        assert_attrs=assert_attrs,
+    )
     sdk_response = await sdk_client.responses.create(**req_body)
     if stream:
         sdk_events = [e async for e in sdk_response]
@@ -194,23 +207,33 @@ async def test_builtin_tools_web_search(stream: bool):
     assert sdk_loc.region == EXPECTED_WEB_SEARCH_TOOL["user_location"]["region"]
 
     sdk_ws = next(o for o in sdk_response.output if isinstance(o, ResponseFunctionWebSearch))
-    assert isinstance(sdk_ws, ResponseFunctionWebSearch)
     assert sdk_ws.type == "web_search_call"
     assert sdk_ws.status == "completed"
     assert isinstance(sdk_ws.id, str) and len(sdk_ws.id) > 0
 
-    # ── Stream SDK reference (matches Molto's internal streaming) ──────
-    ref_client = make_openai_client(handler, load_stream_cassette=True)
-    ref_events = [
-        e async for e in await ref_client.responses.create(**{**req_body, "stream": True})
-    ]
+    stream_ref_suffix = stream_reference_cassette_suffix(stream)
+
+    # -- Stream SDK reference (matches Molto's internal streaming) -------
+    stream_req_body = {**req_body, "stream": True}
+    ref_client = make_openai_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
+    ref_events = [e async for e in await ref_client.responses.create(**stream_req_body)]
     assert isinstance(ref_events[-1], ResponseCompletedEvent)
     sdk_ref = ref_events[-1].response
     sdk_ref_ws = next(o for o in sdk_ref.output if isinstance(o, ResponseFunctionWebSearch))
     sdk_ref_msg = next(o for o in sdk_ref.output if isinstance(o, ResponseOutputMessage))
 
-    # ── Molto client ───────────────────────────────────────────────────
-    client = make_molto_client(handler)
+    # -- Molto client ----------------------------------------------------
+    client = make_molto_client(
+        cassette_manager,
+        cassette_suffix=stream_ref_suffix,
+        expected_request_body=stream_req_body,
+        assert_attrs=assert_attrs,
+    )
     response = await client.chat(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
     if stream:
         events: list[_OpenAIStreamEvent] = [r async for r in response]
@@ -241,7 +264,6 @@ async def test_builtin_tools_web_search(stream: bool):
     molto_ws_items = [o for o in response.output if isinstance(o, OpenAIWebSearchToolCall)]
     assert len(molto_ws_items) == 1
     molto_ws = molto_ws_items[0]
-    assert isinstance(molto_ws, OpenAIWebSearchToolCall)
     assert molto_ws.type == "web_search_call"
     assert molto_ws.status == "completed"
     assert molto_ws.id == sdk_ref_ws.id

@@ -1,0 +1,36 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '128'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    input:
+      - role: user
+        content: Think very carefully about this.
+    include:
+      - reasoning.encrypted_content
+    max_output_tokens: 1
+    model: o4-mini
+    reasoning:
+      effort: high
+    stream: true
+response:
+  status_code: 400
+  headers:
+    connection: keep-alive
+    content-length: '248'
+    content-type: application/json
+  body:
+    error:
+      message: 'Invalid ''max_output_tokens'': integer below minimum value. Expected
+        a value >= 16, but got 1 instead.'
+      type: invalid_request_error
+      param: max_output_tokens
+      code: integer_below_min_value

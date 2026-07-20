@@ -3,9 +3,6 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import ModelMessage
 
-RESPONSE_TOOL_NAME = "final_result"
-RESPONSE_KEY = "response"
-
 
 class _Message(BaseModel):
     type: Annotated[
@@ -153,38 +150,6 @@ class AgentToolEnd(_Message):
     tool_call_id: str
 
 
-class AgentBuiltinToolStart(_Message):
-    type: Annotated[
-        Literal["agent.builtin_tool.start"],
-        Field(description="Message type."),
-    ] = "agent.builtin_tool.start"
-    tool_name: str
-    tool_call_id: str
-    args: dict[str, Any] | None = None
-    id: str | None = None
-
-
-class AgentBuiltinToolDelta(_Message):
-    type: Annotated[
-        Literal["agent.builtin_tool.delta"],
-        Field(description="Message type."),
-    ] = "agent.builtin_tool.delta"
-    tool_name: str
-    tool_call_id: str
-    args_delta: dict[str, Any] | str
-
-
-class AgentBuiltinToolEnd(_Message):
-    type: Annotated[
-        Literal["agent.builtin_tool.end"],
-        Field(description="Message type."),
-    ] = "agent.builtin_tool.end"
-    tool_name: str
-    tool_call_id: str
-    args: dict[str, Any] | None = None
-    id: str | None = None
-
-
 class AgentToolCall(BaseModel):
     tool_call_id: str
     tool_name: str
@@ -330,9 +295,6 @@ AgentEvent = Annotated[
         AgentToolStart,
         AgentToolDelta,
         AgentToolEnd,
-        AgentBuiltinToolStart,
-        AgentBuiltinToolDelta,
-        AgentBuiltinToolEnd,
         AgentToolCall,
         AgentToolResult,
         AgentNativeToolCall,
