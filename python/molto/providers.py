@@ -14,6 +14,7 @@ from pydantic_ai import (
     NativeOutput,
     NativeToolCallPart,
     NativeToolReturnPart,
+    PromptedOutput,
     StructuredDict,
     SystemPromptPart,
     ThinkingPart,
@@ -55,6 +56,7 @@ from molto.types.ir import (
     InputHistoryItem,
     InputMcpToolCall,
     InputWebSearchToolCall,
+    JsonObjectFormat,
     JsonSchemaFormat,
     McpTool,
     McpToolChoice,
@@ -157,6 +159,10 @@ class _OpenAIProviderBase(_Provider):
                 name=ir.text_format.name,
                 description=ir.text_format.description,
                 strict=ir.text_format.strict,
+            )
+        if isinstance(ir.text_format, JsonObjectFormat):
+            return PromptedOutput(
+                StructuredDict({"type": "object", "additionalProperties": True}), template=False
             )
         return [str, DeferredToolRequests]
 
@@ -539,6 +545,20 @@ class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
     def _build_model_settings(ir: Input) -> OpenAIChatModelSettings:
         openai = ir.openai
         ms_kwargs = OpenAIChatCompletionsProvider._build_common_model_settings(ir)
+        if ir.tool_choice in {"none", "required"}:
+            ms_kwargs["tool_choice"] = ir.tool_choice
+        elif isinstance(ir.tool_choice, FunctionToolChoice):
+            ms_kwargs["tool_choice"] = [ir.tool_choice.name]
+        elif isinstance(ir.tool_choice, AllowedToolsChoice):
+            ms_kwargs["tool_choice"] = (
+                [
+                    choice.name
+                    for choice in ir.tool_choice.tools
+                    if isinstance(choice, FunctionToolChoice)
+                ]
+                if ir.tool_choice.mode == "required"
+                else "auto"
+            )
         if ir.reasoning_effort is not None:
             ms_kwargs["openai_reasoning_effort"] = ir.reasoning_effort
         if openai.store is not None:
@@ -560,6 +580,10 @@ class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
                 description=ir.text_format.description,
                 strict=ir.text_format.strict,
             )
+        if isinstance(ir.text_format, JsonObjectFormat):
+            return PromptedOutput(
+                StructuredDict({"type": "object", "additionalProperties": True}), template=False
+            )
         return [str, DeferredToolRequests]
 
     async def parse_agent_settings(
@@ -575,9 +599,18 @@ class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
             provider=self._build_openai_provider(http_client, api_key),
         )
         model_settings = self._build_model_settings(ir)
+        if model_settings.get("tool_choice") == "required" or isinstance(
+            model_settings.get("tool_choice"), list
+        ):
+
+            def agent_model_settings(_: Any) -> OpenAIChatModelSettings:
+                return model_settings
+
+        else:
+            agent_model_settings = model_settings
         return AgentSettings(
             model=model,
-            model_settings=model_settings,
+            model_settings=agent_model_settings,
             output_type=self._build_output_type(ir),
         )
 

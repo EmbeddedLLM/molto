@@ -26,10 +26,18 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Write rules for yourself that prevent the same mistake
 - Ruthlessly iterate on these lessons until mistake rate drops
 - Review lessons at session start for relevant project
+- Always prioritize long-term solutions over short-term
 
 ### 4. Verification Before Done
 
 - Never mark a task complete without proving it works
+- Always write tests for changed behavior. For any public provider behavior
+  with an OpenAI SDK-equivalent contract, include cassette-backed parity
+  coverage that compares Molto against parsed OpenAI SDK responses or events;
+  IR and provider-setting unit tests may supplement this coverage, but must
+  not replace it.
+- Never run tests in cassette-recording mode. Cassettes must be supplied from
+  an approved recorded source; test runs must replay them only.
 - Diff your behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
 - By default, perform quick correctness checks:
