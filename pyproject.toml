@@ -77,6 +77,7 @@ classifiers = [
 ]
 dependencies = [
     "loguru~=0.7",
+    "openai==2.30.0",
     "orjson~=3.11",
     "pycountry~=26.2.16",
     "pydantic-ai-slim[openai,google,anthropic,groq,mistral,cohere,bedrock,huggingface,exa,duckduckgo,tavily,mcp,fastmcp,retries]~=1.104.0",
