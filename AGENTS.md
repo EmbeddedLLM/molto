@@ -41,12 +41,8 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Diff your behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
 - By default, perform quick correctness checks:
-  - Frontend: `cd services/frontend && npx svelte-check --tsconfig ./tsconfig.json`
-  - Backend: `cd services/backend && ruff check src/man/`
-- If requested, ensure V2 backend works by ensuring tests pass:
-  1. Run services: `docker compose --env-file .env -f docker/compose.yml up --quiet-pull -d --force-recreate --build`
-  2. Ensure services are up: `docker compose --env-file .env -f docker/compose.yml logs --tail=50 backend`
-  3. Run tests: `pytest services/backend/tests/`
+  - Python: `ruff check <changed-python-files>` and `ruff format --check <changed-python-files>`
+- For behavior changes, run the focused relevant tests. Run `pytest` for broad changes or when the full offline replay suite is required; do not record or update cassettes unless the task explicitly requires it.
 
 ### 5. Demand Elegance (Balanced)
 
@@ -75,7 +71,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 
 Run linting after implementation and before reporting completion. Start with changed files for fast feedback, then run the relevant project-wide checks. Before running them, inspect `.github/workflows/lint.yml` and use the Ruff and Prettier versions selected by that workflow. Do not copy version numbers from this document or substitute globally installed versions, because the workflow versions may change.
 
-#### Backend
+#### Python
 
 From the repository root:
 
@@ -83,18 +79,14 @@ From the repository root:
 2. Install or select Ruff using the workflow's current version constraint, then confirm it with `ruff --version`.
 3. Format changed Python files: `ruff format <changed-python-files>`
 4. Check changed Python files: `ruff check <changed-python-files>`
-5. Run the same repository-wide Ruff check and format check configured in the workflow.
+5. Run the same repository-wide checks configured in the workflow: `ruff check --output-format github .` and `ruff format --diff .`.
 
-#### Frontend
+#### Repository formatting
 
-From `services/frontend`:
+From the repository root:
 
-1. Read the Prettier dependency-install and check steps in `.github/workflows/lint.yml`.
-2. Use the workflow's local frontend dependency installation; resolve the selected Prettier version from `services/frontend/package-lock.json` and confirm it with `npx --no-install prettier --version`.
-3. Check changed files: `npx --no-install prettier --check <changed-frontend-files>`
-4. Run the same repository formatting check configured in the workflow.
-5. Run ESLint: `npm run lint`
-6. Run Svelte and TypeScript diagnostics: `npm run check`
+1. Read the Prettier check in `.github/workflows/lint.yml`.
+2. Check changed files that are not excluded by `.prettierignore` with the workflow's selected version.
 
 #### Failure Handling
 
@@ -115,7 +107,7 @@ From `services/frontend`:
   6. Installed dependency? → use it
   7. One line? → one line
   8. Only then: the minimum that works
-- **Protect Secrets in Command Output**: When validating Compose files that use environment files, use `docker compose config --quiet`. Do not print fully resolved Compose configuration because it expands secret environment values into command output.
+- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, or command output that may expose secrets.
 
 ## Coding Conventions
 
@@ -126,14 +118,6 @@ From `services/frontend`:
 - Use meaningful variable and function names.
 - Add comments for complex logic.
 - **Pin dependency versions**: Use exact versions (e.g. `"2.0.0"`) in `package.json` and `pyproject.toml`. Never use caret (`^`) or tilde (`~`) ranges.
-
-### Frontend Conventions
-
-Always follow `CONVENTIONS-FRONTEND.md`.
-
-### Backend Conventions
-
-Always follow `CONVENTIONS-BACKEND.md`.
 
 ## Pull Request Review Guidelines
 
