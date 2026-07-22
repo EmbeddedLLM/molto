@@ -31,8 +31,8 @@ jobs:
 
       - name: Verify OpenAI credential is configured
         run: |
-          if [[ -z "$OPENAI_API_KEY" ]]; then
-            echo "OPENAI_API_KEY secret is not configured."
+          if [[ -z "$MOLTO_OPENAI_API_KEY" ]]; then
+            echo "MOLTO_OPENAI_API_KEY secret is not configured."
             exit 1
           fi
 
