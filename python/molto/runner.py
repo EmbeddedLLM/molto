@@ -1,6 +1,6 @@
 import json
 from time import perf_counter
-from typing import Any, AsyncIterator, TypedDict
+from typing import Any, AsyncIterator, Callable, TypedDict
 
 from httpx import AsyncClient
 from loguru import logger
@@ -78,7 +78,7 @@ class AgentSettings(TypedDict):
     """
 
     model: Model
-    model_settings: ModelSettings | None
+    model_settings: ModelSettings | Callable[[Any], ModelSettings] | None
     http_client: AsyncClient
     output_type: OutputSpec = [str, DeferredToolRequests]
     # Unused for now but may be useful in the future for things like auto-adding capabilities based on IR features (e.g. tool choice)
@@ -173,7 +173,6 @@ class Runner:
         )
 
     def _event_to_ir(self, event: Any) -> AsyncIterator[AgentEvent]:
-        print("event from runner:\n", event)
         if isinstance(event, PartStartEvent):
             if isinstance(event.part, TextPart):
                 self._current_text_id = event.part.id

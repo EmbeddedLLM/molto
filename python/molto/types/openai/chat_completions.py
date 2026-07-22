@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from time import time
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from molto.types.ir import (
     AgentError,
@@ -342,6 +342,31 @@ class ChatCompletionResponseFormatJsonSchema(BaseModel):
         str | None,
         Field(description="A description of the response format."),
     ] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_sdk_json_schema_shape(cls, data: Any) -> Any:
+        """Accept the SDK's nested Chat response-format shape.
+
+        The original public model accepted ``json_schema`` as the schema itself.
+        OpenAI's Chat Completions wire contract instead nests that schema alongside
+        its metadata under ``response_format.json_schema``. Normalize the native
+        shape while preserving the legacy form used by the existing IR test.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        json_schema = data.get("json_schema")
+        if not isinstance(json_schema, dict) or "schema" not in json_schema:
+            return data
+
+        return {
+            **data,
+            "json_schema": json_schema["schema"],
+            "name": data.get("name", json_schema.get("name")),
+            "strict": data.get("strict", json_schema.get("strict")),
+            "description": data.get("description", json_schema.get("description")),
+        }
 
 
 ChatCompletionResponseFormat = Annotated[
@@ -1062,22 +1087,27 @@ async def from_ir_stream(
     captured_usage = None
     captured_finish_reason: FinishReason | None = None
     captured_chat_completion_id: str | None = None
+    emitted_initial_chunk = False
 
     async for event in output_stream:
-        print("event from chat comp:\n", event)
         if isinstance(event, AgentMessageStart):
             yield _make_chunk(
                 created,
                 model,
-                ChatCompletionStreamDelta(role="assistant", content=""),
+                ChatCompletionStreamDelta(role="assistant"),
             )
+            emitted_initial_chunk = True
 
         elif isinstance(event, AgentMessageDelta):
             yield _make_chunk(
                 created,
                 model,
-                ChatCompletionStreamDelta(content=event.content),
+                ChatCompletionStreamDelta(
+                    role="assistant" if not emitted_initial_chunk else None,
+                    content=event.content,
+                ),
             )
+            emitted_initial_chunk = True
 
         elif isinstance(event, AgentMessageEnd):
             captured_finish_reason = "stop"
@@ -1090,8 +1120,12 @@ async def from_ir_stream(
             yield _make_chunk(
                 created,
                 model,
-                ChatCompletionStreamDelta(tool_calls=[tool_calls.start(event)]),
+                ChatCompletionStreamDelta(
+                    role="assistant" if not emitted_initial_chunk else None,
+                    tool_calls=[tool_calls.start(event)],
+                ),
             )
+            emitted_initial_chunk = True
 
         elif isinstance(event, AgentToolDelta):
             tool_delta = tool_calls.delta(event)
@@ -1122,8 +1156,15 @@ async def from_ir_stream(
         ChatCompletionStreamDelta(),
         completion_id=captured_chat_completion_id,
         finish_reason=captured_finish_reason,
-        usage=_convert_usage(captured_usage),
     )
+    if captured_usage is not None:
+        yield OpenAIChatCompletionChunk(
+            id=captured_chat_completion_id,
+            choices=[],
+            created=created,
+            model=model,
+            usage=_convert_usage(captured_usage),
+        )
 
 
 async def from_ir(
