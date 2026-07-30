@@ -4,14 +4,35 @@ This `AGENTS.md` file provides comprehensive guidance for OpenAI Codex, Claude C
 
 The user's job as a senior software engineer is dependent on you implementing clean code with elegant architecture.
 
+## Core Principles
+
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Simplicity First**: Make every change as simple as possible. Only touch what's necessary. Impact minimal code. Over-complication leads to bugs.
+  1. Always start with thorough understanding of the problem and motivation.
+  2. Does this functionality need to exist? Challenge or skip it when it does not (YAGNI).
+  3. Already in this codebase? Reuse or extend it; do not rewrite it.
+  4. Does the standard library do it? Use it.
+  5. Does the platform do it? Use it.
+  6. Does an installed dependency do it? Use it.
+  7. Can it be one line? Make it one line.
+  8. Only then, implement the minimum that works.
+- **Simplify After Implementation**: Treat the first working version and the requirements behind it as drafts.
+  1. Run relevant tests to uncover hidden requirements and assumptions.
+  2. Relate every code path to a concrete requirement and challenge whether that requirement is necessary.
+  3. Review the full diff for unnecessary abstractions, branches, defensive code, and overly strict guarantees.
+  4. Prefer sufficient correctness over absolute correctness when the trade-off is appropriate, such as eventual consistency or simple retries for cheap, recoverable failures.
+  5. Simplify immediately when behavior is preserved; otherwise present the proposed change, benefits, and trade-offs to the user.
+- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files, use `docker compose config --quiet`; do not print fully resolved Compose configuration because it can expand secret environment values into command output.
+
 ## Workflow Orchestration
 
-### 1. Plan Mode Default
+### 1. Planning
 
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately – don't keep pushing
-- Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
+- For non-trivial work, create a concise implementation plan before editing.
+- Proceed without waiting for approval when the requested outcome is clear and the changes are low-risk.
+- Ask for clarification only when ambiguity would materially change behavior, public interfaces, data, security, or architecture.
+- Re-plan when evidence invalidates the current approach.
+- Keep planning proportional to the task; do not create process overhead for straightforward changes.
 
 ### 2. Subagent Strategy
 
@@ -20,29 +41,37 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
 
-### 3. Self-Improvement Loop
+### 3. Task Tracking
 
-- After ANY correction from the user: update `tasks/lessons.md` with the pattern
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review lessons at session start for relevant project
-- Always prioritize long-term solutions over short-term
+- Use `tasks/todo.md` for substantial, multi-stage work when persistent tracking is useful.
+- Do not create or modify task-tracking files for small or routine changes.
+- Record only durable, project-specific lessons in `tasks/lessons.md`.
+- Do not record one-off user preferences, speculative conclusions, or conversational details.
+- A user correction is evidence to reconsider the approach, not an automatic reason to create a permanent rule.
 
 ### 4. Verification Before Done
 
-- Never mark a task complete without proving it works
-- Always write tests for changed behavior. For any public provider behavior
+- Run the strongest applicable verification available in the current environment.
+- Never claim that a check passed unless it was actually run and passed.
+- When a check cannot be run, report the exact command not run and the reason.
+- Distinguish failures introduced by the current change from pre-existing or environment-dependent failures.
+- Verify the behavior affected by the change, not merely that the code compiles.
+- Add or update regression tests when fixing a reproducible defect. For any public provider behavior
   with an OpenAI SDK-equivalent contract, include cassette-backed parity
   coverage that compares Molto against parsed OpenAI SDK responses or events;
   IR and provider-setting unit tests may supplement this coverage, but must
   not replace it.
 - Never run tests in cassette-recording mode. Cassettes must be supplied from
   an approved recorded source; test runs must replay them only.
-- Diff your behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- By default, perform quick correctness checks:
-  - Python: `ruff check <changed-python-files>` and `ruff format --check <changed-python-files>`
-- For behavior changes, run the focused relevant tests. Run `pytest` for broad changes or when the full offline replay suite is required; do not record or update cassettes unless the task explicitly requires it.
+- Compare behavior before and after the change when practical.
+- Run the applicable checks defined in the Linting Workflow.
+- Keep verification proportional to the scope and risk of the change. For behavior changes, run focused relevant tests; run `pytest` for broad changes or when the full offline replay suite is required.
+
+Before reporting completion, review the final diff and ask:
+
+- Does every change relate to a requirement?
+- Did the change introduce unnecessary complexity or scope?
+- Would a staff engineer approve the implementation and verification evidence?
 
 ### 5. Demand Elegance (Balanced)
 
@@ -58,56 +87,54 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
-### 7. Task Management
+### 7. Linting Workflow
 
-1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/todo.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+Run formatting, linting, and static analysis after implementation and before reporting completion.
 
-### 8. Linting Workflow
+The CI workflow is the source of truth. Before running checks, inspect `.github/workflows/lint.yml` and use its commands, installation method, configuration, and tool versions. Do not substitute globally installed tools or copy version numbers into this document.
 
-Run linting after implementation and before reporting completion. Start with changed files for fast feedback, then run the relevant project-wide checks. Before running them, inspect `.github/workflows/lint.yml` and use the Ruff and Prettier versions selected by that workflow. Do not copy version numbers from this document or substitute globally installed versions, because the workflow versions may change.
+Start with changed files for fast feedback, then run the applicable repository-wide checks used by CI.
 
 #### Python
 
 From the repository root:
 
-1. Read the Ruff installation and check steps in `.github/workflows/lint.yml`.
-2. Install or select Ruff using the workflow's current version constraint, then confirm it with `ruff --version`.
-3. Format changed Python files: `ruff format <changed-python-files>`
-4. Check changed Python files: `ruff check <changed-python-files>`
-5. Run the same repository-wide checks configured in the workflow: `ruff check --output-format github .` and `ruff format --diff .`.
+1. Inspect the Ruff installation and check steps in `.github/workflows/lint.yml`.
+2. Install or select Ruff using the workflow's current version constraint.
+3. Confirm the selected version: `ruff --version`.
+4. Format changed Python files: `ruff format <changed-python-files>`.
+5. Check changed Python files: `ruff check <changed-python-files>`.
+6. Run the same repository-wide Ruff format and lint checks configured in CI.
+
+Do not run automatic fixes across the entire repository unless explicitly required by the task.
 
 #### Repository formatting
 
 From the repository root:
 
-1. Read the Prettier check in `.github/workflows/lint.yml`.
-2. Check changed files that are not excluded by `.prettierignore` with the workflow's selected version.
+1. Inspect the Prettier check in `.github/workflows/lint.yml`.
+2. Check changed files that are not excluded by `.prettierignore` with the workflow-selected Prettier version.
+3. Run the same repository-wide formatting check configured in CI when appropriate.
+
+Do not format unrelated files merely to make a repository-wide check pass.
 
 #### Failure Handling
 
-- Do not auto-format or auto-fix unrelated files merely to make a project-wide check pass.
-- If a project-wide check fails, rerun the narrowest relevant command to determine whether the failure was introduced by the current change.
-- Fix failures caused by the current change. Report pre-existing or environment-dependent failures with the exact command and error; never describe a failing check as passing.
-- In the final handoff, list the lint commands run and their outcomes.
+- When a project-wide check fails, rerun the narrowest relevant command to determine whether the failure was caused by the current change.
+- Fix failures introduced by the current change.
+- Do not modify unrelated code to resolve pre-existing failures.
+- Report pre-existing, infrastructure-dependent, or environment-dependent failures with the exact command and relevant error.
+- Never describe a skipped, incomplete, or failing check as passing.
+- In the final handoff, list the verification, test, formatting, linting, and static-analysis commands run, together with their outcomes.
 
-### Core Principles
+### 8. Repository Safety
 
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Simplicity First**: Make every change as simple as possible. Only touch what's necessary. Impact minimal code. Over-complication leads to bugs.
-  1. Always start with thorough understanding of the problem and motivation
-  2. Does this functionality need to exist? → no: skip it (YAGNI)
-  3. Already in this codebase? → reuse or extend it, don't rewrite
-  4. Stdlib does it? → use it
-  5. Native platform feature? → use it
-  6. Installed dependency? → use it
-  7. One line? → one line
-  8. Only then: the minimum that works
-- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, or command output that may expose secrets.
+- Inspect `git status` and the relevant diff before editing.
+- Preserve existing uncommitted changes and never overwrite work you did not create.
+- Do not use destructive Git commands such as `reset --hard`, `clean`, or broad checkout/restore operations unless explicitly requested.
+- Do not commit, push, create branches, or open pull requests unless requested.
+- Avoid modifying generated files unless the project workflow requires regeneration.
+- Keep unrelated formatting, refactors, dependency updates, and lockfile changes out of the diff.
 
 ## Coding Conventions
 
@@ -116,8 +143,23 @@ From the repository root:
 - When writing prompts, avoid using non-ASCII symbols.
 - Follow the existing code style in each file.
 - Use meaningful variable and function names.
-- Add comments for complex logic.
 - **Pin dependency versions**: Use exact versions (e.g. `"2.0.0"`) in `package.json` and `pyproject.toml`. Never use caret (`^`) or tilde (`~`) ranges.
+
+### Code Comments
+
+- Prefer clear code, meaningful names, and straightforward structure over comments that merely describe what the code does.
+- Add comments when the reason behind an implementation would not be obvious to another developer.
+- In particular, comment logic that:
+  - may be surprising or counter-intuitive;
+  - encodes a business rule or architectural decision;
+  - intentionally deviates from established conventions or the most obvious implementation;
+  - reflects an accepted trade-off, limitation, workaround, or compatibility constraint;
+  - depends on subtle assumptions, ordering requirements, external behavior, or non-obvious invariants;
+  - is sufficiently complex that its intent or correctness would otherwise be difficult to verify.
+
+- Comments should explain **why** the implementation exists, what constraint or decision led to it, and, when useful, what could go wrong if it is changed.
+- Do not add comments that simply restate the code, narrate each operation, or compensate for unnecessarily complicated implementation.
+- Keep comments accurate when modifying the associated code. Remove comments that are obsolete, misleading, or no longer useful.
 
 ## Pull Request Review Guidelines
 
