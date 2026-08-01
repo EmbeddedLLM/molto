@@ -1,0 +1,56 @@
+request:
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '187'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    messages:
+    - role: user
+      content: When was the OpenAI Responses API introduced? Answer in one sentence
+        with an inline citation.
+    model: gpt-5-search-api
+    web_search_options: {}
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: chatcmpl-230404ad-3a23-4918-8fa0-88ea4995a798
+    object: chat.completion
+    created: 1784882344
+    model: gpt-5-search-api-2025-10-14
+    choices:
+    - index: 0
+      message:
+        role: assistant
+        content: The OpenAI Responses API was introduced on March 11, 2025. ([openai.com](https://openai.com/index/new-tools-for-building-agents/?utm_source=openai))
+        refusal: null
+        annotations:
+        - type: url_citation
+          url_citation:
+            end_index: 148
+            start_index: 59
+            title: New tools for building agents | OpenAI
+            url: https://openai.com/index/new-tools-for-building-agents/?utm_source=openai
+      finish_reason: stop
+    usage:
+      prompt_tokens: 16307
+      completion_tokens: 34
+      total_tokens: 16341
+      prompt_tokens_details:
+        cached_tokens: 0
+        audio_tokens: 0
+      completion_tokens_details:
+        reasoning_tokens: 0
+        audio_tokens: 0
+        accepted_prediction_tokens: 0
+        rejected_prediction_tokens: 0
+    system_fingerprint: null

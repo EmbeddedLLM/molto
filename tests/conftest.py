@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from molto.utils.test import OpenAICassetteManager
+from tests.support import OpenAICassetteManager
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -26,7 +26,7 @@ def cassette_manager(request: pytest.FixtureRequest) -> OpenAICassetteManager:
     """Return the per-test cassette manager fixture.
 
     Example:
-        # In tests/test_demo.py::test_demo[stream], cassette_manager.node_slug is:
+        # In tests/test_demo.py::test_demo[stream], cassette_manager.safe_node_name is:
         # "test_demo-stream"
     """
     return OpenAICassetteManager.from_pytest_request(

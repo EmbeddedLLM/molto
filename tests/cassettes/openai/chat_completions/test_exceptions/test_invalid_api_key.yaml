@@ -1,0 +1,44 @@
+request:
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br, zstd
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '378'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.41.1
+  body:
+    messages:
+    - role: user
+      content: What number am I thinking of?
+    model: gpt-4.1-nano
+    tool_choice: required
+    tools:
+    - type: function
+      function:
+        name: guess_number
+        description: Guess a number.
+        parameters:
+          type: object
+          properties:
+            number:
+              type: integer
+              description: The guessed number.
+          required:
+          - number
+          additionalProperties: false
+response:
+  status_code: 401
+  headers:
+    connection: keep-alive
+    content-length: '254'
+    content-type: application/json; charset=utf-8
+  body:
+    error:
+      message: 'Incorrect API key provided: test. You can find your API key at https://platform.openai.com/account/api-keys.'
+      type: invalid_request_error
+      param: null
+      code: invalid_api_key

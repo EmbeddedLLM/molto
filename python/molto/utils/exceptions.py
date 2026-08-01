@@ -22,10 +22,10 @@ def docstring_message(cls):
 class MoltoException(Exception):
     """Base exception class for errors."""
 
-
-@docstring_message
-class AuthorizationError(MoltoException):
-    """You do not have the correct credentials."""
+    status_code: int | None = None
+    request_id: str | None = None
+    provider_code: str | None = None
+    provider_body: Any = None
 
 
 @docstring_message
@@ -39,62 +39,13 @@ class ForbiddenError(MoltoException):
 
 
 @docstring_message
-class UpgradeTierError(MoltoException):
-    """You have exhausted the allocations of your subscribed tier. Please upgrade."""
-
-
-@docstring_message
-class BudgetExceededError(MoltoException):
-    """You have reached your budget limit. Wait for the next cycle or ask an administrator to increase it."""
-
-
-@docstring_message
-class InsufficientCreditsError(MoltoException):
-    """Please ensure that you have sufficient credits."""
-
-
-@docstring_message
 class ResourceNotFoundError(MoltoException):
     """Resource with the specified name is not found."""
 
 
 @docstring_message
-class MethodNotAllowedError(MoltoException):
-    """Method is not allowed."""
-
-
-@docstring_message
-class ResourceExistsError(MoltoException):
-    """Resource with the specified name already exists."""
-
-
-@docstring_message
-class UnsupportedMediaTypeError(MoltoException):
-    """This file type is unsupported."""
-
-
-@docstring_message
 class BadInputError(MoltoException):
     """Your input is invalid."""
-
-
-class ResponsesAPIError(MoltoException):
-    """Responses/OpenAI-style API error."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        status_code: int,
-        error_type: str = "invalid_request_error",
-        param: str | None = None,
-        code: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.status_code = int(status_code)
-        self.error_type = str(error_type)
-        self.param = param
-        self.code = code
 
 
 @docstring_message
@@ -121,23 +72,10 @@ class RateLimitExceedError(MoltoException):
         *args,
         limit: int,
         remaining: int,
-        reset_at: int,
-        used: int | None = None,
-        retry_after: int | None = None,
-        meta: dict[str, Any] | None = None,
     ):
         super().__init__(*args)
         self.limit = limit
         self.remaining = remaining
-        self.reset_at = reset_at
-        self.used = used
-        self.retry_after = retry_after
-        self.meta = meta
-
-
-@docstring_message
-class UnavailableError(MoltoException):
-    """The requested functionality is unavailable."""
 
 
 @docstring_message

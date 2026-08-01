@@ -1,0 +1,123 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '293'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    include:
+    - code_interpreter_call.outputs
+    input:
+    - role: user
+      content: Use the code interpreter to run Python that prints 21 * 2, then report
+        the result.
+    model: gpt-5-nano
+    stream: false
+    tool_choice: required
+    tools:
+    - type: code_interpreter
+      container:
+        type: auto
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: resp_0bceb07f8d764845006a6324c6f5e081908c616df378b7448c
+    object: response
+    created_at: 1784882375
+    status: completed
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1784882388
+    error: null
+    frequency_penalty: 0.0
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    model: gpt-5-nano-2025-08-07
+    moderation: null
+    output:
+    - id: rs_0bceb07f8d764845006a6324ce3a2c8190b0c6b7d4fe1a7649
+      type: reasoning
+      content: []
+      encrypted_content: gAAAAABqYyTUA8UaGp9jIzz0NaDkw_1t43s8EWPOHQnZUhwLKgQE7mdn9fh9F8vYLsHjmW4vUIgC1GyB495dE9YI3s3vC9-lq47oftRzX3sZXeZoWGM2kbr1UJp1F_iN3mD2TJyV-zIvQB6PrRFRzApnHwqx6CT8TIFGFbHUwipHdQ2QMfdH2bAhw_TqYVL1Phi7WUqs1y4GnSi9ZhVCTOMpJuAu6KsqlBYcD-fS_0dgA4QHYdcZgRn0t1dd5oSmpJmc9UsE-iKvQPiwc9wt9q1GgUiHq8GOFh4bxZ3aHrWLnz9HhjsbRYvEc9p5GhgAZq1gh-kW8RAl2BCAuU7AaxUZx9FG_BtLdsDJTxCXaSwuKx45C9InciROgsYd_9iREAl4yWHPbkb6aeeusgdGDTqUM-O8tuDDnPVxT73Yr9e2jjXEvmP3LlMR6vRX_M71U8_MiE_HCDqJjGKLTh1hCcM7DSTdBH3jvbtruWlCLW8LoPAXbR9lHv7cSIM_qkreoxGFQ4lP6H2hTa_eI8khDR_4uyKcfoSI0Lx2ickdaNZSXByK4RNoq8turmypjmzQIWObNtsStIvX7WM-NaDeGubLcQeSkMRywJ5Y1UvcmWQmeZsYW0d_AoFs1Oi2-GFzB2irwgVuXtRxt349fAA2W7YBjHwWANRipo-zmsUhRx9b4SYq2zgFG0lB3lllG1tVZ60hkZ8VzA1CZeR_bVQRCYDWMNRzDyGCQIqg_5xILBkZuSwSkFdw7MBblj6Yjq4af8xblIWoqSxdcHvUeTAQfkUhYUxJ_ULA_V1eFRICLZCRL57Xuhi0_QylL1o-f-VjpuapTzoP9sOqKpbAf8M796anLglBSraLwHwLvjqmH2JpI-aZXJaljYeRl1Uw8Euiwsa0zVgBvWnwGuOwBJXTKF41qkf59r-3fPD4S4oRahLvHzaP4dtOitTshnx1fL8uyOXI7LceM1L36Hqn7dyEfCEesI3L4QrCu4YDhqEl85HToisbtPFgReFGy45GK8aGntQrxZm6fjLgUetHatEetAz3wQRKsTPdqNysS1KFP09bHGIiJ0hrdY2rKXYI2ixX_eWK-Yb9mebeA26BecH8b2rxOJtN_JAmcvcxt4EdtsnctRRDUzwvoOfGaHDIZm0ZqMZg-6aGCHu7YXHgyN_hA8Wgj9l45ee9B5DeIAqz6-iPqXGkSCIJd-4h5WQe-LTMaOcQ1_dfIa6LFbl3gGPCRFIUx8cEKCZEqnGxv6xVgAbavzKk9DSmTRrgmaPHVrs8QDiAZRPd5XWeqI9vuxLPt0Q-ncCv-OZR4_VcFcVwT0ZFMG78jtXh3Q5AgXspDNIOGhjaFmOIUD7WA1MYFC6wZgDIBQFwtan-6eJ2WnEO41I5FzI6NEE15tjskdCq-A5x-fRms6R2iIto3w5cTK2D_1SeXx-oSOQJBEO4TwGKq5twPt1m6XSlM7RpaigL7BGKM0rgaeriED6Uqv1mZi-ryKdzGbSBY8uTWuZ2MES-DkrlguiM0jSD9YP2qkvPXX5aVYOY6JH9-BYjfMh1-afnMZkk5OFaisF1DkgAYqQknlVGmEmPpObSVnj-aGYhJjkDMyDYNbV3RYOR9Np8SgKIrZFB4Mv2joy-g1djnVy0qbHPmYD8uVmbJxqrIVVI48drwCjfIKq6UiqZJ_wHdkeqqbQXWG-9acX6qMf2CUKDVykXieYZTTN0YAxaaznpz5VqWbR7mK4SNomqxFM4WVx0RRbi8tA1VBzmw7SbxERUcy-xGCE0VdM7v9i7Q1KJEIXkHm0X0c6kyl_XwlKBCN_Yk1HqdIj3_vjQ9zKOANygo4taT2_fXe1TcE5FlvlAdqiY6471mPiOan7u36dYMyJhWk9OcKklIfwZDza0LCPgtHPkRHtpe7TiMonn24s4LKMHJdQNuCid2W0vwpgZAgd71V7vXjOhvgTYtSE5q22_6VqGk-ZjYsEx68aN6WGthW27IuFwn-DgDFwcoLKMP7KVsgyW9Oef8gBgbFvOd2BAYx_HUPIGMYWvtKVPh0EqPC4223AJqHyn6v5zXQcVEkctbrQjDey2zz9f7mcgnjahRr7bFljooLgf8kYv_OKHYj7VNoB2xZu3n3coSo1iZofXpEfyF0nElVeyWsZZc1lmsY9N1_uzEUX7_GTjJb-5WzaWe1gAjkN5M076qvYdIFd9nWKIDqAQ4mLE_IUgBDTQpoI3gGYDUaD6cqfuMX4mbPGa7ClVULz5322QnOtPtEaQHbMPm-CYWDvzrVyn6OLxjb9slWFXYz3if7pMnLEHgF-htyeRVDkP-20m
+      summary: []
+    - id: ci_0bceb07f8d764845006a6324d149d48190b1fd35f3944303c4
+      type: code_interpreter_call
+      status: completed
+      code: print(21 * 2)
+      container_id: cntr_6a6324cdaaf481909a66a446bb028f6e0fe4277958f24d51
+      outputs:
+      - type: logs
+        logs: '42
+
+          '
+    - id: msg_0bceb07f8d764845006a6324d455948190bde1eca5d029b560
+      type: message
+      status: completed
+      content:
+      - type: output_text
+        annotations: []
+        logprobs: []
+        text: '42'
+      role: assistant
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: current_turn
+      effort: medium
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools:
+    - type: code_interpreter
+      container:
+        type: auto
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 940
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 237
+      output_tokens_details:
+        reasoning_tokens: 192
+      total_tokens: 1177
+    user: null
+    metadata: {}

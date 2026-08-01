@@ -24,7 +24,7 @@ jobs:
 
       - name: Install linting libraries
         run: |
-          python3 -m pip install "ruff~=0.12"
+          python3 -m pip install "ruff~=0.16"
 
       - name: Check Python files using Ruff
         run: |

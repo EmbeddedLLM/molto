@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from molto.utils.test import (
+from tests.support import (
     OpenAICassetteManager,
     OpenAICassetteTransport,
     make_openai_client,
@@ -18,7 +18,7 @@ def _manager(tmp_path: Path, node_name: str = "test_demo[stream]") -> OpenAICass
 
     Example:
         manager = _manager(tmp_path, "test_reasoning[stream]")
-        manager.node_slug
+        manager.safe_node_name
         # "test_reasoning-stream"
     """
     return OpenAICassetteManager(
@@ -40,7 +40,7 @@ def _manager(tmp_path: Path, node_name: str = "test_demo[stream]") -> OpenAICass
         ),
     ],
 )
-def test_cassette_slugging(name: str, expected: str) -> None:
+def test_cassette_name_sanitizing(name: str, expected: str) -> None:
     """Preserve pytest parameter IDs while making safe filenames.
 
     Example:
@@ -50,16 +50,16 @@ def test_cassette_slugging(name: str, expected: str) -> None:
     assert sanitize_test_name(name) == expected
 
 
-def test_manager_node_slug_uses_sanitized_node_name(tmp_path: Path) -> None:
+def test_manager_safe_node_name_uses_sanitized_node_name(tmp_path: Path) -> None:
     """Expose the sanitized pytest node name without a test-prefixed manager method.
 
     Example:
-        _manager(tmp_path, "test_reasoning[stream]").node_slug
+        _manager(tmp_path, "test_reasoning[stream]").safe_node_name
         # "test_reasoning-stream"
     """
     manager = _manager(tmp_path, "test_reasoning[stream]")
 
-    assert manager.node_slug == "test_reasoning-stream"
+    assert manager.safe_node_name == "test_reasoning-stream"
 
 
 def test_cassette_path_uses_optional_cassette_suffix(tmp_path: Path) -> None:

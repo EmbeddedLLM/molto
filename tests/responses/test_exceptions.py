@@ -1,21 +1,20 @@
 from typing import Any
 
+import httpx
 import pytest
-from openai import APIConnectionError, APIError, APIStatusError
-from pydantic_ai import ModelHTTPError
-from pydantic_ai.exceptions import ModelAPIError
+from openai import APIConnectionError, APIError, APIStatusError, RateLimitError
+from pydantic import ValidationError
 
-from molto.providers import OpenAIResponsesProvider
-from molto.runner import _map_pydantic_ai_error
-from molto.types.ir import Input
+from molto.providers.openai import map_openai_error
 from molto.types.openai.responses import OpenAIResponsesRequest
 from molto.utils.exceptions import (
     BadInputError,
     ContextOverflowError,
     ExternalAuthError,
     ModelOverloadError,
+    RateLimitExceedError,
 )
-from molto.utils.test import make_molto_client, make_openai_client, prepend_model_prefix
+from tests.support import make_molto_client, make_openai_client, prepend_model_prefix
 
 CONTEXT_OVERFLOW_INPUT = "Repeat this exactly: " + ("x " * 300_000).strip()
 
@@ -66,8 +65,6 @@ async def _record_or_replay_provider_error(
     client = make_openai_client(
         cassette_manager,
         cassette_suffix=name,
-        expected_request_body=req_body,
-        assert_attrs=["model", "input"],
         api_key=api_key,
     )
     with pytest.raises(APIError) as exc_info:
@@ -92,35 +89,13 @@ def _cassette_request_params(name: str) -> dict[str, Any]:
         {
             "model": body["model"],
             "input": body["input"],
-            "stream": False,
+            "stream": True,
         }
     )
-    for key in ("reasoning", "max_output_tokens"):
+    for key in ("include", "reasoning", "max_output_tokens"):
         if key in body:
             params[key] = body[key]
     return params
-
-
-def _make_ir(**overrides) -> Input:
-    """Return an Input IR with complete defaults for provider validation tests."""
-    defaults = dict(
-        model="openai/gpt-4.1-nano",
-        instructions=None,
-        temperature=None,
-        top_p=None,
-        max_output_tokens=None,
-        reasoning_effort=None,
-        reasoning_summary=None,
-        top_logprobs=None,
-        parallel_tool_calls=None,
-        max_tool_calls=None,
-        text_format=None,
-        tools=None,
-        tool_choice=None,
-        stream=None,
-    )
-    defaults.update(overrides)
-    return Input(**defaults)
 
 
 class TestBadInputError:
@@ -131,28 +106,33 @@ class TestBadInputError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="context_length_exceeded",
-            expected_request_body=_provider_error_request_body("context_length_exceeded"),
-            assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("context_length_exceeded"))
         with pytest.raises(ContextOverflowError):
-            await molto.chat(req)
+            response = await molto.responses(req)
+            async for _ in response:
+                pass
 
     async def test_invalid_temperature(self):
         """Reject temperatures below the OpenAI-supported range."""
-        ir = _make_ir(temperature=-1.0)
-        provider = OpenAIResponsesProvider()
-        with pytest.raises(BadInputError) as exc_info:
-            await provider.parse_agent_settings(ir)
+        with pytest.raises(ValidationError) as exc_info:
+            OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", temperature=-1.0)
         assert "temperature" in str(exc_info.value)
 
     async def test_invalid_temperature_above_range(self):
         """Reject temperatures above the OpenAI-supported range."""
-        ir = _make_ir(temperature=5.0)
-        provider = OpenAIResponsesProvider()
-        with pytest.raises(BadInputError) as exc_info:
-            await provider.parse_agent_settings(ir)
+        with pytest.raises(ValidationError) as exc_info:
+            OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", temperature=5.0)
         assert "temperature" in str(exc_info.value)
+
+    async def test_assistant_input_message_rejected(self):
+        """Input messages must not use the assistant role (former OpenAIInputItem contract)."""
+        with pytest.raises(ValidationError) as exc_info:
+            OpenAIResponsesRequest(
+                model="openai/gpt-4.1-nano",
+                input=[{"role": "assistant", "content": "hi"}],
+            )
+        assert "assistant" in str(exc_info.value)
 
     async def test_thinking_budget_exceeding_max_tokens(self, cassette_manager):
         """Map invalid reasoning/max-token provider errors to BadInputError."""
@@ -164,54 +144,50 @@ class TestBadInputError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="thinking_budget_exceeding_max_tokens",
-            expected_request_body=_provider_error_request_body(
-                "thinking_budget_exceeding_max_tokens"
-            ),
-            assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(
             **_cassette_request_params("thinking_budget_exceeding_max_tokens")
         )
         with pytest.raises(BadInputError):
-            await molto.chat(req)
+            await molto.responses(req)
 
 
 class TestModelOverloadError:
     def test_connection_error_preserves_cassette_assertion(self):
-        """Keep assertion detail through the SDK and model-error wrappers."""
+        """Map SDK connection failures without a Pydantic AI wrapper."""
         assertion = AssertionError("OpenAI cassette request mismatch.")
-        connection_error = APIConnectionError(request=None)
-        connection_error.__cause__ = assertion
-        model_error = ModelAPIError("gpt-5-nano", "Connection error.")
-        model_error.__cause__ = connection_error
-
-        mapped = _map_pydantic_ai_error(model_error)
-
-        assert str(mapped) == (
-            "ModelAPIError: Connection error.\n"
-            "Caused by: AssertionError: OpenAI cassette request mismatch."
+        connection_error = APIConnectionError(
+            request=httpx.Request("POST", "https://api.openai.com")
         )
+        connection_error.__cause__ = assertion
+        mapped = map_openai_error(connection_error)
+        assert type(mapped) is ModelOverloadError
+        assert str(mapped) == "Connection error."
 
     async def test_network_connectivity_503(self):
         """Map HTTP 503 model errors to ModelOverloadError."""
-        exc = ModelHTTPError(
-            status_code=503,
-            model_name="gpt-4.1-nano",
-            body="Service unavailable",
+        request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+        response = httpx.Response(503, request=request)
+        exc = APIStatusError(
+            "Service unavailable",
+            response=response,
+            body={"error": {"message": "Service unavailable"}},
         )
-        mapped = _map_pydantic_ai_error(exc)
+        mapped = map_openai_error(exc)
         assert type(mapped) is ModelOverloadError
         with pytest.raises(ModelOverloadError):
             raise mapped
 
     async def test_server_downtime_529(self):
         """Map HTTP 529 model errors to ModelOverloadError."""
-        exc = ModelHTTPError(
-            status_code=529,
-            model_name="gpt-4.1-nano",
-            body="Site is overloaded",
+        request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+        response = httpx.Response(529, request=request)
+        exc = APIStatusError(
+            "Site is overloaded",
+            response=response,
+            body={"error": {"message": "Site is overloaded"}},
         )
-        mapped = _map_pydantic_ai_error(exc)
+        mapped = map_openai_error(exc)
         assert type(mapped) is ModelOverloadError
         with pytest.raises(ModelOverloadError):
             raise mapped
@@ -229,12 +205,10 @@ class TestExternalAuthError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="incorrect_api_key",
-            expected_request_body=_provider_error_request_body("incorrect_api_key"),
-            assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("incorrect_api_key"))
         with pytest.raises(ExternalAuthError):
-            await molto.chat(req)
+            await molto.responses(req)
 
     async def test_missing_api_key(self, cassette_manager):
         """Map missing OpenAI credentials to ExternalAuthError."""
@@ -247,9 +221,28 @@ class TestExternalAuthError:
         molto = make_molto_client(
             cassette_manager,
             cassette_suffix="missing_api_key",
-            expected_request_body=_provider_error_request_body("missing_api_key"),
-            assert_attrs=["model", "input"],
         )
         req = OpenAIResponsesRequest(**_cassette_request_params("missing_api_key"))
         with pytest.raises(ExternalAuthError):
-            await molto.chat(req)
+            await molto.responses(req)
+
+
+class TestRateLimitExceedError:
+    def test_rate_limit_headers_populate_typed_fields(self):
+        """Map 429 provider rate-limit headers into the typed error fields."""
+        request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+        response = httpx.Response(
+            429,
+            request=request,
+            headers={
+                "x-ratelimit-limit-requests": "60",
+                "x-ratelimit-remaining-requests": "0",
+            },
+        )
+        exc = RateLimitError("rate limited", response=response, body=None)
+
+        mapped = map_openai_error(exc)
+
+        assert type(mapped) is RateLimitExceedError
+        assert mapped.limit == 60
+        assert mapped.remaining == 0

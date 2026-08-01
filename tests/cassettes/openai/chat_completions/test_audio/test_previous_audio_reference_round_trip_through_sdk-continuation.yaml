@@ -1,0 +1,56 @@
+request:
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '203'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    messages:
+    - role: assistant
+      content: null
+      audio:
+        id: audio_6a63249e49048191a10af24654756199
+    - role: user
+      content: Reply with the transcript of the previous audio.
+    model: gpt-audio
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: chatcmpl-E55ihrHYjmeyJ2sXNDNBybY9WKkHe
+    object: chat.completion
+    created: 1784882335
+    model: gpt-audio-2025-08-28
+    choices:
+    - index: 0
+      message:
+        role: assistant
+        content: '{"transcript":"Hello from Molto"}'
+        refusal: null
+        annotations: []
+      finish_reason: stop
+    usage:
+      prompt_tokens: 60
+      completion_tokens: 9
+      total_tokens: 69
+      prompt_tokens_details:
+        cached_tokens: 0
+        audio_tokens: 30
+        text_tokens: 30
+        image_tokens: 0
+      completion_tokens_details:
+        reasoning_tokens: 0
+        audio_tokens: 0
+        accepted_prediction_tokens: 0
+        rejected_prediction_tokens: 0
+        text_tokens: 9
+    service_tier: default
+    system_fingerprint: fp_31167c1bcb

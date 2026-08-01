@@ -1,0 +1,56 @@
+request:
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br, zstd
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '177'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.41.1
+  body:
+    messages:
+    - role: user
+      content: How many Rs are in strawberry? Explain briefly.
+    model: gpt-5.1
+    max_completion_tokens: 512
+    reasoning_effort: high
+    stream: false
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: chatcmpl-E4erMmyaT8lx4DVUqHQJ5aan8ccCZ
+    object: chat.completion
+    created: 1784779084
+    model: gpt-5.1-2025-11-13
+    choices:
+    - index: 0
+      message:
+        role: assistant
+        content: 'There are **3** “r” letters in the word **strawberry**.
+
+
+          Spelling it out: **s t r a w b e r r y** – the letter **r** appears in the
+          3rd, 8th, and 9th positions.'
+        refusal: null
+        annotations: []
+      finish_reason: stop
+    usage:
+      prompt_tokens: 16
+      completion_tokens: 159
+      total_tokens: 175
+      prompt_tokens_details:
+        cached_tokens: 0
+        audio_tokens: 0
+      completion_tokens_details:
+        reasoning_tokens: 92
+        audio_tokens: 0
+        accepted_prediction_tokens: 0
+        rejected_prediction_tokens: 0
+    service_tier: default
+    system_fingerprint: null
