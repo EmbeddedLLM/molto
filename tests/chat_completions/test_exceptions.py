@@ -1,7 +1,7 @@
 import pytest
 from openai import AuthenticationError
 
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai import OpenAIRequest
 from molto.utils.exceptions import ExternalAuthError
 from tests.support import (
     make_molto_client,
@@ -57,7 +57,7 @@ async def test_invalid_api_key(cassette_manager) -> None:
     assert sdk_error["param"] is None
 
     molto = make_molto_client(cassette_manager)
-    request = OpenAIChatCompletionRequest(**prepend_model_prefix(INVALID_API_KEY_REQUEST))
+    request = OpenAIRequest.chat(**prepend_model_prefix(INVALID_API_KEY_REQUEST))
     with pytest.raises(ExternalAuthError) as molto_exc_info:
         await molto.chat_completions(request, api_key="test")
 

@@ -10,14 +10,12 @@ from pydantic import ValidationError
 from molto import Molto
 from molto.providers import OPENAI_RESPONSES_CAPABILITIES, validate_provider_request
 from molto.providers.openai import OpenAIProvider, map_openai_error
-from molto.providers.openai.output_translation import (
-    chat_stream_to_output_events,
-    responses_stream_to_output_events,
-)
 from molto.providers.openai.request_translation import build_openai_request
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
-from molto.types.openai.responses import OpenAIResponsesRequest
+from molto.types.openai import OpenAIRequest
 from molto.utils.exceptions import BadInputError, ModelOverloadError
+
+OpenAIChatCompletionRequest = OpenAIRequest.chat
+OpenAIResponsesRequest = OpenAIRequest.responses
 
 
 def _canned_response(endpoint: str) -> httpx.Response:
@@ -71,48 +69,6 @@ async def _assert_sdk_serializes_same(endpoint: str, body: dict) -> None:
     assert captured["body"] == body
 
 
-def _responses_payload(text: str) -> dict:
-    return {
-        "id": "resp_test",
-        "object": "response",
-        "created_at": 1,
-        "status": "completed",
-        "model": "gpt-4.1-nano",
-        "output": [
-            {
-                "id": "msg_test",
-                "type": "message",
-                "status": "completed",
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "output_text",
-                        "text": text,
-                        "annotations": [],
-                        "logprobs": [],
-                    }
-                ],
-            }
-        ],
-        "usage": {
-            "input_tokens": 1,
-            "output_tokens": 1,
-            "total_tokens": 2,
-            "input_tokens_details": {"cached_tokens": 0},
-            "output_tokens_details": {"reasoning_tokens": 0},
-        },
-        "error": None,
-        "incomplete_details": None,
-        "instructions": None,
-        "metadata": {},
-        "parallel_tool_calls": True,
-        "temperature": 1.0,
-        "tool_choice": "auto",
-        "tools": [],
-        "top_p": 1.0,
-    }
-
-
 def _chat_payload(text: str) -> dict:
     return {
         "id": "chatcmpl_test",
@@ -134,11 +90,6 @@ def _chat_payload(text: str) -> dict:
             "total_tokens": 2,
         },
     }
-
-
-async def _dict_frames(*frames: dict):
-    for frame in frames:
-        yield frame
 
 
 def test_chat_request_cannot_select_responses_native_endpoint() -> None:
@@ -244,199 +195,6 @@ def test_responses_request_cannot_select_chat_native_endpoint() -> None:
         match="Responses requests must execute through the Responses endpoint",
     ):
         build_openai_request(request.to_ir(), "chat_completions")
-
-
-async def test_native_chat_non_stream_call_is_normalized_after_sdk_response() -> None:
-    captured: list[dict] = []
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        captured.append(json.loads(await request.aread()))
-        return httpx.Response(200, request=request, json=_chat_payload("hello"))
-
-    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    request = OpenAIChatCompletionRequest(
-        model="openai/gpt-4.1-nano",
-        messages=[{"role": "user", "content": "Say hello."}],
-        stream=False,
-    )
-
-    response = await Molto(http_client=http_client).chat_completions(request, api_key="test")
-
-    assert len(captured) == 1
-    assert captured[0]["stream"] is False
-    assert response.choices[0].message.content == "hello"
-    await http_client.aclose()
-
-
-async def test_native_responses_non_stream_call_is_normalized_after_sdk_response() -> None:
-    captured: list[dict] = []
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        captured.append(json.loads(await request.aread()))
-        return httpx.Response(200, request=request, json=_responses_payload("hello"))
-
-    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    request = OpenAIResponsesRequest(
-        model="openai/gpt-4.1-nano",
-        input="Say hello.",
-        stream=False,
-    )
-
-    response = await Molto(http_client=http_client).responses(request, api_key="test")
-
-    assert len(captured) == 1
-    assert captured[0]["stream"] is False
-    assert response.output[0].content[0].text == "hello"
-    await http_client.aclose()
-
-
-async def test_responses_method_uses_chat_request_endpoint_and_returns_responses() -> None:
-    captured_paths: list[str] = []
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        captured_paths.append(request.url.path)
-        return httpx.Response(200, request=request, json=_chat_payload("hello"))
-
-    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    request = OpenAIChatCompletionRequest(
-        model="openai/gpt-4.1-nano",
-        messages=[{"role": "user", "content": "Say hello."}],
-        stream=False,
-    )
-
-    response = await Molto(http_client=http_client).responses(request, api_key="test")
-
-    assert captured_paths == ["/v1/chat/completions"]
-    assert response.object == "response"
-    assert response.output[0].content[0].text == "hello"
-    assert response.metadata["system_fingerprint"] == "fp_test"
-    await http_client.aclose()
-
-
-async def test_chat_method_uses_responses_request_endpoint_and_returns_chat() -> None:
-    captured_paths: list[str] = []
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        captured_paths.append(request.url.path)
-        return httpx.Response(200, request=request, json=_responses_payload("hello"))
-
-    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    request = OpenAIResponsesRequest(
-        model="openai/gpt-4.1-nano",
-        input="Say hello.",
-        stream=False,
-    )
-
-    response = await Molto(http_client=http_client).chat_completions(request, api_key="test")
-
-    assert captured_paths == ["/v1/responses"]
-    assert response.object == "chat.completion"
-    assert response.choices[0].message.content == "hello"
-    await http_client.aclose()
-
-
-async def test_responses_method_stream_uses_chat_request_endpoint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    endpoints: list[str] = []
-    frames = (
-        {
-            "id": "chatcmpl_cross_stream",
-            "object": "chat.completion.chunk",
-            "created": 1,
-            "model": "gpt-4.1-nano",
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"role": "assistant", "content": "hello"},
-                    "finish_reason": None,
-                }
-            ],
-        },
-        {
-            "id": "chatcmpl_cross_stream",
-            "object": "chat.completion.chunk",
-            "created": 1,
-            "model": "gpt-4.1-nano",
-            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-        },
-    )
-
-    class FakeProvider:
-        def __init__(self, endpoint: str, **_kwargs) -> None:
-            endpoints.append(endpoint)
-
-        def run(self, _request):
-            return chat_stream_to_output_events(_dict_frames(*frames))
-
-    monkeypatch.setattr("molto.core.OpenAIProvider", FakeProvider)
-    stream = await Molto().responses(
-        OpenAIChatCompletionRequest(
-            model="openai/gpt-4.1-nano",
-            messages=[{"role": "user", "content": "Say hello."}],
-            stream=True,
-        )
-    )
-    events = [event async for event in stream]
-
-    assert endpoints == ["chat_completions"]
-    assert events[-1].type == "response.completed"
-    assert events[-1].response.output[0].content[0].text == "hello"
-
-
-async def test_chat_method_stream_uses_responses_request_endpoint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    endpoints: list[str] = []
-
-    def response(status: str, usage: dict | None = None) -> dict:
-        return {
-            "id": "resp_cross_stream",
-            "object": "response",
-            "created_at": 1,
-            "model": "gpt-4.1-nano",
-            "status": status,
-            "output": [],
-            "usage": usage,
-        }
-
-    frames = (
-        {
-            "type": "response.created",
-            "sequence_number": 0,
-            "response": response("in_progress"),
-        },
-        {
-            "type": "response.completed",
-            "sequence_number": 1,
-            "response": response(
-                "completed",
-                {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
-            ),
-        },
-    )
-
-    class FakeProvider:
-        def __init__(self, endpoint: str, **_kwargs) -> None:
-            endpoints.append(endpoint)
-
-        def run(self, _request):
-            return responses_stream_to_output_events(_dict_frames(*frames))
-
-    monkeypatch.setattr("molto.core.OpenAIProvider", FakeProvider)
-    stream = await Molto().chat_completions(
-        OpenAIResponsesRequest(
-            model="openai/gpt-4.1-nano",
-            input="Say hello.",
-            stream=True,
-        )
-    )
-    chunks = [chunk async for chunk in stream]
-
-    assert endpoints == ["responses"]
-    assert any(choice.finish_reason == "stop" for chunk in chunks for choice in chunk.choices)
-    assert chunks[-1].usage.total_tokens == 2
 
 
 def test_generated_audio_request_survives_the_input_ir() -> None:

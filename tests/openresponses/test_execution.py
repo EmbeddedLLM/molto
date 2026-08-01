@@ -18,7 +18,7 @@ from molto.types.ir.portable import (
     ResponseStartedEvent,
     Usage,
 )
-from molto.types.openai.responses import OpenAIResponsesRequest
+from molto.types.openai import OpenAIRequest
 from molto.types.openresponses import OpenResponsesRequest
 from molto.utils.exceptions import ModelCapabilityError
 
@@ -93,7 +93,7 @@ async def test_anthropic_models_use_the_openai_compatible_chat_endpoint(monkeypa
 
 async def test_openai_responses_route_uses_the_responses_endpoint(monkeypatch) -> None:
     monkeypatch.setattr(molto.core, "OpenAIProvider", _FakeOpenAIProvider)
-    request = OpenAIResponsesRequest(
+    request = OpenAIRequest.responses(
         model="openai/gpt-test",
         input="Say hello.",
         stream=True,

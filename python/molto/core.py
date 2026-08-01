@@ -11,9 +11,9 @@ from molto.providers import (
     descriptor_for,
 )
 from molto.types.ir.portable import collect_output_ir
+from molto.types.openai import OpenAIRequest
 from molto.types.openai.chat_completions import (
     OpenAIChatCompletionChunk,
-    OpenAIChatCompletionRequest,
     OpenAIChatCompletionResponse,
 )
 from molto.types.openai.chat_completions import (
@@ -27,7 +27,6 @@ from molto.types.openai.cross_endpoint import (
     responses_from_chat_output_ir,
 )
 from molto.types.openai.responses import (
-    OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
 )
@@ -110,7 +109,7 @@ class Molto:
 
     async def responses(
         self,
-        body: OpenAIChatCompletionRequest | OpenAIResponsesRequest | OpenResponsesRequest,
+        body: OpenAIRequest | OpenResponsesRequest,
         api_key: str | None = None,
     ) -> (
         OpenAIResponsesResponse
@@ -125,15 +124,18 @@ class Molto:
         same-format parity. Anthropic returns the portable OpenResponses contract.
         """
 
+        if not isinstance(body, (OpenAIRequest, OpenResponsesRequest)):
+            raise BadInputError("OpenAI requests must use OpenAIRequest.")
         ir = body.to_ir()
         self._check_model(ir.model, allowed_prefixes=("openai/", "vllm/", "anthropic/"))
 
-        if isinstance(body, OpenAIChatCompletionRequest):
+        if isinstance(body, OpenAIRequest) and body.native_endpoint == "chat_completions":
+            payload = body.payload
             if ir.model.startswith("anthropic/"):
                 raise BadInputError("Anthropic does not accept the OpenAI Chat request contract.")
             if (
-                body.audio is not None
-                or (body.modalities is not None and "audio" in body.modalities)
+                payload.audio is not None
+                or (payload.modalities is not None and "audio" in payload.modalities)
                 or any(item.audio_id is not None for item in ir.items if hasattr(item, "audio_id"))
             ):
                 raise BadInputError("Responses output cannot represent generated Chat audio.")
@@ -194,27 +196,30 @@ class Molto:
 
     async def chat_completions(
         self,
-        body: OpenAIChatCompletionRequest | OpenAIResponsesRequest,
+        body: OpenAIRequest,
         api_key: str | None = None,
     ) -> OpenAIChatCompletionResponse | AsyncIterator[OpenAIChatCompletionChunk]:
         """Return Chat output; the request model selects the native endpoint."""
 
+        if not isinstance(body, OpenAIRequest):
+            raise BadInputError("Chat Completions requests must use OpenAIRequest.")
         ir = body.to_ir()
         self._check_model(ir.model, allowed_prefixes=("openai/", "vllm/"))
 
-        if isinstance(body, OpenAIResponsesRequest):
+        if body.native_endpoint == "responses":
+            payload = body.payload
             unsupported_tools = [
-                tool for tool in body.tools or () if getattr(tool, "type", None) != "function"
+                tool for tool in payload.tools or () if getattr(tool, "type", None) != "function"
             ]
             if unsupported_tools:
                 raise BadInputError(
                     "Chat Completions output supports Responses function tools only."
                 )
             if (
-                body.reasoning is not None
-                or body.conversation is not None
-                or body.previous_response_id is not None
-                or body.store is not None
+                payload.reasoning is not None
+                or payload.conversation is not None
+                or payload.previous_response_id is not None
+                or payload.store is not None
             ):
                 raise BadInputError(
                     "Chat Completions output cannot represent Responses reasoning or state."

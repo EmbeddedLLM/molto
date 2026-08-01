@@ -5,11 +5,11 @@ from openai.types.responses import (
     ResponseOutputMessage,
 )
 
+from molto.types.openai import OpenAIRequest
 from molto.types.openai.responses import (
     OpenAIOutputItem,
     OpenAIOutputRefusal,
     OpenAIResponsesError,
-    OpenAIResponsesRequest,
     OpenAIResponsesStream,
     OpenAIResponsesStreamEvent,
 )
@@ -106,7 +106,7 @@ async def test_standalone_error_event_round_trip_through_sdk(cassette_manager) -
             cassette_manager,
             cassette_suffix=cassette_suffix,
         )
-        response = await molto.responses(OpenAIResponsesRequest(**prepend_model_prefix(req_body)))
+        response = await molto.responses(OpenAIRequest.responses(**prepend_model_prefix(req_body)))
         events: list[OpenAIResponsesStreamEvent] = [event async for event in response]
         assert_stream_events_match(sdk_events, events)
         if sdk_error is None:

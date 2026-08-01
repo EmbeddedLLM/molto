@@ -2,7 +2,7 @@ import base64
 import io
 import wave
 
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai import OpenAIRequest
 from tests.support import (
     make_molto_client,
     make_openai_client,
@@ -88,7 +88,7 @@ async def test_previous_audio_reference_round_trip_through_sdk(cassette_manager)
         cassette_suffix="setup",
     )
     molto_setup_response = await molto_setup.chat_completions(
-        OpenAIChatCompletionRequest(**prepend_model_prefix(REQUEST_BODY))
+        OpenAIRequest.chat(**prepend_model_prefix(REQUEST_BODY))
     )
     molto_setup_audio = molto_setup_response.choices[0].message.audio
     assert molto_setup_audio is not None

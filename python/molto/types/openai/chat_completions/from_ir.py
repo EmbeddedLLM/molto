@@ -133,7 +133,9 @@ async def from_output_event_stream(
         "refusal": message["refusal"],
     }
     if "tool_calls" in message:
-        delta["tool_calls"] = message["tool_calls"]
+        delta["tool_calls"] = [
+            {"index": index, **tool_call} for index, tool_call in enumerate(message["tool_calls"])
+        ]
     if "audio" in message:
         delta["audio"] = message["audio"]
     yield OpenAIChatCompletionChunk.model_validate(

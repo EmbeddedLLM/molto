@@ -4,8 +4,14 @@ from pathlib import Path
 import pytest
 
 from molto.types.ir.portable import InputImagePart, InputTextPart, RequestMessageItem
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
-from tests.support import STREAM_PARAMS, run_chat_parity, stream_chat_text
+from molto.types.openai import OpenAIRequest
+from tests.support import (
+    STREAM_PARAMS,
+    make_molto_client,
+    prepend_model_prefix,
+    run_chat_parity,
+    stream_chat_text,
+)
 
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
     (Path(__file__).parents[1] / "files" / "xlsx.jpg").read_bytes()
@@ -26,7 +32,7 @@ MULTIMODAL_REQUEST = {
 
 
 def test_text_and_multimodal_messages_map_to_ir() -> None:
-    request = OpenAIChatCompletionRequest(
+    request = OpenAIRequest.chat(
         model="openai/gpt-4.1-nano",
         messages=[
             {"role": "user", "content": "Describe this image."},
@@ -76,3 +82,12 @@ async def test_multimodal_messages_round_trip_through_sdk(stream: bool, cassette
         sdk_text = parity.sdk_response.choices[0].message.content
         assert sdk_text is not None
         assert parity.molto_response.choices[0].message.content == sdk_text
+
+    cross_result = await make_molto_client(cassette_manager).responses(
+        OpenAIRequest.chat(**prepend_model_prefix(req_body))
+    )
+    if stream:
+        cross_events = [event async for event in cross_result]
+        assert cross_events[-1].type == "response.completed"
+    else:
+        assert cross_result.object == "response"

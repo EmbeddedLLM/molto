@@ -12,10 +12,9 @@ import pytest
 
 from molto.providers.openai.output_translation import responses_response_to_output_events
 from molto.types.ir.portable import FunctionCallRequestItem, collect_output_ir
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai import OpenAIRequest
 from molto.types.openai.responses import (
     OpenAIFunctionToolCall,
-    OpenAIResponsesRequest,
     from_output_ir,
 )
 
@@ -35,7 +34,7 @@ def _single_history_tool_call(items: object) -> FunctionCallRequestItem:
 
 @pytest.mark.parametrize("arguments", _ARGUMENTS)
 def test_responses_history_tool_arguments_are_preserved_verbatim(arguments: str) -> None:
-    request = OpenAIResponsesRequest(
+    request = OpenAIRequest.responses(
         model="gpt-test",
         input=[
             {
@@ -55,7 +54,7 @@ def test_responses_history_tool_arguments_are_preserved_verbatim(arguments: str)
 
 @pytest.mark.parametrize("arguments", _ARGUMENTS)
 def test_chat_history_tool_arguments_are_preserved_verbatim(arguments: str) -> None:
-    request = OpenAIChatCompletionRequest(
+    request = OpenAIRequest.chat(
         model="gpt-test",
         messages=[
             {
