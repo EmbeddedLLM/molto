@@ -6,7 +6,7 @@ from openai import APIConnectionError, APIError, APIStatusError, RateLimitError
 from pydantic import ValidationError
 
 from molto.providers.openai import map_openai_error
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.responses import OpenAIResponsesRequest
 from molto.utils.exceptions import (
     BadInputError,
     ContextOverflowError,
@@ -15,8 +15,6 @@ from molto.utils.exceptions import (
     RateLimitExceedError,
 )
 from tests.support import make_molto_client, make_openai_client, prepend_model_prefix
-
-OpenAIResponsesRequest = OpenAIRequest.responses
 
 CONTEXT_OVERFLOW_INPUT = "Repeat this exactly: " + ("x " * 300_000).strip()
 

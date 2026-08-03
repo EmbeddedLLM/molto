@@ -11,8 +11,9 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from molto.types.openai.responses import (
+    OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStream,
     OpenAIResponsesStreamEvent,
@@ -697,7 +698,7 @@ async def run_responses_parity(
     molto_body = (
         molto_request_body if molto_request_body is not None else prepend_model_prefix(req_body)
     )
-    molto_result = await molto.responses(OpenAIRequest.responses(**molto_body))
+    molto_result = await molto.responses(OpenAIResponsesRequest(**molto_body))
     molto_events: list[OpenAIResponsesStreamEvent] = []
     if stream:
         molto_events = [event async for event in molto_result]
@@ -756,7 +757,7 @@ async def run_chat_parity(
 
     molto = make_molto_client(cassette_manager, cassette_suffix=cassette_suffix)
     molto_result = await molto.chat_completions(
-        OpenAIRequest.chat(**prepend_model_prefix(req_body))
+        OpenAIChatCompletionRequest(**prepend_model_prefix(req_body))
     )
 
     sdk_chunks: list[Any] = []

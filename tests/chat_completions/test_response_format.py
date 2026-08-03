@@ -3,7 +3,7 @@ import json
 import pytest
 
 from molto.types.ir.portable import JsonObjectOutputFormat, JsonSchemaOutputFormat
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 from tests.support import STREAM_PARAMS, run_chat_parity, stream_chat_text
 
 STRUCT_SCHEMA = {
@@ -34,7 +34,7 @@ JSON_PROMPT = 'Return exactly the JSON object {"name":"Molto"}. Do not include m
 
 
 def test_json_schema_response_format_maps_to_ir() -> None:
-    request = OpenAIRequest.chat(
+    request = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[{"role": "user", "content": "Who are you?"}],
         response_format={
@@ -56,7 +56,7 @@ def test_json_schema_response_format_maps_to_ir() -> None:
 
 
 def test_json_object_response_format_maps_to_ir() -> None:
-    request = OpenAIRequest.chat(
+    request = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[{"role": "user", "content": "Return JSON."}],
         response_format={"type": "json_object"},

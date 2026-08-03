@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import model_validator
 
 from .base import IRModel, ResponseStatus, StableId
@@ -32,7 +30,6 @@ class InputIR(IRModel):
     """Complete request contract consumed by OpenAI-compatible adapters."""
 
     model: str
-    native_endpoint: Literal["chat_completions", "responses"] | None = None
     stream: bool | None
     stream_options: StreamOptions | None = None
     store: bool | None = None

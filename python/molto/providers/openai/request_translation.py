@@ -327,17 +327,6 @@ def _state_values(ir) -> dict[str, Any]:
 def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
     """Build canonical OpenAI SDK arguments after capability validation."""
 
-    if ir.native_endpoint is not None and ir.native_endpoint != endpoint:
-        request_name = (
-            "Chat requests" if ir.native_endpoint == "chat_completions" else "Responses requests"
-        )
-        endpoint_name = (
-            "Chat Completions endpoint"
-            if ir.native_endpoint == "chat_completions"
-            else "Responses endpoint"
-        )
-        raise BadInputError(f"{request_name} must execute through the {endpoint_name}.")
-
     generation = ir.generation
     request: dict[str, Any] = {"model": ir.model.split("/", 1)[-1]}
     if ir.stream is not None:

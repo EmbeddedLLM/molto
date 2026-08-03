@@ -38,10 +38,11 @@ explicit rejection. It is never hidden in an opaque passthrough field.
 
 ## Provider boundary
 
-`molto.providers.openai.OpenAIProvider` is the only SDK execution adapter. It
-uses the official OpenAI SDK endpoint selected by the request model:
+`molto.providers.openai.OpenAIProvider` is the only SDK execution adapter. The
+public method fixes the request and output protocol; its keyword-only `upstream`
+parameter selects the SDK endpoint:
 
-| Model prefix | Chat request | Responses request |
+| Model prefix | Chat upstream | Responses upstream |
 | --- | --- | --- |
 | `openai/` | OpenAI Chat Completions | OpenAI Responses |
 | `vllm/` | OpenAI-compatible Chat Completions | OpenAI-compatible Responses |
@@ -83,15 +84,13 @@ sequence. The public adapters then compose the requested destination model:
 
 Streaming and non-streaming output use the same event-sequence boundary. Exact
 OpenAI frames coexist with semantic events: matching-format adapters consume the
-frames, while cross-format and OpenResponses adapters consume only semantics.
+frames, while cross-format adapters consume only semantics.
 No source frame appears in a cross-format public response.
 
 ## Module ownership
 
 - `python/molto/types/openai/*`: public OpenAI request/response models and their
   request/output adapters.
-- `python/molto/types/openresponses/*`: the portable OpenResponses-shaped public
-  models, backed by the same IR event stream.
 - `python/molto/types/ir/*`: strict portable models, event invariants, emitter,
   usage, state, and collection.
 - `python/molto/providers/capabilities.py`: provider contracts and

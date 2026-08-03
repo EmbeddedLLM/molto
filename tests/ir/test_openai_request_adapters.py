@@ -4,14 +4,15 @@ from pydantic import TypeAdapter
 
 from molto.providers.openai.request_translation import build_openai_request
 from molto.types.ir.portable import InputIR
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai.responses import OpenAIResponsesRequest
 from molto.utils.exceptions import BadInputError
 
 SDK_RESPONSE_INPUT = TypeAdapter(list[ResponseInputItemParam])
 
 
 def test_chat_request_builds_canonical_openai_payload() -> None:
-    request = OpenAIRequest.chat(
+    request = OpenAIChatCompletionRequest(
         model="openai/gpt-test",
         messages=[{"role": "user", "content": "hello"}],
     )
@@ -23,7 +24,7 @@ def test_chat_request_builds_canonical_openai_payload() -> None:
 
 
 def test_responses_request_builds_canonical_openai_payload() -> None:
-    request = OpenAIRequest.responses(model="openai/gpt-test", input="hello")
+    request = OpenAIResponsesRequest(model="openai/gpt-test", input="hello")
 
     assert build_openai_request(request.to_ir(), "responses") == {
         "model": "gpt-test",
@@ -68,7 +69,7 @@ def test_responses_stateless_web_search_history_round_trips_through_ir() -> None
         },
         {"role": "user", "content": "Summarize that."},
     ]
-    request = OpenAIRequest.responses(
+    request = OpenAIResponsesRequest(
         model="openai/gpt-test",
         input=history,
         store=False,
@@ -105,7 +106,7 @@ def test_responses_stateless_code_interpreter_history_round_trips_through_ir() -
         },
         {"role": "user", "content": "What operation did you use?"},
     ]
-    request = OpenAIRequest.responses(
+    request = OpenAIResponsesRequest(
         model="openai/gpt-test",
         input=history,
         store=False,
@@ -123,7 +124,7 @@ def test_responses_stateless_code_interpreter_history_round_trips_through_ir() -
 
 
 def test_responses_stateless_unsupported_mcp_history_rejects() -> None:
-    request = OpenAIRequest.responses(
+    request = OpenAIResponsesRequest(
         model="openai/gpt-test",
         input=[
             {

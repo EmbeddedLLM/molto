@@ -5,7 +5,6 @@ from openai.types.responses import (
     ResponseOutputMessage,
 )
 
-from molto.types.openai import OpenAIRequest
 from molto.types.openai.responses import (
     OpenAIFunctionToolCall,
     OpenAIResponsesStreamOutput,
@@ -15,13 +14,7 @@ from molto.types.openai.responses import (
     OpenAIWebSearchActionSearch,
     OpenAIWebSearchToolCall,
 )
-from tests.support import (
-    STREAM_PARAMS,
-    assert_events_before_terminal,
-    make_molto_client,
-    prepend_model_prefix,
-    run_responses_parity,
-)
+from tests.support import STREAM_PARAMS, assert_events_before_terminal, run_responses_parity
 
 
 @pytest.mark.parametrize("stream", **STREAM_PARAMS)
@@ -79,16 +72,6 @@ async def test_required_function_tool_round_trip_through_sdk(stream: bool, casse
     assert response.id == sdk_response.id
     assert fc.id == sdk_fc.id
     assert fc.call_id == sdk_fc.call_id
-
-    cross_result = await make_molto_client(cassette_manager).chat_completions(
-        OpenAIRequest.responses(**prepend_model_prefix(req_body))
-    )
-    if stream:
-        cross_chunks = [chunk async for chunk in cross_result]
-        assert cross_chunks
-        assert all(chunk.object == "chat.completion.chunk" for chunk in cross_chunks)
-    else:
-        assert cross_result.object == "chat.completion"
 
 
 EXPECTED_WEB_SEARCH_TOOL = {

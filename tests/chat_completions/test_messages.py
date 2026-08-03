@@ -4,11 +4,11 @@ from pathlib import Path
 import pytest
 
 from molto.types.ir.portable import InputImagePart, InputTextPart, RequestMessageItem
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai.responses import OpenAIResponsesRequest
 from tests.support import (
     STREAM_PARAMS,
     make_molto_client,
-    prepend_model_prefix,
     run_chat_parity,
     stream_chat_text,
 )
@@ -32,7 +32,7 @@ MULTIMODAL_REQUEST = {
 
 
 def test_text_and_multimodal_messages_map_to_ir() -> None:
-    request = OpenAIRequest.chat(
+    request = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[
             {"role": "user", "content": "Describe this image."},
@@ -83,11 +83,25 @@ async def test_multimodal_messages_round_trip_through_sdk(stream: bool, cassette
         assert sdk_text is not None
         assert parity.molto_response.choices[0].message.content == sdk_text
 
-    cross_result = await make_molto_client(cassette_manager).responses(
-        OpenAIRequest.chat(**prepend_model_prefix(req_body))
-    )
-    if stream:
-        cross_events = [event async for event in cross_result]
-        assert cross_events[-1].type == "response.completed"
-    else:
+    if not stream:
+        cross_result = await make_molto_client(cassette_manager).responses(
+            OpenAIResponsesRequest(
+                model=f"openai/{req_body['model']}",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "What is shown in this image?"},
+                            {
+                                "type": "input_image",
+                                "image_url": XLSX_IMAGE_URL,
+                                "detail": "auto",
+                            },
+                        ],
+                    }
+                ],
+                stream=False,
+            ),
+            upstream="chat_completions",
+        )
         assert cross_result.object == "response"

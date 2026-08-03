@@ -1,11 +1,17 @@
 """OpenAI public wire formats.
 
 Each subpackage (`responses`, `chat_completions`) re-exports its full public
-surface with a computed `__all__`, matching `molto.types.openresponses`.
+surface with a computed `__all__`.
 """
 
 from . import chat_completions as chat_completions
 from . import responses as responses
-from .models_request import OpenAIRequest, OpenAIRequestPayload
+from .chat_completions import OpenAIChatCompletionRequest
+from .responses import OpenAIResponsesRequest
 
-__all__ = ["OpenAIRequest", "OpenAIRequestPayload", "chat_completions", "responses"]
+__all__ = [
+    "OpenAIChatCompletionRequest",
+    "OpenAIResponsesRequest",
+    "chat_completions",
+    "responses",
+]

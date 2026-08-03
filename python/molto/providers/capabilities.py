@@ -50,7 +50,9 @@ class RequestFeature(str, Enum):
     CONFIG_REASONING_SUMMARY = "config.reasoning_summary"
     CONFIG_PARALLEL_TOOL_CALLS = "config.parallel_tool_calls"
     CONFIG_MAX_TOOL_CALLS = "config.max_tool_calls"
+    CONFIG_MODALITIES = "config.modalities"
     CONFIG_STREAM_OPTIONS = "config.stream_options"
+    CONFIG_STREAM_INCLUDE_USAGE = "config.stream_options.include_usage"
     CONFIG_INCLUDE = "config.include"
     CONFIG_STORE = "config.store"
     TOOL_FUNCTION = "tool.function"
@@ -110,6 +112,8 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
         features.add(RequestFeature.STREAM)
     if request.stream_options is not None:
         features.add(RequestFeature.CONFIG_STREAM_OPTIONS)
+        if request.stream_options.include_usage is not None:
+            features.add(RequestFeature.CONFIG_STREAM_INCLUDE_USAGE)
     if request.include is not None:
         features.add(RequestFeature.CONFIG_INCLUDE)
     if request.store is not None:
@@ -126,6 +130,8 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
         and "audio" in request.generation.modalities
     ):
         features.add(RequestFeature.OUTPUT_AUDIO)
+    if request.generation.modalities is not None:
+        features.add(RequestFeature.CONFIG_MODALITIES)
     if request.generation.web_search_options is not None:
         features.add(RequestFeature.TOOL_WEB_SEARCH)
 
@@ -133,6 +139,8 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
         if isinstance(item, RequestMessageItem):
             if item.input_form == "responses_output_item":
                 features.add(RequestFeature.INPUT_RESPONSE_HISTORY)
+            if item.audio_id is not None:
+                features.add(RequestFeature.INPUT_AUDIO)
             for part in item.content:
                 if isinstance(part, InputTextPart):
                     features.add(RequestFeature.INPUT_TEXT)
@@ -142,8 +150,12 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
                     features.add(RequestFeature.INPUT_AUDIO)
         elif isinstance(item, FunctionCallRequestItem):
             features.add(RequestFeature.INPUT_FUNCTION_CALL)
+            if item.id is not None or item.status is not None:
+                features.add(RequestFeature.INPUT_RESPONSE_HISTORY)
         elif isinstance(item, FunctionCallResultItem):
             features.add(RequestFeature.INPUT_FUNCTION_RESULT)
+            if item.id is not None:
+                features.add(RequestFeature.INPUT_RESPONSE_HISTORY)
         elif isinstance(
             item,
             (
@@ -264,7 +276,9 @@ OPENAI_CHAT_CAPABILITIES = ProviderContract(
         RequestFeature.CONFIG_FREQUENCY_PENALTY,
         RequestFeature.CONFIG_PRESENCE_PENALTY,
         RequestFeature.CONFIG_TOP_LOGPROBS,
+        RequestFeature.CONFIG_MODALITIES,
         RequestFeature.CONFIG_STREAM_OPTIONS,
+        RequestFeature.CONFIG_STREAM_INCLUDE_USAGE,
         RequestFeature.TOOL_WEB_SEARCH,
     },
 )

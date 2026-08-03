@@ -409,7 +409,7 @@ class OpenAIResponsesStream(OpenAIResponsesStreamEvent):
     ]
 
     def as_responses_chunk(self) -> str:
-        # OpenResponses/OpenAI operational parity:
+        # OpenAI Responses operational parity:
         # - Output stream events embed a full ResponseResource object.
         # - Many keys are required even when their values are `null`.
         # So we must not drop `None` values from the embedded response.

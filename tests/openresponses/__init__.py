@@ -1,1 +1,0 @@
-"""OpenResponses public adapter tests."""

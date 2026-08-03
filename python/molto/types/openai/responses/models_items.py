@@ -86,7 +86,7 @@ class OpenAIResponseReasoning(OpenAIReasoningEffort):
     model_config = ConfigDict(extra="allow")
 
 
-# ---- Responses `include[]` (Open Responses schema) ----
+# ---- Responses `include[]` schema ----
 
 # Keep this as a finite set (enum-like) so we fail fast on typos while staying spec-aligned.
 # Note: The gateway currently acts upon `web_search_call.action.sources` and

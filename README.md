@@ -13,11 +13,12 @@ OpenAI stream-frame and response-snapshot events. Provider-native event models
 and generic passthrough payloads are not part of the contract; data that cannot
 be represented completely is rejected.
 
-`Molto.responses()` returns OpenAI Responses or OpenResponses-shaped output.
-`Molto.chat_completions()` returns Chat Completions output. The concrete request
-model selects the execution endpoint, while the public method selects the output
-contract. Cross-endpoint conversion is limited to text, refusal, function calls,
-reasoning where representable, terminal status, and portable usage.
+`Molto.responses()` accepts `OpenAIResponsesRequest` and returns OpenAI Responses
+output. `Molto.chat_completions()` accepts `OpenAIChatCompletionRequest` and
+returns Chat Completions output. Their keyword-only `upstream` parameter selects
+the execution endpoint and defaults to the matching protocol. Cross-endpoint
+conversion is limited to data that both protocols can represent, except for the
+documented omission of Responses reasoning items from Chat output.
 
 Models use these prefixes:
 

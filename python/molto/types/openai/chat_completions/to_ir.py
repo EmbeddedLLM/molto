@@ -66,6 +66,10 @@ def _chat_content_to_ir(content):
 def _chat_messages_to_ir(messages: list[ChatCompletionMessage]):
     items = []
     for message in messages:
+        if message.name is not None:
+            raise BadInputError("Chat message names have no IR representation.")
+        if isinstance(message, ChatCompletionAssistantMessage) and message.refusal is not None:
+            raise BadInputError("Chat assistant refusal history has no IR representation.")
         if isinstance(message, ChatCompletionToolMessage):
             items.append(
                 FunctionCallResultItem(
@@ -101,8 +105,27 @@ def _chat_messages_to_ir(messages: list[ChatCompletionMessage]):
 def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
     """Convert a public Chat request into the portable OpenAI contract."""
 
-    if request.stop is not None or request.seed is not None or request.logprobs is not None:
-        raise BadInputError("Chat request controls without an IR field are unsupported.")
+    unsupported_fields = (
+        "logprobs",
+        "prompt_cache_key",
+        "prompt_cache_retention",
+        "seed",
+        "service_tier",
+        "stop",
+        "store",
+        "user",
+    )
+    supplied = [
+        field
+        for field in unsupported_fields
+        if field in request.model_fields_set and getattr(request, field) is not None
+    ]
+    if supplied:
+        raise BadInputError(
+            "Chat request fields without an IR representation are unsupported: "
+            + ", ".join(supplied)
+            + "."
+        )
 
     extra_body = request.extra_body or {}
     unsupported_extra_body = set(extra_body) - {"web_search_options"}
@@ -152,7 +175,6 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
     )
     return InputIR(
         model=request.model,
-        native_endpoint="chat_completions",
         stream=request.stream,
         stream_options=(
             StreamOptions.model_validate(

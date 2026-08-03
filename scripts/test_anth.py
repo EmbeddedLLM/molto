@@ -1,7 +1,7 @@
 import asyncio
 
 from molto import Molto
-from molto.types.openresponses import OpenResponsesOutputItemDone, OpenResponsesRequest
+from molto.types.openai.responses import OpenAIResponsesRequest
 
 MODEL = "anthropic/claude-sonnet-4-5"
 QUESTION = "How many Rs are in strawberry?"
@@ -10,20 +10,26 @@ QUESTION = "How many Rs are in strawberry?"
 async def main() -> None:
     molto = Molto()
 
-    response = await molto.responses(OpenResponsesRequest(model=MODEL, input=QUESTION))
+    response = await molto.responses(
+        OpenAIResponsesRequest(model=MODEL, input=QUESTION),
+        upstream="chat_completions",
+    )
     print("Non-stream response:")
     print("----")
     print(response)
     print("----")
 
-    stream = await molto.responses(OpenResponsesRequest(model=MODEL, input=QUESTION, stream=True))
+    stream = await molto.responses(
+        OpenAIResponsesRequest(model=MODEL, input=QUESTION, stream=True),
+        upstream="chat_completions",
+    )
     output_items = []
 
     print("\nStream events:")
     async for event in stream:
         print("----")
         print(event)
-        if isinstance(event, OpenResponsesOutputItemDone):
+        if event.type == "response.output_item.done":
             output_items.append(event.item)
     print("----")
 

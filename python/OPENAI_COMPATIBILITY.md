@@ -6,20 +6,20 @@ and `OutputIR` before public composition.
 
 ## Route matrix
 
-| Request | Model prefix | Execution endpoint | Public output | Status |
+| Public method and body | Model prefix | `upstream` | Public output | Status |
 | --- | --- | --- | --- | --- |
-| OpenAI Chat Completions | `openai/` | Chat Completions | Chat response/chunks | Supported portable subset |
-| OpenAI Responses | `openai/` | Responses | Responses response/events | Supported portable subset |
-| OpenAI Chat Completions | `openai/` | Chat Completions | Responses response/events | Supported semantic subset |
-| OpenAI Responses | `openai/` | Responses | Chat response/chunks | Supported semantic subset; reasoning output is omitted |
-| OpenAI Chat Completions | `vllm/` | OpenAI-compatible Chat | Chat response/chunks | Explicit `base_url`; subset only |
-| OpenAI Responses | `vllm/` | OpenAI-compatible Responses | Responses response/events | Explicit `base_url`; subset only |
-| OpenResponses | `openai/` or `vllm/` | OpenAI-compatible endpoint | OpenResponses response/events | Portable subset |
-| OpenResponses | `anthropic/` | Anthropic OpenAI-compatible Chat | OpenResponses response/events | Text/function subset |
-| Any request | `anthropic/` | Anthropic-native Messages | Any output | Unsupported |
+| `chat_completions(OpenAIChatCompletionRequest)` | `openai/` | `chat_completions` | Chat response/chunks | Supported subset |
+| `chat_completions(OpenAIChatCompletionRequest)` | `openai/` | `responses` | Chat response/chunks | Supported semantic subset; reasoning output is omitted |
+| `responses(OpenAIResponsesRequest)` | `openai/` | `responses` | Responses response/events | Supported subset |
+| `responses(OpenAIResponsesRequest)` | `openai/` | `chat_completions` | Responses response/events | Supported semantic subset |
+| Either matching public method/body | `vllm/` | Either OpenAI-compatible endpoint | Method-selected OpenAI output | Explicit `base_url`; unverified subset |
+| Either matching public method/body | `anthropic/` | `chat_completions` | Method-selected OpenAI output | Conservative text/function subset; unverified |
+| Any public method/body | `anthropic/` | `responses` | None | Unsupported |
 
-The request model selects the native execution endpoint. The public method
-selects the returned output format.
+The public method selects both the accepted OpenAI request schema and returned
+output protocol. The keyword-only `upstream` parameter selects the execution
+endpoint and defaults to the matching protocol. The model prefix selects the
+provider configuration.
 
 ## Supported portable capabilities
 
@@ -39,17 +39,17 @@ selects the returned output format.
 - Responses reasoning effort when `Molto.chat_completions()` selects Chat output;
 - ordinary completion, incomplete, failed, refusal, and portable usage data.
 
-When `Molto.chat_completions()` executes an OpenAI Responses request, Chat
-Completions has no reasoning-item or reasoning-event shape. Molto therefore
-passes Responses reasoning configuration through to the provider, retains
-standard Chat reasoning-token usage, and intentionally omits returned Responses
-reasoning items and events from the Chat response or stream.
+When `Molto.chat_completions()` uses `upstream="responses"`, Chat Completions has
+no reasoning-item or reasoning-event shape. Molto therefore passes representable
+reasoning configuration through to the provider, retains standard Chat
+reasoning-token usage, and intentionally omits returned Responses reasoning
+items and events from the Chat response or stream.
 
 ## Rejected capabilities
 
 Molto rejects a feature when the OpenAI-shaped IR or selected public output
-cannot preserve it completely. This includes Responses hosted tools on Chat or
-OpenResponses output, MCP where the selected route cannot preserve it,
+cannot preserve it completely. This includes Responses hosted tools on Chat
+output, MCP where the selected route cannot preserve it,
 generated Chat audio when the destination is not Chat Completions,
 provider-native events, unsupported annotations/logprobs, unknown `extra_body`
 fields, background execution, and provider-affine state on a different
@@ -80,8 +80,8 @@ It also contains two OpenAI-compatible fidelity events:
 - `openai.response_snapshot`, containing one complete SDK-validated response.
 
 These are typed IR events, not extension envelopes. Matching-format adapters use
-them for exact parsed-SDK parity. Cross-format and OpenResponses adapters ignore
-them and compose only semantics they can represent. Provider-specific events
+them for exact parsed-SDK parity. Cross-format adapters ignore them and compose
+only semantics they can represent. Provider-specific events
 and output items have no public passthrough path.
 
 ## Usage mapping

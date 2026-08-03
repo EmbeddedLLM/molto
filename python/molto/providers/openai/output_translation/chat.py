@@ -161,7 +161,8 @@ def _response_events(payload: dict[str, Any]) -> list[OutputEvent]:
     usage = usage_from_openai(payload.get("usage"), "chat_completions")
     finish_reason = choice.get("finish_reason")
     if finish_reason in {"length", "content_filter"}:
-        events.append(emitter.incomplete(finish_reason, usage))
+        incomplete_reason = "max_output_tokens" if finish_reason == "length" else "content_filter"
+        events.append(emitter.incomplete(incomplete_reason, usage))
     else:
         events.append(emitter.completed(usage))
     return events

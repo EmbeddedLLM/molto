@@ -126,7 +126,7 @@ class _ResponsesRequestBase(BaseModel):
         Field(
             description=(
                 "Model ID used to generate the response. "
-                "Note: Open Responses allows additional ways to specify prompts; this gateway currently requires `model`."
+                "Note: the OpenAI Responses API allows additional ways to specify prompts; this gateway currently requires `model`."
             ),
         ),
     ]

@@ -216,6 +216,10 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
         elif isinstance(item, OpenAIFunctionToolOutput):
             if not isinstance(item.output, str):
                 raise BadInputError("Responses function-call output must be text.")
+            if item.status is not None:
+                raise BadInputError(
+                    "Responses function-call output status has no IR representation."
+                )
             items.append(
                 FunctionCallResultItem(id=item.id, call_id=item.call_id, output=item.output)
             )
@@ -242,6 +246,8 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
 
 def _output_format(request) -> object:
     text = getattr(request, "text", None)
+    if getattr(text, "requested_verbosity", None) is not None:
+        raise BadInputError("Responses text verbosity has no IR representation.")
     text_format = getattr(text, "format", None)
     if isinstance(text_format, OpenAIJsonObjectFormat):
         return JsonObjectOutputFormat()
@@ -307,6 +313,7 @@ def _responses_request_to_ir(request) -> InputIR:
         "prompt_cache_key",
         "prompt_cache_retention",
         "safety_identifier",
+        "service_tier",
         "truncation",
     )
     supplied = [
@@ -343,7 +350,6 @@ def _responses_request_to_ir(request) -> InputIR:
     reasoning = getattr(request, "reasoning", None)
     return InputIR(
         model=request.model,
-        native_endpoint="responses",
         stream=request.stream,
         stream_options=(
             StreamOptions.model_validate(

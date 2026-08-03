@@ -8,24 +8,33 @@ from _responses_probe import (
 )
 
 from molto import Molto
-from molto.types.openai import OpenAIRequest
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
 
 
 async def main() -> None:
     molto = Molto()
     response = await molto.chat_completions(
-        OpenAIRequest.responses(model=f"openai/{MODEL}", input=QUESTION)
+        OpenAIChatCompletionRequest(
+            model=f"openai/{MODEL}",
+            messages=[{"role": "user", "content": QUESTION}],
+        ),
+        upstream="responses",
     )
     print_value(
-        "Molto Responses request -> Responses execution -> Chat non-stream output",
+        "Molto Chat request -> Responses execution -> Chat non-stream output",
         response,
     )
 
     stream = await molto.chat_completions(
-        OpenAIRequest.responses(model=f"openai/{MODEL}", input=QUESTION, stream=True)
+        OpenAIChatCompletionRequest(
+            model=f"openai/{MODEL}",
+            messages=[{"role": "user", "content": QUESTION}],
+            stream=True,
+        ),
+        upstream="responses",
     )
     await print_stream(
-        "Molto Responses request -> Responses execution -> Chat stream output",
+        "Molto Chat request -> Responses execution -> Chat stream output",
         stream,
     )
 
