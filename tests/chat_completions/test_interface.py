@@ -32,6 +32,7 @@ def _get_http_client(cassette_names: list[str]) -> AsyncClient:
     def cassette_handler(request: Request) -> Response:
         name = cassette_names.pop(0)
         cassette = _read_cassette(CASSETTE_DIR / name)
+        assert request.method == cassette["request"]["method"]
         request_body = json.loads(request.content) if request.content else {}
         # Model sent in request might contain provider as prefix
         request_model: str = request_body.pop("model", "")
@@ -51,61 +52,60 @@ def _get_http_client(cassette_names: list[str]) -> AsyncClient:
     return http_client
 
 
-def _get_cc_method():
+class _ChatCompletionEvent(BaseModel):
+    sse: str
 
-    class ChatCompletionEvent(BaseModel):
-        sse: str
+    def as_sse(self) -> str:
+        return self.sse
 
-        def as_sse(self) -> str:
-            return self.sse
 
-    async def chat_completions(
-        client: Molto,
-        *,
-        body: dict[str, Any],
-        **kwargs: Any,
-    ) -> AsyncIterator[BaseModel]:
-        assert client._http_client is not None
-        response = await client._http_client.post(
-            "https://api.openai.com/v1/responses",
-            json=body,
-            **kwargs,
-        )
-        response.raise_for_status()
+async def _mock_chat_completions(
+    self: Molto,
+    *,
+    body: dict[str, Any],
+    **kwargs: Any,
+) -> AsyncIterator[BaseModel]:
+    assert self._http_client is not None
+    response = await self._http_client.post(
+        "https://api.openai.com/v1/responses",
+        json=body,
+        **kwargs,
+    )
+    response.raise_for_status()
 
-        async def iter_events() -> AsyncIterator[BaseModel]:
-            for event in response.text.split("\n\n"):
-                if event:
-                    yield ChatCompletionEvent(sse=event)
+    async def iter_events() -> AsyncIterator[BaseModel]:
+        for event in response.text.split("\n\n"):
+            if event:
+                yield _ChatCompletionEvent(sse=f"{event}\n\n")
 
-        return iter_events()
-
-    return chat_completions
+    return iter_events()
 
 
 async def test_openai_chat_completions(monkeypatch: pytest.MonkeyPatch):
     cassette_names = [
         "00-short_sentence-stream.yaml",
     ]
-    client = Molto(http_client=_get_http_client(cassette_names))
 
-    # --- Short sentence --- #
-    cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
-    expected_sse_events = [
-        event for event in "".join(cassette["response"]["sse"]).split("\n\n") if event
-    ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "chat_completions", _get_cc_method(), raising=False)
-    response = await client.chat_completions(
-        body=dict(
-            model="gpt-5.4-nano",
-            instructions="You are a helpful assistant.",
-            input="Write one short sentence about the ocean.",
-            stream=True,
+    async with _get_http_client(cassette_names) as http_client:
+        client = Molto(http_client=http_client)
+
+        # --- Short sentence --- #
+        cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
+        expected_sse_events = [
+            f"{event}\n\n" for event in "".join(cassette["response"]["sse"]).split("\n\n") if event
+        ]
+        # TODO: Remove monkeypatching
+        monkeypatch.setattr(Molto, "chat_completions", _mock_chat_completions, raising=False)
+        response = await client.chat_completions(
+            body=dict(
+                model="gpt-5.4-nano",
+                instructions="You are a helpful assistant.",
+                input="Write one short sentence about the ocean.",
+                stream=True,
+            )
         )
-    )
-    events = [event async for event in response]
-    assert len(events) == len(expected_sse_events)
-    for event, expected_sse in zip(events, expected_sse_events, strict=True):
-        assert isinstance(event, BaseModel)
-        assert event.as_sse() == expected_sse
+        events = [event async for event in response]
+        assert len(events) == len(expected_sse_events)
+        for event, expected_sse in zip(events, expected_sse_events, strict=True):
+            assert isinstance(event, BaseModel)
+            assert event.as_sse() == expected_sse
