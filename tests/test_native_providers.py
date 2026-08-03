@@ -1,5 +1,6 @@
 import inspect
 import json
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
 
 import httpx
@@ -11,6 +12,22 @@ from molto import Molto
 from molto.providers import OPENAI_RESPONSES_CAPABILITIES, validate_provider_request
 from molto.providers.openai import OpenAIProvider, map_openai_error
 from molto.providers.openai.request_translation import build_openai_request
+from molto.types.ir.portable import (
+    AssistantMessageItem,
+    ContentPartAddedEvent,
+    ContentPartDeltaEvent,
+    ContentPartDoneEvent,
+    ItemStatus,
+    OutputItemAddedEvent,
+    OutputItemDoneEvent,
+    OutputTextPart,
+    ReasoningItem,
+    ReasoningSummaryPart,
+    ResponseCompletedEvent,
+    ResponseMetadata,
+    ResponseStartedEvent,
+    Usage,
+)
 from molto.types.openai import OpenAIRequest
 from molto.utils.exceptions import BadInputError, ModelOverloadError
 
@@ -90,6 +107,93 @@ def _chat_payload(text: str) -> dict:
             "total_tokens": 2,
         },
     }
+
+
+async def _reasoning_output_events() -> AsyncIterator:
+    started = ReasoningItem(id="rs_1", status=ItemStatus.IN_PROGRESS, parts=())
+    done = ReasoningItem(
+        id="rs_1",
+        status=ItemStatus.COMPLETED,
+        parts=(ReasoningSummaryPart(text="Careful reasoning."),),
+    )
+    message_started = AssistantMessageItem(id="msg_1", status=ItemStatus.IN_PROGRESS, content=())
+    message_done = AssistantMessageItem(
+        id="msg_1",
+        status=ItemStatus.COMPLETED,
+        content=(OutputTextPart(text="Hello"),),
+    )
+    yield ResponseStartedEvent(
+        response_id="resp_1",
+        sequence_number=0,
+        metadata=ResponseMetadata(model="gpt-test", object="response"),
+    )
+    yield OutputItemAddedEvent(response_id="resp_1", sequence_number=1, item_index=0, item=started)
+    yield ContentPartAddedEvent(
+        response_id="resp_1",
+        sequence_number=2,
+        item_id="rs_1",
+        item_index=0,
+        content_index=0,
+        part=ReasoningSummaryPart(text=""),
+    )
+    yield ContentPartDeltaEvent(
+        response_id="resp_1",
+        sequence_number=3,
+        item_id="rs_1",
+        item_index=0,
+        content_index=0,
+        delta="Careful reasoning.",
+    )
+    yield ContentPartDoneEvent(
+        response_id="resp_1",
+        sequence_number=4,
+        item_id="rs_1",
+        item_index=0,
+        content_index=0,
+        part=done.parts[0],
+    )
+    yield OutputItemDoneEvent(response_id="resp_1", sequence_number=5, item_index=0, item=done)
+    yield OutputItemAddedEvent(
+        response_id="resp_1",
+        sequence_number=6,
+        item_index=1,
+        item=message_started,
+    )
+    yield ContentPartAddedEvent(
+        response_id="resp_1",
+        sequence_number=7,
+        item_id="msg_1",
+        item_index=1,
+        content_index=0,
+        part=OutputTextPart(text=""),
+    )
+    yield ContentPartDeltaEvent(
+        response_id="resp_1",
+        sequence_number=8,
+        item_id="msg_1",
+        item_index=1,
+        content_index=0,
+        delta="Hello",
+    )
+    yield ContentPartDoneEvent(
+        response_id="resp_1",
+        sequence_number=9,
+        item_id="msg_1",
+        item_index=1,
+        content_index=0,
+        part=message_done.content[0],
+    )
+    yield OutputItemDoneEvent(
+        response_id="resp_1",
+        sequence_number=10,
+        item_index=1,
+        item=message_done,
+    )
+    yield ResponseCompletedEvent(
+        response_id="resp_1",
+        sequence_number=11,
+        usage=Usage(input_tokens=1, output_tokens=1, total_tokens=2),
+    )
 
 
 def test_chat_request_cannot_select_responses_native_endpoint() -> None:
@@ -298,21 +402,39 @@ async def test_chat_audio_to_responses_rejects_before_provider_construction(
         await Molto().responses(request)
 
 
-async def test_responses_reasoning_to_chat_rejects_before_provider_construction(
+@pytest.mark.parametrize("stream", [False, True])
+async def test_responses_reasoning_to_chat_is_intentionally_omitted(
     monkeypatch: pytest.MonkeyPatch,
+    stream: bool,
 ) -> None:
-    def unexpected_provider(*_args, **_kwargs):
-        raise AssertionError("OpenAIProvider must not be constructed")
+    class ReasoningProvider:
+        endpoint: str | None = None
 
-    monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
+        def __init__(self, endpoint, **kwargs) -> None:
+            del kwargs
+            self.__class__.endpoint = endpoint
+
+        def run(self, request) -> AsyncIterator:
+            del request
+            return _reasoning_output_events()
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", ReasoningProvider)
     request = OpenAIResponsesRequest(
         model="openai/gpt-5-nano",
         input="Think carefully.",
         reasoning={"effort": "high", "summary": "concise"},
+        stream=stream,
     )
 
-    with pytest.raises(BadInputError, match="cannot represent Responses reasoning or state"):
-        await Molto().chat_completions(request)
+    response = await Molto().chat_completions(request)
+
+    assert ReasoningProvider.endpoint == "responses"
+    if stream:
+        chunks = [chunk async for chunk in response]
+        assert len(chunks) == 1
+        assert chunks[0].choices[0].delta.content == "Hello"
+    else:
+        assert response.choices[0].message.content == "Hello"
 
 
 async def test_provider_closes_owned_client_when_sdk_call_fails() -> None:

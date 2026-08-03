@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterable, AsyncIterator
 
 from molto.types.ir.events import OutputEvent
-from molto.types.ir.output_items import OpenAIHostedToolItem, ReasoningItem
+from molto.types.ir.output_items import OpenAIHostedToolItem
 from molto.types.ir.portable import OutputIR
 from molto.utils.exceptions import BadInputError
 
@@ -37,12 +37,12 @@ def responses_from_chat_output_ir(output: OutputIR) -> OpenAIResponsesResponse:
 def chat_from_responses_output_ir(output: OutputIR) -> OpenAIChatCompletionResponse:
     """Render Responses-native semantic output as a Chat response."""
 
-    if any(
-        isinstance(item, (ReasoningItem, OpenAIHostedToolItem)) for item in output.output.values
-    ):
+    if any(isinstance(item, OpenAIHostedToolItem) for item in output.output.values):
         raise BadInputError(
-            "Chat Completions output cannot represent reasoning or hosted-tool items."
+            "Chat Completions output cannot represent Responses hosted-tool items."
         )
+    # Chat has no reasoning-item shape. The Chat composer emits only assistant
+    # messages and function calls, intentionally discarding Responses reasoning.
     return chat_from_output_ir(output)
 
 
@@ -60,5 +60,7 @@ async def chat_from_responses_output_event_stream(
 ) -> AsyncIterator[OpenAIChatCompletionChunk]:
     """Render Responses-native semantic events as a Chat stream."""
 
+    # The Chat stream is synthesized from the complete event sequence, but its
+    # public chunks intentionally omit Responses reasoning events.
     async for event in chat_from_output_event_stream(events):
         yield event

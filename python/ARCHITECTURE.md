@@ -74,11 +74,12 @@ sequence. The public adapters then compose the requested destination model:
 - same-format responses preserve exact parsed-SDK shape from the typed OpenAI
   frame or snapshot event while still traversing `OutputIR`;
 - cross-endpoint responses compose only representable text, refusal, function
-  calls, terminal status, reasoning, and usage;
-- reasoning items, hosted tools, MCP, image generation, unsupported annotations,
-  and endpoint-only fields fail closed when the chosen destination cannot carry
-  them. Generated Chat audio is retained in the portable Chat output item and
-  is rejected only when the selected destination is not Chat Completions.
+  calls, terminal status, and usage; Responses reasoning is intentionally omitted
+  when the destination is Chat Completions;
+- hosted tools, MCP, image generation, unsupported annotations, and endpoint-only
+  fields fail closed when the chosen destination cannot carry them. Generated Chat
+  audio is retained in the portable Chat output item and is rejected only when the
+  selected destination is not Chat Completions.
 
 Streaming and non-streaming output use the same event-sequence boundary. Exact
 OpenAI frames coexist with semantic events: matching-format adapters consume the
@@ -93,7 +94,7 @@ No source frame appears in a cross-format public response.
   models, backed by the same IR event stream.
 - `python/molto/types/ir/*`: strict portable models, event invariants, emitter,
   usage, state, and collection.
-- `python/molto/providers/capabilities.py`: capability descriptors and
+- `python/molto/providers/capabilities.py`: provider contracts and
   pre-provider validation.
 - `python/molto/providers/openai/*`: SDK construction, request translation,
   output translation, usage mapping, and error mapping.

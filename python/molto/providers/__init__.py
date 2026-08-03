@@ -11,7 +11,7 @@ from molto.providers.capabilities import (
     RequestRequirements,
     create_provider_after_validation,
     derive_request_capabilities,
-    descriptor_for,
+    provider_contract_for,
     validate_provider_request,
 )
 from molto.providers.openai import OpenAIProvider
@@ -30,6 +30,6 @@ __all__ = [
     "VLLM_RESPONSES_CAPABILITIES",
     "create_provider_after_validation",
     "derive_request_capabilities",
-    "descriptor_for",
+    "provider_contract_for",
     "validate_provider_request",
 ]

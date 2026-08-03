@@ -8,7 +8,7 @@ from molto.providers import (
     ANTHROPIC_OPENAI_CHAT_CAPABILITIES,
     OpenAIProvider,
     create_provider_after_validation,
-    descriptor_for,
+    provider_contract_for,
 )
 from molto.types.ir.portable import collect_output_ir
 from molto.types.openai import OpenAIRequest
@@ -132,7 +132,7 @@ class Molto:
         if isinstance(body, OpenAIRequest) and body.native_endpoint == "chat_completions":
             payload = body.payload
             if ir.model.startswith("anthropic/"):
-                raise BadInputError("Anthropic does not accept the OpenAI Chat request contract.")
+                raise BadInputError("Anthropic does not accept the OpenAI Chat request.")
             if (
                 payload.audio is not None
                 or (payload.modalities is not None and "audio" in payload.modalities)
@@ -140,7 +140,7 @@ class Molto:
             ):
                 raise BadInputError("Responses output cannot represent generated Chat audio.")
             provider = create_provider_after_validation(
-                descriptor_for(ir.model, "chat_completions"),
+                provider_contract_for(ir.model, "chat_completions"),
                 ir,
                 lambda: OpenAIProvider(
                     "chat_completions",
@@ -177,7 +177,7 @@ class Molto:
             )
 
         provider = create_provider_after_validation(
-            descriptor_for(ir.model, "responses"),
+            provider_contract_for(ir.model, "responses"),
             ir,
             lambda: OpenAIProvider(
                 "responses",
@@ -215,17 +215,16 @@ class Molto:
                 raise BadInputError(
                     "Chat Completions output supports Responses function tools only."
                 )
+            # TODO: Maybe we can support prev resp id by retrieving the responses and parsing the history ourselves
             if (
-                payload.reasoning is not None
-                or payload.conversation is not None
+                payload.conversation is not None
                 or payload.previous_response_id is not None
                 or payload.store is not None
             ):
-                raise BadInputError(
-                    "Chat Completions output cannot represent Responses reasoning or state."
-                )
+                raise BadInputError("Chat Completions output cannot represent Responses state.")
+            # The cross-endpoint Chat composer intentionally omits Responses reasoning items.
             provider = create_provider_after_validation(
-                descriptor_for(ir.model, "responses"),
+                provider_contract_for(ir.model, "responses"),
                 ir,
                 lambda: OpenAIProvider(
                     "responses",
@@ -243,7 +242,7 @@ class Molto:
             )
 
         provider = create_provider_after_validation(
-            descriptor_for(ir.model, "chat_completions"),
+            provider_contract_for(ir.model, "chat_completions"),
             ir,
             lambda: OpenAIProvider(
                 "chat_completions",

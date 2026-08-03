@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TypeVar
 
 from molto.types.ir.aggregates import InputIR
-from molto.types.ir.base import IRModel, ItemStatus, ProviderName
+from molto.types.ir.base import IRModel, ProviderName
 from molto.types.ir.config import JsonObjectOutputFormat, JsonSchemaOutputFormat
 from molto.types.ir.content import InputAudioPart, InputImagePart, InputTextPart
 from molto.types.ir.request_items import (
@@ -23,7 +23,7 @@ from molto.types.ir.tools import (
     OpenAIHostedToolChoice,
     OpenAIHostedToolDefinition,
 )
-from molto.utils.exceptions import BadInputError, ModelCapabilityError
+from molto.utils.exceptions import ModelCapabilityError
 
 
 class RequestFeature(str, Enum):
@@ -100,7 +100,6 @@ class ProviderContract(IRModel):
     provider: ProviderName
     endpoint: str
     features: frozenset[RequestFeature]
-    check_structure: Callable[[InputIR], None] | None = None
 
 
 def derive_request_capabilities(request: InputIR) -> RequestRequirements:
@@ -188,48 +187,28 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
     return RequestRequirements(features=frozenset(features), state_provider=state_provider)
 
 
-def _check_malformed_input(request: InputIR) -> None:
-    """Reject structures that no OpenAI-compatible endpoint can preserve."""
-
-    seen_non_system = False
-    for item in request.items:
-        if isinstance(item, RequestMessageItem) and item.role in ("system", "developer"):
-            if seen_non_system:
-                raise BadInputError(
-                    "Portable requests only support leading system/developer messages."
-                )
-        else:
-            seen_non_system = True
-    for item in request.items:
-        if isinstance(item, FunctionCallRequestItem):
-            if item.status is not None and item.status is not ItemStatus.COMPLETED:
-                raise BadInputError(
-                    "Portable requests cannot represent non-completed function-call history."
-                )
-
-
 def validate_provider_request(
-    descriptor: ProviderContract,
+    provider_contract: ProviderContract,
     request: InputIR,
 ) -> RequestRequirements:
     """Reject unsupported requests before provider construction."""
 
-    _check_malformed_input(request)
-    if descriptor.check_structure is not None:
-        descriptor.check_structure(request)
     required = derive_request_capabilities(request)
-    if required.state_provider is not None and required.state_provider != descriptor.provider:
+    if (
+        required.state_provider is not None
+        and required.state_provider != provider_contract.provider
+    ):
         raise ModelCapabilityError(
             f"State owned by provider {required.state_provider!r} cannot be used with "
-            f"provider {descriptor.provider!r}."
+            f"provider {provider_contract.provider!r}."
         )
-    missing_features = required.features - descriptor.features
+    missing_features = required.features - provider_contract.features
     if missing_features:
         details = ", ".join(
             feature.value for feature in sorted(missing_features, key=lambda value: value.value)
         )
         raise ModelCapabilityError(
-            f"Provider {descriptor.provider!r} endpoint {descriptor.endpoint!r} does not support: "
+            f"Provider {provider_contract.provider!r} endpoint {provider_contract.endpoint!r} does not support: "
             f"{details}."
         )
     return required
@@ -239,13 +218,13 @@ ProviderT = TypeVar("ProviderT")
 
 
 def create_provider_after_validation(
-    descriptor: ProviderContract,
+    provider_contract: ProviderContract,
     request: InputIR,
     factory: Callable[[], ProviderT],
 ) -> ProviderT:
     """Construct a provider only after capability validation succeeds."""
 
-    validate_provider_request(descriptor, request)
+    validate_provider_request(provider_contract, request)
     return factory()
 
 
@@ -337,24 +316,24 @@ ANTHROPIC_OPENAI_CHAT_CAPABILITIES = ProviderContract(
 ANTHROPIC_CAPABILITIES = ANTHROPIC_OPENAI_CHAT_CAPABILITIES
 
 
-def descriptor_for(model: str, endpoint: str) -> ProviderContract:
+def provider_contract_for(model: str, endpoint: str) -> ProviderContract:
     """Select the OpenAI-compatible contract for a model prefix and endpoint."""
 
     if model.startswith("openai/"):
-        descriptors = {
+        provider_contracts = {
             "chat_completions": OPENAI_CHAT_CAPABILITIES,
             "responses": OPENAI_RESPONSES_CAPABILITIES,
         }
     elif model.startswith("vllm/"):
-        descriptors = {
+        provider_contracts = {
             "chat_completions": VLLM_CHAT_CAPABILITIES,
             "responses": VLLM_RESPONSES_CAPABILITIES,
         }
     elif model.startswith("anthropic/"):
-        descriptors = {"chat_completions": ANTHROPIC_OPENAI_CHAT_CAPABILITIES}
+        provider_contracts = {"chat_completions": ANTHROPIC_OPENAI_CHAT_CAPABILITIES}
     else:
         raise ValueError(f"Unsupported model: {model}")
     try:
-        return descriptors[endpoint]
+        return provider_contracts[endpoint]
     except KeyError as exc:
         raise ValueError(f"Model {model!r} does not support endpoint {endpoint!r}.") from exc

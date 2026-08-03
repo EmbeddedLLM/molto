@@ -11,7 +11,7 @@ and `OutputIR` before public composition.
 | OpenAI Chat Completions | `openai/` | Chat Completions | Chat response/chunks | Supported portable subset |
 | OpenAI Responses | `openai/` | Responses | Responses response/events | Supported portable subset |
 | OpenAI Chat Completions | `openai/` | Chat Completions | Responses response/events | Supported semantic subset |
-| OpenAI Responses | `openai/` | Responses | Chat response/chunks | Supported semantic subset |
+| OpenAI Responses | `openai/` | Responses | Chat response/chunks | Supported semantic subset; reasoning output is omitted |
 | OpenAI Chat Completions | `vllm/` | OpenAI-compatible Chat | Chat response/chunks | Explicit `base_url`; subset only |
 | OpenAI Responses | `vllm/` | OpenAI-compatible Responses | Responses response/events | Explicit `base_url`; subset only |
 | OpenResponses | `openai/` or `vllm/` | OpenAI-compatible endpoint | OpenResponses response/events | Portable subset |
@@ -36,7 +36,14 @@ selects the returned output format.
   web-search-call, code-interpreter-call, and image-generation-call history,
   including `store=False` and image-generation ID-only references;
 - reasoning items when the selected output contract supports them;
+- Responses reasoning effort when `Molto.chat_completions()` selects Chat output;
 - ordinary completion, incomplete, failed, refusal, and portable usage data.
+
+When `Molto.chat_completions()` executes an OpenAI Responses request, Chat
+Completions has no reasoning-item or reasoning-event shape. Molto therefore
+passes Responses reasoning configuration through to the provider, retains
+standard Chat reasoning-token usage, and intentionally omits returned Responses
+reasoning items and events from the Chat response or stream.
 
 ## Rejected capabilities
 
@@ -53,7 +60,8 @@ types remains unsupported and is rejected rather than partially projected.
 
 Rejection happens at public validation, capability preflight, or output
 composition. No unsupported provider feature is projected into ordinary text or
-silently discarded.
+silently discarded, except for the explicitly documented Responses reasoning
+omission when the destination is Chat Completions.
 
 ## Event contract
 
