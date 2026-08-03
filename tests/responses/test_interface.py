@@ -6,14 +6,12 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient, MockTransport, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from molto import Molto
 from molto.utils.io import read_yaml
 
-CASSETTE_DIR = (
-    Path(__file__).parents[1] / "cassettes" / "openai" / "chat_completions" / "test_interface"
-)
+CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "openai" / "responses" / "test_interface"
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
     (Path(__file__).parents[1] / "files" / "xlsx.jpg").read_bytes()
 ).decode("ascii")
@@ -52,19 +50,23 @@ def _get_http_client(cassette_names: list[str]) -> AsyncClient:
     return http_client
 
 
-class _ChatCompletionEvent(BaseModel):
+class _MockResponsesEvent(BaseModel, extra="forbid"):
     sse: str
 
     def as_sse(self) -> str:
         return self.sse
 
 
-async def _mock_chat_completions(
+async def _mock_responses(
     self: Molto,
     *,
     body: dict[str, Any],
     **kwargs: Any,
 ) -> AsyncIterator[BaseModel]:
+    # Mock validation
+    if "messages" in body:
+        raise ValidationError
+
     assert self._http_client is not None
     response = await self._http_client.post(
         "https://api.openai.com/v1/responses",
@@ -76,12 +78,14 @@ async def _mock_chat_completions(
     async def iter_events() -> AsyncIterator[BaseModel]:
         for event in response.text.split("\n\n"):
             if event:
-                yield _ChatCompletionEvent(sse=f"{event}\n\n")
+                yield _MockResponsesEvent(sse=f"{event}\n\n")
 
     return iter_events()
 
 
-async def test_openai_chat_completions(monkeypatch: pytest.MonkeyPatch):
+async def test_openai_responses(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
     cassette_names = [
         "00-short_sentence-stream.yaml",
     ]
@@ -89,14 +93,22 @@ async def test_openai_chat_completions(monkeypatch: pytest.MonkeyPatch):
     async with _get_http_client(cassette_names) as http_client:
         client = Molto(http_client=http_client)
 
+        # --- Extra inputs --- #
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            await client.responses(
+                body=dict(
+                    model="gpt-5.4-nano",
+                    instructions="You are a helpful assistant.",
+                    messages=[
+                        {"role": "user", "content": "Write one short sentence about the ocean."}
+                    ],
+                    stream=True,
+                )
+            )
+
         # --- Short sentence --- #
         cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
-        expected_sse_events = [
-            f"{event}\n\n" for event in "".join(cassette["response"]["sse"]).split("\n\n") if event
-        ]
-        # TODO: Remove monkeypatching
-        monkeypatch.setattr(Molto, "chat_completions", _mock_chat_completions, raising=False)
-        response = await client.chat_completions(
+        response = await client.responses(
             body=dict(
                 model="gpt-5.4-nano",
                 instructions="You are a helpful assistant.",
@@ -105,6 +117,9 @@ async def test_openai_chat_completions(monkeypatch: pytest.MonkeyPatch):
             )
         )
         events = [event async for event in response]
+        expected_sse_events = [
+            f"{event}\n\n" for event in "".join(cassette["response"]["sse"]).split("\n\n") if event
+        ]
         assert len(events) == len(expected_sse_events)
         for event, expected_sse in zip(events, expected_sse_events, strict=True):
             assert isinstance(event, BaseModel)
