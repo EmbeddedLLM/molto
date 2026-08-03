@@ -65,7 +65,10 @@ async def _mock_responses(
 ) -> AsyncIterator[BaseModel]:
     # Mock validation
     if "messages" in body:
-        raise ValidationError
+        raise ValidationError.from_exception_data(
+            "ResponsesRequest",
+            [{"type": "extra_forbidden", "loc": ("messages",), "input": body["messages"]}],
+        )
 
     assert self._http_client is not None
     response = await self._http_client.post(
