@@ -88,12 +88,11 @@ async def _mock_responses(
     return iter_events()
 
 
-async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
+async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
     # TODO: Remove monkeypatching
     monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
     cassette_names = [
-        "00-standard_text-stream.yaml",
-        "01-standard_text-stream.yaml",
+        "standard_text-stream-00.yaml",
     ]
 
     async with _get_http_client(cassette_names) as http_client:
@@ -110,6 +109,47 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
                     **cassette["request"]["body"],
                 )
             )
+
+
+async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "standard_text-stream-00.yaml",
+        "standard_text-stream-01.yaml",
+    ]
+
+    async with _get_http_client(cassette_names) as http_client:
+        client = Molto(http_client=http_client)
+
+        # --- Multi turn --- #
+        for _ in range(2):
+            cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
+            response = await client.responses(
+                body=cassette["request"]["body"],
+            )
+            events = [event async for event in response]
+            expected_sse_events = [
+                f"{event}\n\n"
+                for event in "".join(cassette["response"]["sse"]).split("\n\n")
+                if event
+            ]
+            assert len(events) == len(expected_sse_events)
+            for event, expected_sse in zip(events, expected_sse_events, strict=True):
+                assert isinstance(event, BaseModel)
+                assert event.as_sse() == expected_sse
+
+
+async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "reasoning-stream-00.yaml",
+        "reasoning-stream-01.yaml",
+    ]
+
+    async with _get_http_client(cassette_names) as http_client:
+        client = Molto(http_client=http_client)
 
         # --- Multi turn --- #
         for _ in range(2):
