@@ -1,7 +1,8 @@
 from collections.abc import AsyncIterator
-from typing import Literal
+from typing import Any, Literal
 
 from httpx import AsyncClient
+from pydantic import BaseModel
 
 from molto.providers import (
     AnthropicMessagesProvider,
@@ -31,11 +32,32 @@ class Molto:
     async def close(self) -> None:
         await self._http_client.aclose()
 
+    async def responses(
+        self,
+        body: BaseModel | dict[str, Any],
+        endpoint: Literal["responses", "chat/completions"] = "responses",
+        provider: Literal["openai", "vllm"] = "openai",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
+        """_summary_
+
+        Args:
+            body (BaseModel | dict[str, Any]): Request payload.
+            endpoint (Literal["responses", "chat/completions"], optional): Inference endpoint to use.
+                Defaults to "responses".
+            provider (Literal["openai", "vllm"], optional): Provider serving the requested model.
+                Defaults to "openai".
+            api_key (str | None, optional): API key for the provider. Defaults to None (infer from provider).
+            base_url (str | None, optional): Base URL for the provider API. Defaults to None (infer from provider).
+        """
+        pass
+
     async def chat(
         self,
         body: OpenAIResponsesRequest | OpenAIChatCompletionRequest,
         api_key: str | None = None,
-        protocol: Literal["match_request", "responses", "chat_completions"] = "match_request",
+        protocol: Literal["responses", "chat_completions"] = "responses",
     ) -> (
         OpenAIResponsesResponse
         | AsyncIterator[_OpenAIStreamEvent]
@@ -56,10 +78,6 @@ class Molto:
                 return OpenAIResponsesProvider()
             if protocol == "chat_completions":
                 return OpenAIChatCompletionsProvider()
-            if protocol == "match_request":
-                if isinstance(body, OpenAIChatCompletionRequest):
-                    return OpenAIChatCompletionsProvider()
-                return OpenAIResponsesProvider()
             raise ValueError(f"Unsupported protocol: {protocol}")
 
         if ir.model.startswith("openai/") or ir.model.startswith("vllm/"):

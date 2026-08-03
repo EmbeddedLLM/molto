@@ -2,7 +2,7 @@ import json
 from base64 import b64encode
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from httpx import AsyncClient, MockTransport, Request, Response
@@ -32,10 +32,10 @@ def _get_http_client(cassette_names: list[str]) -> AsyncClient:
         cassette = _read_cassette(CASSETTE_DIR / name)
         assert request.method == cassette["request"]["method"]
         request_body = json.loads(request.content) if request.content else {}
-        # Model sent in request might contain provider as prefix
+        # Check model
         request_model: str = request_body.pop("model", "")
         cassette_model: str = cassette["request"]["body"].pop("model", "")
-        assert request_model.split("/")[-1] == cassette_model, (
+        assert request_model == cassette_model, (
             f"Request model {request_model!r} does not match cassette model {cassette_model!r} in {name!r}."
         )
         # The rest of the request body should match exactly
@@ -61,7 +61,10 @@ async def _mock_responses(
     self: Molto,
     *,
     body: dict[str, Any],
-    **kwargs: Any,
+    endpoint: Literal["responses", "chat/completions"] = "responses",
+    provider: Literal["openai", "vllm"] = "openai",
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> AsyncIterator[BaseModel]:
     # Mock validation
     if "messages" in body:
@@ -72,9 +75,8 @@ async def _mock_responses(
 
     assert self._http_client is not None
     response = await self._http_client.post(
-        "https://api.openai.com/v1/responses",
+        f"https://api.openai.com/v1/{endpoint}",
         json=body,
-        **kwargs,
     )
     response.raise_for_status()
 
@@ -86,44 +88,82 @@ async def _mock_responses(
     return iter_events()
 
 
-async def test_openai_responses(monkeypatch: pytest.MonkeyPatch):
+async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
     # TODO: Remove monkeypatching
     monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
     cassette_names = [
-        "00-short_sentence-stream.yaml",
+        "standard_text-stream-00.yaml",
     ]
 
     async with _get_http_client(cassette_names) as http_client:
         client = Molto(http_client=http_client)
 
         # --- Extra inputs --- #
+        cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
                 body=dict(
-                    model="gpt-5.4-nano",
-                    instructions="You are a helpful assistant.",
                     messages=[
                         {"role": "user", "content": "Write one short sentence about the ocean."}
                     ],
-                    stream=True,
+                    **cassette["request"]["body"],
                 )
             )
 
-        # --- Short sentence --- #
-        cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
-        response = await client.responses(
-            body=dict(
-                model="gpt-5.4-nano",
-                instructions="You are a helpful assistant.",
-                input="Write one short sentence about the ocean.",
-                stream=True,
+
+async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "standard_text-stream-00.yaml",
+        "standard_text-stream-01.yaml",
+    ]
+
+    async with _get_http_client(cassette_names) as http_client:
+        client = Molto(http_client=http_client)
+
+        # --- Multi turn --- #
+        for _ in range(2):
+            cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
+            response = await client.responses(
+                body=cassette["request"]["body"],
             )
-        )
-        events = [event async for event in response]
-        expected_sse_events = [
-            f"{event}\n\n" for event in "".join(cassette["response"]["sse"]).split("\n\n") if event
-        ]
-        assert len(events) == len(expected_sse_events)
-        for event, expected_sse in zip(events, expected_sse_events, strict=True):
-            assert isinstance(event, BaseModel)
-            assert event.as_sse() == expected_sse
+            events = [event async for event in response]
+            expected_sse_events = [
+                f"{event}\n\n"
+                for event in "".join(cassette["response"]["sse"]).split("\n\n")
+                if event
+            ]
+            assert len(events) == len(expected_sse_events)
+            for event, expected_sse in zip(events, expected_sse_events, strict=True):
+                assert isinstance(event, BaseModel)
+                assert event.as_sse() == expected_sse
+
+
+async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "reasoning-stream-00.yaml",
+        "reasoning-stream-01.yaml",
+    ]
+
+    async with _get_http_client(cassette_names) as http_client:
+        client = Molto(http_client=http_client)
+
+        # --- Multi turn --- #
+        for _ in range(2):
+            cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
+            response = await client.responses(
+                body=cassette["request"]["body"],
+            )
+            events = [event async for event in response]
+            expected_sse_events = [
+                f"{event}\n\n"
+                for event in "".join(cassette["response"]["sse"]).split("\n\n")
+                if event
+            ]
+            assert len(events) == len(expected_sse_events)
+            for event, expected_sse in zip(events, expected_sse_events, strict=True):
+                assert isinstance(event, BaseModel)
+                assert event.as_sse() == expected_sse
