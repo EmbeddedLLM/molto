@@ -17,7 +17,7 @@ from typing import Any, AsyncGenerator
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import ORJSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from httpx import AsyncClient, HTTPStatusError
 from loguru import logger
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
@@ -239,7 +239,7 @@ async def proxy_request(request: Request, path: str) -> Response:
         recording["response"]["status_code"] = response.status_code
         recording["response"]["headers"] = filter_headers(response.headers)
         save_recording(recording, recording["filename"])
-        return ORJSONResponse(
+        return JSONResponse(
             content=body,
             status_code=response.status_code,
             headers=filter_response_headers(response.headers),
