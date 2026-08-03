@@ -29,8 +29,8 @@ from pydantic_ai import (
 )
 from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.models.openai import (
+    OpenAIChatModel,
     OpenAIChatModelSettings,
-    OpenAIModel,
     OpenAIResponsesModel,
     OpenAIResponsesModelSettings,
 )
@@ -594,7 +594,7 @@ class OpenAIChatCompletionsProvider(_OpenAIProviderBase):
         api_key: str | None = None,
     ) -> AgentSettings:
         self._validate_sampling_params(ir)
-        model = OpenAIModel(
+        model = OpenAIChatModel(
             model_name=ir.model.split("/")[-1],
             provider=self._build_openai_provider(http_client, api_key),
         )
