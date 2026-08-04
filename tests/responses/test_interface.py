@@ -115,8 +115,8 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
     # TODO: Remove monkeypatching
     monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
     cassette_names = [
-        "standard_text-stream-00.yaml",
-        "standard_text-stream-01.yaml",
+        "instructions-stream-00.yaml",
+        "instructions-stream-01.yaml",
     ]
 
     async with _get_http_client(cassette_names) as http_client:
