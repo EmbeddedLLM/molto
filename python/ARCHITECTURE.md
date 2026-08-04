@@ -39,8 +39,10 @@ explicit rejection. It is never hidden in an opaque passthrough field.
 ## Provider boundary
 
 `molto.providers.openai.OpenAIProvider` is the only SDK execution adapter. The
-public method fixes the request and output protocol; its keyword-only `upstream`
-parameter selects the SDK endpoint:
+public method fixes the request and output protocol; its keyword-only `endpoint`
+parameter selects the SDK endpoint. The endpoint-specific body contains only
+OpenAI request fields, while outer `provider` and unprefixed `model` identify
+the selected model:
 
 | Model prefix | Chat upstream | Responses upstream |
 | --- | --- | --- |

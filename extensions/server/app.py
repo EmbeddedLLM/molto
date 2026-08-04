@@ -26,7 +26,7 @@ except ImportError as exc:
     ) from exc
 
 from molto import Molto
-from molto.core import default_upstream_for
+from molto.core import default_endpoint_for
 from molto.providers.openai.types import OpenAIEndpoint
 from molto.types.openai.chat_completions import (
     OpenAIChatCompletionChunk,
@@ -315,18 +315,13 @@ def _molto_error(exc: MoltoException) -> tuple[int, str, ErrorType, str]:
     return 500, "Internal server error.", "server_error", "internal_error"
 
 
-def _upstream(
+def _endpoint(
     request: Request,
     body: OpenAIChatCompletionRequest | OpenAIResponsesRequest,
     *,
     default: OpenAIEndpoint,
 ) -> OpenAIEndpoint:
-    header_upstream = request.headers.get("X-Molto-Upstream")
-    if body.upstream is not None:
-        request.state.requested_upstream = body.upstream
-        value = body.upstream
-    else:
-        value = header_upstream
+    value = body.endpoint or request.headers.get("X-Molto-Endpoint")
     if value is None:
         request.state.resolved_upstream = default
         return default
@@ -334,16 +329,16 @@ def _upstream(
         request.state.resolved_upstream = "<invalid>"
         raise _ServerError(
             400,
-            "X-Molto-Upstream must be 'chat_completions' or 'responses'.",
+            "X-Molto-Endpoint must be 'chat_completions' or 'responses'.",
             error_type="invalid_request_error",
-            code="invalid_upstream",
-            param="X-Molto-Upstream",
+            code="invalid_endpoint",
+            param="X-Molto-Endpoint",
         )
     request.state.resolved_upstream = value
     return cast(OpenAIEndpoint, value)
 
 
-def _chat_upstream(
+def _chat_endpoint(
     request: Request,
     body: OpenAIChatCompletionRequest,
 ) -> OpenAIEndpoint:
@@ -352,8 +347,8 @@ def _chat_upstream(
         model_name == "gpt-5.6" or model_name.startswith("gpt-5.6-")
     )
     if (
-        request.headers.get("X-Molto-Upstream") is None
-        and body.upstream is None
+        request.headers.get("X-Molto-Endpoint") is None
+        and body.endpoint is None
         and is_openai_gpt_5_6
         and body.tools
         and body.reasoning_effort != "none"
@@ -361,7 +356,7 @@ def _chat_upstream(
         request.state.requested_upstream = "responses"
         request.state.resolved_upstream = "responses"
         return "responses"
-    return _upstream(request, body, default="chat_completions")
+    return _endpoint(request, body, default="chat_completions")
 
 
 def _prepare_payload(request: Request, payload: Any) -> Any:
@@ -649,14 +644,14 @@ def create_app(
     @app.post("/v1/chat/completions", include_in_schema=False)
     async def chat_completions(request: Request) -> Response:
         body = await _body(request, OpenAIChatCompletionRequest)
-        upstream = _chat_upstream(request, body)
+        endpoint = _chat_endpoint(request, body)
         _log_request(request)
 
         async def execute(api_key: str | None) -> Any:
             return await request.app.state.gateway.chat_completions(
                 body,
                 api_key=api_key,
-                upstream=upstream,
+                endpoint=endpoint,
                 http_client=request.app.state.http_client,
                 base_url=resolved_settings.provider_base_url,
                 max_retries=resolved_settings.max_retries,
@@ -667,10 +662,10 @@ def create_app(
     @app.post("/v1/responses", include_in_schema=False)
     async def responses(request: Request) -> Response:
         body = await _body(request, OpenAIResponsesRequest)
-        upstream = _upstream(
+        endpoint = _endpoint(
             request,
             body,
-            default=default_upstream_for(body.model, "responses"),
+            default=default_endpoint_for(cast(Any, body.model.partition("/")[0]), "responses"),
         )
         _log_request(request)
 
@@ -678,7 +673,7 @@ def create_app(
             return await request.app.state.gateway.responses(
                 body,
                 api_key=api_key,
-                upstream=upstream,
+                endpoint=endpoint,
                 http_client=request.app.state.http_client,
                 base_url=resolved_settings.provider_base_url,
                 max_retries=resolved_settings.max_retries,

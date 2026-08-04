@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_serializer,
+    model_validator,
+)
 
 from molto.types.ir.portable import (
     InputIR,
@@ -416,24 +423,15 @@ class ChatCompletionAudioConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class OpenAIChatCompletionRequest(BaseModel):
+class OpenAIChatCompletionBody(BaseModel):
+    """Chat Completions JSON body, without Molto routing information."""
+
     model_config = ConfigDict(extra="forbid")
 
     messages: Annotated[
         list[ChatCompletionMessage],
         Field(description="A list of messages comprising the conversation so far."),
     ]
-    model: Annotated[
-        str,
-        Field(description="The model to use for generating the chat completion."),
-    ]
-    upstream: Annotated[
-        Literal["responses", "chat_completions"] | None,
-        Field(
-            exclude=True,
-            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
-        ),
-    ] = None
     audio: Annotated[
         ChatCompletionAudioConfig | None,
         Field(description="Parameters for generated audio output."),
@@ -590,6 +588,24 @@ class OpenAIChatCompletionRequest(BaseModel):
     extra_body: Annotated[
         dict[str, Any] | None,
         Field(description="Additional provider-specific request body fields."),
+    ] = None
+
+
+class OpenAIChatCompletionRequest(OpenAIChatCompletionBody):
+    """Legacy complete Chat request retained for direct adapter use."""
+
+    model: Annotated[
+        str,
+        Field(description="The provider-qualified model to use for the chat completion."),
+    ]
+    endpoint: Annotated[
+        Literal["responses", "chat_completions"] | None,
+        Field(
+            default=None,
+            exclude=True,
+            validation_alias=AliasChoices("endpoint", "upstream"),
+            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
+        ),
     ] = None
 
     def to_ir(self) -> InputIR:

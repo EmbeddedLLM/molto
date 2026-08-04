@@ -124,22 +124,6 @@ class _ResponsesRequestBase(BaseModel):
             description="Penalize tokens according to their existing frequency.",
         ),
     ] = None
-    model: Annotated[
-        str,
-        Field(
-            description=(
-                "Model ID used to generate the response. "
-                "Note: the OpenAI Responses API allows additional ways to specify prompts; this gateway currently requires `model`."
-            ),
-        ),
-    ]
-    upstream: Annotated[
-        Literal["responses", "chat_completions"] | None,
-        Field(
-            exclude=True,
-            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
-        ),
-    ] = None
     parallel_tool_calls: Annotated[
         bool | None,
         Field(
@@ -238,11 +222,6 @@ class _ResponsesRequestBase(BaseModel):
         Field(description="A stable identifier for your end users."),
     ] = None
 
-    def to_ir(self) -> InputIR:
-        from .to_ir import _responses_request_to_ir
-
-        return _responses_request_to_ir(self)
-
 
 class OpenAIResponsesRestrictedRequest(_ResponsesRequestBase):
     """Responses request contract restricted to the vLLM-supported subset."""
@@ -311,7 +290,9 @@ class OpenAIResponsesRestrictedRequest(_ResponsesRequestBase):
         return v
 
 
-class OpenAIResponsesRequest(_ResponsesRequestBase):
+class OpenAIResponsesBody(_ResponsesRequestBase):
+    """Responses JSON body, without Molto routing information."""
+
     background: Annotated[
         Literal[False] | None,
         Field(
@@ -458,3 +439,26 @@ class OpenAIResponsesRequest(_ResponsesRequestBase):
         cls, v: list[OpenAIResponsesTool] | None
     ) -> list[OpenAIResponsesTool] | None:
         return _validate_tools_unique(v)
+
+
+class OpenAIResponsesRequest(OpenAIResponsesBody):
+    """Legacy complete Responses request retained for direct adapter use."""
+
+    model: Annotated[
+        str,
+        Field(description="The provider-qualified model used to generate the response."),
+    ]
+    endpoint: Annotated[
+        Literal["responses", "chat_completions"] | None,
+        Field(
+            default=None,
+            exclude=True,
+            validation_alias=AliasChoices("endpoint", "upstream"),
+            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
+        ),
+    ] = None
+
+    def to_ir(self) -> InputIR:
+        from .to_ir import _responses_request_to_ir
+
+        return _responses_request_to_ir(self)

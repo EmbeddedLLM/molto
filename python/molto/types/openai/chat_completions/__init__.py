@@ -38,6 +38,7 @@ from .models_request import (  # noqa: F401
     ChatCompletionToolChoiceOption,
     ChatCompletionToolMessage,
     ChatCompletionUserMessage,
+    OpenAIChatCompletionBody,
     OpenAIChatCompletionRequest,
 )
 from .models_response import (  # noqa: F401
@@ -103,6 +104,7 @@ __all__ = [
     "ChatCompletionUserMessage",
     "FinishReason",
     "OpenAIChatCompletionChunk",
+    "OpenAIChatCompletionBody",
     "OpenAIChatCompletionRequest",
     "OpenAIChatCompletionResponse",
     "from_output_event_stream",

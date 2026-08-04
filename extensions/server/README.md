@@ -81,16 +81,16 @@ The server does not require caller authentication, but callers may supply a per-
 
 The internal server intentionally has no tests. Keep test coverage at the core request, IR, provider, and output boundaries; do not add server tests.
 
-The request path selects the OpenAI request and output protocol. The optional `X-Molto-Upstream` header selects only the execution endpoint and accepts:
+The request path selects the OpenAI request and output protocol. The optional `X-Molto-Endpoint` header selects only the execution endpoint and accepts:
 
 - `chat_completions`
 - `responses`
 
 Model names may be sent as either `openai/<model>` or a bare `<model>` name. The server treats a bare name as an OpenAI model and adds the `openai/` prefix.
 
-The server forwards the optional `X-Molto-Upstream` header as Molto's keyword-only `upstream` fallback. A body-level `upstream` value is also accepted for direct Molto-compatible clients and takes precedence over the header. In both cases it is consumed before `InputIR` conversion. When omitted, the upstream normally matches the request path; Anthropic models always default to their OpenAI-compatible Chat endpoint. GPT-5.6 Chat requests containing function tools automatically execute through Responses unless `reasoning_effort` is explicitly `none`. The HTTP response remains in Chat Completions format. An explicit request `upstream` or `X-Molto-Upstream` header overrides this automatic selection.
+The server forwards the optional `X-Molto-Endpoint` header as Molto's keyword-only `endpoint` argument. It is consumed before `InputIR` conversion. When omitted, the endpoint normally matches the request path; Anthropic models always default to their OpenAI-compatible Chat endpoint. GPT-5.6 Chat requests containing function tools automatically execute through Responses unless `reasoning_effort` is explicitly `none`. The HTTP response remains in Chat Completions format. An explicit `X-Molto-Endpoint` header overrides this automatic selection.
 
-When the header and body-level `upstream` are both omitted for an OpenAI GPT-5.6 request with tools and active reasoning, the server selects `responses` on the request. For automatically routed streams, Chat `stream_options.include_usage` is handled as an output-format option rather than forwarded to Responses. Setting it to `true` still produces the final Chat usage-only chunk. The Responses request builder omits neutral Chat defaults `frequency_penalty=0` and `presence_penalty=0`; non-zero penalties are dropped unless the server runs in strict mode, in which case they fail capability validation.
+When the endpoint header is omitted for an OpenAI GPT-5.6 request with tools and active reasoning, the server selects `responses`. For automatically routed streams, Chat `stream_options.include_usage` is handled as an output-format option rather than forwarded to Responses. Setting it to `true` still produces the final Chat usage-only chunk. The Responses request builder omits neutral Chat defaults `frequency_penalty=0` and `presence_penalty=0`; non-zero penalties are dropped unless the server runs in strict mode, in which case they fail capability validation.
 
 When a Responses request executes through Chat Completions, Molto removes Responses-only `include` and reasoning `summary` controls before capability validation. `store` remains representable on Chat; Anthropic's OpenAI compatibility endpoint accepts and ignores it. Responses hosted tools are not part of the Chat Completions contract and remain unsupported on this route.
 
@@ -103,11 +103,11 @@ Chat Completions example:
 ```bash
 curl http://127.0.0.1:8017/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -H 'X-Molto-Upstream: chat_completions' \
+  -H 'X-Molto-Endpoint: chat_completions' \
   -d '{"model":"gpt-5-mini","messages":[{"role":"user","content":"Hello"}],"stream":true}'
 ```
 
-The example executes through Chat Completions and returns a Chat Completions payload. Unsupported provider, upstream, or feature combinations continue to fail through Molto's capability validation.
+The example executes through Chat Completions and returns a Chat Completions payload. Unsupported provider, endpoint, or feature combinations continue to fail through Molto's capability validation.
 
 Chat Completions web-search example:
 

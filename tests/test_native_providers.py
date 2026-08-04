@@ -33,8 +33,11 @@ from molto.types.ir.portable import (
     ResponseStartedEvent,
     Usage,
 )
-from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
-from molto.types.openai.responses import OpenAIResponsesRequest
+from molto.types.openai.chat_completions import (
+    OpenAIChatCompletionBody,
+    OpenAIChatCompletionRequest,
+)
+from molto.types.openai.responses import OpenAIResponsesBody, OpenAIResponsesRequest
 from molto.utils.exceptions import BadInputError, ModelCapabilityError, ModelOverloadError
 
 
@@ -507,6 +510,41 @@ async def test_mcp_rejects_before_provider_construction(
         await Molto(strict=True).responses(request)
 
 
+async def test_public_payloads_attach_outer_provider_and_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_provider(*_args, **_kwargs):
+        raise AssertionError("OpenAIProvider must not be constructed")
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
+
+    with pytest.raises(BadInputError, match="Unsupported endpoint"):
+        await Molto().responses(
+            OpenAIResponsesBody(input="hi"),
+            provider="openai",
+            model="gpt-5.6",
+            endpoint="invalid",  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(BadInputError, match="Unsupported endpoint"):
+        await Molto().chat_completions(
+            {"messages": [{"role": "user", "content": "hi"}]},
+            provider="openai",
+            model="gpt-5.6",
+            endpoint="invalid",  # type: ignore[arg-type]
+        )
+
+
+def test_public_payloads_validate_dicts_with_endpoint_schema() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        OpenAIResponsesBody.model_validate({"input": "hi", "model": "gpt-5.6"})
+
+    body = OpenAIChatCompletionBody.model_validate(
+        {"messages": [{"role": "user", "content": "hi"}]}
+    )
+    assert body.messages[0].content == "hi"
+
+
 async def test_responses_state_rejects_chat_upstream_before_provider_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -848,28 +886,28 @@ async def test_anthropic_responses_upstream_rejects_before_provider_construction
         await call
 
 
-def test_upstream_is_validated_on_the_request_and_excluded_from_ir() -> None:
+def test_endpoint_is_validated_on_the_request_and_excluded_from_ir() -> None:
     chat = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[{"role": "user", "content": "hi"}],
-        upstream="responses",
+        endpoint="responses",
     )
     responses = OpenAIResponsesRequest(
         model="openai/gpt-4.1-nano",
         input="hi",
-        upstream="chat_completions",
+        endpoint="chat_completions",
     )
 
-    assert "upstream" not in chat.model_dump()
-    assert "upstream" not in chat.to_ir().model_dump()
-    assert "upstream" not in responses.model_dump()
-    assert "upstream" not in responses.to_ir().model_dump()
+    assert "endpoint" not in chat.model_dump()
+    assert "endpoint" not in chat.to_ir().model_dump()
+    assert "endpoint" not in responses.model_dump()
+    assert "endpoint" not in responses.to_ir().model_dump()
 
     with pytest.raises(ValidationError, match="responses"):
-        OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", upstream="invalid")
+        OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", endpoint="invalid")
 
 
-async def test_invalid_upstream_keyword_rejects_before_provider_construction(
+async def test_invalid_endpoint_keyword_rejects_before_provider_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def unexpected_provider(*_args, **_kwargs):
@@ -878,8 +916,8 @@ async def test_invalid_upstream_keyword_rejects_before_provider_construction(
     monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
     request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
-    with pytest.raises(BadInputError, match="Unsupported upstream endpoint"):
-        await Molto().responses(request, upstream="invalid")
+    with pytest.raises(BadInputError, match="Unsupported endpoint"):
+        await Molto().responses(request, endpoint="invalid")
 
 
 async def test_public_methods_reject_the_other_request_type() -> None:
@@ -895,7 +933,7 @@ async def test_public_methods_reject_the_other_request_type() -> None:
         await Molto().chat_completions(responses_request)
 
 
-async def test_upstream_is_keyword_only() -> None:
+async def test_endpoint_is_keyword_only() -> None:
     request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
     with pytest.raises(TypeError, match="positional"):
@@ -990,7 +1028,7 @@ async def test_responses_reasoning_to_chat_is_intentionally_omitted(
         upstream="responses",
     )
 
-    response = await Molto().chat_completions(request, upstream="chat_completions")
+    response = await Molto().chat_completions(request, endpoint="chat_completions")
 
     assert ReasoningProvider.endpoint == "responses"
     if stream:
