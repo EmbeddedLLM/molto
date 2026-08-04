@@ -1,6 +1,7 @@
 import json
 from base64 import b64encode
 from collections.abc import AsyncIterator
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +18,7 @@ XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
 ).decode("ascii")
 
 
+@lru_cache(maxsize=5)
 def _read_cassette(path: Path) -> dict[str, Any]:
     """Read a cassette YAML file."""
     return read_yaml(path)
@@ -92,7 +94,7 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
     # TODO: Remove monkeypatching
     monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
     cassette_names = [
-        "standard_text-stream-00.yaml",
+        "simple_text-stream-00.yaml",
     ]
 
     async with _get_http_client(cassette_names) as http_client:
@@ -111,19 +113,14 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
             )
 
 
-async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
-    cassette_names = [
-        "instructions-stream-00.yaml",
-        "instructions-stream-01.yaml",
-    ]
-
+async def _assert_responses_events(
+    cassette_names: list[str],
+) -> None:
+    num_turns = len(cassette_names)
     async with _get_http_client(cassette_names) as http_client:
         client = Molto(http_client=http_client)
-
-        # --- Multi turn --- #
-        for _ in range(2):
+        # --- Output matches upstream format (Responses <-> Responses) --- #
+        for _ in range(num_turns):
             cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
             response = await client.responses(
                 body=cassette["request"]["body"],
@@ -138,6 +135,16 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
             for event, expected_sse in zip(events, expected_sse_events, strict=True):
                 assert isinstance(event, BaseModel)
                 assert event.as_sse() == expected_sse
+
+
+async def test_simple_text_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "simple_text-stream-00.yaml",
+        "simple_text-stream-01.yaml",
+    ]
+    await _assert_responses_events(cassette_names)
 
 
 async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
@@ -147,23 +154,14 @@ async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
         "reasoning-stream-00.yaml",
         "reasoning-stream-01.yaml",
     ]
+    await _assert_responses_events(cassette_names)
 
-    async with _get_http_client(cassette_names) as http_client:
-        client = Molto(http_client=http_client)
 
-        # --- Multi turn --- #
-        for _ in range(2):
-            cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
-            response = await client.responses(
-                body=cassette["request"]["body"],
-            )
-            events = [event async for event in response]
-            expected_sse_events = [
-                f"{event}\n\n"
-                for event in "".join(cassette["response"]["sse"]).split("\n\n")
-                if event
-            ]
-            assert len(events) == len(expected_sse_events)
-            for event, expected_sse in zip(events, expected_sse_events, strict=True):
-                assert isinstance(event, BaseModel)
-                assert event.as_sse() == expected_sse
+async def test_instructions_stream(monkeypatch: pytest.MonkeyPatch):
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+    cassette_names = [
+        "instructions-stream-00.yaml",
+        "instructions-stream-01.yaml",
+    ]
+    await _assert_responses_events(cassette_names)
