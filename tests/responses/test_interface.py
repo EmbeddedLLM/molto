@@ -18,14 +18,16 @@ XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
 ).decode("ascii")
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
-RESPONSES_CASSETTE_DIR = CASSETTE_DIR / "openai" / "responses" / "test_interface"
-CC_CASSETTE_DIR = CASSETTE_DIR / "openai" / "chat_completions" / "test_interface"
-UPSTREAM_CASSETTE_DIRS = {
-    "responses": RESPONSES_CASSETTE_DIR,
-    "chat/completions": CC_CASSETTE_DIR,
-}
 Endpoint = Literal["responses", "chat/completions"]
 ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat/completions")
+
+
+def _cassette_dir(endpoint: Endpoint, *, matched: bool = False) -> Path:
+    root = CASSETTE_DIR / "openai"
+    if matched:
+        root /= "matched"
+    endpoint_dir = "chat_completions" if endpoint == "chat/completions" else endpoint
+    return root / endpoint_dir / "test_interface"
 
 
 @lru_cache(maxsize=5)
@@ -37,9 +39,11 @@ def _read_cassette(path: Path) -> dict[str, Any]:
 def _get_http_client(
     cassette_names: list[str],
     endpoint: Endpoint = "responses",
+    *,
+    matched: bool = False,
 ) -> AsyncClient:
     cassette_names = cassette_names.copy()
-    cassette_dir = UPSTREAM_CASSETTE_DIRS[endpoint]
+    cassette_dir = _cassette_dir(endpoint, matched=matched)
 
     def cassette_handler(request: Request) -> Response:
         cassette = _read_cassette(cassette_dir / cassette_names.pop(0))
@@ -67,6 +71,8 @@ class _MockResponsesEvent(BaseModel, extra="forbid"):
 
 def _mock_responses_factory(
     cassette_names: list[str],
+    *,
+    matched: bool = False,
 ):
     cassette_names = cassette_names.copy()
 
@@ -88,7 +94,7 @@ def _mock_responses_factory(
         assert self._http_client is not None
 
         cassette_name = cassette_names.pop(0)
-        cassette = _read_cassette(UPSTREAM_CASSETTE_DIRS[endpoint] / cassette_name)
+        cassette = _read_cassette(_cassette_dir(endpoint, matched=matched) / cassette_name)
         response = await self._http_client.post(
             f"https://api.openai.com/v1/{endpoint}",
             json=body if endpoint == "responses" else cassette["request"]["body"],
@@ -101,7 +107,9 @@ def _mock_responses_factory(
                     if event:
                         yield _MockResponsesEvent(sse=f"{event}\n\n")
             else:
-                cassette = _read_cassette(UPSTREAM_CASSETTE_DIRS["responses"] / cassette_name)
+                cassette = _read_cassette(
+                    _cassette_dir("responses", matched=matched) / cassette_name
+                )
                 for event in "".join(cassette["response"]["sse"]).split("\n\n"):
                     if event:
                         yield _MockResponsesEvent(sse=f"{event}\n\n")
@@ -116,13 +124,18 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
         "simple_text-stream-00.yaml",
     ]
     # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
+    monkeypatch.setattr(
+        Molto,
+        "responses",
+        _mock_responses_factory(cassette_names, matched=True),
+        raising=False,
+    )
 
-    async with _get_http_client(cassette_names) as http_client:
+    async with _get_http_client(cassette_names, matched=True) as http_client:
         client = Molto(http_client=http_client)
 
         # --- Extra inputs --- #
-        cassette = _read_cassette(RESPONSES_CASSETTE_DIR / cassette_names[0])
+        cassette = _read_cassette(_cassette_dir("responses", matched=True) / cassette_names[0])
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
                 body=dict(
@@ -137,13 +150,17 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
 async def _assert_responses_events(
     cassette_names: list[str],
     endpoint: Endpoint = "responses",
+    *,
+    matched: bool = False,
 ) -> None:
     num_turns = len(cassette_names)
-    async with _get_http_client(cassette_names, endpoint) as http_client:
+    async with _get_http_client(cassette_names, endpoint, matched=matched) as http_client:
         client = Molto(http_client=http_client)
         # --- Output matches upstream format (Responses <-> Responses) --- #
         for _ in range(num_turns):
-            cassette = _read_cassette(RESPONSES_CASSETTE_DIR / cassette_names.pop(0))
+            cassette = _read_cassette(
+                _cassette_dir("responses", matched=matched) / cassette_names.pop(0)
+            )
             response = await client.responses(
                 body=deepcopy(cassette["request"]["body"]),
                 endpoint=endpoint,
@@ -167,8 +184,13 @@ async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch
         "simple_text-stream-01.yaml",
     ]
     # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
-    await _assert_responses_events(cassette_names, endpoint)
+    monkeypatch.setattr(
+        Molto,
+        "responses",
+        _mock_responses_factory(cassette_names, matched=True),
+        raising=False,
+    )
+    await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
 async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
