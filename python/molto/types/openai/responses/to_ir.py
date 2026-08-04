@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from molto.types.ir.portable import (
+    OPENAI_WEB_SEARCH_TOOL_TYPES,
     AllowedFunctionTools,
     CodeInterpreterCallRequestItem,
     CodeInterpreterOutputImage,
@@ -36,8 +37,11 @@ from molto.types.ir.portable import (
     WebSearchActionFindInPage,
     WebSearchActionOpenPage,
     WebSearchActionSearch,
+    WebSearchApproximateLocation,
     WebSearchCallRequestItem,
+    WebSearchOptions,
     WebSearchSource,
+    WebSearchUserLocation,
 )
 from molto.utils.exceptions import BadInputError
 
@@ -210,6 +214,7 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
                     status=ItemStatus(item.status) if item.status is not None else None,
                     call_id=item.call_id,
                     name=item.name,
+                    namespace=item.namespace,
                     arguments=item.arguments,
                 )
             )
@@ -380,3 +385,69 @@ def _responses_request_to_ir(request) -> InputIR:
         tool_choice=_tool_choice(request.tool_choice),
         state=_state(request, request.model),
     )
+
+
+def _chat_web_search_options(tool: OpenAIHostedToolDefinition) -> WebSearchOptions:
+    payload = json.loads(tool.payload_json)
+    unsupported = {
+        field
+        for field in ("filters", "search_content_types", "return_token_budget")
+        if payload.get(field) is not None
+    }
+    if unsupported:
+        details = ", ".join(sorted(unsupported))
+        raise BadInputError(
+            f"Chat Completions web search cannot represent Responses fields: {details}."
+        )
+
+    location = payload.get("user_location")
+    user_location = None
+    if location is not None:
+        approximate = {key: value for key, value in location.items() if key != "type"}
+        user_location = WebSearchUserLocation(
+            type="approximate",
+            approximate=WebSearchApproximateLocation.model_validate(approximate),
+        )
+    options = {}
+    if payload.get("search_context_size") is not None:
+        options["search_context_size"] = payload["search_context_size"]
+    if user_location is not None:
+        options["user_location"] = user_location
+    return WebSearchOptions.model_validate(options)
+
+
+def prepare_responses_request(
+    request,
+    upstream: Literal["chat_completions", "responses"],
+) -> InputIR:
+    """Build provider input for the selected Responses upstream."""
+
+    provider_ir = _responses_request_to_ir(request)
+    if upstream == "chat_completions":
+        tools = []
+        web_search_options = None
+        for tool in provider_ir.tools:
+            # OpenAI Chat enables search through a top-level option. Anthropic has
+            # no Chat web search representation, so its hosted tool stays in
+            # `tools` and fails closed during provider request translation.
+            if (
+                isinstance(tool, OpenAIHostedToolDefinition)
+                and tool.tool_type in OPENAI_WEB_SEARCH_TOOL_TYPES
+                and not provider_ir.model.startswith("anthropic/")
+            ):
+                web_search_options = _chat_web_search_options(tool)
+            else:
+                tools.append(tool)
+        provider_ir = provider_ir.model_copy(
+            update={
+                "include": None,
+                "generation": provider_ir.generation.model_copy(
+                    update={
+                        "reasoning_summary": None,
+                        "web_search_options": web_search_options,
+                    }
+                ),
+                "tools": tuple(tools),
+            }
+        )
+    return provider_ir

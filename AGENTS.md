@@ -6,7 +6,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 
 ## Core Principles
 
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **No Laziness**: Find root causes. No temporary fixes. When fixing bugs or issues, prefer a clean solution over a hacky workaround. Senior developer standards.
 - **Simplicity First**: Make every change as simple as possible. Only touch what's necessary. Impact minimal code. Over-complication leads to bugs.
   1. Always start with thorough understanding of the problem and motivation.
   2. Does this functionality need to exist? Challenge or skip it when it does not (YAGNI).
@@ -23,6 +23,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
   4. Prefer sufficient correctness over absolute correctness when the trade-off is appropriate, such as eventual consistency or simple retries for cheap, recoverable failures.
   5. Simplify immediately when behavior is preserved; otherwise present the proposed change, benefits, and trade-offs to the user.
 - **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files.
+- **The env config is only for running the tests**: It is never to be used for users requests.
 
 ## Workflow Orchestration
 

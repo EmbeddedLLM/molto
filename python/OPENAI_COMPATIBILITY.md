@@ -11,10 +11,13 @@ This document describes the supported OpenAI-compatible boundary. Every route us
 | `responses(OpenAIResponsesRequest)` | `openai/` | `responses` | Responses response/events | Supported subset |
 | `responses(OpenAIResponsesRequest)` | `openai/` | `chat_completions` | Responses response/events | Supported semantic subset |
 | Either matching public method/body | `vllm/` | Either OpenAI-compatible endpoint | Method-selected OpenAI output | Explicit `base_url`; unverified subset |
-| Either matching public method/body | `anthropic/` | `chat_completions` | Method-selected OpenAI output | Conservative text/function subset; unverified |
-| Any public method/body | `anthropic/` | `responses` | None | Unsupported |
+| `chat_completions(OpenAIChatCompletionRequest)` | `anthropic/` | `chat_completions` (default) | Chat response/chunks | Conservative text/function subset; unverified |
+| `responses(OpenAIResponsesRequest)` | `anthropic/` | `chat_completions` (default) | Responses response/events | Supported semantic subset; unverified |
+| Either matching public method/body | `anthropic/` | `responses` | None | Unsupported |
 
-The public method selects both the accepted OpenAI request schema and returned output protocol. The keyword-only `upstream` parameter selects the execution endpoint and defaults to the matching protocol. The model prefix selects the provider configuration.
+The public method selects both the accepted OpenAI request schema and returned output protocol. The request's optional `upstream` field selects the execution endpoint ahead of the keyword-only `upstream` fallback and the provider-aware default. Anthropic models default to Chat Completions for both public methods because Anthropic does not provide an OpenAI-compatible Responses endpoint. The routing field is consumed before `InputIR` conversion, so it never reaches provider translation. The model prefix selects the provider configuration.
+
+Anthropic's OpenAI-compatible endpoint fully supports common text, token-limit, streaming, and function-calling fields. It accepts but ignores OpenAI `response_format`, function-tool `strict`, `reasoning_effort`, `store`, penalties, and logprob controls; those fields are recorded separately from effective provider capabilities. Claude Sonnet 5 also rejects non-default sampling parameters, so callers should omit `temperature` and `top_p` for that model.
 
 ## Supported portable capabilities
 
@@ -29,17 +32,23 @@ The public method selects both the accepted OpenAI request schema and returned o
 - Responses reasoning effort when `Molto.chat_completions()` selects Chat output;
 - ordinary completion, incomplete, failed, refusal, and portable usage data.
 
-When `Molto.chat_completions()` uses `upstream="responses"`, Chat Completions has no reasoning-item or reasoning-event shape. Molto therefore passes representable reasoning configuration through to the provider, retains standard Chat reasoning-token usage, and intentionally omits returned Responses reasoning items and events from the Chat response or stream.
+When an `OpenAIChatCompletionRequest` uses `upstream="responses"`, Chat Completions has no reasoning-item or reasoning-event shape. Molto therefore passes representable reasoning configuration through to the provider, retains standard Chat reasoning-token usage, and intentionally omits returned Responses reasoning items and events from the Chat response or stream.
 
-The Chat request adapter removes `stream_options` when the selected upstream is Responses because it is not a Responses SDK argument. The Responses request builder omits neutral `frequency_penalty=0` and `presence_penalty=0` defaults because the Responses SDK does not accept those arguments; non-zero penalties are rejected before provider construction.
+The Chat request adapter removes `stream_options` when the selected upstream is Responses because it is not a Responses SDK argument. In the other direction, the Responses request adapter removes `include` and reasoning `summary` when the selected upstream is Chat Completions because Chat has no corresponding request fields. `store` remains a Chat field; Anthropic accepts and ignores it as documented by its OpenAI compatibility layer. The Responses request builder omits neutral `frequency_penalty=0` and `presence_penalty=0` defaults because the Responses SDK does not accept those arguments; non-zero penalties are dropped in non-strict mode and rejected before provider construction when `strict=True`.
+
+## Client configuration and strict mode
+
+Transport configuration is per call: `Molto.responses()` and `Molto.chat_completions()` accept `api_key`, `base_url`, `max_retries`, and `http_client`, so one gateway can serve multiple providers and credentials. `Molto` itself is constructed with only the `strict` flag.
+
+`strict` controls how unsupported request features are handled. Without it (the default), a feature the selected provider/upstream contract does not honor is dropped and ignored, and the request proceeds with the supported subset. With `strict=True`, the same feature raises `ModelCapabilityError` before provider construction. The Anthropic `ignored_features` carve-out follows the same rule: fields the compatibility endpoint accepts but ignores are silent in non-strict mode and rejected in strict mode.
 
 ## Rejected capabilities
 
-Molto rejects a feature when the OpenAI-shaped IR or selected public output cannot preserve it completely. This includes Responses hosted tools on Chat output, MCP where the selected route cannot preserve it, generated Chat audio when the destination is not Chat Completions, provider-native events, unsupported annotations/logprobs, unknown `extra_body` fields, background execution, and provider-affine state on a different provider.
+Molto rejects a feature when the OpenAI-shaped IR or selected public output cannot preserve it completely. This includes Responses hosted tools routed to Chat Completions, MCP where the selected route cannot preserve it, generated Chat audio when the destination is not Chat Completions, provider-native events, unsupported annotations/logprobs, unknown `extra_body` fields, background execution, and provider-affine state on a different provider.
 
 Stateless replay of MCP, computer-use, file-search, and other hosted output-item types remains unsupported and is rejected rather than partially projected.
 
-Rejection happens at public validation, capability preflight, or output composition. No unsupported provider feature is projected into ordinary text or silently discarded, except for the explicitly documented Responses reasoning omission when the destination is Chat Completions.
+Rejection happens at public validation, capability preflight, or output composition. In non-strict mode, request features the selected contract does not honor are dropped and ignored before provider construction instead of rejected; strict mode turns the same gaps into capability-preflight errors. No unsupported provider feature is projected into ordinary text, except for the explicitly documented Responses reasoning omission when the destination is Chat Completions.
 
 ## Event contract
 

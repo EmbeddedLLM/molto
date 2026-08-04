@@ -26,6 +26,7 @@ from .models_items import (
     OpenAIResponsesImageGenerationTool,
     OpenAIResponsesInclude,
     OpenAIResponsesMcpTool,
+    OpenAIResponsesNamespaceTool,
     OpenAIResponsesPlainTextConfig,
     OpenAIResponsesRestrictedTool,
     OpenAIResponsesTool,
@@ -52,6 +53,8 @@ def _validate_tools_unique(
                 tool_name = "web_search"
             elif isinstance(t, OpenAIResponsesImageGenerationTool):
                 tool_name = t.type
+            elif isinstance(t, OpenAIResponsesNamespaceTool):
+                tool_name = t.name
             elif isinstance(t, OpenAIResponsesMcpTool):
                 # MCP duplicate-by-server validation is handled in `as_run_settings(...)` where request-level
                 # validation can include runtime manager availability checks.
@@ -130,6 +133,13 @@ class _ResponsesRequestBase(BaseModel):
             ),
         ),
     ]
+    upstream: Annotated[
+        Literal["responses", "chat_completions"] | None,
+        Field(
+            exclude=True,
+            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
+        ),
+    ] = None
     parallel_tool_calls: Annotated[
         bool | None,
         Field(

@@ -69,6 +69,8 @@ def _chat_messages(ir) -> list[dict[str, Any]]:
                 message["audio"] = {"id": item.audio_id}
             messages.append(message)
         elif isinstance(item, FunctionCallRequestItem):
+            if item.namespace is not None:
+                raise BadInputError("Chat Completions cannot represent namespaced function calls.")
             messages.append(
                 {
                     "role": "assistant",
@@ -169,6 +171,7 @@ def _responses_input(ir) -> str | list[dict[str, Any]]:
                         "status": item.status.value if item.status is not None else None,
                         "call_id": item.call_id,
                         "name": item.name,
+                        "namespace": item.namespace,
                         "arguments": item.arguments,
                     }
                 )
@@ -231,6 +234,8 @@ def _responses_input(ir) -> str | list[dict[str, Any]]:
                 }
             )
         elif isinstance(item, ImageGenerationCallRequestItem):
+            # The API requires `id` on image-generation input items and resolves
+            # it against the persisted item; inline `result` is not an upload path.
             image_call: dict[str, Any] = {
                 "type": "image_generation_call",
                 "id": item.id,
@@ -339,6 +344,7 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
                 "prompt_cache_key": ir.prompt_cache_key,
                 "prompt_cache_retention": ir.prompt_cache_retention,
                 "safety_identifier": ir.safety_identifier,
+                "store": ir.store,
                 "user": ir.user,
                 "temperature": generation.temperature,
                 "top_p": generation.top_p,
@@ -384,8 +390,6 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
             request["max_completion_tokens"] = request.pop("max_output_tokens")
     else:
         request["input"] = _responses_input(ir)
-        if ir.store is not None:
-            request["store"] = ir.store
         if ir.include is not None:
             request["include"] = list(ir.include)
         if ir.instructions is not None:

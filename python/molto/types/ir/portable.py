@@ -93,6 +93,7 @@ from .request_items import (
 )
 from .state import StateReference, StateReferences
 from .tools import (
+    OPENAI_WEB_SEARCH_TOOL_TYPES,
     AllowedFunctionTools,
     FunctionName,
     FunctionToolChoice,
@@ -132,6 +133,7 @@ __all__ = [
     "FunctionToolDefinition",
     "OpenAIHostedToolChoice",
     "OpenAIHostedToolDefinition",
+    "OPENAI_WEB_SEARCH_TOOL_TYPES",
     "GeneratedAudio",
     "GenerationConfig",
     "IRModel",

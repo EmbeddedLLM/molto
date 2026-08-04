@@ -60,7 +60,7 @@ def _output_item(item) -> dict:
             "phase": item.phase,
         }
     if isinstance(item, FunctionCallItem):
-        return {
+        values = {
             "type": "function_call",
             "id": item.id,
             "status": item.status.value,
@@ -68,6 +68,9 @@ def _output_item(item) -> dict:
             "name": item.name,
             "arguments": item.arguments,
         }
+        if item.namespace is not None:
+            values["namespace"] = item.namespace
+        return values
     if isinstance(item, ReasoningItem):
         summary = []
         content = []

@@ -98,9 +98,12 @@ async def test_image_generation_round_trip_through_sdk(
 
 
 async def test_image_generation_output_history_round_trip_through_sdk(cassette_manager) -> None:
-    """Continue image generation statelessly with the complete prior output item."""
-    sdk_image = await _generate_image_for_continuation(cassette_manager, store=False)
+    """Continue image generation with the complete prior output item."""
+    sdk_image = await _generate_image_for_continuation(cassette_manager, store=True)
     complete_image_history = sdk_image.model_dump(mode="python", exclude_unset=True)
+    # The legal projection keeps the `id`: the API requires it on
+    # image-generation input items and resolves it against the persisted item,
+    # so the setup request must leave `store` enabled.
     image_input = {
         "type": sdk_image.type,
         "id": sdk_image.id,
@@ -113,7 +116,6 @@ async def test_image_generation_output_history_round_trip_through_sdk(cassette_m
         "input": [user_input, image_input],
         "tools": [EDIT_TOOL],
         "tool_choice": {"type": "image_generation"},
-        "store": False,
     }
     # The SDK oracle receives the legal input projection. Molto receives the
     # complete prior output and must reconstruct that same canonical request.

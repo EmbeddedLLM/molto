@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 
 from app import ServerSettings, create_app
 from loguru import logger
@@ -31,6 +32,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=("critical", "error", "warning", "info", "debug"),
         default="info",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Reject unsupported request parameters instead of dropping and ignoring them",
+    )
     return parser
 
 
@@ -56,6 +62,8 @@ def main() -> None:
         raise SystemExit("--port must be between 1 and 65535.")
 
     settings = ServerSettings.from_env()
+    if args.strict:
+        settings = replace(settings, strict=True)
 
     logger.info(
         "SERVER\n  host: {}\n  port: {}",

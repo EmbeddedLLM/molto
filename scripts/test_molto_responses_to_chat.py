@@ -17,8 +17,8 @@ async def main() -> None:
         OpenAIChatCompletionRequest(
             model=f"openai/{MODEL}",
             messages=[{"role": "user", "content": QUESTION}],
+            upstream="responses",
         ),
-        upstream="responses",
     )
     print_value(
         "Molto Chat request -> Responses execution -> Chat non-stream output",
@@ -30,8 +30,8 @@ async def main() -> None:
             model=f"openai/{MODEL}",
             messages=[{"role": "user", "content": QUESTION}],
             stream=True,
+            upstream="responses",
         ),
-        upstream="responses",
     )
     await print_stream(
         "Molto Chat request -> Responses execution -> Chat stream output",

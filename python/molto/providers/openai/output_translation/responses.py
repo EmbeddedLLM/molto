@@ -146,6 +146,7 @@ def _response_events(payload: dict[str, Any]) -> list[OutputEvent]:
                 status=ItemStatus.IN_PROGRESS,
                 call_id=str(raw_item.get("call_id") or item_id),
                 name=str(raw_item.get("name") or ""),
+                namespace=str(raw_item.get("namespace") or None),
                 arguments="",
             )
             events.append(emitter.item_added(item_index, item))

@@ -325,6 +325,15 @@ class OpenAIFunctionToolCall(BaseModel):
         str,
         Field(description=("The name of the function to run.")),
     ]
+    namespace: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The namespace the called function belongs to. "
+                "Populated for functions declared inside a namespace tool."
+            )
+        ),
+    ] = None
     type: Annotated[
         Literal["function_call"],
         Field(description=("The type of the function tool call. Always `function_call`.")),
@@ -971,6 +980,55 @@ class OpenAIResponsesFunctionTool(BaseModel):
     ] = None
 
 
+class OpenAIResponsesNamespaceFunctionTool(OpenAIResponsesFunctionTool):
+    """A function declared inside a namespace tool."""
+
+    defer_loading: Annotated[
+        bool | None,
+        Field(
+            description=(
+                "When `true`, the function definition is deferred and the model loads it "
+                "through tool search before calling it."
+            )
+        ),
+    ] = None
+    output_schema: Annotated[
+        dict[str, Any] | None,
+        Field(description="A JSON schema describing the function's output."),
+    ] = None
+
+
+class OpenAIResponsesNamespaceTool(BaseModel):
+    """A named group of function tools the model can search and call."""
+
+    name: Annotated[
+        str,
+        Field(
+            description=(
+                "The name of the namespace. "
+                "Function calls for its members carry this value in their `namespace` field."
+            )
+        ),
+    ]
+    tools: Annotated[
+        list[OpenAIResponsesNamespaceFunctionTool],
+        Field(description=("The function tools grouped under this namespace.")),
+    ]
+    description: Annotated[
+        str | None,
+        Field(
+            description=(
+                "A description of the namespace. "
+                "Used by the model to decide when to load and call its functions."
+            )
+        ),
+    ] = None
+    type: Annotated[
+        Literal["namespace"],
+        Field(description=("The type of the tool. Always `namespace`.")),
+    ] = "namespace"
+
+
 class OpenAIResponsesMcpTool(BaseModel):
     """MCP server declaration for gateway-side execution."""
 
@@ -1211,6 +1269,7 @@ OpenAIResponsesTool = Annotated[
     | OpenAIResponsesCodeTool
     | OpenAIResponsesImageGenerationTool
     | OpenAIResponsesFunctionTool
+    | OpenAIResponsesNamespaceTool
     | OpenAIResponsesMcpTool,
     Field(discriminator="type", description="The type of tool."),
 ]
@@ -1219,6 +1278,7 @@ OpenAIResponsesOutputTool = Annotated[
     | OpenAIResponsesCodeTool
     | OpenAIResponsesOutputImageGenerationTool
     | OpenAIResponsesFunctionTool
+    | OpenAIResponsesNamespaceTool
     | OpenAIResponsesMcpTool,
     Field(discriminator="type", description="The type of tool returned by the provider."),
 ]

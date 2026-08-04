@@ -37,7 +37,14 @@ from molto.types.openai.responses import (
 from molto.types.openai.responses import (
     from_output_ir as responses_from_output_ir,
 )
+from molto.types.openai.responses.to_ir import prepare_responses_request
 from molto.utils.exceptions import BadInputError
+
+
+def default_upstream_for(model: str, public_endpoint: OpenAIEndpoint) -> OpenAIEndpoint:
+    """Resolve the provider-aware endpoint used when the caller omits routing."""
+
+    return "chat_completions" if model.startswith("anthropic/") else public_endpoint
 
 
 async def _execute(
@@ -71,32 +78,36 @@ async def _execute(
 class Molto:
     """Public gateway entry point.
 
+    Transport configuration (``api_key``, ``base_url``, ``max_retries``,
+    ``http_client``) is passed per call, so a single gateway can serve
+    multiple providers and credentials. ``strict`` controls capability
+    enforcement: strict mode rejects unsupported request features, non-strict
+    mode drops and ignores them.
+
     Resource contract: caller-injected HTTP clients stay caller-owned and are
     never closed by Molto. Each provider closes its own SDK-created client
     after the response completes or the stream is exhausted, so `close` is a
     documented no-op kept for API symmetry.
     """
 
-    def __init__(
-        self,
-        http_client: AsyncClient | None = None,
-        *,
-        base_url: str | None = None,
-        max_retries: int = 2,
-    ) -> None:
-        self._http_client = http_client
-        self._base_url = base_url
-        self._max_retries = max_retries
+    def __init__(self, *, strict: bool = False) -> None:
+        self._strict = strict
 
     async def close(self) -> None:
         """Release Molto-owned resources (see the class resource contract)."""
 
-    def _check_model(self, model: str, *, allowed_prefixes: tuple[str, ...]) -> None:
+    def _check_model(
+        self,
+        model: str,
+        *,
+        base_url: str | None,
+        allowed_prefixes: tuple[str, ...],
+    ) -> None:
         """Reject unsupported model prefixes and vLLM without an explicit base_url."""
 
         if not any(model.startswith(prefix) for prefix in allowed_prefixes):
             raise ValueError(f"Unsupported model: {model}")
-        if model.startswith("vllm/") and self._base_url is None:
+        if model.startswith("vllm/") and base_url is None:
             raise BadInputError("vLLM execution requires an explicit base_url.")
 
     def _create_provider(
@@ -105,27 +116,35 @@ class Molto:
         *,
         upstream: OpenAIEndpoint,
         api_key: str | None,
+        base_url: str | None,
+        max_retries: int,
+        http_client: AsyncClient | None,
     ) -> OpenAIProvider:
         """Validate one provider/upstream route before constructing its SDK client."""
 
-        self._check_model(ir.model, allowed_prefixes=("openai/", "vllm/", "anthropic/"))
+        self._check_model(
+            ir.model,
+            base_url=base_url,
+            allowed_prefixes=("openai/", "vllm/", "anthropic/"),
+        )
         if upstream not in ("chat_completions", "responses"):
             raise BadInputError(f"Unsupported upstream endpoint: {upstream}")
 
-        provider_base_url = self._base_url
+        provider_base_url = base_url
         if ir.model.startswith("anthropic/"):
-            provider_base_url = self._base_url or "https://api.anthropic.com/v1/"
+            provider_base_url = base_url or "https://api.anthropic.com/v1/"
 
         return create_provider_after_validation(
             provider_contract_for(ir.model, upstream),
             ir,
             lambda: OpenAIProvider(
                 upstream,
-                http_client=self._http_client,
+                http_client=http_client,
                 api_key=api_key,
                 base_url=provider_base_url,
-                max_retries=self._max_retries,
+                max_retries=max_retries,
             ),
+            strict=self._strict,
         )
 
     async def responses(
@@ -133,14 +152,27 @@ class Molto:
         body: OpenAIResponsesRequest,
         api_key: str | None = None,
         *,
-        upstream: OpenAIEndpoint = "responses",
+        upstream: OpenAIEndpoint | None = None,
+        base_url: str | None = None,
+        max_retries: int = 2,
+        http_client: AsyncClient | None = None,
     ) -> OpenAIResponsesResponse | AsyncIterator[OpenAIResponsesStreamEvent]:
         """Return Responses output using the selected OpenAI-compatible upstream."""
 
         if not isinstance(body, OpenAIResponsesRequest):
             raise BadInputError("Responses requests must use OpenAIResponsesRequest.")
-        ir = body.to_ir()
-        provider = self._create_provider(ir, upstream=upstream, api_key=api_key)
+        upstream = body.upstream or upstream
+        if upstream is None:
+            upstream = default_upstream_for(body.model, "responses")
+        ir = prepare_responses_request(body.model_copy(update={"upstream": None}), upstream)
+        provider = self._create_provider(
+            ir,
+            upstream=upstream,
+            api_key=api_key,
+            base_url=base_url,
+            max_retries=max_retries,
+            http_client=http_client,
+        )
 
         if upstream == "chat_completions":
             return await _execute(
@@ -161,14 +193,27 @@ class Molto:
         body: OpenAIChatCompletionRequest,
         api_key: str | None = None,
         *,
-        upstream: OpenAIEndpoint = "chat_completions",
+        upstream: OpenAIEndpoint | None = None,
+        base_url: str | None = None,
+        max_retries: int = 2,
+        http_client: AsyncClient | None = None,
     ) -> OpenAIChatCompletionResponse | AsyncIterator[OpenAIChatCompletionChunk]:
         """Return Chat output using the selected OpenAI-compatible upstream."""
 
         if not isinstance(body, OpenAIChatCompletionRequest):
             raise BadInputError("Chat Completions requests must use OpenAIChatCompletionRequest.")
-        ir = prepare_chat_request(body, upstream)
-        provider = self._create_provider(ir, upstream=upstream, api_key=api_key)
+        upstream = (
+            body.upstream or upstream or default_upstream_for(body.model, "chat_completions")
+        )
+        ir = prepare_chat_request(body.model_copy(update={"upstream": None}), upstream)
+        provider = self._create_provider(
+            ir,
+            upstream=upstream,
+            api_key=api_key,
+            base_url=base_url,
+            max_retries=max_retries,
+            http_client=http_client,
+        )
 
         if upstream == "responses":
             # The cross-endpoint Chat composer intentionally omits Responses reasoning items.

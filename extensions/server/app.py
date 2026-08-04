@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pprint import pformat
@@ -15,8 +15,8 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from httpx import AsyncClient
+from openai import OpenAIError
 from pydantic import BaseModel, ValidationError
-from starlette.datastructures import MutableHeaders
 
 try:
     from loguru import logger
@@ -26,16 +26,15 @@ except ImportError as exc:
     ) from exc
 
 from molto import Molto
+from molto.core import default_upstream_for
 from molto.providers.openai.types import OpenAIEndpoint
 from molto.types.openai.chat_completions import (
     OpenAIChatCompletionChunk,
     OpenAIChatCompletionRequest,
-    OpenAIChatCompletionResponse,
 )
 from molto.types.openai.responses import (
     OpenAIResponsesError,
     OpenAIResponsesRequest,
-    OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
 )
 from molto.utils.exceptions import (
@@ -69,9 +68,57 @@ _SENSITIVE_PARAMETER_NAMES = frozenset(
 )
 _MAX_LOGGED_STRING_LENGTH = 4000
 _IGNORED_CHAT_REQUEST_FIELDS = frozenset({"logit_bias", "thinking_budget", "chat_template_kwargs"})
+# Harness-injected transport metadata, not provider parameters.
+_IGNORED_REQUEST_FIELDS = frozenset({"client_metadata"})
 _NULL_CHAT_MESSAGE_PLACEHOLDERS = frozenset(
     {"reasoning_content", "reasoning", "tool_calls", "tool_call_id"}
 )
+
+# HTTP status / public message / error type / code for each Molto exception family.
+_MOLTO_ERRORS: dict[tuple[type[MoltoException], ...], tuple[int, str, ErrorType, str]] = {
+    (BadInputError, ModelCapabilityError): (
+        400,
+        "The request is invalid for the selected model or upstream.",
+        "invalid_request_error",
+        "invalid_request",
+    ),
+    (ContextOverflowError,): (
+        400,
+        "The request exceeds the selected model's context limit.",
+        "invalid_request_error",
+        "context_length_exceeded",
+    ),
+    (ExternalAuthError,): (
+        502,
+        "The upstream provider rejected the API key.",
+        "server_error",
+        "upstream_authentication_error",
+    ),
+    (ForbiddenError,): (
+        403,
+        "The upstream provider denied access to the requested resource.",
+        "server_error",
+        "upstream_forbidden",
+    ),
+    (ResourceNotFoundError,): (
+        404,
+        "The requested upstream resource was not found.",
+        "invalid_request_error",
+        "upstream_not_found",
+    ),
+    (RateLimitExceedError,): (
+        429,
+        "The upstream provider rate limit was exceeded.",
+        "server_error",
+        "rate_limit_exceeded",
+    ),
+    (ModelOverloadError, ServerBusyError): (
+        503,
+        "The upstream provider is temporarily unavailable.",
+        "server_error",
+        "upstream_unavailable",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -80,6 +127,7 @@ class ServerSettings:
 
     provider_base_url: str | None = None
     max_retries: int = 2
+    strict: bool = False
 
     @classmethod
     def from_env(cls) -> ServerSettings:
@@ -92,9 +140,11 @@ class ServerSettings:
             raise ValueError("MOLTO_SERVER_MAX_RETRIES must be an integer.") from exc
         if max_retries < 0:
             raise ValueError("MOLTO_SERVER_MAX_RETRIES must be non-negative.")
+        raw_strict = os.getenv("MOLTO_SERVER_STRICT", "")
         return cls(
             provider_base_url=os.getenv("MOLTO_SERVER_BASE_URL") or None,
             max_retries=max_retries,
+            strict=raw_strict.strip().lower() in {"1", "true", "yes", "on"},
         )
 
 
@@ -183,28 +233,24 @@ def _safe_params(value: Any) -> Any:
     return value
 
 
-def _request_block(request: Request) -> str:
-    params = _safe_params(getattr(request.state, "request_params", "<not parsed>"))
-    formatted_params = indent(pformat(params, sort_dicts=False, width=100), "    ")
-    return (
-        f"  request_id: {request.state.request_id}\n"
-        f"  endpoint: {getattr(request.state, 'endpoint', request.url.path)}\n"
-        f"  X-Molto-Upstream: {getattr(request.state, 'requested_upstream', '<omitted>')}\n"
-        f"  resolved_upstream: {getattr(request.state, 'resolved_upstream', '<unresolved>')}\n"
-        f"  params:\n{formatted_params}"
-    )
-
-
-def _request_summary(request: Request) -> str:
+def _request_block(request: Request, *, detailed: bool = False) -> str:
     params = getattr(request.state, "request_params", {})
-    model = params.get("model", "<unknown>") if isinstance(params, dict) else "<unknown>"
-    return (
-        f"  request_id: {request.state.request_id}\n"
-        f"  endpoint: {getattr(request.state, 'endpoint', request.url.path)}\n"
-        f"  X-Molto-Upstream: {getattr(request.state, 'requested_upstream', '<omitted>')}\n"
-        f"  resolved_upstream: {getattr(request.state, 'resolved_upstream', '<unresolved>')}\n"
-        f"  model: {model}"
-    )
+    lines = [
+        f"  request_id: {request.state.request_id}",
+        f"  endpoint: {getattr(request.state, 'endpoint', request.url.path)}",
+        f"  X-Molto-Upstream: {getattr(request.state, 'requested_upstream', '<omitted>')}",
+        f"  resolved_upstream: {getattr(request.state, 'resolved_upstream', '<unresolved>')}",
+    ]
+    if detailed:
+        formatted_params = indent(
+            pformat(_safe_params(params), sort_dicts=False, width=100), "    "
+        )
+        lines.append(f"  params:\n{formatted_params}")
+    elif isinstance(params, dict):
+        lines.append(f"  model: {params.get('model', '<unknown>')}")
+    else:
+        lines.append("  model: <unknown>")
+    return "\n".join(lines)
 
 
 def _verbose(request: Request) -> bool:
@@ -213,12 +259,7 @@ def _verbose(request: Request) -> bool:
 
 def _log_request(request: Request) -> None:
     if _verbose(request):
-        logger.info("REQUEST\n{}", _request_block(request))
-
-
-def _log_raw_request(request: Request) -> None:
-    if _verbose(request):
-        logger.info("RAW REQUEST JSON\n{}", request.state.raw_request_json)
+        logger.info("REQUEST\n{}", _request_block(request, detailed=True))
 
 
 def _log_response(request: Request, response: BaseModel) -> None:
@@ -236,12 +277,15 @@ def _log_response(request: Request, response: BaseModel) -> None:
 
 def _log_error(request: Request, exc: Exception, *, traceback: bool = False) -> None:
     event = logger.opt(exception=exc) if traceback else logger
-    details = _request_block(request) if _verbose(request) else _request_summary(request)
+    details = _request_block(request, detailed=_verbose(request))
+    exception_detail = str(exc)
+    if isinstance(exc, _ServerError):
+        exception_detail += f" (type={exc.error_type}, code={exc.code}, param={exc.param})"
     event.error(
         "ERROR\n{}\n  exception: {}: {}",
         details,
         type(exc).__name__,
-        str(exc),
+        exception_detail,
     )
 
 
@@ -265,60 +309,24 @@ def _error_response(
 
 
 def _molto_error(exc: MoltoException) -> tuple[int, str, ErrorType, str]:
-    if isinstance(exc, (BadInputError, ModelCapabilityError)):
-        return (
-            400,
-            "The request is invalid for the selected model or upstream.",
-            "invalid_request_error",
-            "invalid_request",
-        )
-    if isinstance(exc, ContextOverflowError):
-        return (
-            400,
-            "The request exceeds the selected model's context limit.",
-            "invalid_request_error",
-            "context_length_exceeded",
-        )
-    if isinstance(exc, ExternalAuthError):
-        return (
-            502,
-            "The upstream provider rejected the server credentials.",
-            "server_error",
-            "upstream_authentication_error",
-        )
-    if isinstance(exc, ForbiddenError):
-        return (
-            403,
-            "The upstream provider denied access to the requested resource.",
-            "server_error",
-            "upstream_forbidden",
-        )
-    if isinstance(exc, ResourceNotFoundError):
-        return (
-            404,
-            "The requested upstream resource was not found.",
-            "invalid_request_error",
-            "upstream_not_found",
-        )
-    if isinstance(exc, RateLimitExceedError):
-        return (
-            429,
-            "The upstream provider rate limit was exceeded.",
-            "server_error",
-            "rate_limit_exceeded",
-        )
-    if isinstance(exc, (ModelOverloadError, ServerBusyError)):
-        return (
-            503,
-            "The upstream provider is temporarily unavailable.",
-            "server_error",
-            "upstream_unavailable",
-        )
+    for exception_types, response in _MOLTO_ERRORS.items():
+        if isinstance(exc, exception_types):
+            return response
     return 500, "Internal server error.", "server_error", "internal_error"
 
 
-def _upstream(request: Request, *, default: OpenAIEndpoint) -> OpenAIEndpoint:
-    value = request.headers.get("X-Molto-Upstream")
+def _upstream(
+    request: Request,
+    body: OpenAIChatCompletionRequest | OpenAIResponsesRequest,
+    *,
+    default: OpenAIEndpoint,
+) -> OpenAIEndpoint:
+    header_upstream = request.headers.get("X-Molto-Upstream")
+    if body.upstream is not None:
+        request.state.requested_upstream = body.upstream
+        value = body.upstream
+    else:
+        value = header_upstream
     if value is None:
         request.state.resolved_upstream = default
         return default
@@ -345,13 +353,55 @@ def _chat_upstream(
     )
     if (
         request.headers.get("X-Molto-Upstream") is None
+        and body.upstream is None
         and is_openai_gpt_5_6
         and body.tools
         and body.reasoning_effort != "none"
     ):
-        MutableHeaders(raw=request.scope["headers"])["X-Molto-Upstream"] = "responses"
         request.state.requested_upstream = "responses"
-    return _upstream(request, default="chat_completions")
+        request.state.resolved_upstream = "responses"
+        return "responses"
+    return _upstream(request, body, default="chat_completions")
+
+
+def _prepare_payload(request: Request, payload: Any) -> Any:
+    """Drop transport metadata before validation and capture the API key.
+
+    ``client_metadata`` is harness-injected and ``api_key`` is a per-request
+    credential consumed by the server; neither is a provider parameter, and the
+    strict request models reject unknown fields.
+    """
+
+    if not isinstance(payload, dict):
+        return payload
+    api_key = payload.get("api_key")
+    request.state.api_key = (
+        api_key.strip() if isinstance(api_key, str) and api_key.strip() else None
+    )
+    return {
+        key: value
+        for key, value in payload.items()
+        if key not in _IGNORED_REQUEST_FIELDS and key != "api_key"
+    }
+
+
+def _request_api_key(request: Request) -> str | None:
+    """Return the per-request credential, or None to fall back to the server env.
+
+    A body-level ``api_key`` wins over ``Authorization: Bearer``, matching the
+    server's body-over-header precedence for ``upstream``.
+    """
+
+    body_key = getattr(request.state, "api_key", None)
+    if body_key is not None:
+        return body_key
+    authorization = request.headers.get("Authorization")
+    if not authorization:
+        return None
+    token = authorization.strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    return token or None
 
 
 async def _body(request: Request, model: type[RequestModel]) -> RequestModel:
@@ -374,7 +424,7 @@ async def _body(request: Request, model: type[RequestModel]) -> RequestModel:
             error_type="invalid_request_error",
             code="invalid_json",
         ) from exc
-    request.state.raw_request_json = (await request.body()).decode("utf-8")
+    payload = _prepare_payload(request, payload)
     request.state.request_params = payload
     if model is OpenAIChatCompletionRequest:
         payload = _normalize_chat_payload(payload)
@@ -423,7 +473,6 @@ def _chat_stream_error() -> str:
 
 async def _chat_sse(
     iterator: AsyncIterator[OpenAIChatCompletionChunk],
-    *,
     request: Request,
 ) -> AsyncIterator[str]:
     completed = False
@@ -443,7 +492,6 @@ async def _chat_sse(
 
 async def _responses_sse(
     iterator: AsyncIterator[OpenAIResponsesStreamEvent],
-    *,
     request: Request,
 ) -> AsyncIterator[str]:
     last_sequence_number = -1
@@ -464,6 +512,30 @@ async def _responses_sse(
         await _close_iterator(iterator, request=request)
 
 
+async def _serve(
+    request: Request,
+    *,
+    stream: bool,
+    execute: Callable[[str | None], Awaitable[Any]],
+    to_sse: Callable[[AsyncIterator[Any], Request], AsyncIterator[str]],
+) -> Response:
+    """Run one gateway call and render it as JSON or an SSE stream."""
+
+    result = await execute(_request_api_key(request))
+    if stream:
+        return StreamingResponse(
+            to_sse(cast(AsyncIterator[Any], result), request),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+    response = cast(BaseModel, result)
+    _log_response(request, response)
+    return Response(
+        response.model_dump_json(by_alias=True, exclude_none=False),
+        media_type="application/json",
+    )
+
+
 def create_app(
     settings: ServerSettings | None = None,
     *,
@@ -478,14 +550,12 @@ def create_app(
     async def lifespan(app: FastAPI):
         if gateway is not None:
             app.state.gateway = gateway
+            app.state.http_client = None
             yield
             return
         async with AsyncClient(timeout=None) as http_client:
-            app.state.gateway = Molto(
-                http_client=http_client,
-                base_url=resolved_settings.provider_base_url,
-                max_retries=resolved_settings.max_retries,
-            )
+            app.state.http_client = http_client
+            app.state.gateway = Molto(strict=resolved_settings.strict)
             yield
 
     app = FastAPI(
@@ -504,6 +574,7 @@ def create_app(
         request.state.requested_upstream = request.headers.get("X-Molto-Upstream", "<omitted>")
         request.state.resolved_upstream = "<unresolved>"
         request.state.request_params = "<not parsed>"
+        request.state.api_key = None
         response = await call_next(request)
         response.headers.setdefault("X-Request-ID", request.state.request_id)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -533,6 +604,19 @@ def create_app(
             message,
             error_type=error_type,
             code=code,
+        )
+
+    @app.exception_handler(OpenAIError)
+    async def sdk_client_error(request: Request, exc: OpenAIError) -> JSONResponse:
+        _log_error(request, exc, traceback=True)
+        return _error_response(
+            request,
+            401,
+            "No API key was provided. Pass one with the request "
+            "(Authorization: Bearer <key> or body `api_key`) or configure "
+            "the server's OPENAI_API_KEY.",
+            error_type="authentication_error",
+            code="missing_api_key",
         )
 
     @app.exception_handler(ValueError)
@@ -565,42 +649,41 @@ def create_app(
     @app.post("/v1/chat/completions", include_in_schema=False)
     async def chat_completions(request: Request) -> Response:
         body = await _body(request, OpenAIChatCompletionRequest)
-        #_log_raw_request(request)
         upstream = _chat_upstream(request, body)
         _log_request(request)
-        result = await request.app.state.gateway.chat_completions(body, upstream=upstream)
-        if body.stream:
-            iterator = cast(AsyncIterator[OpenAIChatCompletionChunk], result)
-            return StreamingResponse(
-                _chat_sse(iterator, request=request),
-                media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+
+        async def execute(api_key: str | None) -> Any:
+            return await request.app.state.gateway.chat_completions(
+                body,
+                api_key=api_key,
+                upstream=upstream,
+                http_client=request.app.state.http_client,
+                base_url=resolved_settings.provider_base_url,
+                max_retries=resolved_settings.max_retries,
             )
-        response = cast(OpenAIChatCompletionResponse, result)
-        _log_response(request, response)
-        return Response(
-            response.model_dump_json(by_alias=True, exclude_none=False),
-            media_type="application/json",
-        )
+
+        return await _serve(request, stream=body.stream, execute=execute, to_sse=_chat_sse)
 
     @app.post("/v1/responses", include_in_schema=False)
     async def responses(request: Request) -> Response:
         body = await _body(request, OpenAIResponsesRequest)
-        upstream = _upstream(request, default="responses")
-        _log_request(request)
-        result = await request.app.state.gateway.responses(body, upstream=upstream)
-        if body.stream:
-            iterator = cast(AsyncIterator[OpenAIResponsesStreamEvent], result)
-            return StreamingResponse(
-                _responses_sse(iterator, request=request),
-                media_type="text/event-stream",
-                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-            )
-        response = cast(OpenAIResponsesResponse, result)
-        _log_response(request, response)
-        return Response(
-            response.model_dump_json(by_alias=True, exclude_none=False),
-            media_type="application/json",
+        upstream = _upstream(
+            request,
+            body,
+            default=default_upstream_for(body.model, "responses"),
         )
+        _log_request(request)
+
+        async def execute(api_key: str | None) -> Any:
+            return await request.app.state.gateway.responses(
+                body,
+                api_key=api_key,
+                upstream=upstream,
+                http_client=request.app.state.http_client,
+                base_url=resolved_settings.provider_base_url,
+                max_retries=resolved_settings.max_retries,
+            )
+
+        return await _serve(request, stream=body.stream, execute=execute, to_sse=_responses_sse)
 
     return app

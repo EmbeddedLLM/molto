@@ -1,0 +1,205 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '733'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.48.0
+  body:
+    input:
+    - role: user
+      content: Fetch the profile of customer CUST-12345.
+    model: gpt-5.6
+    stream: true
+    tool_choice: required
+    tools:
+    - type: namespace
+      name: crm
+      description: CRM tools for customer lookup and order management.
+      tools:
+      - type: function
+        name: get_customer_profile
+        description: Fetch a customer profile by customer ID.
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+      - type: function
+        name: list_open_orders
+        description: List open orders for a customer ID.
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_04945bd1f996a735006a71aa0b5b88819997fc477fd1b13eb9","object":"response","created_at":1785833995,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-sol","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"namespace","description":"CRM
+    tools for customer lookup and order management.","name":"crm","tools":[{"type":"function","description":"Fetch
+    a customer profile by customer ID.","name":"get_customer_profile","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true},{"type":"function","description":"List
+    open orders for a customer ID.","name":"list_open_orders","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true}]}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_04945bd1f996a735006a71aa0b5b88819997fc477fd1b13eb9","object":"response","created_at":1785833995,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-sol","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"namespace","description":"CRM
+    tools for customer lookup and order management.","name":"crm","tools":[{"type":"function","description":"Fetch
+    a customer profile by customer ID.","name":"get_customer_profile","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true},{"type":"function","description":"List
+    open orders for a customer ID.","name":"list_open_orders","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true}]}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","type":"function_call","status":"in_progress","arguments":"","call_id":"call_rdRegq8p03rYCU3436EKG2oo","name":"get_customer_profile","namespace":"crm"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"d7x3dSi46WQXHI","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"customer","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"7GL05vFw","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"_id","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"ve4M5ADI8veke","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"ls0osHfVbNxWZ","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"C","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"cum3AKPKdsj53HW","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"UST","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"omiyw2rrb5Dib","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"-","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"eoibsBwd9DTdHek","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"123","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"l11vkr4sPyxjk","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"45","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"pkJVuZQh0NBZ06","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","obfuscation":"NV8K16MYP40s1G","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"customer_id\":\"CUST-12345\"}","item_id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","type":"function_call","status":"completed","arguments":"{\"customer_id\":\"CUST-12345\"}","call_id":"call_rdRegq8p03rYCU3436EKG2oo","name":"get_customer_profile","namespace":"crm"},"output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_04945bd1f996a735006a71aa0b5b88819997fc477fd1b13eb9","object":"response","created_at":1785833995,"status":"completed","background":false,"completed_at":1785833996,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-sol","moderation":null,"output":[{"id":"fc_04945bd1f996a735006a71aa0c14488199a2b1f3d3d488b82d","type":"function_call","status":"completed","arguments":"{\"customer_id\":\"CUST-12345\"}","call_id":"call_rdRegq8p03rYCU3436EKG2oo","name":"get_customer_profile","namespace":"crm"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"namespace","description":"CRM
+    tools for customer lookup and order management.","name":"crm","tools":[{"type":"function","description":"Fetch
+    a customer profile by customer ID.","name":"get_customer_profile","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true},{"type":"function","description":"List
+    open orders for a customer ID.","name":"list_open_orders","output_schema":null,"parameters":{"type":"object","properties":{"customer_id":{"type":"string"}},"required":["customer_id"],"additionalProperties":false},"strict":true}]}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":81,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":24,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":105},"user":null,"metadata":{}},"sequence_number":15}
+
+    '
+  - '
+
+    '

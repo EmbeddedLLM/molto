@@ -1,0 +1,153 @@
+request:
+  method: POST
+  path: /v1/responses
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '734'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.48.0
+  body:
+    input:
+    - role: user
+      content: Fetch the profile of customer CUST-12345.
+    model: gpt-5.6
+    stream: false
+    tool_choice: required
+    tools:
+    - type: namespace
+      name: crm
+      description: CRM tools for customer lookup and order management.
+      tools:
+      - type: function
+        name: get_customer_profile
+        description: Fetch a customer profile by customer ID.
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+      - type: function
+        name: list_open_orders
+        description: List open orders for a customer ID.
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: resp_0ffa3e67be3c5739006a71aa0db314819aa3ae1408a02aae14
+    object: response
+    created_at: 1785833997
+    status: completed
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1785833998
+    error: null
+    frequency_penalty: 0.0
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    model: gpt-5.6-sol
+    moderation: null
+    output:
+    - id: fc_0ffa3e67be3c5739006a71aa0ed394819aafa92a469f9fcede
+      type: function_call
+      status: completed
+      arguments: '{"customer_id":"CUST-12345"}'
+      call_id: call_76csBOhkejpsAWVVLrcRxcSc
+      name: get_customer_profile
+      namespace: crm
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: 24h
+    reasoning:
+      context: all_turns
+      effort: medium
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools:
+    - type: namespace
+      description: CRM tools for customer lookup and order management.
+      name: crm
+      tools:
+      - type: function
+        description: Fetch a customer profile by customer ID.
+        name: get_customer_profile
+        output_schema: null
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+        strict: true
+      - type: function
+        description: List open orders for a customer ID.
+        name: list_open_orders
+        output_schema: null
+        parameters:
+          type: object
+          properties:
+            customer_id:
+              type: string
+          required:
+          - customer_id
+          additionalProperties: false
+        strict: true
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 81
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 24
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 105
+    user: null
+    metadata: {}

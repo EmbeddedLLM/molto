@@ -9,7 +9,7 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
-from molto.utils.io import read_yaml
+from tests.support.io import read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "openai" / "responses" / "test_interface"
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
@@ -65,6 +65,7 @@ async def _mock_responses(
     provider: Literal["openai", "vllm"] = "openai",
     api_key: str | None = None,
     base_url: str | None = None,
+    http_client: AsyncClient | None = None,
 ) -> AsyncIterator[BaseModel]:
     # Mock validation
     if "messages" in body:
@@ -73,8 +74,8 @@ async def _mock_responses(
             [{"type": "extra_forbidden", "loc": ("messages",), "input": body["messages"]}],
         )
 
-    assert self._http_client is not None
-    response = await self._http_client.post(
+    assert http_client is not None
+    response = await http_client.post(
         f"https://api.openai.com/v1/{endpoint}",
         json=body,
     )
@@ -96,7 +97,7 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
     ]
 
     async with _get_http_client(cassette_names) as http_client:
-        client = Molto(http_client=http_client)
+        client = Molto()
 
         # --- Extra inputs --- #
         cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
@@ -107,7 +108,8 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
                         {"role": "user", "content": "Write one short sentence about the ocean."}
                     ],
                     **cassette["request"]["body"],
-                )
+                ),
+                http_client=http_client,
             )
 
 
@@ -120,13 +122,14 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
     ]
 
     async with _get_http_client(cassette_names) as http_client:
-        client = Molto(http_client=http_client)
+        client = Molto()
 
         # --- Multi turn --- #
         for _ in range(2):
             cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
             response = await client.responses(
                 body=cassette["request"]["body"],
+                http_client=http_client,
             )
             events = [event async for event in response]
             expected_sse_events = [
@@ -149,13 +152,14 @@ async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
     ]
 
     async with _get_http_client(cassette_names) as http_client:
-        client = Molto(http_client=http_client)
+        client = Molto()
 
         # --- Multi turn --- #
         for _ in range(2):
             cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
             response = await client.responses(
                 body=cassette["request"]["body"],
+                http_client=http_client,
             )
             events = [event async for event in response]
             expected_sse_events = [

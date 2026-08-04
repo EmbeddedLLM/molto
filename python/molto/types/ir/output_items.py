@@ -40,6 +40,7 @@ class FunctionCallItem(IRModel):
     status: ItemStatus
     call_id: StableId
     name: FunctionName
+    namespace: StableId | None = None
     arguments: str
 
 

@@ -115,7 +115,6 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
         "seed",
         "service_tier",
         "stop",
-        "store",
     )
     supplied = [
         field
@@ -185,6 +184,7 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
             if request.stream_options is not None
             else None
         ),
+        store=request.store,
         prompt_cache_key=request.prompt_cache_key,
         prompt_cache_retention=request.prompt_cache_retention,
         safety_identifier=request.safety_identifier,

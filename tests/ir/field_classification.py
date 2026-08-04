@@ -23,6 +23,7 @@ _PREFIX_OWNERS: tuple[tuple[str, FrozenFieldOwner], ...] = (
     ("response.tools[].web_search", FrozenFieldOwner.RESPONSES_SNAPSHOT),
     ("response.tools[].code_interpreter", FrozenFieldOwner.RESPONSES_SNAPSHOT),
     ("response.tools[].image_generation", FrozenFieldOwner.RESPONSES_SNAPSHOT),
+    ("response.tools[].namespace", FrozenFieldOwner.RESPONSES_SNAPSHOT),
     ("response.usage.input_tokens_details.cache_write_tokens", FrozenFieldOwner.USAGE_DETAILS),
     ("response.tool_usage", FrozenFieldOwner.TOOL_USAGE),
     ("response.billing", FrozenFieldOwner.RESPONSE_METADATA),

@@ -18,6 +18,7 @@ from molto.types.ir.request_items import (
     WebSearchCallRequestItem,
 )
 from molto.types.ir.tools import (
+    OPENAI_WEB_SEARCH_TOOL_TYPES,
     AllowedFunctionTools,
     FunctionToolChoice,
     OpenAIHostedToolChoice,
@@ -97,11 +98,12 @@ class RequestRequirements(IRModel):
 
 
 class ProviderContract(IRModel):
-    """One OpenAI-compatible endpoint's advertised request contract."""
+    """One endpoint's effective and explicitly ignored request features."""
 
     provider: ProviderName
     endpoint: str
     features: frozenset[RequestFeature]
+    ignored_features: frozenset[RequestFeature] = frozenset()
 
 
 def derive_request_capabilities(request: InputIR) -> RequestRequirements:
@@ -176,7 +178,10 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
         features.add(feature)
     for tool in request.tools:
         if isinstance(tool, OpenAIHostedToolDefinition):
-            features.add(RequestFeature.TOOL_HOSTED)
+            if tool.tool_type in OPENAI_WEB_SEARCH_TOOL_TYPES:
+                features.add(RequestFeature.TOOL_WEB_SEARCH)
+            else:
+                features.add(RequestFeature.TOOL_HOSTED)
             continue
         features.add(RequestFeature.TOOL_FUNCTION)
         if tool.strict is not None:
@@ -206,8 +211,16 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
 def validate_provider_request(
     provider_contract: ProviderContract,
     request: InputIR,
+    *,
+    strict: bool = False,
 ) -> RequestRequirements:
-    """Reject unsupported requests before provider construction."""
+    """Reject unsupported requests before provider construction.
+
+    With ``strict=True`` every request feature the contract does not fully
+    honor raises, including the ``ignored_features`` carve-out. Without it,
+    unsupported features are dropped and ignored so the request proceeds with
+    the supported subset.
+    """
 
     required = derive_request_capabilities(request)
     if (
@@ -218,15 +231,17 @@ def validate_provider_request(
             f"State owned by provider {required.state_provider!r} cannot be used with "
             f"provider {provider_contract.provider!r}."
         )
-    missing_features = required.features - provider_contract.features
-    if missing_features:
-        details = ", ".join(
-            feature.value for feature in sorted(missing_features, key=lambda value: value.value)
-        )
-        raise ModelCapabilityError(
-            f"Provider {provider_contract.provider!r} endpoint {provider_contract.endpoint!r} does not support: "
-            f"{details}."
-        )
+    if strict:
+        missing_features = required.features - provider_contract.features
+        if missing_features:
+            details = ", ".join(
+                feature.value
+                for feature in sorted(missing_features, key=lambda value: value.value)
+            )
+            raise ModelCapabilityError(
+                f"Provider {provider_contract.provider!r} endpoint {provider_contract.endpoint!r} does not support: "
+                f"{details}."
+            )
     return required
 
 
@@ -237,10 +252,12 @@ def create_provider_after_validation(
     provider_contract: ProviderContract,
     request: InputIR,
     factory: Callable[[], ProviderT],
+    *,
+    strict: bool = False,
 ) -> ProviderT:
     """Construct a provider only after capability validation succeeds."""
 
-    validate_provider_request(provider_contract, request)
+    validate_provider_request(provider_contract, request, strict=strict)
     return factory()
 
 
@@ -283,6 +300,7 @@ OPENAI_CHAT_CAPABILITIES = ProviderContract(
         RequestFeature.CONFIG_MODALITIES,
         RequestFeature.CONFIG_STREAM_OPTIONS,
         RequestFeature.CONFIG_STREAM_INCLUDE_USAGE,
+        RequestFeature.CONFIG_STORE,
         RequestFeature.TOOL_WEB_SEARCH,
     },
 )
@@ -323,11 +341,46 @@ VLLM_RESPONSES_CAPABILITIES = ProviderContract(
 )
 
 # Anthropic models are addressed through their OpenAI-compatible Chat endpoint;
-# no Anthropic-native request or event translator is part of the contract.
+# no Anthropic-native request or event translator is part of the contract. Keep
+# fields that the compatibility endpoint accepts but ignores out of `features`
+# so the contract does not promise semantics that Anthropic does not provide.
+# Hosted tools (including web search) are rejected: the compatibility endpoint
+# validates `tools[].type` as function-only and has no web search field.
 ANTHROPIC_OPENAI_CHAT_CAPABILITIES = ProviderContract(
     provider="anthropic",
     endpoint="chat_completions",
-    features=_COMMON_TEXT_FEATURES,
+    features=frozenset(
+        {
+            RequestFeature.STREAM,
+            RequestFeature.INPUT_TEXT,
+            RequestFeature.INPUT_FUNCTION_CALL,
+            RequestFeature.INPUT_FUNCTION_RESULT,
+            RequestFeature.OUTPUT_TEXT,
+            RequestFeature.CONFIG_MAX_OUTPUT_TOKENS,
+            RequestFeature.CONFIG_TEMPERATURE,
+            RequestFeature.CONFIG_TOP_P,
+            RequestFeature.CONFIG_PARALLEL_TOOL_CALLS,
+            RequestFeature.CONFIG_STREAM_OPTIONS,
+            RequestFeature.CONFIG_STREAM_INCLUDE_USAGE,
+            RequestFeature.TOOL_FUNCTION,
+            RequestFeature.TOOL_CHOICE_NONE,
+            RequestFeature.TOOL_CHOICE_AUTO,
+            RequestFeature.TOOL_CHOICE_REQUIRED,
+            RequestFeature.TOOL_CHOICE_FUNCTION,
+        }
+    ),
+    ignored_features=frozenset(
+        {
+            RequestFeature.OUTPUT_JSON_OBJECT,
+            RequestFeature.OUTPUT_JSON_SCHEMA,
+            RequestFeature.CONFIG_FREQUENCY_PENALTY,
+            RequestFeature.CONFIG_PRESENCE_PENALTY,
+            RequestFeature.CONFIG_TOP_LOGPROBS,
+            RequestFeature.CONFIG_REASONING_EFFORT,
+            RequestFeature.CONFIG_STORE,
+            RequestFeature.TOOL_FUNCTION_STRICT,
+        }
+    ),
 )
 ANTHROPIC_CAPABILITIES = ANTHROPIC_OPENAI_CHAT_CAPABILITIES
 

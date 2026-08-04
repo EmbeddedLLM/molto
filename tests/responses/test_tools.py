@@ -7,6 +7,8 @@ from openai.types.responses import (
 
 from molto.types.openai.responses import (
     OpenAIFunctionToolCall,
+    OpenAIResponsesNamespaceTool,
+    OpenAIResponsesResponse,
     OpenAIResponsesStreamOutput,
     OpenAIResponsesWebSearchFilters,
     OpenAIResponsesWebSearchTool,
@@ -193,3 +195,130 @@ async def test_web_search_tool_round_trip_through_sdk(stream: bool, cassette_man
     assert assistant_msgs[0].status == "completed"
     assert len(assistant_msgs[0].content) >= 1
     assert len(assistant_msgs[0].content[0].text) > 0
+
+
+EXPECTED_NAMESPACE_TOOL = {
+    "type": "namespace",
+    "name": "crm",
+    "description": "CRM tools for customer lookup and order management.",
+    "tools": [
+        {
+            "type": "function",
+            "name": "get_customer_profile",
+            "description": "Fetch a customer profile by customer ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {"customer_id": {"type": "string"}},
+                "required": ["customer_id"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "type": "function",
+            "name": "list_open_orders",
+            "description": "List open orders for a customer ID.",
+            "defer_loading": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"customer_id": {"type": "string"}},
+                "required": ["customer_id"],
+                "additionalProperties": False,
+            },
+        },
+    ],
+}
+
+
+def test_namespace_tool_and_call_fields_survive_response_validation() -> None:
+    """Preserve namespace metadata when parsing and re-serializing a Responses snapshot."""
+
+    payload = {
+        "id": "resp_1",
+        "object": "response",
+        "created_at": 1,
+        "model": "gpt-5.6",
+        "status": "completed",
+        "output": [
+            {
+                "type": "function_call",
+                "id": "fc_1",
+                "call_id": "call_1",
+                "name": "list_open_orders",
+                "namespace": "crm",
+                "arguments": '{"customer_id":"CUST-12345"}',
+                "status": "completed",
+            }
+        ],
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [EXPECTED_NAMESPACE_TOOL],
+        "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+    }
+
+    response = OpenAIResponsesResponse.model_validate(payload)
+
+    tool = response.tools[0]
+    assert isinstance(tool, OpenAIResponsesNamespaceTool)
+    assert tool.name == EXPECTED_NAMESPACE_TOOL["name"]
+    assert [function.name for function in tool.tools] == [
+        "get_customer_profile",
+        "list_open_orders",
+    ]
+    assert tool.tools[1].defer_loading is True
+
+    call = response.output[0]
+    assert isinstance(call, OpenAIFunctionToolCall)
+    assert call.namespace == "crm"
+
+    assert response.model_dump(mode="python", exclude_unset=True) == payload
+
+
+@pytest.mark.parametrize("stream", **STREAM_PARAMS)
+async def test_namespace_tool_round_trip_through_sdk(stream: bool, cassette_manager):
+    """Verify namespace tool and namespaced-call parity against SDK-parsed cassettes.
+
+    Example:
+        # stream=True records/replays the default stream cassette and yields a
+        # function_call carrying the namespace field.
+    """
+
+    # The API rejects defer_loading without tools.tool_search; deferred loading
+    # is covered by the validation test above, so the round trip omits it.
+    namespace_tool = {
+        **EXPECTED_NAMESPACE_TOOL,
+        "tools": [
+            {key: value for key, value in function.items() if key != "defer_loading"}
+            for function in EXPECTED_NAMESPACE_TOOL["tools"]
+        ],
+    }
+    req_body = dict(
+        model="gpt-5.6",
+        input=[{"role": "user", "content": "Fetch the profile of customer CUST-12345."}],
+        tool_choice="required",
+        tools=[namespace_tool],
+        stream=stream,
+    )
+
+    parity = await run_responses_parity(cassette_manager, req_body)
+    sdk_response = parity.sdk_response
+    response = parity.molto_response
+
+    assert sdk_response.status == "completed"
+
+    sdk_fc = next(o for o in sdk_response.output if isinstance(o, ResponseFunctionToolCall))
+    assert sdk_fc.name == "get_customer_profile"
+    assert sdk_fc.namespace == EXPECTED_NAMESPACE_TOOL["name"]
+
+    fc = next(o for o in response.output if isinstance(o, OpenAIFunctionToolCall))
+    assert fc.namespace == EXPECTED_NAMESPACE_TOOL["name"]
+    assert fc.name == sdk_fc.name
+    assert fc.call_id == sdk_fc.call_id
+
+    assert len(response.tools) == 1
+    molto_tool = response.tools[0]
+    assert isinstance(molto_tool, OpenAIResponsesNamespaceTool)
+    assert molto_tool.name == EXPECTED_NAMESPACE_TOOL["name"]
+    assert [function.name for function in molto_tool.tools] == [
+        "get_customer_profile",
+        "list_open_orders",
+    ]

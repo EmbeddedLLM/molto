@@ -7,6 +7,14 @@ from pydantic import Field, model_validator
 from .base import IRModel, StableId
 
 FunctionName = StableId
+OPENAI_WEB_SEARCH_TOOL_TYPES = frozenset(
+    {
+        "web_search",
+        "web_search_2025_08_26",
+        "web_search_preview",
+        "web_search_preview_2025_03_11",
+    }
+)
 
 
 class FunctionToolDefinition(IRModel):

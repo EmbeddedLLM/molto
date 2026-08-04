@@ -15,17 +15,27 @@ be represented completely is rejected.
 
 `Molto.responses()` accepts `OpenAIResponsesRequest` and returns OpenAI Responses
 output. `Molto.chat_completions()` accepts `OpenAIChatCompletionRequest` and
-returns Chat Completions output. Their keyword-only `upstream` parameter selects
-the execution endpoint and defaults to the matching protocol. Cross-endpoint
+returns Chat Completions output. The request's optional `upstream` field selects
+the execution endpoint ahead of the keyword-only `upstream` fallback and the
+provider-aware default; it is consumed before the request becomes `InputIR`.
+Cross-endpoint
 conversion is limited to data that both protocols can represent, except for the
 documented omission of Responses reasoning items from Chat output.
+
+Transport configuration is per call: both methods accept `api_key`, `base_url`,
+`max_retries`, and `http_client`, so a single `Molto` instance can serve
+multiple providers and credentials. `Molto` is constructed with only the
+`strict` flag, which controls unsupported request parameters: by default they
+are dropped and ignored, while `Molto(strict=True)` raises
+`ModelCapabilityError` before provider construction.
 
 Models use these prefixes:
 
 - `openai/`: official OpenAI endpoints.
 - `vllm/`: OpenAI-compatible endpoints with an explicit `base_url`.
 - `anthropic/`: Anthropic's OpenAI-compatible Chat endpoint; the Anthropic-native
-  Messages API is not supported by Molto.
+  Messages API is not supported by Molto. Both public methods default to this
+  Chat upstream for Anthropic models.
 
 Generated Chat audio is supported through the Chat Completions destination.
 Standard OpenAI Responses hosted tools are supported on the matching Responses

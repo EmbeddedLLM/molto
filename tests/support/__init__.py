@@ -626,9 +626,14 @@ def make_molto_client(
     *,
     cassette_suffix: str | None = None,
 ) -> Molto:
-    """Create a Molto instance backed by playback-only cassette transport."""
-    return Molto(
-        http_client=httpx.AsyncClient(
+    """Create a Molto instance backed by playback-only cassette transport.
+
+    Transport configuration is passed per call, so the cassette client and
+    retry setting are bound into a thin gateway wrapper.
+    """
+
+    return _CassetteGateway(
+        httpx.AsyncClient(
             transport=OpenAICassetteTransport(
                 cassette_manager,
                 cassette_suffix=cassette_suffix,
@@ -637,6 +642,66 @@ def make_molto_client(
         ),
         max_retries=0,
     )
+
+
+class _CassetteGateway(Molto):
+    """Molto that injects a cassette transport into every call."""
+
+    def __init__(self, http_client: httpx.AsyncClient, *, max_retries: int) -> None:
+        super().__init__()
+        self._cassette_http_client = http_client
+        self._cassette_max_retries = max_retries
+
+    @staticmethod
+    def _resolve_api_key(api_key: str | None) -> str | None:
+        """Resolve Molto credentials for playback from the env config.
+
+        Mirrors ``make_openai_client``: an explicit key wins, otherwise the
+        configured ``MOLTO_OPENAI_API_KEY`` is used. Playback never validates
+        the key, so an unset config falls back to a placeholder.
+        """
+
+        if api_key is not None:
+            return api_key
+        return ENV_CONFIG.openai_api_key_plain or "test-api-key"
+
+    async def responses(
+        self,
+        body: OpenAIResponsesRequest,
+        api_key: str | None = None,
+        *,
+        upstream: str | None = None,
+        base_url: str | None = None,
+        max_retries: int | None = None,
+        http_client: httpx.AsyncClient | None = None,
+    ):
+        return await super().responses(
+            body,
+            api_key=self._resolve_api_key(api_key),
+            upstream=upstream,
+            base_url=base_url,
+            max_retries=self._cassette_max_retries if max_retries is None else max_retries,
+            http_client=self._cassette_http_client if http_client is None else http_client,
+        )
+
+    async def chat_completions(
+        self,
+        body: OpenAIChatCompletionRequest,
+        api_key: str | None = None,
+        *,
+        upstream: str | None = None,
+        base_url: str | None = None,
+        max_retries: int | None = None,
+        http_client: httpx.AsyncClient | None = None,
+    ):
+        return await super().chat_completions(
+            body,
+            api_key=self._resolve_api_key(api_key),
+            upstream=upstream,
+            base_url=base_url,
+            max_retries=self._cassette_max_retries if max_retries is None else max_retries,
+            http_client=self._cassette_http_client if http_client is None else http_client,
+        )
 
 
 @dataclass

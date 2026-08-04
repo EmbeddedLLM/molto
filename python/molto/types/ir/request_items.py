@@ -157,6 +157,7 @@ class FunctionCallRequestItem(IRModel):
     status: ItemStatus | None = None
     call_id: StableId
     name: FunctionName
+    namespace: StableId | None = None
     arguments: str
 
 

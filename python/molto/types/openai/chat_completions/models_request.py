@@ -427,6 +427,13 @@ class OpenAIChatCompletionRequest(BaseModel):
         str,
         Field(description="The model to use for generating the chat completion."),
     ]
+    upstream: Annotated[
+        Literal["responses", "chat_completions"] | None,
+        Field(
+            exclude=True,
+            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
+        ),
+    ] = None
     audio: Annotated[
         ChatCompletionAudioConfig | None,
         Field(description="Parameters for generated audio output."),
