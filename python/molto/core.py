@@ -40,11 +40,13 @@ class Molto:
         api_key: str | None = None,
         base_url: str | None = None,
     ):
-        """_summary_
+        """
+        Consume OpenAI Responses request and return Responses output.
+        The upstream format can be either OpenAI Responses or OpenAI Chat Completions.
 
         Args:
             body (BaseModel | dict[str, Any]): Request payload.
-            endpoint (Literal["responses", "chat/completions"], optional): Inference endpoint to use.
+            endpoint (Literal["responses", "chat/completions"], optional): Upstream endpoint / format to use.
                 Defaults to "responses".
             provider (Literal["openai", "vllm"], optional): Provider serving the requested model.
                 Defaults to "openai".
