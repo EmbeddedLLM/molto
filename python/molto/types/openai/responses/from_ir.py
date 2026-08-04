@@ -134,20 +134,20 @@ def from_output_ir(output: OutputIR) -> OpenAIResponsesResponse:
 async def from_output_event_stream(
     events: AsyncIterable[OutputEvent],
 ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-    """Compose a terminal OpenAI Responses event from semantic output."""
+    """Compose a Responses stream, forwarding matching native frames immediately."""
 
-    event_values = tuple([event async for event in events])
-    matching_frames = [
-        event
-        for event in event_values
-        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "responses"
-    ]
-    if matching_frames:
-        for event in matching_frames:
+    event_values: list[OutputEvent] = []
+    matching_frames = False
+    async for event in events:
+        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "responses":
+            matching_frames = True
             yield parse_stream_event(json.loads(event.payload_json))
+            continue
+        event_values.append(event)
+    if matching_frames:
         return
 
-    sequence = OutputEventSequence(events=event_values)
+    sequence = OutputEventSequence(events=tuple(event_values))
     output = OutputIR.from_output_events(sequence)
     response = _response_values(output)
     event_type = {

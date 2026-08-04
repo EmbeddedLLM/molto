@@ -336,10 +336,12 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
     request.update(
         _without_none(
             {
+                "prompt_cache_key": ir.prompt_cache_key,
+                "prompt_cache_retention": ir.prompt_cache_retention,
+                "safety_identifier": ir.safety_identifier,
+                "user": ir.user,
                 "temperature": generation.temperature,
                 "top_p": generation.top_p,
-                "frequency_penalty": generation.frequency_penalty,
-                "presence_penalty": generation.presence_penalty,
                 "top_logprobs": generation.top_logprobs,
                 "parallel_tool_calls": generation.parallel_tool_calls,
                 "max_output_tokens": generation.max_output_tokens,

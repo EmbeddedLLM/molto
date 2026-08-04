@@ -23,6 +23,7 @@ from molto.types.ir.portable import (
     OutputItemAddedEvent,
     OutputItemDoneEvent,
     OutputTextPart,
+    PreservedOpenAIStreamEvent,
     ReasoningItem,
     ReasoningSummaryPart,
     ResponseCompletedEvent,
@@ -286,11 +287,8 @@ def test_removed_chat_request_fields_fail_validation() -> None:
 @pytest.mark.parametrize(
     "unsupported",
     [
-        {"prompt_cache_key": "cache-key"},
-        {"prompt_cache_retention": "24h"},
         {"service_tier": "default"},
         {"store": False},
-        {"user": "user-1"},
     ],
 )
 def test_chat_fields_without_ir_reject(unsupported: dict) -> None:
@@ -301,6 +299,27 @@ def test_chat_fields_without_ir_reject(unsupported: dict) -> None:
     )
 
     with pytest.raises(BadInputError, match="without an IR representation"):
+        request.to_ir()
+
+
+def test_chat_n_one_uses_the_single_completion_ir_contract() -> None:
+    request = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+        n=1,
+    )
+
+    assert request.to_ir().model == "openai/gpt-4.1-nano"
+
+
+def test_chat_multiple_choices_reject_without_an_ir_representation() -> None:
+    request = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+        n=2,
+    )
+
+    with pytest.raises(BadInputError, match="n values other than 1"):
         request.to_ir()
 
 
@@ -498,21 +517,87 @@ async def test_responses_state_rejects_chat_upstream_before_provider_constructio
         await Molto().responses(request, upstream="chat_completions")
 
 
-async def test_chat_stream_usage_option_rejects_responses_upstream_before_construction(
+async def test_chat_stream_usage_option_is_removed_for_responses_upstream(
     monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    class _ResponsesProvider:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self, request):
+            captured["stream_options"] = request.stream_options
+            captured["generation"] = request.generation
+            captured["payload"] = build_openai_request(request, "responses")
+
+            async def events():
+                payload = {
+                    "type": "response.completed",
+                    "sequence_number": 1,
+                    "response": {
+                        "id": "resp_1",
+                        "object": "response",
+                        "created_at": 1,
+                        "model": "gpt-5.6-luna",
+                        "status": "completed",
+                        "output": [],
+                        "usage": {
+                            "input_tokens": 1,
+                            "output_tokens": 2,
+                            "total_tokens": 3,
+                        },
+                    },
+                }
+                yield PreservedOpenAIStreamEvent(
+                    response_id="resp_1",
+                    sequence_number=1,
+                    endpoint="responses",
+                    event_type="response.completed",
+                    payload_json=json.dumps(payload),
+                )
+
+            return events()
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", _ResponsesProvider)
+    request = OpenAIChatCompletionRequest(
+        model="openai/gpt-5.6-luna",
+        messages=[{"role": "user", "content": "hi"}],
+        stream=True,
+        stream_options={"include_usage": True},
+        frequency_penalty=0,
+        presence_penalty=0,
+    )
+
+    result = await Molto().chat_completions(request, upstream="responses")
+    chunks = [chunk async for chunk in result]
+
+    assert captured["stream_options"] is None
+    assert captured["generation"].frequency_penalty == 0
+    assert captured["generation"].presence_penalty == 0
+    assert "frequency_penalty" not in captured["payload"]
+    assert "presence_penalty" not in captured["payload"]
+    assert chunks[0].choices[0].finish_reason == "stop"
+    assert chunks[0].usage is None
+    assert len(chunks) == 1
+
+
+@pytest.mark.parametrize("field", ["frequency_penalty", "presence_penalty"])
+async def test_chat_non_neutral_penalty_rejects_responses_upstream_before_construction(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
 ) -> None:
     def unexpected_provider(*_args, **_kwargs):
         raise AssertionError("OpenAIProvider must not be constructed")
 
     monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
     request = OpenAIChatCompletionRequest(
-        model="openai/gpt-4.1-nano",
+        model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
-        stream=True,
-        stream_options={"include_usage": True},
+        **{field: 0.5},
     )
 
-    with pytest.raises(ModelCapabilityError, match="include_usage"):
+    with pytest.raises(ModelCapabilityError, match=field):
         await Molto().chat_completions(request, upstream="responses")
 
 

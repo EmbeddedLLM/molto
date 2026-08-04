@@ -223,6 +223,10 @@ class _ResponsesRequestBase(BaseModel):
             ),
         ),
     ] = None
+    user: Annotated[
+        str | None,
+        Field(description="A stable identifier for your end users."),
+    ] = None
 
     def to_ir(self) -> InputIR:
         from .to_ir import _responses_request_to_ir

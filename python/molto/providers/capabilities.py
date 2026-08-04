@@ -168,8 +168,12 @@ def derive_request_capabilities(request: InputIR) -> RequestRequirements:
             features.add(RequestFeature.INPUT_RESPONSE_HISTORY)
 
     for field, feature in _CONFIG_FEATURES.items():
-        if getattr(request.generation, field) is not None:
-            features.add(feature)
+        value = getattr(request.generation, field)
+        if value is None:
+            continue
+        if field in {"frequency_penalty", "presence_penalty"} and value == 0:
+            continue
+        features.add(feature)
     for tool in request.tools:
         if isinstance(tool, OpenAIHostedToolDefinition):
             features.add(RequestFeature.TOOL_HOSTED)
@@ -289,8 +293,6 @@ OPENAI_RESPONSES_CAPABILITIES = ProviderContract(
     features=_COMMON_TEXT_FEATURES
     | {
         RequestFeature.INPUT_IMAGE,
-        RequestFeature.CONFIG_FREQUENCY_PENALTY,
-        RequestFeature.CONFIG_PRESENCE_PENALTY,
         RequestFeature.CONFIG_TOP_LOGPROBS,
         RequestFeature.CONFIG_REASONING_SUMMARY,
         RequestFeature.CONFIG_MAX_TOOL_CALLS,

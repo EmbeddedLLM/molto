@@ -4,14 +4,12 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from molto.configs import ENV_CONFIG
-
 MODEL = "gpt-4.1-mini"
 QUESTION = "How many Rs are in strawberry?"
 
 
 def openai_client() -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=ENV_CONFIG.openai_api_key_plain or "missing-api-key")
+    return AsyncOpenAI()
 
 
 def print_value(label: str, value: Any) -> None:

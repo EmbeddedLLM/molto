@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from molto.types.ir.portable import (
     AllowedFunctionTools,
@@ -105,15 +105,17 @@ def _chat_messages_to_ir(messages: list[ChatCompletionMessage]):
 def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
     """Convert a public Chat request into the portable OpenAI contract."""
 
+    # InputIR represents one completion. n=1 is the OpenAI default and therefore
+    # has no independent IR field; larger choice sets cannot be reconstructed.
+    if request.n not in (None, 1):
+        raise BadInputError("Chat n values other than 1 are unsupported.")
+
     unsupported_fields = (
         "logprobs",
-        "prompt_cache_key",
-        "prompt_cache_retention",
         "seed",
         "service_tier",
         "stop",
         "store",
-        "user",
     )
     supplied = [
         field
@@ -183,6 +185,10 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
             if request.stream_options is not None
             else None
         ),
+        prompt_cache_key=request.prompt_cache_key,
+        prompt_cache_retention=request.prompt_cache_retention,
+        safety_identifier=request.safety_identifier,
+        user=request.user,
         items=_chat_messages_to_ir(request.messages),
         output_format=output_format,
         generation=GenerationConfig(
@@ -212,3 +218,15 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
         tools=tools,
         tool_choice=tool_choice,
     )
+
+
+def prepare_chat_request(
+    request: OpenAIChatCompletionRequest,
+    upstream: Literal["chat_completions", "responses"],
+) -> InputIR:
+    """Build provider input for the selected Chat upstream."""
+
+    provider_ir = request_to_ir(request)
+    if upstream == "responses":
+        provider_ir = provider_ir.model_copy(update={"stream_options": None})
+    return provider_ir

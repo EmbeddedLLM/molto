@@ -5,6 +5,7 @@ from pydantic import TypeAdapter
 from molto.providers.openai.request_translation import build_openai_request
 from molto.types.ir.portable import InputIR
 from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai.chat_completions.to_ir import prepare_chat_request
 from molto.types.openai.responses import OpenAIResponsesRequest
 from molto.utils.exceptions import BadInputError
 
@@ -23,6 +24,22 @@ def test_chat_request_builds_canonical_openai_payload() -> None:
     }
 
 
+def test_chat_request_preparation_removes_responses_unsupported_stream_options() -> None:
+    request = OpenAIChatCompletionRequest(
+        model="openai/gpt-test",
+        messages=[{"role": "user", "content": "hello"}],
+        stream=True,
+        stream_options={"include_usage": True},
+    )
+
+    chat = prepare_chat_request(request, "chat_completions")
+    responses = prepare_chat_request(request, "responses")
+
+    assert chat.stream_options is not None
+    assert chat.stream_options.include_usage is True
+    assert responses.stream_options is None
+
+
 def test_responses_request_builds_canonical_openai_payload() -> None:
     request = OpenAIResponsesRequest(model="openai/gpt-test", input="hello")
 
@@ -30,6 +47,69 @@ def test_responses_request_builds_canonical_openai_payload() -> None:
         "model": "gpt-test",
         "input": "hello",
     }
+
+
+@pytest.mark.parametrize("field", ["frequency_penalty", "presence_penalty"])
+def test_responses_sdk_payload_rejects_unsupported_penalties(field: str) -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input="hello",
+        **{field: 0.5},
+    )
+
+    with pytest.raises(BadInputError, match=field):
+        build_openai_request(request.to_ir(), "responses")
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "openai_request", "expected"),
+    [
+        (
+            "chat_completions",
+            OpenAIChatCompletionRequest(
+                model="openai/gpt-test",
+                messages=[{"role": "user", "content": "hello"}],
+                prompt_cache_key="cache-key",
+                prompt_cache_retention="24h",
+                safety_identifier="safety-id",
+                user="legacy-user",
+            ),
+            {
+                "model": "gpt-test",
+                "messages": [{"role": "user", "content": "hello"}],
+                "prompt_cache_key": "cache-key",
+                "prompt_cache_retention": "24h",
+                "safety_identifier": "safety-id",
+                "user": "legacy-user",
+            },
+        ),
+        (
+            "responses",
+            OpenAIResponsesRequest(
+                model="openai/gpt-test",
+                input="hello",
+                prompt_cache_key="cache-key",
+                prompt_cache_retention="24h",
+                safety_identifier="safety-id",
+                user="legacy-user",
+            ),
+            {
+                "model": "gpt-test",
+                "input": "hello",
+                "prompt_cache_key": "cache-key",
+                "prompt_cache_retention": "24h",
+                "safety_identifier": "safety-id",
+                "user": "legacy-user",
+            },
+        ),
+    ],
+)
+def test_shared_openai_request_metadata_survives_ir(
+    endpoint: str,
+    openai_request: OpenAIChatCompletionRequest | OpenAIResponsesRequest,
+    expected: dict,
+) -> None:
+    assert build_openai_request(openai_request.to_ir(), endpoint) == expected
 
 
 def test_responses_stateless_web_search_history_round_trips_through_ir() -> None:

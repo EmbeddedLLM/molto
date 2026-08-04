@@ -14,7 +14,6 @@ from openai._exceptions import (
     RateLimitError,
 )
 
-from molto.configs import ENV_CONFIG
 from molto.providers.openai.output_translation import (
     chat_response_to_output_events,
     chat_stream_to_output_events,
@@ -76,7 +75,7 @@ class OpenAIProvider:
         # Caller-supplied transports stay caller-owned: Molto never closes them.
         self._owns_http_client = owns_sdk_client(sdk_client=None, http_client=http_client)
         self._client = AsyncOpenAI(
-            api_key=api_key or ENV_CONFIG.openai_api_key_plain or "missing-api-key",
+            api_key=api_key,
             base_url=base_url,
             http_client=http_client,
             max_retries=max_retries,

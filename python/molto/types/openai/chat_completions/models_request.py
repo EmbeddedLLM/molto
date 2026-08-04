@@ -478,6 +478,13 @@ class OpenAIChatCompletionRequest(BaseModel):
             ),
         ),
     ] = None
+    n: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of completion choices to generate.",
+        ),
+    ] = None
     modalities: Annotated[
         list[Literal["text", "audio"]] | None,
         Field(description="The output modalities requested from the model."),
@@ -526,8 +533,12 @@ class OpenAIChatCompletionRequest(BaseModel):
         Field(description="Cache key for prompt prefix caching."),
     ] = None
     prompt_cache_retention: Annotated[
-        str | None,
+        Literal["in_memory", "24h"] | None,
         Field(description="Retention policy for prompt cache entries."),
+    ] = None
+    safety_identifier: Annotated[
+        str | None,
+        Field(description="A stable identifier for your end users."),
     ] = None
     service_tier: Annotated[
         str | None,

@@ -107,22 +107,22 @@ def from_output_ir(output: OutputIR) -> OpenAIChatCompletionResponse:
 async def from_output_event_stream(
     events: AsyncIterable[OutputEvent],
 ) -> AsyncIterator[OpenAIChatCompletionChunk]:
-    """Compose a valid Chat stream from the complete semantic event sequence."""
+    """Compose a Chat stream, forwarding matching native frames immediately."""
 
-    event_values = tuple([event async for event in events])
-    matching_frames = [
-        event
-        for event in event_values
-        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat_completions"
-    ]
-    if matching_frames:
-        for event in matching_frames:
+    event_values: list[OutputEvent] = []
+    matching_frames = False
+    async for event in events:
+        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat_completions":
+            matching_frames = True
             if event.event_type != "chat.completion.chunk":
                 raise ValueError(f"Unexpected OpenAI Chat stream event {event.event_type!r}.")
             yield OpenAIChatCompletionChunk.model_validate(json.loads(event.payload_json))
+            continue
+        event_values.append(event)
+    if matching_frames:
         return
 
-    sequence = OutputEventSequence(events=event_values)
+    sequence = OutputEventSequence(events=tuple(event_values))
     output = OutputIR.from_output_events(sequence)
     values = _response_values(output)
     choice = values["choices"][0]

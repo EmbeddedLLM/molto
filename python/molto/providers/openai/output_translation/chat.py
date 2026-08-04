@@ -13,7 +13,7 @@ from molto.types.ir.output_items import AssistantMessageItem, FunctionCallItem, 
 from molto.utils.exceptions import BadInputError
 
 from ..usage import usage_from_openai
-from .stream import attach_openai_stream_frames
+from .stream import openai_stream_frame
 
 
 def _metadata(payload: dict[str, Any], choice: dict[str, Any] | None = None) -> ResponseMetadata:
@@ -241,7 +241,26 @@ async def chat_stream_to_output_events(
 ) -> AsyncIterator[OutputEvent]:
     """Translate a Chat stream into the same semantic event sequence."""
 
-    chunks = [payload async for payload in payloads]
+    chunks: list[dict[str, Any]] = []
+    response_id: str | None = None
+    async for payload in payloads:
+        chunks.append(payload)
+        if response_id is None:
+            response_id = str(payload.get("id") or "chat_response")
+            choices = payload.get("choices") or []
+            choice = choices[0] if choices else None
+            yield OutputEventEmitter(
+                response_id,
+                metadata=_metadata(payload, choice),
+            ).started()
+        yield openai_stream_frame(
+            response_id,
+            len(chunks),
+            payload,
+            "chat_completions",
+        )
+    if not chunks:
+        raise BadInputError("OpenAI Chat stream returned no events.")
     semantic_events = _response_events(_combine_stream(chunks))
-    for event in attach_openai_stream_frames(semantic_events, chunks, "chat_completions"):
-        yield event
+    for index, event in enumerate(semantic_events[1:], start=len(chunks) + 1):
+        yield event.model_copy(update={"sequence_number": index})

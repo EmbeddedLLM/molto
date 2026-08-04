@@ -310,9 +310,6 @@ def _responses_request_to_ir(request) -> InputIR:
     unsupported_fields = (
         "background",
         "extra_body",
-        "prompt_cache_key",
-        "prompt_cache_retention",
-        "safety_identifier",
         "service_tier",
         "truncation",
     )
@@ -359,6 +356,10 @@ def _responses_request_to_ir(request) -> InputIR:
             else None
         ),
         store=request.store,
+        prompt_cache_key=request.prompt_cache_key,
+        prompt_cache_retention=request.prompt_cache_retention,
+        safety_identifier=request.safety_identifier,
+        user=request.user,
         instructions=request.instructions,
         include=tuple(request.include) if request.include is not None else None,
         items=_input_items_to_ir(request.input),

@@ -42,6 +42,10 @@ def test_request_capabilities_cover_supported_openai_fields() -> None:
 def test_compatible_endpoint_contracts_are_explicit() -> None:
     assert RequestFeature.INPUT_AUDIO in OPENAI_CHAT_CAPABILITIES.features
     assert RequestFeature.INPUT_AUDIO not in OPENAI_RESPONSES_CAPABILITIES.features
+    assert RequestFeature.CONFIG_FREQUENCY_PENALTY in OPENAI_CHAT_CAPABILITIES.features
+    assert RequestFeature.CONFIG_FREQUENCY_PENALTY not in OPENAI_RESPONSES_CAPABILITIES.features
+    assert RequestFeature.CONFIG_PRESENCE_PENALTY in OPENAI_CHAT_CAPABILITIES.features
+    assert RequestFeature.CONFIG_PRESENCE_PENALTY not in OPENAI_RESPONSES_CAPABILITIES.features
     assert RequestFeature.INPUT_IMAGE not in ANTHROPIC_OPENAI_CHAT_CAPABILITIES.features
 
 

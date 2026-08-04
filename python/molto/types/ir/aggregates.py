@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import model_validator
 
 from .base import IRModel, ResponseStatus, StableId
@@ -33,6 +35,10 @@ class InputIR(IRModel):
     stream: bool | None
     stream_options: StreamOptions | None = None
     store: bool | None = None
+    prompt_cache_key: str | None = None
+    prompt_cache_retention: Literal["in_memory", "24h"] | None = None
+    safety_identifier: str | None = None
+    user: str | None = None
     instructions: str | None = None
     include: tuple[str, ...] | None = None
     items: tuple[RequestItem, ...]

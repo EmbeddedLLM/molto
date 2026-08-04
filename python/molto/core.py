@@ -3,7 +3,6 @@ from typing import Any
 
 from httpx import AsyncClient
 
-from molto.configs import ENV_CONFIG
 from molto.providers import (
     OpenAIProvider,
     create_provider_after_validation,
@@ -20,6 +19,7 @@ from molto.types.openai.chat_completions import (
     from_output_event_stream as chat_from_output_event_stream,
 )
 from molto.types.openai.chat_completions import from_output_ir as chat_from_output_ir
+from molto.types.openai.chat_completions.to_ir import prepare_chat_request
 from molto.types.openai.cross_endpoint import (
     chat_from_responses_output_event_stream,
     chat_from_responses_output_ir,
@@ -112,10 +112,8 @@ class Molto:
         if upstream not in ("chat_completions", "responses"):
             raise BadInputError(f"Unsupported upstream endpoint: {upstream}")
 
-        provider_api_key = api_key
         provider_base_url = self._base_url
         if ir.model.startswith("anthropic/"):
-            provider_api_key = api_key or ENV_CONFIG.anthropic_api_key_plain
             provider_base_url = self._base_url or "https://api.anthropic.com/v1/"
 
         return create_provider_after_validation(
@@ -124,7 +122,7 @@ class Molto:
             lambda: OpenAIProvider(
                 upstream,
                 http_client=self._http_client,
-                api_key=provider_api_key,
+                api_key=api_key,
                 base_url=provider_base_url,
                 max_retries=self._max_retries,
             ),
@@ -169,7 +167,7 @@ class Molto:
 
         if not isinstance(body, OpenAIChatCompletionRequest):
             raise BadInputError("Chat Completions requests must use OpenAIChatCompletionRequest.")
-        ir = body.to_ir()
+        ir = prepare_chat_request(body, upstream)
         provider = self._create_provider(ir, upstream=upstream, api_key=api_key)
 
         if upstream == "responses":

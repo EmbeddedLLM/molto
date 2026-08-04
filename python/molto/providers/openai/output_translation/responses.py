@@ -27,7 +27,7 @@ from molto.types.ir.output_items import (
 from molto.utils.exceptions import BadInputError
 
 from ..usage import usage_from_openai
-from .stream import attach_openai_response_snapshot, attach_openai_stream_frames
+from .stream import attach_openai_response_snapshot, openai_stream_frame
 
 
 def _metadata(payload: dict[str, Any]) -> ResponseMetadata:
@@ -242,14 +242,30 @@ async def responses_stream_to_output_events(
 
     payload_values: list[dict[str, Any]] = []
     response: dict[str, Any] | None = None
+    response_id: str | None = None
     async for payload in payloads:
         payload_values.append(payload)
+        if response_id is None:
+            candidate = payload.get("response")
+            if isinstance(candidate, dict):
+                response_id = str(candidate.get("id") or "responses_response")
+                yield OutputEventEmitter(
+                    response_id,
+                    metadata=_metadata(candidate),
+                ).started()
+            else:
+                response_id = str(payload.get("id") or "responses_response")
+                yield OutputEventEmitter(response_id).started()
+        yield openai_stream_frame(
+            response_id,
+            len(payload_values),
+            payload,
+            "responses",
+        )
         if isinstance(payload.get("response"), dict):
             response = payload["response"]
     if response is None:
         raise BadInputError("OpenAI Responses stream did not contain a terminal response.")
-    semantic_events = attach_openai_response_snapshot(
-        _response_events(response), response, "responses"
-    )
-    for event in attach_openai_stream_frames(semantic_events, payload_values, "responses"):
-        yield event
+    semantic_events = _response_events(response)
+    for index, event in enumerate(semantic_events[1:], start=len(payload_values) + 1):
+        yield event.model_copy(update={"sequence_number": index})
