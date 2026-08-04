@@ -87,8 +87,6 @@ OpenAI frames coexist with semantic events: matching-format adapters consume the
 frames, while cross-format adapters consume only semantics.
 No source frame appears in a cross-format public response.
 
-## Module ownership
-
 - `python/molto/types/openai/*`: public OpenAI request/response models and their
   request/output adapters.
 - `python/molto/types/ir/*`: strict portable models, event invariants, emitter,
