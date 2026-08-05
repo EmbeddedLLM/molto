@@ -178,14 +178,18 @@ def test_chat_completions_event_comparison_preserves_reconstructable_fields():
     def as_sse(events: list[dict[str, Any]]) -> list[str]:
         return [f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events]
 
-    assert [_reconstructable_responses_event(sse) for sse in as_sse(actual_events)] == [
-        _reconstructable_responses_event(sse) for sse in as_sse(expected_events)
-    ]
+    def reconstructable(
+        events: list[dict[str, Any]], body: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        return [_reconstructable_responses_event(sse, body) for sse in as_sse(events)]
+
+    assert reconstructable(actual_events, {}) == reconstructable(expected_events, {})
+    assert reconstructable(actual_events, {"background": False}) != reconstructable(
+        expected_events, {"background": False}
+    )
 
     actual_events[1]["response"]["model"] = "different-model"
-    assert [_reconstructable_responses_event(sse) for sse in as_sse(actual_events)] != [
-        _reconstructable_responses_event(sse) for sse in as_sse(expected_events)
-    ]
+    assert reconstructable(actual_events, {}) != reconstructable(expected_events, {})
 
 
 async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
