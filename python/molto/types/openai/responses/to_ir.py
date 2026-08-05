@@ -181,6 +181,7 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
                 RequestMessageItem(
                     role=item.role,
                     content=_content_to_ir(item.content),
+                    phase=item.phase,
                     input_form="responses_item",
                     type_present="type" in item.model_fields_set,
                 )
@@ -203,6 +204,7 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
                     id=item.id,
                     summary=tuple(part.text for part in item.summary),
                     content=tuple(part.text for part in item.content),
+                    content_present="content" in item.model_fields_set,
                     encrypted_content=item.encrypted_content,
                     status=ItemStatus(item.status) if item.status is not None else None,
                 )

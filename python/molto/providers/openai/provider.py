@@ -1,8 +1,9 @@
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from httpx import AsyncClient
-from openai import AsyncOpenAI
+from httpx import AsyncClient, Response
+from openai import APIError, AsyncOpenAI
 from openai._exceptions import (
     APIConnectionError,
     APIStatusError,
@@ -43,6 +44,52 @@ _OPENAI_SDK_EXCEPTIONS = {
 }
 
 _CONTEXT_ERROR_CODES = frozenset({"context_length_exceeded"})
+
+
+async def _sse_payload_stream(response: Response) -> AsyncIterator[dict[str, Any]]:
+    """Yield decoded JSON payloads from one streaming SSE response.
+
+    Raw frames preserve the provider's exact key order and value types, which
+    SDK-parsed events cannot (model dumps reorder keys and coerce numbers).
+    """
+
+    data_lines: list[str] = []
+    try:
+        async for line in response.aiter_lines():
+            if line.startswith("data:"):
+                data = line[5:]
+                data_lines.append(data[1:] if data.startswith(" ") else data)
+                continue
+            # Only `data:` lines carry payloads; `event:`/`id:`/comment lines
+            # are dropped, and a blank line dispatches the buffered event.
+            if line or not data_lines:
+                continue
+            data = "\n".join(data_lines)
+            data_lines = []
+            if data == "[DONE]":
+                return
+            yield _stream_payload(data, response)
+    finally:
+        await response.aclose()
+
+
+def _stream_payload(data: str, response: Response) -> dict[str, Any]:
+    """Decode one SSE data payload, raising provider stream errors.
+
+    Mirrors the official SDK stream contract: a frame whose payload carries an
+    `error` object aborts iteration with `APIError`, which `map_openai_error`
+    translates like any other SDK failure.
+    """
+
+    payload = json.loads(data)
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            message = error.get("message")
+            if not isinstance(message, str) or not message:
+                message = "An error occurred during streaming"
+            raise APIError(message=message, request=response.request, body=error)
+    return payload
 
 
 def map_openai_error(exc: Exception) -> MoltoException:
@@ -113,6 +160,15 @@ class OpenAIProvider:
             yield event
 
     async def _create(self, native_request: dict[str, Any]) -> Any:
-        if self.endpoint == "responses":
-            return await self._client.responses.create(**native_request)
-        return await self._client.chat.completions.create(**native_request)
+        resource = (
+            self._client.responses
+            if self.endpoint == "responses"
+            else self._client.chat.completions
+        )
+        if native_request.get("stream"):
+            # Stream raw SSE frames: SDK-parsed events lose the provider's exact
+            # payload (key order, integer timestamps) that same-format replay
+            # needs, so preserve frames from the raw HTTP response instead.
+            raw = await resource.with_raw_response.create(**native_request)
+            return _sse_payload_stream(raw.http_response)
+        return await resource.create(**native_request)

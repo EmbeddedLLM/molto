@@ -13,24 +13,24 @@ OpenAI stream-frame and response-snapshot events. Provider-native event models
 and generic passthrough payloads are not part of the contract; data that cannot
 be represented completely is rejected.
 
-`Molto.responses()` accepts an `OpenAIResponsesBody` or a validated mapping and
-returns OpenAI Responses output. `Molto.chat_completions()` likewise accepts an
-`OpenAIChatCompletionBody` or mapping and returns Chat Completions output.
-Pass the provider and its unprefixed model separately, while keyword-only
-`endpoint` selects the execution endpoint:
+`Molto.responses()` accepts a complete OpenAI Responses request mapping and
+returns OpenAI Responses output. `Molto.chat_completions()` likewise accepts a
+complete Chat Completions request mapping and returns Chat Completions output.
+Their `model` field stays in the OpenAI-shaped request body; bare model names
+use the OpenAI-compatible adapter, while provider-qualified names select their
+adapter. Keyword-only `endpoint` selects the execution endpoint:
 
 ```python
 await Molto().responses(
-    {"input": "Summarize this document."},
-    provider="openai",
-    model="gpt-5.6",
+    {"model": "gpt-5.6", "input": "Summarize this document."},
     endpoint="responses",
 )
 ```
 
 The endpoint is consumed before the request becomes `InputIR`; the public
-method continues to own the output format. Legacy complete request models with
-provider-qualified `model` values remain accepted for direct adapter callers.
+method continues to own the output format. `OpenAIResponsesBody` and
+`OpenAIChatCompletionBody` remain available when callers intentionally supply
+provider and model separately.
 Cross-endpoint
 conversion is limited to data that both protocols can represent, except for the
 documented omission of Responses reasoning items from Chat output.

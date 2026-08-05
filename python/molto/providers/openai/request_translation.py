@@ -161,6 +161,8 @@ def _responses_input(ir) -> str | list[dict[str, Any]]:
             message = {"role": item.role, "content": _responses_content(item)}
             if item.type_present:
                 message["type"] = "message"
+            if item.phase is not None:
+                message["phase"] = item.phase
             result.append(message)
         elif isinstance(item, FunctionCallRequestItem):
             result.append(
@@ -188,22 +190,18 @@ def _responses_input(ir) -> str | list[dict[str, Any]]:
                 )
             )
         elif isinstance(item, ReasoningRequestItem):
-            result.append(
-                _without_none(
-                    {
-                        "type": "reasoning",
-                        "id": item.id,
-                        "summary": [
-                            {"type": "summary_text", "text": text} for text in item.summary
-                        ],
-                        "content": [
-                            {"type": "reasoning_text", "text": text} for text in item.content
-                        ],
-                        "encrypted_content": item.encrypted_content,
-                        "status": item.status.value if item.status is not None else None,
-                    }
-                )
-            )
+            reasoning = {
+                "type": "reasoning",
+                "id": item.id,
+                "summary": [{"type": "summary_text", "text": text} for text in item.summary],
+                "encrypted_content": item.encrypted_content,
+                "status": item.status.value if item.status is not None else None,
+            }
+            if item.content_present:
+                reasoning["content"] = [
+                    {"type": "reasoning_text", "text": text} for text in item.content
+                ]
+            result.append(_without_none(reasoning))
         elif isinstance(item, WebSearchCallRequestItem):
             action = item.action.model_dump(mode="python", exclude_none=True)
             if "queries" in action:

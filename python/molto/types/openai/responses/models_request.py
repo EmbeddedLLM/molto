@@ -446,7 +446,9 @@ class OpenAIResponsesRequest(OpenAIResponsesBody):
 
     model: Annotated[
         str,
-        Field(description="The provider-qualified model used to generate the response."),
+        Field(
+            description="The model used to generate the response; an optional provider prefix selects a non-OpenAI adapter."
+        ),
     ]
     endpoint: Annotated[
         Literal["responses", "chat_completions"] | None,

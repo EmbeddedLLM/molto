@@ -50,6 +50,44 @@ def test_responses_request_builds_canonical_openai_payload() -> None:
     }
 
 
+def test_responses_easy_assistant_message_builds_canonical_openai_payload() -> None:
+    input_items = [
+        {
+            "role": "assistant",
+            "content": "Earlier answer.",
+            "phase": "final_answer",
+        }
+    ]
+    SDK_RESPONSE_INPUT.validate_python(input_items)
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input=input_items,
+    )
+
+    assert build_openai_request(request.to_ir(), "responses") == {
+        "model": "gpt-test",
+        "input": input_items,
+    }
+
+
+def test_responses_reasoning_history_preserves_omitted_content() -> None:
+    input_items = [
+        {
+            "type": "reasoning",
+            "id": "rs_1",
+            "summary": [],
+            "encrypted_content": "encrypted-state",
+        }
+    ]
+    SDK_RESPONSE_INPUT.validate_python(input_items)
+    request = OpenAIResponsesRequest(model="openai/gpt-test", input=input_items)
+
+    assert build_openai_request(request.to_ir(), "responses") == {
+        "model": "gpt-test",
+        "input": input_items,
+    }
+
+
 def test_responses_request_preparation_removes_chat_unsupported_controls() -> None:
     request = OpenAIResponsesRequest(
         model="anthropic/claude-test",

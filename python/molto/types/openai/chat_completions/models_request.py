@@ -596,7 +596,9 @@ class OpenAIChatCompletionRequest(OpenAIChatCompletionBody):
 
     model: Annotated[
         str,
-        Field(description="The provider-qualified model to use for the chat completion."),
+        Field(
+            description="The model to use for the chat completion; an optional provider prefix selects a non-OpenAI adapter."
+        ),
     ]
     endpoint: Annotated[
         Literal["responses", "chat_completions"] | None,

@@ -89,18 +89,16 @@ async def _mock_responses(
     return iter_events()
 
 
-async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+async def test_extra_inputs():
     cassette_names = [
         "standard_text-stream-00.yaml",
     ]
 
     async with _get_http_client(cassette_names) as http_client:
         client = Molto()
-
         # --- Extra inputs --- #
         cassette = _read_cassette(CASSETTE_DIR / cassette_names[0])
+
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
                 body=dict(
@@ -113,9 +111,7 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
             )
 
 
-async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+async def test_standard_text_stream():
     cassette_names = [
         "standard_text-stream-00.yaml",
         "standard_text-stream-01.yaml",
@@ -130,6 +126,7 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
             response = await client.responses(
                 body=cassette["request"]["body"],
                 http_client=http_client,
+                api_key="Missing",
             )
             events = [event async for event in response]
             expected_sse_events = [
@@ -140,12 +137,10 @@ async def test_standard_text_stream(monkeypatch: pytest.MonkeyPatch):
             assert len(events) == len(expected_sse_events)
             for event, expected_sse in zip(events, expected_sse_events, strict=True):
                 assert isinstance(event, BaseModel)
-                assert event.as_sse() == expected_sse
+                assert event.as_responses_chunk() == expected_sse
 
 
-async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses, raising=False)
+async def test_reasoning_stream():
     cassette_names = [
         "reasoning-stream-00.yaml",
         "reasoning-stream-01.yaml",
@@ -160,6 +155,7 @@ async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
             response = await client.responses(
                 body=cassette["request"]["body"],
                 http_client=http_client,
+                api_key="Missing",
             )
             events = [event async for event in response]
             expected_sse_events = [
@@ -170,4 +166,4 @@ async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
             assert len(events) == len(expected_sse_events)
             for event, expected_sse in zip(events, expected_sse_events, strict=True):
                 assert isinstance(event, BaseModel)
-                assert event.as_sse() == expected_sse
+                assert event.as_responses_chunk() == expected_sse

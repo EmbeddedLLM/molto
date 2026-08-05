@@ -73,12 +73,19 @@ def _normalize_body(
 ) -> tuple[Any, ProviderName]:
     """Validate a public payload and attach its outer routing identity."""
 
+    if isinstance(body, Mapping) and "model" in body:
+        body = request_type.model_validate(body)
+
     if isinstance(body, request_type):
         if provider is None and model is None:
             legacy_provider, separator, legacy_model = body.model.partition("/")
             if separator and legacy_provider in {"openai", "vllm", "anthropic"}:
                 return body, legacy_provider
-            raise BadInputError("Legacy request models require a provider-qualified model name.")
+            if not separator:
+                return body.model_copy(
+                    update={"model": _qualified_model("openai", body.model)}
+                ), "openai"
+            raise BadInputError("Request model has an unsupported provider prefix.")
         if provider is None or model is None:
             raise BadInputError("provider and model must be supplied together.")
         if body.model != _qualified_model(provider, model):

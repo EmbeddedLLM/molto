@@ -53,6 +53,7 @@ class ReasoningRequestItem(IRModel):
     id: StableId
     summary: tuple[str, ...]
     content: tuple[str, ...] = ()
+    content_present: bool = False
     encrypted_content: str | None = None
     status: ItemStatus | None = None
 

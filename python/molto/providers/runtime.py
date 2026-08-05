@@ -144,10 +144,14 @@ def dump_sdk_model(value: Any) -> dict[str, Any]:
 
 
 async def sdk_model_stream(stream: AsyncIterator[Any]) -> AsyncIterator[dict[str, Any]]:
-    """Normalize an SDK model stream into portable dicts."""
+    """Normalize an SDK model stream into portable dicts.
+
+    Raw payload iterators (already portable dicts, e.g. preserved SSE frames)
+    pass through unchanged.
+    """
 
     async for event in stream:
-        yield dump_sdk_model(event)
+        yield event if isinstance(event, dict) else dump_sdk_model(event)
 
 
 async def execute_sdk_call(

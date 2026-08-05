@@ -144,7 +144,7 @@ async def from_output_event_stream(
     async for event in events:
         if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "responses":
             matching_frames = True
-            yield parse_stream_event(json.loads(event.payload_json))
+            yield parse_stream_event(json.loads(event.payload_json), preserve_payload=True)
             continue
         event_values.append(event)
     if matching_frames:

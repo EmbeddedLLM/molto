@@ -158,10 +158,6 @@ class OpenAIImageContent(BaseModel):
 
 
 class OpenAIInputMessage(_OpenAIMessage):
-    role: Annotated[
-        Literal["user", "system", "developer"],
-        Field(description="The non-assistant role of the input message."),
-    ]
     content: Annotated[
         # str | list[OpenAITextContent | OpenAIImageContent | OpenAIFileContent]
         str | list[OpenAITextContent | OpenAIImageContent],
@@ -172,6 +168,10 @@ class OpenAIInputMessage(_OpenAIMessage):
             ),
         ),
     ]
+    phase: Annotated[
+        Literal["commentary", "final_answer"] | None,
+        Field(description="The phase of a previous assistant message."),
+    ] = None
     status: Annotated[
         Literal["in_progress", "completed", "incomplete"] | None,
         Field(

@@ -6,7 +6,7 @@ import json
 from time import time
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from molto.utils import uuid7_str
 
@@ -106,7 +106,7 @@ class OpenAIResponsesResponse(BaseModel):
         ),
     ] = False
     completed_at: Annotated[
-        float | None,
+        int | None,
         Field(
             description=("Unix timestamp (in seconds) of when this Response was completed."),
         ),
@@ -117,11 +117,12 @@ class OpenAIResponsesResponse(BaseModel):
             description=(
                 "The conversation that this response belongs to. "
                 "Input items and output items from this response are automatically added to this conversation."
-            )
+            ),
+            exclude_if=lambda value: value is None,
         ),
     ] = None
     created_at: Annotated[
-        float,
+        int,
         Field(
             default_factory=lambda: int(time()),
             description=("Unix timestamp (in seconds) of when this Response was created."),
@@ -218,6 +219,7 @@ class OpenAIResponsesResponse(BaseModel):
         OpenAIPromptTemplate | None,
         Field(
             description=("Reference to a prompt template and its variables."),
+            exclude_if=lambda value: value is None,
         ),
     ] = None
     prompt_cache_key: Annotated[
@@ -363,8 +365,19 @@ class OpenAIResponsesStreamEvent(BaseModel):
         Field(description=("The sequence number for this event.")),
     ]
 
+    # Exact provider payload retained for same-format replay. When set, the
+    # emitted chunk serializes this payload verbatim (key order and explicit
+    # nulls exactly as the provider sent them) instead of re-dumping the model.
+    _source_payload: dict[str, Any] | None = PrivateAttr(default=None)
+
+    def _format_chunk(self, payload: dict[str, Any]) -> str:
+        data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        return f"event: {self.type}\ndata: {data}\n\n"
+
     def as_responses_chunk(self) -> str:
-        return f"event: {self.type}\ndata: {self.model_dump_json(exclude_none=True)}\n\n"
+        if self._source_payload is not None:
+            return self._format_chunk(self._source_payload)
+        return self._format_chunk(self.model_dump(mode="python", exclude_none=True))
 
 
 class OpenAIResponsesError(OpenAIResponsesStreamEvent):
@@ -409,6 +422,8 @@ class OpenAIResponsesStream(OpenAIResponsesStreamEvent):
     ]
 
     def as_responses_chunk(self) -> str:
+        if self._source_payload is not None:
+            return self._format_chunk(self._source_payload)
         # OpenAI Responses operational parity:
         # - Output stream events embed a full ResponseResource object.
         # - Many keys are required even when their values are `null`.
@@ -419,7 +434,7 @@ class OpenAIResponsesStream(OpenAIResponsesStreamEvent):
             response=self.response.model_dump(mode="python", exclude_none=False),
         )
         _ensure_code_interpreter_outputs_key(payload)
-        return f"event: {self.type}\ndata: {json.dumps(payload, separators=(',', ':'), ensure_ascii=False)}\n\n"
+        return self._format_chunk(payload)
 
 
 class OpenAIResponsesStreamOutput(OpenAIResponsesStreamEvent):
@@ -440,9 +455,11 @@ class OpenAIResponsesStreamOutput(OpenAIResponsesStreamEvent):
     ]
 
     def as_responses_chunk(self) -> str:
+        if self._source_payload is not None:
+            return self._format_chunk(self._source_payload)
         payload = self.model_dump(mode="python", exclude_none=True)
         _ensure_code_interpreter_outputs_key(payload)
-        return f"event: {self.type}\ndata: {json.dumps(payload, separators=(',', ':'), ensure_ascii=False)}\n\n"
+        return self._format_chunk(payload)
 
 
 class OpenAIResponsesStreamImageGeneration(OpenAIResponsesStreamEvent):
@@ -509,9 +526,9 @@ def _ensure_code_interpreter_outputs_key(value: Any) -> None:
 
 class OpenAIResponsesStreamEventBase(OpenAIResponsesStreamEvent):
     content_index: Annotated[
-        int,
+        int | None,
         Field(description=("The index of the content part.")),
-    ] = 0
+    ] = None
     item_id: Annotated[
         str,
         Field(description=("The ID of the output item that the content part.")),
@@ -628,8 +645,15 @@ class OpenAIResponsesStreamAnnotation(OpenAIResponsesStreamEventBase):
     ]
 
 
-def parse_stream_event(payload: dict[str, Any]) -> OpenAIResponsesStreamEvent:
-    """Parse an official SDK stream payload into Molto's public event model."""
+def parse_stream_event(
+    payload: dict[str, Any], *, preserve_payload: bool = False
+) -> OpenAIResponsesStreamEvent:
+    """Parse an official SDK stream payload into Molto's public event model.
+
+    `preserve_payload` retains the exact provider payload on the event so
+    `as_responses_chunk` replays it verbatim. Only preserved provider frames
+    may set it; Molto-synthesized events keep the parity-normalized dump.
+    """
 
     event_type = payload.get("type")
     if event_type == "error":
@@ -658,4 +682,7 @@ def parse_stream_event(payload: dict[str, Any]) -> OpenAIResponsesStreamEvent:
         model = OpenAIResponsesStreamAnnotation
     else:
         model = OpenAIResponsesStreamText
-    return model.model_validate(payload)
+    event = model.model_validate(payload)
+    if preserve_payload:
+        event._source_payload = payload
+    return event
