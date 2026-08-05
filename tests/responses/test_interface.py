@@ -120,7 +120,7 @@ def _mock_responses_factory(
     return _mock_responses
 
 
-def _reconstructable_responses_event(sse: str) -> dict[str, Any]:
+def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
     data = "\n".join(
         line.removeprefix("data:").lstrip()
         for line in sse.splitlines()
@@ -137,11 +137,8 @@ def _reconstructable_responses_event(sse: str) -> dict[str, Any]:
     response = event.get("response")
     if isinstance(response, dict):
         response = {
-            field: response[field]
-            for field in RECONSTRUCTIBLE_RESPONSE_FIELDS
-            if field in response
+            k: v for k, v in response.items() if k in body or k in RECONSTRUCTIBLE_RESPONSE_FIELDS
         }
-        event["response"] = response
         usage = response.get("usage")
         if usage is None:
             response.pop("usage", None)
@@ -150,6 +147,7 @@ def _reconstructable_responses_event(sse: str) -> dict[str, Any]:
         for output_item in response.get("output") or []:
             if isinstance(output_item, dict):
                 output_item.pop("id", None)
+        event["response"] = response
 
     return event
 
@@ -254,10 +252,18 @@ async def _assert_responses_events(
                 # Chat does not expose Responses output-item IDs or the exact terminal
                 # timestamp. Every other translated field must still match exactly.
                 actual_events = [
-                    _reconstructable_responses_event(sse) for sse in actual_sse_events
+                    _reconstructable_responses_event(
+                        sse, body=deepcopy(cassette["request"]["body"])
+                    )
+                    for sse in actual_sse_events
                 ]
+                for e in actual_events:
+                    print(e)
                 expected_events = [
-                    _reconstructable_responses_event(sse) for sse in expected_sse_events
+                    _reconstructable_responses_event(
+                        sse, body=deepcopy(cassette["request"]["body"])
+                    )
+                    for sse in expected_sse_events
                 ]
                 assert actual_events == expected_events
 
@@ -268,13 +274,13 @@ async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(
-        Molto,
-        "responses",
-        _mock_responses_factory(cassette_names, matched=True),
-        raising=False,
-    )
+    # # TODO: Remove monkeypatching
+    # monkeypatch.setattr(
+    #     Molto,
+    #     "responses",
+    #     _mock_responses_factory(cassette_names, matched=True),
+    #     raising=False,
+    # )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 

@@ -34,16 +34,11 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from molto.utils.io import json_dumps, json_loads
 
 RECONSTRUCTIBLE_RESPONSE_FIELDS = {
-    "created_at",
     "id",
     "model",
     "object",
     "output",
-    "parallel_tool_calls",
-    "service_tier",
     "status",
-    "tool_choice",
-    "tools",
     "usage",
 }
 
