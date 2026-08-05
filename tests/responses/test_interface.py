@@ -11,6 +11,7 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
+from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
 from molto.utils.io import read_yaml
 
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
@@ -119,6 +120,76 @@ def _mock_responses_factory(
     return _mock_responses
 
 
+def _reconstructable_responses_event(sse: str) -> dict[str, Any]:
+    data = "\n".join(
+        line.removeprefix("data:").lstrip()
+        for line in sse.splitlines()
+        if line.startswith("data:")
+    )
+    event = json.loads(data)
+    assert isinstance(event, dict)
+    event.pop("item_id", None)
+
+    item = event.get("item")
+    if isinstance(item, dict):
+        item.pop("id", None)
+
+    response = event.get("response")
+    if isinstance(response, dict):
+        response = {
+            field: response[field]
+            for field in RECONSTRUCTIBLE_RESPONSE_FIELDS
+            if field in response
+        }
+        event["response"] = response
+        usage = response.get("usage")
+        if usage is None:
+            response.pop("usage", None)
+        else:
+            assert isinstance(usage, dict)
+        for output_item in response.get("output") or []:
+            if isinstance(output_item, dict):
+                output_item.pop("id", None)
+
+    return event
+
+
+def test_chat_completions_event_comparison_preserves_reconstructable_fields():
+    expected_events = [
+        {
+            "type": "response.output_item.added",
+            "output_index": 0,
+            "item": {"id": "msg_expected"},
+        },
+        {
+            "type": "response.completed",
+            "response": {
+                "background": False,
+                "completed_at": 123,
+                "model": "expected-model",
+                "output": [{"id": "msg_expected"}],
+            },
+        },
+    ]
+    actual_events = deepcopy(expected_events)
+    actual_events[0]["item"]["id"] = "msg_generated"
+    actual_events[1]["response"].pop("background")
+    actual_events[1]["response"]["completed_at"] = 456
+    actual_events[1]["response"]["output"][0]["id"] = "msg_generated"
+
+    def as_sse(events: list[dict[str, Any]]) -> list[str]:
+        return [f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events]
+
+    assert [_reconstructable_responses_event(sse) for sse in as_sse(actual_events)] == [
+        _reconstructable_responses_event(sse) for sse in as_sse(expected_events)
+    ]
+
+    actual_events[1]["response"]["model"] = "different-model"
+    assert [_reconstructable_responses_event(sse) for sse in as_sse(actual_events)] != [
+        _reconstructable_responses_event(sse) for sse in as_sse(expected_events)
+    ]
+
+
 async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
     cassette_names = [
         "simple_text-stream-00.yaml",
@@ -172,9 +243,23 @@ async def _assert_responses_events(
                 if event
             ]
             assert len(events) == len(expected_sse_events)
-            for event, expected_sse in zip(events, expected_sse_events, strict=True):
+            actual_sse_events = []
+            for event in events:
                 assert isinstance(event, BaseModel)
-                assert event.as_sse() == expected_sse
+                actual_sse_events.append(event.as_sse())
+
+            if endpoint == "responses":
+                assert actual_sse_events == expected_sse_events
+            else:
+                # Chat does not expose Responses output-item IDs or the exact terminal
+                # timestamp. Every other translated field must still match exactly.
+                actual_events = [
+                    _reconstructable_responses_event(sse) for sse in actual_sse_events
+                ]
+                expected_events = [
+                    _reconstructable_responses_event(sse) for sse in expected_sse_events
+                ]
+                assert actual_events == expected_events
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
