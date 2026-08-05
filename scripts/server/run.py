@@ -15,7 +15,7 @@ DEFAULT_PORT = 8017
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python extensions/server/run.py",
+        prog="python scripts/server/run.py",
         description="Run the internal/testing HTTP server extension for Molto.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

@@ -25,19 +25,19 @@ No separate server package installation is required.
 The server binds to `127.0.0.1:8017` by default:
 
 ```bash
-python extensions/server/run.py
+python scripts/server/run.py
 ```
 
 Host and port can be overridden:
 
 ```bash
-python extensions/server/run.py --host 127.0.0.1 --port 8017
+python scripts/server/run.py --host 127.0.0.1 --port 8017
 ```
 
 Use `-v` (or `--verbose`) to log sanitized request and response payloads:
 
 ```bash
-python extensions/server/run.py -v
+python scripts/server/run.py -v
 ```
 
 Set the upstream bearer credential through the OpenAI SDK's standard environment variable:
@@ -66,7 +66,7 @@ export MOLTO_SERVER_BASE_URL="http://127.0.0.1:8000/v1"
 Unsupported request parameters are dropped and ignored by default. Enable strict mode to reject them instead:
 
 ```bash
-python extensions/server/run.py --strict
+python scripts/server/run.py --strict
 # or, for an operator-controlled default:
 export MOLTO_SERVER_STRICT="true"
 ```
