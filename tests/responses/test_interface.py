@@ -3,6 +3,7 @@ from base64 import b64encode
 from collections.abc import AsyncIterator
 from copy import deepcopy
 from functools import lru_cache
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal
 
@@ -120,7 +121,7 @@ def _mock_responses_factory(
     return _mock_responses
 
 
-def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
+def _responses_event_data(sse: str) -> dict[str, Any]:
     data = "\n".join(
         line.removeprefix("data:").lstrip()
         for line in sse.splitlines()
@@ -128,6 +129,28 @@ def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str
     )
     event = json.loads(data)
     assert isinstance(event, dict)
+    return event
+
+
+def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
+    events = [_responses_event_data(sse) for sse in sse_events]
+    sequence_numbers = [event["sequence_number"] for event in events]
+    assert all(current == previous + 1 for previous, current in pairwise(sequence_numbers)), (
+        f"Non-contiguous sequence numbers: {sequence_numbers}"
+    )
+
+    output_item_ids = [
+        event["item"]["id"]
+        for event in events
+        if event.get("type") == "response.output_item.added"
+    ]
+    assert len(output_item_ids) == len(set(output_item_ids)), (
+        f"Duplicate output item IDs: {output_item_ids}"
+    )
+
+
+def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
+    event = _responses_event_data(sse)
     event.pop("item_id", None)
 
     item = event.get("item")
@@ -249,6 +272,7 @@ async def _assert_responses_events(
             for event in events:
                 assert isinstance(event, BaseModel)
                 actual_sse_events.append(event.as_sse())
+            _assert_responses_stream_invariants(actual_sse_events)
 
             if endpoint == "responses":
                 assert actual_sse_events == expected_sse_events
@@ -278,17 +302,33 @@ async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    # # TODO: Remove monkeypatching
-    # monkeypatch.setattr(
-    #     Molto,
-    #     "responses",
-    #     _mock_responses_factory(cassette_names, matched=True),
-    #     raising=False,
-    # )
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(
+        Molto,
+        "responses",
+        _mock_responses_factory(cassette_names, matched=True),
+        raising=False,
+    )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
-async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("endpoint", ENDPOINTS)
+async def test_reasoning_stream_raw_content(endpoint: str, monkeypatch: pytest.MonkeyPatch):
+    cassette_names = [
+        "reasoning_raw-stream-00.yaml",
+        "reasoning_raw-stream-01.yaml",
+    ]
+    # TODO: Remove monkeypatching
+    monkeypatch.setattr(
+        Molto,
+        "responses",
+        _mock_responses_factory(cassette_names, matched=True),
+        raising=False,
+    )
+    await _assert_responses_events(cassette_names, endpoint, matched=True)
+
+
+async def test_reasoning_stream_encrypted_content(monkeypatch: pytest.MonkeyPatch):
     cassette_names = [
         "reasoning-stream-00.yaml",
         "reasoning-stream-01.yaml",
