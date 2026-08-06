@@ -10,11 +10,11 @@ from molto.types.openai.responses import (
     OpenAIOutputTextContent,
     OpenAITextConfig,
 )
+from molto.utils.io import json_loads
 from tests.support import (
     STREAM_PARAMS,
     run_responses_parity,
 )
-from tests.support.io import json_loads
 
 INSTRUCTIONS = "You are patrick jane, a consultant for the CBI"
 

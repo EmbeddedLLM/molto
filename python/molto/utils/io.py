@@ -6,8 +6,6 @@ from typing import Any, Union
 import orjson
 import yaml
 
-# Superficial JSON input/output types
-# https://github.com/python/typing/issues/182#issuecomment-186684288
 JSONOutput = Union[str, int, float, bool, None, dict[str, Any], list[Any]]
 # For input, we also accept tuples, ordered dicts etc.
 JSONInput = Union[

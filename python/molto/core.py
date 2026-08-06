@@ -250,10 +250,7 @@ class Molto:
             return await _execute(
                 provider,
                 ir,
-                from_stream=partial(
-                    responses_from_chat_output_event_stream,
-                    include_usage=ir.include_usage,
-                ),
+                from_stream=responses_from_chat_output_event_stream,
                 from_output=responses_from_chat_output_ir,
             )
         return await _execute(

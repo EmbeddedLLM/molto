@@ -18,7 +18,7 @@ from molto.types.openai.responses import (
     OpenAIResponsesStream,
     OpenAIResponsesStreamEvent,
 )
-from tests.support.io import json_loads, read_yaml
+from molto.utils.io import json_loads, read_yaml
 
 STREAM_PARAMS = dict(argvalues=[True, False], ids=["stream", "non-stream"])
 

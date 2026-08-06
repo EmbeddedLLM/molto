@@ -12,15 +12,15 @@ from pydantic import BaseModel, ValidationError
 
 from molto import Molto
 from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
-from tests.support.io import read_yaml
+from molto.utils.io import read_yaml
 
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
     (Path(__file__).parents[1] / "files" / "xlsx.jpg").read_bytes()
 ).decode("ascii")
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
-Endpoint = Literal["responses", "chat/completions"]
-ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat/completions")
+Endpoint = Literal["responses", "chat_completions"]
+ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat_completions")
 
 
 def _cassette_dir(endpoint: Endpoint, *, matched: bool = False) -> Path:
@@ -192,17 +192,10 @@ def test_chat_completions_event_comparison_preserves_reconstructable_fields():
     assert reconstructable(actual_events, {}) != reconstructable(expected_events, {})
 
 
-async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
+async def test_extra_inputs():
     cassette_names = [
         "simple_text-stream-00.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(
-        Molto,
-        "responses",
-        _mock_responses_factory(cassette_names, matched=True),
-        raising=False,
-    )
 
     async with _get_http_client(cassette_names, matched=True) as http_client:
         client = Molto()
@@ -217,6 +210,7 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
                     ],
                     **cassette["request"]["body"],
                 ),
+                api_key="missing",
                 http_client=http_client,
             )
 
@@ -239,6 +233,7 @@ async def _assert_responses_events(
                 body=deepcopy(cassette["request"]["body"]),
                 endpoint=endpoint,
                 http_client=http_client,
+                api_key="missing",
             )
             events = [event async for event in response]
             expected_sse_events = [
@@ -250,7 +245,7 @@ async def _assert_responses_events(
             actual_sse_events = []
             for event in events:
                 assert isinstance(event, BaseModel)
-                actual_sse_events.append(event.as_sse())
+                actual_sse_events.append(event.as_responses_chunk())
 
             if endpoint == "responses":
                 assert actual_sse_events == expected_sse_events
@@ -275,36 +270,25 @@ async def _assert_responses_events(
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch):
+async def test_simple_text_stream(endpoint: str):
     cassette_names = [
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    # # TODO: Remove monkeypatching
-    # monkeypatch.setattr(
-    #     Molto,
-    #     "responses",
-    #     _mock_responses_factory(cassette_names, matched=True),
-    #     raising=False,
-    # )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
-async def test_reasoning_stream(monkeypatch: pytest.MonkeyPatch):
+async def test_reasoning_stream():
     cassette_names = [
         "reasoning-stream-00.yaml",
         "reasoning-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
     await _assert_responses_events(cassette_names)
 
 
-async def test_instructions_stream(monkeypatch: pytest.MonkeyPatch):
+async def test_instructions_stream():
     cassette_names = [
         "instructions-stream-00.yaml",
         "instructions-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
     await _assert_responses_events(cassette_names)

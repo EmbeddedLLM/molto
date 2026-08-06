@@ -242,6 +242,7 @@ class OpenAIOutputItem(_OpenAIMessage):
             description=(
                 "Whether this assistant message is intermediate commentary or the final answer."
             ),
+            exclude_if=lambda value: value is None,
         ),
     ] = None
 

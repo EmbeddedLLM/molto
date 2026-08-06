@@ -14,6 +14,7 @@ class Usage(IRModel):
     output_tokens: TokenCount = 0
     total_tokens: TokenCount = 0
     cached_input_tokens: TokenCount = 0
+    cache_write_input_tokens: TokenCount | None = None
     reasoning_output_tokens: TokenCount = 0
     audio_input_tokens: TokenCount | None = None
     image_input_tokens: TokenCount | None = None

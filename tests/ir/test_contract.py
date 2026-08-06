@@ -15,7 +15,7 @@ def test_openai_usage_round_trips_common_counters() -> None:
         "input_tokens": 3,
         "output_tokens": 2,
         "total_tokens": 5,
-        "input_tokens_details": {"cached_tokens": 1},
+        "input_tokens_details": {"cache_write_tokens": 0, "cached_tokens": 1},
         "output_tokens_details": {"reasoning_tokens": 1},
     }
     usage = usage_from_openai(payload, "responses")
@@ -25,9 +25,12 @@ def test_openai_usage_round_trips_common_counters() -> None:
         output_tokens=2,
         total_tokens=5,
         cached_input_tokens=1,
+        cache_write_input_tokens=0,
         reasoning_output_tokens=1,
     )
-    assert usage_to_openai(usage, "responses")["total_tokens"] == 5
+    response_usage = usage_to_openai(usage, "responses")
+    assert response_usage["total_tokens"] == 5
+    assert response_usage["input_tokens_details"]["cache_write_tokens"] == 0
 
 
 def test_output_event_sequence_reconstructs_terminal_snapshot() -> None:

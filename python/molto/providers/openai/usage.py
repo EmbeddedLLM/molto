@@ -30,6 +30,7 @@ def usage_from_openai(payload: Mapping[str, object] | None, endpoint: OpenAIEndp
             output_tokens=int(payload.get("output_tokens", 0)),
             total_tokens=int(payload.get("total_tokens", 0)),
             cached_input_tokens=int(input_details.get("cached_tokens") or 0),
+            cache_write_input_tokens=_optional_int(input_details, "cache_write_tokens"),
             reasoning_output_tokens=int(output_details.get("reasoning_tokens") or 0),
         )
 
@@ -40,6 +41,7 @@ def usage_from_openai(payload: Mapping[str, object] | None, endpoint: OpenAIEndp
         output_tokens=int(payload.get("completion_tokens", 0)),
         total_tokens=int(payload.get("total_tokens", 0)),
         cached_input_tokens=int(input_details.get("cached_tokens") or 0),
+        cache_write_input_tokens=_optional_int(input_details, "cache_write_tokens"),
         reasoning_output_tokens=int(output_details.get("reasoning_tokens") or 0),
         audio_input_tokens=_optional_int(input_details, "audio_tokens"),
         image_input_tokens=_optional_int(input_details, "image_tokens"),
@@ -66,14 +68,17 @@ def usage_to_openai(usage: Usage, endpoint: OpenAIEndpoint) -> dict[str, object]
     """Map portable usage counters to an OpenAI response payload."""
 
     if endpoint == "responses":
+        input_details: dict[str, object] = {"cached_tokens": usage.cached_input_tokens}
+        _put(input_details, "cache_write_tokens", usage.cache_write_input_tokens)
         return {
             "input_tokens": usage.input_tokens,
             "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
-            "input_tokens_details": {"cached_tokens": usage.cached_input_tokens},
+            "input_tokens_details": input_details,
             "output_tokens_details": {"reasoning_tokens": usage.reasoning_output_tokens},
         }
     input_details: dict[str, object] = {"cached_tokens": usage.cached_input_tokens}
+    _put(input_details, "cache_write_tokens", usage.cache_write_input_tokens)
     output_details: dict[str, object] = {"reasoning_tokens": usage.reasoning_output_tokens}
     _put(input_details, "audio_tokens", usage.audio_input_tokens)
     _put(input_details, "image_tokens", usage.image_input_tokens)

@@ -138,6 +138,7 @@ async def test_chat_to_responses_composer_yields_events_before_stream_end() -> N
     assert part_added.type == "response.content_part.added"
     assert delta.type == "response.output_text.delta"
     assert delta.delta == "hello"
+    assert delta.logprobs == []
     release.set()
 
 
@@ -216,42 +217,37 @@ CHAT_USAGE_FRAMES = [
         "created": 1,
         "model": "gpt-test",
         "choices": [],
-        "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+        "usage": {
+            "prompt_tokens": 5,
+            "completion_tokens": 3,
+            "total_tokens": 8,
+            "prompt_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+        },
     },
 ]
 
 
-async def test_chat_to_responses_composer_emits_trailing_usage_when_requested() -> None:
+async def test_chat_to_responses_composer_emits_trailing_usage() -> None:
     async def events():
         for frame in CHAT_USAGE_FRAMES:
             yield _preserved(frame, endpoint="chat_completions")
 
-    response_events = [
-        event
-        async for event in responses_from_chat_output_event_stream(events(), include_usage=True)
-    ]
+    response_events = [event async for event in responses_from_chat_output_event_stream(events())]
 
     terminal = response_events[-1]
     assert terminal.type == "response.completed"
     assert terminal.response.usage is not None
-    assert terminal.response.usage["input_tokens"] == 5
-    assert terminal.response.usage["output_tokens"] == 3
-    assert terminal.response.usage["total_tokens"] == 8
-
-
-async def test_chat_to_responses_composer_omits_usage_when_not_requested() -> None:
-    async def events():
-        for frame in CHAT_USAGE_FRAMES:
-            yield _preserved(frame, endpoint="chat_completions")
-
-    response_events = [
-        event
-        async for event in responses_from_chat_output_event_stream(events(), include_usage=False)
-    ]
-
-    terminal = response_events[-1]
-    assert terminal.type == "response.completed"
-    assert terminal.response.usage is None
+    assert terminal.response.usage.input_tokens == 5
+    assert terminal.response.usage.output_tokens == 3
+    assert terminal.response.usage.total_tokens == 8
+    assert terminal.response.usage.input_tokens_details.cache_write_tokens == 0
+    delta = next(event for event in response_events if event.type == "response.output_text.delta")
+    delta_payload = json.loads(delta.as_responses_chunk().split("data: ", maxsplit=1)[1])
+    assert delta_payload["logprobs"] == []
+    terminal_payload = json.loads(terminal.as_responses_chunk().split("data: ", maxsplit=1)[1])
+    assert terminal_payload["response"]["output"][0]["content"][0]["logprobs"] == []
+    assert "phase" not in terminal_payload["response"]["output"][0]
+    assert terminal_payload["response"]["usage"]["input_tokens_details"]["cache_write_tokens"] == 0
 
 
 RESPONSES_USAGE_FRAMES = [
