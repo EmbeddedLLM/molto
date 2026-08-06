@@ -38,7 +38,82 @@ def test_chat_request_preparation_removes_responses_unsupported_stream_options()
 
     assert chat.stream_options is not None
     assert chat.stream_options.include_usage is True
+    assert chat.include_usage is True
+    # Responses always reports usage: no stream_options are forwarded, but the
+    # user's include_usage survives for output emission.
     assert responses.stream_options is None
+    assert responses.include_usage is True
+
+
+def test_responses_request_include_usage_forwarded_as_true_to_chat() -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input="hello",
+        stream=True,
+        stream_options={"include_usage": False, "include_obfuscation": True},
+    )
+
+    chat = prepare_responses_request(request, "chat_completions")
+
+    # The Chat provider always receives include_usage=True; the user's
+    # include_obfuscation remains representable and is forwarded. The user's
+    # include_usage value survives for output emission.
+    assert chat.stream_options is not None
+    assert chat.stream_options.include_usage is True
+    assert chat.stream_options.include_obfuscation is True
+    assert chat.include_usage is False
+    assert build_openai_request(chat, "chat_completions")["stream_options"] == {
+        "include_obfuscation": True,
+        "include_usage": True,
+    }
+
+
+def test_responses_request_include_usage_is_dropped_for_responses() -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input="hello",
+        stream=True,
+        stream_options={"include_usage": True, "include_obfuscation": False},
+    )
+
+    responses = prepare_responses_request(request, "responses")
+
+    # The Responses endpoint always reports usage; include_usage is dropped
+    # while include_obfuscation remains representable.
+    assert responses.include_usage is None
+    assert responses.stream_options is not None
+    assert responses.stream_options.include_usage is None
+    assert responses.stream_options.include_obfuscation is False
+
+
+def test_responses_request_stream_options_dropped_when_only_include_usage() -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input="hello",
+        stream=True,
+        stream_options={"include_usage": True},
+    )
+
+    responses = prepare_responses_request(request, "responses")
+
+    assert responses.stream_options is None
+    assert responses.include_usage is None
+
+
+def test_responses_request_include_usage_not_forwarded_when_not_streaming() -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-test",
+        input="hello",
+        stream=False,
+        stream_options={"include_usage": False},
+    )
+
+    chat = prepare_responses_request(request, "chat_completions")
+
+    # include_usage is a streaming-only option; non-stream requests carry no
+    # stream_options to the provider, and the usage is always returned.
+    assert chat.stream_options is None
+    assert chat.include_usage is False
 
 
 def test_responses_request_builds_canonical_openai_payload() -> None:

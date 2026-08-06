@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import (
-    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -605,7 +604,7 @@ class OpenAIChatCompletionRequest(OpenAIChatCompletionBody):
         Field(
             default=None,
             exclude=True,
-            validation_alias=AliasChoices("endpoint", "upstream"),
+            validation_alias="endpoint",
             description="Molto execution endpoint. This routing field is consumed before IR conversion.",
         ),
     ] = None

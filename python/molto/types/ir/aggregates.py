@@ -34,6 +34,11 @@ class InputIR(IRModel):
     model: str
     stream: bool | None
     stream_options: StreamOptions | None = None
+    # Whether the public output stream should include usage. Distinct from
+    # `stream_options`: that value is forwarded to the provider, while this one
+    # controls output emission and survives cross-endpoint routing (e.g. a
+    # Chat request executed through the Responses endpoint).
+    include_usage: bool | None = None
     store: bool | None = None
     prompt_cache_key: str | None = None
     prompt_cache_retention: Literal["in_memory", "24h"] | None = None

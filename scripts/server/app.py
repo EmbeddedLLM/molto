@@ -78,7 +78,7 @@ _NULL_CHAT_MESSAGE_PLACEHOLDERS = frozenset(
 _MOLTO_ERRORS: dict[tuple[type[MoltoException], ...], tuple[int, str, ErrorType, str]] = {
     (BadInputError, ModelCapabilityError): (
         400,
-        "The request is invalid for the selected model or upstream.",
+        "The request is invalid for the selected model or endpoint.",
         "invalid_request_error",
         "invalid_request",
     ),
@@ -238,8 +238,8 @@ def _request_block(request: Request, *, detailed: bool = False) -> str:
     lines = [
         f"  request_id: {request.state.request_id}",
         f"  endpoint: {getattr(request.state, 'endpoint', request.url.path)}",
-        f"  X-Molto-Upstream: {getattr(request.state, 'requested_upstream', '<omitted>')}",
-        f"  resolved_upstream: {getattr(request.state, 'resolved_upstream', '<unresolved>')}",
+        f"  X-Molto-Endpoint: {getattr(request.state, 'requested_endpoint', '<omitted>')}",
+        f"  resolved_endpoint: {getattr(request.state, 'resolved_endpoint', '<unresolved>')}",
     ]
     if detailed:
         formatted_params = indent(
@@ -323,10 +323,10 @@ def _endpoint(
 ) -> OpenAIEndpoint:
     value = body.endpoint or request.headers.get("X-Molto-Endpoint")
     if value is None:
-        request.state.resolved_upstream = default
+        request.state.resolved_endpoint = default
         return default
     if value not in ("chat_completions", "responses"):
-        request.state.resolved_upstream = "<invalid>"
+        request.state.resolved_endpoint = "<invalid>"
         raise _ServerError(
             400,
             "X-Molto-Endpoint must be 'chat_completions' or 'responses'.",
@@ -334,7 +334,7 @@ def _endpoint(
             code="invalid_endpoint",
             param="X-Molto-Endpoint",
         )
-    request.state.resolved_upstream = value
+    request.state.resolved_endpoint = value
     return cast(OpenAIEndpoint, value)
 
 
@@ -353,8 +353,8 @@ def _chat_endpoint(
         and body.tools
         and body.reasoning_effort != "none"
     ):
-        request.state.requested_upstream = "responses"
-        request.state.resolved_upstream = "responses"
+        request.state.requested_endpoint = "responses"
+        request.state.resolved_endpoint = "responses"
         return "responses"
     return _endpoint(request, body, default="chat_completions")
 
@@ -384,7 +384,7 @@ def _request_api_key(request: Request) -> str | None:
     """Return the per-request credential, or None to fall back to the server env.
 
     A body-level ``api_key`` wins over ``Authorization: Bearer``, matching the
-    server's body-over-header precedence for ``upstream``.
+    server's body-over-header precedence for ``endpoint``.
     """
 
     body_key = getattr(request.state, "api_key", None)
@@ -566,8 +566,8 @@ def create_app(
     async def response_headers(request: Request, call_next):
         request.state.request_id = uuid4().hex
         request.state.endpoint = request.url.path
-        request.state.requested_upstream = request.headers.get("X-Molto-Upstream", "<omitted>")
-        request.state.resolved_upstream = "<unresolved>"
+        request.state.requested_endpoint = request.headers.get("X-Molto-Endpoint", "<omitted>")
+        request.state.resolved_endpoint = "<unresolved>"
         request.state.request_params = "<not parsed>"
         request.state.api_key = None
         response = await call_next(request)
@@ -620,7 +620,7 @@ def create_app(
         return _error_response(
             request,
             400,
-            "The request is invalid for the selected model or upstream.",
+            "The request is invalid for the selected model or endpoint.",
             error_type="invalid_request_error",
             code="invalid_request",
         )

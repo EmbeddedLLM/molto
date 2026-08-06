@@ -93,7 +93,7 @@ def _output_item(item) -> dict:
     raise ValueError(f"Unsupported OpenAI output item {type(item).__name__}.")
 
 
-def _response_values(output: OutputIR) -> dict:
+def _response_values(output: OutputIR, *, include_usage: bool = True) -> dict:
     metadata = {}
     if output.metadata.system_fingerprint is not None:
         metadata["system_fingerprint"] = output.metadata.system_fingerprint
@@ -104,7 +104,7 @@ def _response_values(output: OutputIR) -> dict:
         "model": output.metadata.model,
         "status": output.status.value,
         "output": [_output_item(item) for item in output.output.values],
-        "usage": usage_to_openai(output.usage, "responses"),
+        "usage": usage_to_openai(output.usage, "responses") if include_usage else None,
         "service_tier": output.metadata.service_tier or "default",
         "metadata": metadata,
     }
@@ -136,8 +136,14 @@ def from_output_ir(output: OutputIR) -> OpenAIResponsesResponse:
 
 async def from_output_event_stream(
     events: AsyncIterable[OutputEvent],
+    *,
+    include_usage: bool = True,
 ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-    """Compose a Responses stream, forwarding matching native frames immediately."""
+    """Compose a Responses stream, forwarding matching native frames immediately.
+
+    ``include_usage`` gates the usage field on the synthesized terminal event;
+    native frames are forwarded verbatim.
+    """
 
     event_values: list[OutputEvent] = []
     matching_frames = False
@@ -152,7 +158,7 @@ async def from_output_event_stream(
 
     sequence = OutputEventSequence(events=tuple(event_values))
     output = OutputIR.from_output_events(sequence)
-    response = _response_values(output)
+    response = _response_values(output, include_usage=include_usage)
     event_type = {
         "completed": "response.completed",
         "incomplete": "response.incomplete",

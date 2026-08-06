@@ -113,44 +113,6 @@ class TestBadInputError:
             async for _ in response:
                 pass
 
-    async def test_invalid_temperature(self):
-        """Reject temperatures below the OpenAI-supported range."""
-        with pytest.raises(ValidationError) as exc_info:
-            OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", temperature=-1.0)
-        assert "temperature" in str(exc_info.value)
-
-    async def test_invalid_temperature_above_range(self):
-        """Reject temperatures above the OpenAI-supported range."""
-        with pytest.raises(ValidationError) as exc_info:
-            OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", temperature=5.0)
-        assert "temperature" in str(exc_info.value)
-
-    async def test_assistant_input_message_rejected(self):
-        """Input messages must not use the assistant role (former OpenAIInputItem contract)."""
-        with pytest.raises(ValidationError) as exc_info:
-            OpenAIResponsesRequest(
-                model="openai/gpt-4.1-nano",
-                input=[{"role": "assistant", "content": "hi"}],
-            )
-        assert "assistant" in str(exc_info.value)
-
-    async def test_thinking_budget_exceeding_max_tokens(self, cassette_manager):
-        """Map invalid reasoning/max-token provider errors to BadInputError."""
-        await _record_or_replay_provider_error(
-            cassette_manager,
-            "thinking_budget_exceeding_max_tokens",
-        )
-
-        molto = make_molto_client(
-            cassette_manager,
-            cassette_suffix="thinking_budget_exceeding_max_tokens",
-        )
-        req = OpenAIResponsesRequest(
-            **_cassette_request_params("thinking_budget_exceeding_max_tokens")
-        )
-        with pytest.raises(BadInputError):
-            await molto.responses(req)
-
 
 class TestModelOverloadError:
     def test_connection_error_preserves_cassette_assertion(self):

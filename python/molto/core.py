@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Callable, Mapping
+from functools import partial
 from typing import Any, Literal
 
 from httpx import AsyncClient
@@ -249,7 +250,10 @@ class Molto:
             return await _execute(
                 provider,
                 ir,
-                from_stream=responses_from_chat_output_event_stream,
+                from_stream=partial(
+                    responses_from_chat_output_event_stream,
+                    include_usage=ir.include_usage,
+                ),
                 from_output=responses_from_chat_output_ir,
             )
         return await _execute(
@@ -301,7 +305,10 @@ class Molto:
             return await _execute(
                 provider,
                 ir,
-                from_stream=chat_from_responses_output_event_stream,
+                from_stream=partial(
+                    chat_from_responses_output_event_stream,
+                    include_usage=ir.include_usage,
+                ),
                 from_output=chat_from_responses_output_ir,
             )
         return await _execute(

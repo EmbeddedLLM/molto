@@ -350,18 +350,19 @@ def _responses_request_to_ir(request) -> InputIR:
                     payload_json=json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
                 )
             )
-
+    stream_options = (
+        StreamOptions.model_validate(
+            request.stream_options.model_dump(mode="python", exclude_unset=True)
+        )
+        if request.stream_options is not None
+        else None
+    )
     reasoning = getattr(request, "reasoning", None)
     return InputIR(
         model=request.model,
         stream=request.stream,
-        stream_options=(
-            StreamOptions.model_validate(
-                request.stream_options.model_dump(mode="python", exclude_unset=True)
-            )
-            if request.stream_options is not None
-            else None
-        ),
+        stream_options=stream_options,
+        include_usage=(stream_options.include_usage if stream_options is not None else None),
         store=request.store,
         prompt_cache_key=request.prompt_cache_key,
         prompt_cache_retention=request.prompt_cache_retention,
@@ -420,12 +421,24 @@ def _chat_web_search_options(tool: OpenAIHostedToolDefinition) -> WebSearchOptio
 
 def prepare_responses_request(
     request,
-    upstream: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat_completions", "responses"],
 ) -> InputIR:
-    """Build provider input for the selected Responses upstream."""
+    """Build provider input for the selected Responses endpoint."""
 
     provider_ir = _responses_request_to_ir(request)
-    if upstream == "chat_completions":
+    if endpoint == "chat_completions":
+        # A Chat provider stream only reports usage when asked, so Molto always
+        # requests it and lets output composition decide whether to surface it.
+        # The user's include_obfuscation remains representable and is forwarded.
+        stream_options = None
+        if provider_ir.stream is True:
+            fields = (
+                provider_ir.stream_options.model_dump(mode="python", exclude_unset=True)
+                if provider_ir.stream_options is not None
+                else {}
+            )
+            fields["include_usage"] = True
+            stream_options = StreamOptions.model_validate(fields)
         tools = []
         web_search_options = None
         for tool in provider_ir.tools:
@@ -443,6 +456,7 @@ def prepare_responses_request(
         provider_ir = provider_ir.model_copy(
             update={
                 "include": None,
+                "stream_options": stream_options,
                 "generation": provider_ir.generation.model_copy(
                     update={
                         "reasoning_summary": None,
@@ -450,6 +464,21 @@ def prepare_responses_request(
                     }
                 ),
                 "tools": tuple(tools),
+            }
+        )
+    else:
+        # The Responses endpoint always reports usage and its stream_options only
+        # accepts include_obfuscation, so the user's include_usage is dropped.
+        stream_options = None
+        if provider_ir.stream_options is not None:
+            fields = provider_ir.stream_options.model_dump(mode="python", exclude_unset=True)
+            fields.pop("include_usage", None)
+            if fields:
+                stream_options = StreamOptions.model_validate(fields)
+        provider_ir = provider_ir.model_copy(
+            update={
+                "stream_options": stream_options,
+                "include_usage": None,
             }
         )
     return provider_ir

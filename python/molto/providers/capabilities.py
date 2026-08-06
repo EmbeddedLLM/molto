@@ -321,6 +321,7 @@ OPENAI_RESPONSES_CAPABILITIES = ProviderContract(
         RequestFeature.STATE_RESPONSE,
         RequestFeature.STATE_CONVERSATION,
         RequestFeature.CONFIG_STREAM_OPTIONS,
+        RequestFeature.CONFIG_STREAM_INCLUDE_USAGE,
     },
 )
 

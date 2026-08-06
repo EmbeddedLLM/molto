@@ -197,3 +197,116 @@ async def test_chat_to_responses_composer_preserves_function_call_events() -> No
         "response.completed",
     ]
     assert response_events[-1].response.output[0].arguments == '{"id":1}'
+
+
+CHAT_USAGE_FRAMES = [
+    CHAT_FRAME,
+    {
+        "id": "chat_1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "gpt-test",
+        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        "usage": None,
+    },
+    # OpenAI sends the real usage in a trailing chunk with no choices.
+    {
+        "id": "chat_1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "gpt-test",
+        "choices": [],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+    },
+]
+
+
+async def test_chat_to_responses_composer_emits_trailing_usage_when_requested() -> None:
+    async def events():
+        for frame in CHAT_USAGE_FRAMES:
+            yield _preserved(frame, endpoint="chat_completions")
+
+    response_events = [
+        event
+        async for event in responses_from_chat_output_event_stream(events(), include_usage=True)
+    ]
+
+    terminal = response_events[-1]
+    assert terminal.type == "response.completed"
+    assert terminal.response.usage is not None
+    assert terminal.response.usage["input_tokens"] == 5
+    assert terminal.response.usage["output_tokens"] == 3
+    assert terminal.response.usage["total_tokens"] == 8
+
+
+async def test_chat_to_responses_composer_omits_usage_when_not_requested() -> None:
+    async def events():
+        for frame in CHAT_USAGE_FRAMES:
+            yield _preserved(frame, endpoint="chat_completions")
+
+    response_events = [
+        event
+        async for event in responses_from_chat_output_event_stream(events(), include_usage=False)
+    ]
+
+    terminal = response_events[-1]
+    assert terminal.type == "response.completed"
+    assert terminal.response.usage is None
+
+
+RESPONSES_USAGE_FRAMES = [
+    {
+        "type": "response.output_text.delta",
+        "sequence_number": 1,
+        "item_id": "msg_1",
+        "output_index": 0,
+        "content_index": 0,
+        "delta": "hello",
+    },
+    {
+        "type": "response.completed",
+        "sequence_number": 2,
+        "response": {
+            "id": "resp_1",
+            "object": "response",
+            "created_at": 1,
+            "model": "gpt-test",
+            "status": "completed",
+            "output": [],
+            "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+        },
+    },
+]
+
+
+async def test_responses_to_chat_composer_emits_terminal_usage_when_requested() -> None:
+    async def events():
+        for frame in RESPONSES_USAGE_FRAMES:
+            yield _preserved(frame, endpoint="responses")
+
+    chunks = [
+        chunk
+        async for chunk in chat_from_responses_output_event_stream(events(), include_usage=True)
+    ]
+
+    terminal = chunks[-1]
+    assert terminal.choices[0].finish_reason == "stop"
+    assert terminal.usage is not None
+    assert terminal.usage.prompt_tokens == 5
+    assert terminal.usage.completion_tokens == 3
+    assert terminal.usage.total_tokens == 8
+
+
+async def test_responses_to_chat_composer_strips_terminal_usage_when_not_requested() -> None:
+    async def events():
+        for frame in RESPONSES_USAGE_FRAMES:
+            yield _preserved(frame, endpoint="responses")
+
+    chunks = [
+        chunk
+        async for chunk in chat_from_responses_output_event_stream(events(), include_usage=False)
+    ]
+
+    terminal = chunks[-1]
+    assert terminal.choices[0].finish_reason == "stop"
+    assert terminal.usage is None

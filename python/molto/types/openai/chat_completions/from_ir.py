@@ -106,8 +106,14 @@ def from_output_ir(output: OutputIR) -> OpenAIChatCompletionResponse:
 
 async def from_output_event_stream(
     events: AsyncIterable[OutputEvent],
+    *,
+    include_usage: bool = True,
 ) -> AsyncIterator[OpenAIChatCompletionChunk]:
-    """Compose a Chat stream, forwarding matching native frames immediately."""
+    """Compose a Chat stream, forwarding matching native frames immediately.
+
+    ``include_usage`` gates the usage on the synthesized terminal chunk; native
+    frames are forwarded verbatim.
+    """
 
     event_values: list[OutputEvent] = []
     matching_frames = False
@@ -151,6 +157,6 @@ async def from_output_event_stream(
                     "finish_reason": choice["finish_reason"],
                 }
             ],
-            "usage": values["usage"],
+            "usage": values["usage"] if include_usage else None,
         }
     )

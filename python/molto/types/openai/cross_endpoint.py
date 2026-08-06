@@ -69,6 +69,9 @@ class _ChatToResponsesState:
     message_text: str = ""
     refusal: str = ""
     function_calls: dict[int, dict[str, Any]] = field(default_factory=dict)
+    # Terminal response deferred until the trailing usage-only Chat chunk
+    # (sent when stream_options.include_usage is true) arrives.
+    pending_terminal: OpenAIResponsesResponse | None = None
 
 
 def _chat_responses_response(
@@ -160,6 +163,8 @@ def _update_chat_responses_state(
 def _chat_frame_to_responses(
     state: _ChatToResponsesState,
     event: PreservedOpenAIStreamEvent,
+    *,
+    include_usage: bool | None = None,
 ) -> list[OpenAIResponsesStreamEvent]:
     payload = json.loads(event.payload_json)
     _update_chat_responses_state(state, payload)
@@ -173,6 +178,30 @@ def _chat_frame_to_responses(
                 _chat_responses_event(state, "response.in_progress", response=response),
             ]
         )
+
+    if not payload.get("choices"):
+        # The trailing usage-only Chat chunk sent when include_usage is true.
+        # Attach the usage to the deferred terminal response.
+        usage = payload.get("usage")
+        if usage is not None and state.pending_terminal is not None:
+            response = state.pending_terminal.model_copy(
+                update={
+                    "usage": usage_to_openai(
+                        usage_from_openai(usage, "chat_completions"), "responses"
+                    )
+                }
+            )
+            state.pending_terminal = None
+            events.append(
+                _chat_responses_event(
+                    state,
+                    "response.incomplete"
+                    if response.status == "incomplete"
+                    else "response.completed",
+                    response=response,
+                )
+            )
+        return events
 
     for choice in payload.get("choices") or []:
         if int(choice.get("index", 0)) != 0:
@@ -211,7 +240,7 @@ def _chat_frame_to_responses(
                         ),
                     ]
                 )
-            if content is not None:
+            if content:
                 text = str(content)
                 state.message_text += text
                 events.append(
@@ -301,7 +330,9 @@ def _chat_frame_to_responses(
                     )
                 )
             usage = payload.get("usage")
-            if usage is not None:
+            if include_usage is not True:
+                usage = None
+            elif usage is not None:
                 usage = usage_to_openai(usage_from_openai(usage, "chat_completions"), "responses")
             incomplete_reason = {
                 "length": "max_output_tokens",
@@ -387,15 +418,20 @@ def _chat_frame_to_responses(
                         ),
                     ]
                 )
-            events.append(
-                _chat_responses_event(
-                    state,
-                    "response.incomplete"
-                    if incomplete_reason is not None
-                    else "response.completed",
-                    response=response,
+            if include_usage is True and response.usage is None:
+                # OpenAI sends the real usage in a trailing choices=[] chunk;
+                # defer the terminal event until that chunk arrives.
+                state.pending_terminal = response
+            else:
+                events.append(
+                    _chat_responses_event(
+                        state,
+                        "response.incomplete"
+                        if incomplete_reason is not None
+                        else "response.completed",
+                        response=response,
+                    )
                 )
-            )
     return events
 
 
@@ -419,9 +455,15 @@ def _responses_chat_chunk(
     return OpenAIChatCompletionChunk.model_validate(values)
 
 
-def _chat_chunk_without_terminal_usage(
+def _chat_chunk_terminal_usage(
     chunk: OpenAIChatCompletionChunk,
+    *,
+    include_usage: bool | None,
 ) -> OpenAIChatCompletionChunk:
+    """Strip the terminal chunk's usage unless the user requested it."""
+
+    if include_usage is True:
+        return chunk
     if not chunk.choices or chunk.choices[0].finish_reason is None:
         return chunk
     return chunk.model_copy(update={"usage": None})
@@ -444,6 +486,8 @@ def _update_responses_chat_state(
 def _responses_frame_to_chat(
     state: _ResponsesToChatState,
     event: PreservedOpenAIStreamEvent,
+    *,
+    include_usage: bool | None = None,
 ) -> OpenAIChatCompletionChunk | None:
     payload = json.loads(event.payload_json)
     response = _update_responses_chat_state(state, payload)
@@ -516,9 +560,11 @@ def _responses_frame_to_chat(
             )
         else:
             finish_reason = "tool_calls" if state.tool_calls else "stop"
-        usage = usage_to_openai(
-            usage_from_openai(response.get("usage"), "responses"), "chat_completions"
-        )
+        usage = response.get("usage")
+        if include_usage is True and usage is not None:
+            usage = usage_to_openai(usage_from_openai(usage, "responses"), "chat_completions")
+        else:
+            usage = None
         return _responses_chat_chunk(
             state,
             delta={},
@@ -562,8 +608,14 @@ def chat_from_responses_output_ir(output: OutputIR) -> OpenAIChatCompletionRespo
 
 async def responses_from_chat_output_event_stream(
     events: AsyncIterable[OutputEvent],
+    *,
+    include_usage: bool | None = None,
 ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-    """Render Chat-native semantic events as an OpenAI Responses stream."""
+    """Render Chat-native semantic events as an OpenAI Responses stream.
+
+    ``include_usage`` gates the usage field on the synthesized terminal
+    response: usage is emitted only when it is ``True`` (opt-in).
+    """
 
     semantic_events: list[OutputEvent] = []
     state = _ChatToResponsesState()
@@ -571,24 +623,42 @@ async def responses_from_chat_output_event_stream(
     async for event in events:
         if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat_completions":
             matching_frames = True
-            for response_event in _chat_frame_to_responses(state, event):
+            for response_event in _chat_frame_to_responses(
+                state, event, include_usage=include_usage
+            ):
                 yield response_event
             continue
         if not matching_frames:
             semantic_events.append(event)
+    if state.pending_terminal is not None:
+        # The provider stream ended without the trailing usage-only chunk.
+        response = state.pending_terminal
+        state.pending_terminal = None
+        yield _chat_responses_event(
+            state,
+            "response.incomplete" if response.status == "incomplete" else "response.completed",
+            response=response,
+        )
     if matching_frames:
         return
 
     async for event in responses_from_output_event_stream(
-        _reject_chat_audio(_as_async_events(semantic_events))
+        _reject_chat_audio(_as_async_events(semantic_events)),
+        include_usage=include_usage is True,
     ):
         yield event
 
 
 async def chat_from_responses_output_event_stream(
     events: AsyncIterable[OutputEvent],
+    *,
+    include_usage: bool | None = None,
 ) -> AsyncIterator[OpenAIChatCompletionChunk]:
-    """Render Responses-native events as Chat chunks without buffering native frames."""
+    """Render Responses-native events as Chat chunks without buffering native frames.
+
+    ``include_usage`` gates the usage on the terminal chunk: usage is emitted
+    only when it is ``True`` (opt-in).
+    """
 
     semantic_events: list[OutputEvent] = []
     state = _ResponsesToChatState()
@@ -596,9 +666,9 @@ async def chat_from_responses_output_event_stream(
     async for event in events:
         if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "responses":
             matching_frames = True
-            chunk = _responses_frame_to_chat(state, event)
+            chunk = _responses_frame_to_chat(state, event, include_usage=include_usage)
             if chunk is not None:
-                yield _chat_chunk_without_terminal_usage(chunk)
+                yield _chat_chunk_terminal_usage(chunk, include_usage=include_usage)
             continue
         if not matching_frames:
             semantic_events.append(event)
@@ -608,9 +678,10 @@ async def chat_from_responses_output_event_stream(
     # The Chat stream is synthesized from the complete event sequence when a
     # provider does not expose native Responses frames.
     async for chunk in chat_from_output_event_stream(
-        _reject_unsupported_chat_output(_as_async_events(semantic_events))
+        _reject_unsupported_chat_output(_as_async_events(semantic_events)),
+        include_usage=include_usage is True,
     ):
-        yield _chat_chunk_without_terminal_usage(chunk)
+        yield chunk
 
 
 async def _as_async_events(events: Iterable[OutputEvent]) -> AsyncIterator[OutputEvent]:

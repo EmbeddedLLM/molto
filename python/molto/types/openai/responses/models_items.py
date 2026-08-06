@@ -1285,6 +1285,10 @@ OpenAIResponsesOutputTool = Annotated[
 
 
 class OpenAIStreamOptions(BaseModel):
+    include_usage: Annotated[
+        bool | None,
+        Field(description="Whether to include usage data in the streamed response."),
+    ] = None
     include_obfuscation: Annotated[
         bool | None,
         Field(

@@ -455,7 +455,7 @@ class OpenAIResponsesRequest(OpenAIResponsesBody):
         Field(
             default=None,
             exclude=True,
-            validation_alias=AliasChoices("endpoint", "upstream"),
+            validation_alias="endpoint",
             description="Molto execution endpoint. This routing field is consumed before IR conversion.",
         ),
     ] = None

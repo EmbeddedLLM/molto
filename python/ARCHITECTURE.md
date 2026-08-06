@@ -44,7 +44,7 @@ parameter selects the SDK endpoint. The endpoint-specific body contains only
 OpenAI request fields, while outer `provider` and unprefixed `model` identify
 the selected model:
 
-| Model prefix | Chat upstream | Responses upstream |
+| Model prefix | Chat endpoint | Responses endpoint |
 | --- | --- | --- |
 | `openai/` | OpenAI Chat Completions | OpenAI Responses |
 | `vllm/` | OpenAI-compatible Chat Completions | OpenAI-compatible Responses |

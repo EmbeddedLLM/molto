@@ -240,7 +240,7 @@ async def _unknown_incomplete_output_events() -> AsyncIterator:
     )
 
 
-def test_chat_request_translates_to_responses_upstream() -> None:
+def test_chat_request_translates_to_responses_endpoint() -> None:
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[
@@ -427,7 +427,7 @@ def test_native_responses_request_preserves_mcp_tool() -> None:
     }
 
 
-def test_responses_request_translates_to_chat_upstream() -> None:
+def test_responses_request_translates_to_chat_endpoint() -> None:
     request = OpenAIResponsesRequest(
         model="openai/gpt-4.1-nano",
         input="Use one function.",
@@ -495,7 +495,7 @@ async def test_mcp_rejects_before_provider_construction(
     request = OpenAIResponsesRequest(
         model="openai/gpt-5.1",
         input="List the available tools.",
-        upstream="chat_completions",
+        endpoint="chat_completions",
         tools=[
             {
                 "type": "mcp",
@@ -545,7 +545,7 @@ def test_public_payloads_validate_dicts_with_endpoint_schema() -> None:
     assert body.messages[0].content == "hi"
 
 
-async def test_responses_state_rejects_chat_upstream_before_provider_construction(
+async def test_responses_state_rejects_chat_endpoint_before_provider_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def unexpected_provider(*_args, **_kwargs):
@@ -555,7 +555,7 @@ async def test_responses_state_rejects_chat_upstream_before_provider_constructio
     request = OpenAIResponsesRequest(
         model="openai/gpt-4.1-nano",
         input="Continue.",
-        upstream="chat_completions",
+        endpoint="chat_completions",
         previous_response_id="resp_1",
     )
 
@@ -563,8 +563,14 @@ async def test_responses_state_rejects_chat_upstream_before_provider_constructio
         await Molto(strict=True).responses(request)
 
 
-async def test_chat_stream_usage_option_is_removed_for_responses_upstream(
+@pytest.mark.parametrize(
+    ("include_usage", "expected_usage"),
+    [(True, True), (False, False)],
+)
+async def test_chat_stream_usage_option_is_not_forwarded_to_responses_endpoint(
     monkeypatch: pytest.MonkeyPatch,
+    include_usage: bool,
+    expected_usage: bool,
 ) -> None:
     captured = {}
 
@@ -610,10 +616,10 @@ async def test_chat_stream_usage_option_is_removed_for_responses_upstream(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
         stream=True,
-        stream_options={"include_usage": True},
+        stream_options={"include_usage": include_usage},
         frequency_penalty=0,
         presence_penalty=0,
-        upstream="responses",
+        endpoint="responses",
     )
 
     result = await Molto().chat_completions(request)
@@ -625,12 +631,12 @@ async def test_chat_stream_usage_option_is_removed_for_responses_upstream(
     assert "frequency_penalty" not in captured["payload"]
     assert "presence_penalty" not in captured["payload"]
     assert chunks[0].choices[0].finish_reason == "stop"
-    assert chunks[0].usage is None
+    assert (chunks[0].usage is not None) is expected_usage
     assert len(chunks) == 1
 
 
 @pytest.mark.parametrize("field", ["frequency_penalty", "presence_penalty"])
-async def test_chat_non_neutral_penalty_rejects_responses_upstream_before_construction(
+async def test_chat_non_neutral_penalty_rejects_responses_endpoint_before_construction(
     monkeypatch: pytest.MonkeyPatch,
     field: str,
 ) -> None:
@@ -641,7 +647,7 @@ async def test_chat_non_neutral_penalty_rejects_responses_upstream_before_constr
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
-        upstream="responses",
+        endpoint="responses",
         **{field: 0.5},
     )
 
@@ -650,7 +656,7 @@ async def test_chat_non_neutral_penalty_rejects_responses_upstream_before_constr
 
 
 @pytest.mark.parametrize("field", ["frequency_penalty", "presence_penalty"])
-async def test_non_strict_drops_unsupported_penalty_for_responses_upstream(
+async def test_non_strict_drops_unsupported_penalty_for_responses_endpoint(
     monkeypatch: pytest.MonkeyPatch,
     field: str,
 ) -> None:
@@ -697,7 +703,7 @@ async def test_non_strict_drops_unsupported_penalty_for_responses_upstream(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
         stream=True,
-        upstream="responses",
+        endpoint="responses",
         **{field: 0.5},
     )
 
@@ -709,7 +715,7 @@ async def test_non_strict_drops_unsupported_penalty_for_responses_upstream(
     assert chunks[0].choices[0].finish_reason == "stop"
 
 
-async def test_strict_rejects_unsupported_penalty_for_responses_upstream(
+async def test_strict_rejects_unsupported_penalty_for_responses_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def unexpected_provider(*_args, **_kwargs):
@@ -719,7 +725,7 @@ async def test_strict_rejects_unsupported_penalty_for_responses_upstream(
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
-        upstream="responses",
+        endpoint="responses",
         frequency_penalty=0.5,
     )
 
@@ -727,7 +733,7 @@ async def test_strict_rejects_unsupported_penalty_for_responses_upstream(
         await Molto(strict=True).chat_completions(request)
 
 
-async def test_previous_chat_audio_rejects_responses_upstream_before_construction(
+async def test_previous_chat_audio_rejects_responses_endpoint_before_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def unexpected_provider(*_args, **_kwargs):
@@ -743,7 +749,7 @@ async def test_previous_chat_audio_rejects_responses_upstream_before_constructio
                 "audio": {"id": "audio_1"},
             }
         ],
-        upstream="responses",
+        endpoint="responses",
     )
 
     with pytest.raises(ModelCapabilityError, match="input.audio"):
@@ -751,7 +757,7 @@ async def test_previous_chat_audio_rejects_responses_upstream_before_constructio
 
 
 @pytest.mark.parametrize("public_endpoint", ["chat_completions", "responses"])
-async def test_anthropic_defaults_to_chat_completions_upstream(
+async def test_anthropic_defaults_to_chat_completions_endpoint(
     public_endpoint: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -830,7 +836,7 @@ async def test_responses_web_search_projects_to_chat_provider_shape(
         OpenAIResponsesRequest(
             model="openai/gpt-test",
             input="Search the web.",
-            upstream="chat_completions",
+            endpoint="chat_completions",
             tools=[{"type": "web_search"}],
         )
     )
@@ -852,14 +858,14 @@ async def test_anthropic_responses_web_search_rejects_before_provider_constructi
             OpenAIResponsesRequest(
                 model="anthropic/claude-test",
                 input="Search the web.",
-                upstream="chat_completions",
+                endpoint="chat_completions",
                 tools=[{"type": "web_search"}],
             )
         )
 
 
 @pytest.mark.parametrize("public_endpoint", ["chat_completions", "responses"])
-async def test_anthropic_responses_upstream_rejects_before_provider_construction(
+async def test_anthropic_responses_endpoint_rejects_before_provider_construction(
     public_endpoint: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -871,14 +877,14 @@ async def test_anthropic_responses_upstream_rejects_before_provider_construction
         request = OpenAIChatCompletionRequest(
             model="anthropic/claude-test",
             messages=[{"role": "user", "content": "hi"}],
-            upstream="responses",
+            endpoint="responses",
         )
         call = Molto().chat_completions(request)
     else:
         request = OpenAIResponsesRequest(
             model="anthropic/claude-test",
             input="hi",
-            upstream="responses",
+            endpoint="responses",
         )
         call = Molto().responses(request)
 
@@ -976,7 +982,7 @@ async def test_vllm_image_generation_rejects_before_provider_construction(
     request = OpenAIResponsesRequest(
         model="vllm/image-model",
         input="Draw a red circle.",
-        upstream="chat_completions",
+        endpoint="chat_completions",
         tools=[{"type": "image_generation"}],
     )
 
@@ -996,7 +1002,7 @@ async def test_chat_audio_to_responses_rejects_before_provider_construction(
         messages=[{"role": "user", "content": "Say hello."}],
         modalities=["text", "audio"],
         audio={"format": "mp3", "voice": "alloy"},
-        upstream="responses",
+        endpoint="responses",
     )
 
     with pytest.raises(BadInputError, match="audio"):
@@ -1016,7 +1022,7 @@ async def test_responses_reasoning_to_chat_is_intentionally_omitted(
             self.__class__.endpoint = endpoint
 
         def run(self, request) -> AsyncIterator:
-            assert "upstream" not in request.model_dump()
+            assert "endpoint" not in request.model_dump()
             return _reasoning_output_events()
 
     monkeypatch.setattr("molto.core.OpenAIProvider", ReasoningProvider)
@@ -1025,7 +1031,7 @@ async def test_responses_reasoning_to_chat_is_intentionally_omitted(
         messages=[{"role": "user", "content": "Think carefully."}],
         reasoning_effort="high",
         stream=stream,
-        upstream="responses",
+        endpoint="responses",
     )
 
     response = await Molto().chat_completions(request, endpoint="chat_completions")
@@ -1066,7 +1072,7 @@ async def test_responses_terminal_state_rejects_unrepresentable_chat_output(
         model="openai/gpt-5-nano",
         messages=[{"role": "user", "content": "hi"}],
         stream=stream,
-        upstream="responses",
+        endpoint="responses",
     )
 
     if stream:

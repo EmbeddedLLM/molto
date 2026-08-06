@@ -174,16 +174,18 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
         if request.max_completion_tokens is not None
         else request.max_tokens
     )
+    stream_options = (
+        StreamOptions.model_validate(
+            request.stream_options.model_dump(mode="python", exclude_unset=True)
+        )
+        if request.stream_options is not None
+        else None
+    )
     return InputIR(
         model=request.model,
         stream=request.stream,
-        stream_options=(
-            StreamOptions.model_validate(
-                request.stream_options.model_dump(mode="python", exclude_unset=True)
-            )
-            if request.stream_options is not None
-            else None
-        ),
+        stream_options=stream_options,
+        include_usage=(stream_options.include_usage if stream_options is not None else None),
         store=request.store,
         prompt_cache_key=request.prompt_cache_key,
         prompt_cache_retention=request.prompt_cache_retention,
@@ -222,11 +224,11 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
 
 def prepare_chat_request(
     request: OpenAIChatCompletionRequest,
-    upstream: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat_completions", "responses"],
 ) -> InputIR:
-    """Build provider input for the selected Chat upstream."""
+    """Build provider input for the selected Chat endpoint."""
 
     provider_ir = request_to_ir(request)
-    if upstream == "responses":
+    if endpoint == "responses":
         provider_ir = provider_ir.model_copy(update={"stream_options": None})
     return provider_ir

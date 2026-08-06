@@ -11,7 +11,7 @@ async def main() -> None:
     molto = Molto()
 
     response = await molto.responses(
-        OpenAIResponsesRequest(model=MODEL, input=QUESTION, upstream="chat_completions"),
+        OpenAIResponsesRequest(model=MODEL, input=QUESTION, endpoint="chat_completions"),
     )
     print("Non-stream response:")
     print("----")
@@ -23,7 +23,7 @@ async def main() -> None:
             model=MODEL,
             input=QUESTION,
             stream=True,
-            upstream="chat_completions",
+            endpoint="chat_completions",
         ),
     )
     output_items = []

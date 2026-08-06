@@ -17,7 +17,7 @@ async def main() -> None:
         OpenAIResponsesRequest(
             model=f"openai/{MODEL}",
             input=QUESTION,
-            upstream="chat_completions",
+            endpoint="chat_completions",
         ),
     )
     print_value(
@@ -30,7 +30,7 @@ async def main() -> None:
             model=f"openai/{MODEL}",
             input=QUESTION,
             stream=True,
-            upstream="chat_completions",
+            endpoint="chat_completions",
         ),
     )
     await print_stream(
