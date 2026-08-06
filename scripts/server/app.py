@@ -125,6 +125,7 @@ _MOLTO_ERRORS: dict[tuple[type[MoltoException], ...], tuple[int, str, ErrorType,
 class ServerSettings:
     """Operator-controlled settings for the internal server."""
 
+    api_key: str | None = None
     provider_base_url: str | None = None
     max_retries: int = 2
     strict: bool = False
@@ -142,6 +143,7 @@ class ServerSettings:
             raise ValueError("MOLTO_SERVER_MAX_RETRIES must be non-negative.")
         raw_strict = os.getenv("MOLTO_SERVER_STRICT", "")
         return cls(
+            api_key=os.getenv("MOLTO_API_KEY") or None,
             provider_base_url=os.getenv("MOLTO_SERVER_BASE_URL") or None,
             max_retries=max_retries,
             strict=raw_strict.strip().lower() in {"1", "true", "yes", "on"},
@@ -380,13 +382,16 @@ def _prepare_payload(request: Request, payload: Any) -> Any:
     }
 
 
-def _request_api_key(request: Request) -> str | None:
-    """Return the per-request credential, or None to fall back to the server env.
+def _request_api_key(request: Request, settings: ServerSettings) -> str | None:
+    """Return the configured or per-request credential.
 
-    A body-level ``api_key`` wins over ``Authorization: Bearer``, matching the
-    server's body-over-header precedence for ``endpoint``.
+    ``MOLTO_API_KEY`` is operator-controlled and intentionally wins over
+    client-supplied credentials. Without it, a body-level ``api_key`` wins over
+    ``Authorization: Bearer``.
     """
 
+    if settings.api_key is not None:
+        return settings.api_key
     body_key = getattr(request.state, "api_key", None)
     if body_key is not None:
         return body_key
@@ -516,7 +521,7 @@ async def _serve(
 ) -> Response:
     """Run one gateway call and render it as JSON or an SSE stream."""
 
-    result = await execute(_request_api_key(request))
+    result = await execute(_request_api_key(request, request.app.state.settings))
     if stream:
         return StreamingResponse(
             to_sse(cast(AsyncIterator[Any], result), request),
@@ -561,6 +566,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.verbose = verbose
+    app.state.settings = resolved_settings
 
     @app.middleware("http")
     async def response_headers(request: Request, call_next):
@@ -609,7 +615,7 @@ def create_app(
             401,
             "No API key was provided. Pass one with the request "
             "(Authorization: Bearer <key> or body `api_key`) or configure "
-            "the server's OPENAI_API_KEY.",
+            "the server's MOLTO_API_KEY or OPENAI_API_KEY.",
             error_type="authentication_error",
             code="missing_api_key",
         )

@@ -40,7 +40,13 @@ Use `-v` (or `--verbose`) to log sanitized request and response payloads:
 python scripts/server/run.py -v
 ```
 
-Set the upstream bearer credential through the OpenAI SDK's standard environment variable:
+Set the upstream bearer credential for all requests with Molto's server-specific environment variable:
+
+```bash
+export MOLTO_API_KEY="..."
+```
+
+If `MOLTO_API_KEY` is unset, the server can still fall back to the OpenAI SDK's standard environment variable:
 
 ```bash
 export OPENAI_API_KEY="..."
@@ -55,7 +61,7 @@ curl http://127.0.0.1:8017/v1/chat/completions \
   -d '{"model":"gpt-5-mini","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-Precedence: a body-level `api_key` wins over the `Authorization` header, which wins over the server's `OPENAI_API_KEY`. A request with no client-supplied key and no server-configured key fails with `401 authentication_error` (`missing_api_key`).
+Precedence: the server's `MOLTO_API_KEY` wins over all client-supplied credentials. When `MOLTO_API_KEY` is unset, a body-level `api_key` wins over the `Authorization` header, which wins over the server's `OPENAI_API_KEY`. A request with no client-supplied key and no server-configured key fails with `401 authentication_error` (`missing_api_key`).
 
 For vLLM or another operator-controlled OpenAI-compatible endpoint:
 
