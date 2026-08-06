@@ -58,12 +58,6 @@ def usage_from_openai(payload: Mapping[str, object] | None, endpoint: OpenAIEndp
     )
 
 
-def usage_bundle(payload: Mapping[str, object] | None, endpoint: OpenAIEndpoint) -> Usage:
-    """Return portable usage, defaulting when the provider omits usage."""
-
-    return usage_from_openai(payload, endpoint)
-
-
 def usage_to_openai(usage: Usage, endpoint: OpenAIEndpoint) -> dict[str, object]:
     """Map portable usage counters to an OpenAI response payload."""
 

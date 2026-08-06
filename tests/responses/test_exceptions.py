@@ -3,12 +3,10 @@ from typing import Any
 import httpx
 import pytest
 from openai import APIConnectionError, APIError, APIStatusError, RateLimitError
-from pydantic import ValidationError
 
 from molto.providers.openai import map_openai_error
 from molto.types.openai.responses import OpenAIResponsesRequest
 from molto.utils.exceptions import (
-    BadInputError,
     ContextOverflowError,
     ExternalAuthError,
     ModelOverloadError,
