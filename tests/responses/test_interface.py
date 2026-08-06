@@ -302,13 +302,13 @@ async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(
-        Molto,
-        "responses",
-        _mock_responses_factory(cassette_names, matched=True),
-        raising=False,
-    )
+    # # TODO: Remove monkeypatching
+    # monkeypatch.setattr(
+    #     Molto,
+    #     "responses",
+    #     _mock_responses_factory(cassette_names, matched=True),
+    #     raising=False,
+    # )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
