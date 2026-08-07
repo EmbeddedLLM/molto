@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import ConfigDict, Field
 
-from .base import IRModel
+from molto.types.ir.base import IRModel
 
 Probability = Annotated[float, Field(ge=0, le=1)]
 TokenLimit = Annotated[int, Field(ge=1)]

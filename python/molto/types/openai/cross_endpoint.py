@@ -18,30 +18,29 @@ from molto.types.ir.events import (
 )
 from molto.types.ir.output_items import AssistantMessageItem, OpenAIHostedToolItem
 from molto.types.ir.portable import OutputIR
-from molto.utils.exceptions import BadInputError
-
-from .chat_completions.from_ir import (
+from molto.types.openai.chat_completions.from_ir import (
     from_output_event_stream as chat_from_output_event_stream,
 )
-from .chat_completions.from_ir import (
+from molto.types.openai.chat_completions.from_ir import (
     from_output_ir as chat_from_output_ir,
 )
-from .chat_completions.models_response import (
+from molto.types.openai.chat_completions.models_response import (
     OpenAIChatCompletionChunk,
     OpenAIChatCompletionResponse,
 )
-from .responses.from_ir import (
+from molto.types.openai.responses.from_ir import (
     from_output_event_stream as responses_from_output_event_stream,
 )
-from .responses.from_ir import (
+from molto.types.openai.responses.from_ir import (
     from_output_ir as responses_from_output_ir,
 )
-from .responses.models_response import (
+from molto.types.openai.responses.models_response import (
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     OpenAIResponsesUsage,
     parse_stream_event,
 )
+from molto.utils.exceptions import BadInputError
 
 
 @dataclass
@@ -193,7 +192,7 @@ def _chat_frame_to_responses(
         usage = payload.get("usage")
         if usage is not None and state.pending_terminal is not None:
             response_usage = OpenAIResponsesUsage.model_validate(
-                usage_to_openai(usage_from_openai(usage, "chat_completions"), "responses")
+                usage_to_openai(usage_from_openai(usage, "chat/completions"), "responses")
             )
             response = state.pending_terminal.model_copy(update={"usage": response_usage})
             state.pending_terminal = None
@@ -339,7 +338,7 @@ def _chat_frame_to_responses(
                 )
             usage = payload.get("usage")
             if usage is not None:
-                usage = usage_to_openai(usage_from_openai(usage, "chat_completions"), "responses")
+                usage = usage_to_openai(usage_from_openai(usage, "chat/completions"), "responses")
             incomplete_reason = {
                 "length": "max_output_tokens",
                 "content_filter": "content_filter",
@@ -569,7 +568,7 @@ def _responses_frame_to_chat(
             finish_reason = "tool_calls" if state.tool_calls else "stop"
         usage = response.get("usage")
         if include_usage is True and usage is not None:
-            usage = usage_to_openai(usage_from_openai(usage, "responses"), "chat_completions")
+            usage = usage_to_openai(usage_from_openai(usage, "responses"), "chat/completions")
         else:
             usage = None
         return _responses_chat_chunk(
@@ -626,7 +625,7 @@ async def responses_from_chat_output_event_stream(
     state = _ChatToResponsesState()
     matching_frames = False
     async for event in events:
-        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat_completions":
+        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat/completions":
             matching_frames = True
             for response_event in _chat_frame_to_responses(state, event):
                 yield response_event

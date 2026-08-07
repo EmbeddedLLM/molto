@@ -43,9 +43,7 @@ from molto.types.ir.portable import (
     WebSearchSource,
     WebSearchUserLocation,
 )
-from molto.utils.exceptions import BadInputError
-
-from .models_items import (
+from molto.types.openai.responses.models_items import (
     OpenAIAllowedToolsChoice,
     OpenAICodeOutputImage,
     OpenAICodeOutputLog,
@@ -70,6 +68,7 @@ from .models_items import (
     OpenAIWebSearchActionSearch,
     OpenAIWebSearchToolCall,
 )
+from molto.utils.exceptions import BadInputError
 
 
 def _content_to_ir(content: str | list[OpenAITextContent | OpenAIImageContent]):
@@ -421,12 +420,12 @@ def _chat_web_search_options(tool: OpenAIHostedToolDefinition) -> WebSearchOptio
 
 def prepare_responses_request(
     request,
-    endpoint: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat/completions", "responses"],
 ) -> InputIR:
     """Build provider input for the selected Responses endpoint."""
 
     provider_ir = _responses_request_to_ir(request)
-    if endpoint == "chat_completions":
+    if endpoint == "chat/completions":
         # A Chat provider stream only reports usage when asked, so Molto always
         # requests it and lets output composition decide whether to surface it.
         # The user's include_obfuscation remains representable and is forwarded.

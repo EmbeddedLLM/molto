@@ -48,7 +48,7 @@ def default_endpoint_for(
 ) -> OpenAIEndpoint:
     """Resolve the provider-aware execution endpoint when the caller omits it."""
 
-    return "chat_completions" if provider == "anthropic" else public_endpoint
+    return "chat/completions" if provider == "anthropic" else public_endpoint
 
 
 async def _execute(
@@ -134,7 +134,7 @@ class Molto:
             ir.model,
             base_url=base_url,
         )
-        if endpoint not in ("chat_completions", "responses"):
+        if endpoint not in ("chat/completions", "responses"):
             raise BadInputError(f"Unsupported endpoint: {endpoint}")
 
         provider_base_url = base_url
@@ -178,7 +178,7 @@ class Molto:
             max_retries=self._max_retries if max_retries is None else max_retries,
         )
 
-        if endpoint == "chat_completions":
+        if endpoint == "chat/completions":
             return await _execute(
                 provider,
                 ir,
@@ -206,7 +206,7 @@ class Molto:
 
         body = OpenAIChatCompletionRequest.from_body(body, model)
         resolved_provider = body.provider
-        endpoint = endpoint or default_endpoint_for(resolved_provider, "chat_completions")
+        endpoint = endpoint or default_endpoint_for(resolved_provider, "chat/completions")
         ir = prepare_chat_request(body, endpoint)
         provider = self._create_provider(
             ir,

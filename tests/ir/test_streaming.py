@@ -63,7 +63,7 @@ async def test_chat_output_composer_yields_native_frame_before_stream_end() -> N
     release = asyncio.Event()
 
     async def events():
-        yield _preserved(CHAT_FRAME, endpoint="chat_completions")
+        yield _preserved(CHAT_FRAME, endpoint="chat/completions")
         await release.wait()
 
     stream = chat_from_output_event_stream(events())
@@ -122,7 +122,7 @@ async def test_chat_to_responses_composer_yields_events_before_stream_end() -> N
     release = asyncio.Event()
 
     async def events():
-        yield _preserved(CHAT_FRAME, endpoint="chat_completions")
+        yield _preserved(CHAT_FRAME, endpoint="chat/completions")
         await release.wait()
 
     stream = responses_from_chat_output_event_stream(events())
@@ -183,7 +183,7 @@ async def test_chat_to_responses_composer_preserves_function_call_events() -> No
 
     async def events():
         for frame in frames:
-            yield _preserved(frame, endpoint="chat_completions")
+            yield _preserved(frame, endpoint="chat/completions")
 
     response_events = [event async for event in responses_from_chat_output_event_stream(events())]
 
@@ -230,7 +230,7 @@ CHAT_USAGE_FRAMES = [
 async def test_chat_to_responses_composer_emits_trailing_usage() -> None:
     async def events():
         for frame in CHAT_USAGE_FRAMES:
-            yield _preserved(frame, endpoint="chat_completions")
+            yield _preserved(frame, endpoint="chat/completions")
 
     response_events = [event async for event in responses_from_chat_output_event_stream(events())]
 

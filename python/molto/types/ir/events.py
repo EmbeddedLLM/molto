@@ -5,7 +5,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import Field, model_validator
 
-from .base import (
+from molto.types.ir.base import (
     ContentIndex,
     IRModel,
     ItemIndex,
@@ -14,7 +14,7 @@ from .base import (
     SequenceNumber,
     StableId,
 )
-from .content import (
+from molto.types.ir.content import (
     AssistantContentPart,
     EncryptedReasoningPart,
     OutputTextPart,
@@ -23,15 +23,15 @@ from .content import (
     ReasoningSummaryPart,
     RefusalPart,
 )
-from .errors import ErrorDetail
-from .output_items import (
+from molto.types.ir.errors import ErrorDetail
+from molto.types.ir.output_items import (
     AssistantMessageItem,
     FunctionCallItem,
     OpenAIHostedToolItem,
     OutputItem,
     ReasoningItem,
 )
-from .usage import Usage
+from molto.types.ir.usage import Usage
 
 
 class ResponseMetadata(IRModel):
@@ -117,7 +117,7 @@ class PreservedOpenAIStreamEvent(_Event):
     """One validated frame from an OpenAI-compatible streaming endpoint."""
 
     type: Literal["openai.stream_frame"] = "openai.stream_frame"
-    endpoint: Literal["chat_completions", "responses"]
+    endpoint: Literal["chat/completions", "responses"]
     event_type: str
     payload_json: str
 
@@ -126,7 +126,7 @@ class PreservedOpenAIResponseEvent(_Event):
     """One complete validated response from an OpenAI-compatible endpoint."""
 
     type: Literal["openai.response_snapshot"] = "openai.response_snapshot"
-    endpoint: Literal["chat_completions", "responses"]
+    endpoint: Literal["chat/completions", "responses"]
     payload_json: str
 
 

@@ -5,11 +5,11 @@ public name from the focused `models_items`, `models_request`,
 `models_response`, `to_ir`, and `from_ir` modules.
 """
 
-from .from_ir import (  # noqa: F401
+from molto.types.openai.responses.from_ir import (  # noqa: F401
     from_output_event_stream,
     from_output_ir,
 )
-from .models_items import (  # noqa: F401
+from molto.types.openai.responses.models_items import (  # noqa: F401
     JsonSchema,
     OpenAIAllowedToolsChoice,
     OpenAICodeOutputImage,
@@ -68,11 +68,11 @@ from .models_items import (  # noqa: F401
     OpenAIWebSearchSource,
     OpenAIWebSearchToolCall,
 )
-from .models_request import (  # noqa: F401
+from molto.types.openai.responses.models_request import (  # noqa: F401
     OpenAIResponsesRequest,
     OpenAIResponsesRestrictedRequest,
 )
-from .models_response import (  # noqa: F401
+from molto.types.openai.responses.models_response import (  # noqa: F401
     OpenAIInputTokenDetails,
     OpenAIOutputTokenDetails,
     OpenAIResponsesError,

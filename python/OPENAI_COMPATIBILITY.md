@@ -6,13 +6,13 @@ This document describes the supported OpenAI-compatible boundary. Every route us
 
 | Public method and body | Model prefix | `endpoint` | Public output | Status |
 | --- | --- | --- | --- | --- |
-| `chat_completions(OpenAIChatCompletionRequest)` | `openai/` | `chat_completions` | Chat response/chunks | Supported subset |
+| `chat_completions(OpenAIChatCompletionRequest)` | `openai/` | `chat/completions` | Chat response/chunks | Supported subset |
 | `chat_completions(OpenAIChatCompletionRequest)` | `openai/` | `responses` | Chat response/chunks | Supported semantic subset; reasoning output is omitted |
 | `responses(OpenAIResponsesRequest)` | `openai/` | `responses` | Responses response/events | Supported subset |
-| `responses(OpenAIResponsesRequest)` | `openai/` | `chat_completions` | Responses response/events | Supported semantic subset |
+| `responses(OpenAIResponsesRequest)` | `openai/` | `chat/completions` | Responses response/events | Supported semantic subset |
 | Either matching public method/body | `vllm/` | Either OpenAI-compatible endpoint | Method-selected OpenAI output | Explicit `base_url`; unverified subset |
-| `chat_completions(OpenAIChatCompletionRequest)` | `anthropic/` | `chat_completions` (default) | Chat response/chunks | Conservative text/function subset; unverified |
-| `responses(OpenAIResponsesRequest)` | `anthropic/` | `chat_completions` (default) | Responses response/events | Supported semantic subset; unverified |
+| `chat_completions(OpenAIChatCompletionRequest)` | `anthropic/` | `chat/completions` (default) | Chat response/chunks | Conservative text/function subset; unverified |
+| `responses(OpenAIResponsesRequest)` | `anthropic/` | `chat/completions` (default) | Responses response/events | Supported semantic subset; unverified |
 | Either matching public method/body | `anthropic/` | `responses` | None | Unsupported |
 
 The public method selects both the accepted OpenAI request schema and returned output protocol. The request's optional `endpoint` field selects the execution endpoint ahead of the keyword-only `endpoint` fallback and the provider-aware default. Anthropic models default to Chat Completions for both public methods because Anthropic does not provide an OpenAI-compatible Responses endpoint. The routing field is consumed before `InputIR` conversion, so it never reaches provider translation. The model prefix selects the provider configuration.

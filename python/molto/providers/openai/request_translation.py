@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from molto.providers.openai.types import OpenAIEndpoint
 from molto.types.ir.portable import (
     AllowedFunctionTools,
     CodeInterpreterCallRequestItem,
@@ -27,8 +28,6 @@ from molto.types.ir.portable import (
     WebSearchCallRequestItem,
 )
 from molto.utils.exceptions import BadInputError
-
-from .types import OpenAIEndpoint
 
 
 def _without_none(values: dict[str, Any]) -> dict[str, Any]:
@@ -264,7 +263,7 @@ def _tool(
     )
     return (
         {"type": "function", "function": function}
-        if endpoint == "chat_completions"
+        if endpoint == "chat/completions"
         else {"type": "function", **function}
     )
 
@@ -275,14 +274,14 @@ def _tool_choice(choice, endpoint: OpenAIEndpoint) -> Any:
     if isinstance(choice, FunctionToolChoice):
         return (
             {"type": "function", "function": {"name": choice.name}}
-            if endpoint == "chat_completions"
+            if endpoint == "chat/completions"
             else {"type": "function", "name": choice.name}
         )
     if isinstance(choice, AllowedFunctionTools):
         tools = [
             (
                 {"type": "function", "function": {"name": tool.name}}
-                if endpoint == "chat_completions"
+                if endpoint == "chat/completions"
                 else {"type": "function", "name": tool.name}
             )
             for tool in choice.tools
@@ -310,7 +309,7 @@ def _output_format(ir, endpoint: OpenAIEndpoint) -> dict[str, Any] | None:
     )
     return (
         {"type": "json_schema", "json_schema": fields}
-        if endpoint == "chat_completions"
+        if endpoint == "chat/completions"
         else {"type": "json_schema", **fields}
     )
 
@@ -355,7 +354,7 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
     )
     format_payload = _output_format(ir, endpoint)
 
-    if endpoint != "chat_completions" and (
+    if endpoint != "chat/completions" and (
         ir.generation.audio_output is not None
         or ir.generation.modalities is not None
         and "audio" in ir.generation.modalities
@@ -366,7 +365,7 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
     ):
         raise BadInputError("Responses cannot represent Chat audio.")
 
-    if endpoint == "chat_completions":
+    if endpoint == "chat/completions":
         if ir.generation.audio_output is not None:
             request["audio"] = ir.generation.audio_output.model_dump(mode="python")
         if ir.generation.modalities is not None:

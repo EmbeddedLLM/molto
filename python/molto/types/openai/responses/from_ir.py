@@ -21,8 +21,7 @@ from molto.types.ir.portable import (
     ReasoningSummaryPart,
     RefusalPart,
 )
-
-from .models_response import (
+from molto.types.openai.responses.models_response import (
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     parse_stream_event,

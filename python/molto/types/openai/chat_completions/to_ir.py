@@ -24,9 +24,7 @@ from molto.types.ir.portable import (
     TextOutputFormat,
     WebSearchOptions,
 )
-from molto.utils.exceptions import BadInputError
-
-from .models_request import (
+from molto.types.openai.chat_completions.models_request import (
     ChatCompletionAllowedToolsChoice,
     ChatCompletionAssistantMessage,
     ChatCompletionContentPartImage,
@@ -39,6 +37,7 @@ from .models_request import (
     ChatCompletionToolMessage,
     OpenAIChatCompletionRequest,
 )
+from molto.utils.exceptions import BadInputError
 
 
 def _chat_content_to_ir(content):
@@ -224,7 +223,7 @@ def request_to_ir(request: OpenAIChatCompletionRequest) -> InputIR:
 
 def prepare_chat_request(
     request: OpenAIChatCompletionRequest,
-    endpoint: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat/completions", "responses"],
 ) -> InputIR:
     """Build provider input for the selected Chat endpoint."""
 

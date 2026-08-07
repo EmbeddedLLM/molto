@@ -19,8 +19,8 @@ XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
 ).decode("ascii")
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
-Endpoint = Literal["responses", "chat_completions"]
-ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat_completions")
+Endpoint = Literal["responses", "chat/completions"]
+ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat/completions")
 
 
 def _with_openai_model_prefix(body: dict[str, Any]) -> dict[str, Any]:

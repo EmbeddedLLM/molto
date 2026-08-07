@@ -89,7 +89,7 @@ The internal server intentionally has no tests. Keep test coverage at the core r
 
 The request path selects the OpenAI request and output protocol. The optional `X-Molto-Endpoint` header selects only the execution endpoint and accepts:
 
-- `chat_completions`
+- `chat/completions`
 - `responses`
 
 Model names may be sent as either `openai/<model>` or a bare `<model>` name. The server treats a bare name as an OpenAI model and adds the `openai/` prefix.
@@ -109,7 +109,7 @@ Chat Completions example:
 ```bash
 curl http://127.0.0.1:8017/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -H 'X-Molto-Endpoint: chat_completions' \
+  -H 'X-Molto-Endpoint: chat/completions' \
   -d '{"model":"gpt-5-mini","messages":[{"role":"user","content":"Hello"}],"stream":true}'
 ```
 

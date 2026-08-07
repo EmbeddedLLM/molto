@@ -288,7 +288,7 @@ _COMMON_TEXT_FEATURES = frozenset(
 
 OPENAI_CHAT_CAPABILITIES = ProviderContract(
     provider="openai",
-    endpoint="chat_completions",
+    endpoint="chat/completions",
     features=_COMMON_TEXT_FEATURES
     | {
         RequestFeature.INPUT_IMAGE,
@@ -327,7 +327,7 @@ OPENAI_RESPONSES_CAPABILITIES = ProviderContract(
 
 VLLM_CHAT_CAPABILITIES = ProviderContract(
     provider="vllm",
-    endpoint="chat_completions",
+    endpoint="chat/completions",
     features=OPENAI_CHAT_CAPABILITIES.features
     - {
         RequestFeature.INPUT_AUDIO,
@@ -349,7 +349,7 @@ VLLM_RESPONSES_CAPABILITIES = ProviderContract(
 # validates `tools[].type` as function-only and has no web search field.
 ANTHROPIC_OPENAI_CHAT_CAPABILITIES = ProviderContract(
     provider="anthropic",
-    endpoint="chat_completions",
+    endpoint="chat/completions",
     features=frozenset(
         {
             RequestFeature.STREAM,
@@ -391,16 +391,16 @@ def provider_contract_for(model: str, endpoint: str) -> ProviderContract:
 
     if model.startswith("openai/"):
         provider_contracts = {
-            "chat_completions": OPENAI_CHAT_CAPABILITIES,
+            "chat/completions": OPENAI_CHAT_CAPABILITIES,
             "responses": OPENAI_RESPONSES_CAPABILITIES,
         }
     elif model.startswith("vllm/"):
         provider_contracts = {
-            "chat_completions": VLLM_CHAT_CAPABILITIES,
+            "chat/completions": VLLM_CHAT_CAPABILITIES,
             "responses": VLLM_RESPONSES_CAPABILITIES,
         }
     elif model.startswith("anthropic/"):
-        provider_contracts = {"chat_completions": ANTHROPIC_OPENAI_CHAT_CAPABILITIES}
+        provider_contracts = {"chat/completions": ANTHROPIC_OPENAI_CHAT_CAPABILITIES}
     else:
         raise ValueError(f"Unsupported model: {model}")
     try:

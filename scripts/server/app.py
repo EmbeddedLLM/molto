@@ -327,11 +327,11 @@ def _endpoint(
     if value is None:
         request.state.resolved_endpoint = default
         return default
-    if value not in ("chat_completions", "responses"):
+    if value not in ("chat/completions", "responses"):
         request.state.resolved_endpoint = "<invalid>"
         raise _ServerError(
             400,
-            "X-Molto-Endpoint must be 'chat_completions' or 'responses'.",
+            "X-Molto-Endpoint must be 'chat/completions' or 'responses'.",
             error_type="invalid_request_error",
             code="invalid_endpoint",
             param="X-Molto-Endpoint",
@@ -358,7 +358,7 @@ def _chat_endpoint(
         request.state.requested_endpoint = "responses"
         request.state.resolved_endpoint = "responses"
         return "responses"
-    return _endpoint(request, body, default="chat_completions")
+    return _endpoint(request, body, default="chat/completions")
 
 
 def _prepare_payload(request: Request, payload: Any) -> Any:

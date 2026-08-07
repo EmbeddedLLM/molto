@@ -5,15 +5,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+from molto.providers.openai.output_translation.stream import openai_stream_frame
+from molto.providers.openai.usage import usage_from_openai
 from molto.types.ir.base import ItemStatus
 from molto.types.ir.content import OutputTextPart, RefusalPart, UrlCitation
 from molto.types.ir.emitter import OutputEventEmitter
 from molto.types.ir.events import OutputEvent, ResponseMetadata
 from molto.types.ir.output_items import AssistantMessageItem, FunctionCallItem, GeneratedAudio
 from molto.utils.exceptions import BadInputError
-
-from ..usage import usage_from_openai
-from .stream import openai_stream_frame
 
 
 def _metadata(payload: dict[str, Any], choice: dict[str, Any] | None = None) -> ResponseMetadata:
@@ -158,7 +157,7 @@ def _response_events(payload: dict[str, Any]) -> list[OutputEvent]:
         )
         item_index += 1
 
-    usage = usage_from_openai(payload.get("usage"), "chat_completions")
+    usage = usage_from_openai(payload.get("usage"), "chat/completions")
     finish_reason = choice.get("finish_reason")
     if finish_reason in {"length", "content_filter"}:
         incomplete_reason = "max_output_tokens" if finish_reason == "length" else "content_filter"
@@ -257,7 +256,7 @@ async def chat_stream_to_output_events(
             response_id,
             len(chunks),
             payload,
-            "chat_completions",
+            "chat/completions",
         )
     if not chunks:
         raise BadInputError("OpenAI Chat stream returned no events.")

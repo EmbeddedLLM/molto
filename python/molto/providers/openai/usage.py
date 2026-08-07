@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from molto.providers.openai.types import OpenAIEndpoint
 from molto.types.ir.usage import Usage
-
-from .types import OpenAIEndpoint
 
 
 def _optional_int(values: Mapping[str, object], name: str) -> int | None:

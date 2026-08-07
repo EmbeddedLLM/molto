@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .base import IRModel, ProviderName
+from molto.types.ir.base import IRModel, ProviderName
 
 
 class ErrorDetail(IRModel):

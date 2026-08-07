@@ -4,7 +4,7 @@ from typing import Annotated, ClassVar, Literal, Union
 
 from pydantic import Field
 
-from .base import ContentIndex, IRModel, ProviderName
+from molto.types.ir.base import ContentIndex, IRModel, ProviderName
 
 
 class InputTextPart(IRModel):

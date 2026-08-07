@@ -13,8 +13,7 @@ from pydantic import (
 
 from molto.types.ir.portable import InputIR
 from molto.types.openai._common import OpenAIRequestBase
-
-from .models_items import (
+from molto.types.openai.responses.models_items import (
     OpenAIAllowedToolsChoice,
     OpenAIConversation,
     OpenAIInput,

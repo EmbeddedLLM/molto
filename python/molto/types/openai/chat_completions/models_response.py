@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
-from .models_request import (
+from molto.types.openai.chat_completions.models_request import (
     ChatCompletionFunctionCall,
     ChatCompletionToolCall,
 )

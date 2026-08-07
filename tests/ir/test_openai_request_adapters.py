@@ -19,7 +19,7 @@ def test_chat_request_builds_canonical_openai_payload() -> None:
         messages=[{"role": "user", "content": "hello"}],
     )
 
-    assert build_openai_request(request.to_ir(), "chat_completions") == {
+    assert build_openai_request(request.to_ir(), "chat/completions") == {
         "model": "gpt-test",
         "messages": [{"role": "user", "content": "hello"}],
     }
@@ -33,7 +33,7 @@ def test_chat_request_preparation_removes_responses_unsupported_stream_options()
         stream_options={"include_usage": True},
     )
 
-    chat = prepare_chat_request(request, "chat_completions")
+    chat = prepare_chat_request(request, "chat/completions")
     responses = prepare_chat_request(request, "responses")
 
     assert chat.stream_options is not None
@@ -53,7 +53,7 @@ def test_responses_request_include_usage_forwarded_as_true_to_chat() -> None:
         stream_options={"include_usage": False, "include_obfuscation": True},
     )
 
-    chat = prepare_responses_request(request, "chat_completions")
+    chat = prepare_responses_request(request, "chat/completions")
 
     # The Chat provider always receives include_usage=True; the user's
     # include_obfuscation remains representable and is forwarded. The user's
@@ -62,7 +62,7 @@ def test_responses_request_include_usage_forwarded_as_true_to_chat() -> None:
     assert chat.stream_options.include_usage is True
     assert chat.stream_options.include_obfuscation is True
     assert chat.include_usage is False
-    assert build_openai_request(chat, "chat_completions")["stream_options"] == {
+    assert build_openai_request(chat, "chat/completions")["stream_options"] == {
         "include_obfuscation": True,
         "include_usage": True,
     }
@@ -108,7 +108,7 @@ def test_responses_request_include_usage_not_forwarded_when_not_streaming() -> N
         stream_options={"include_usage": False},
     )
 
-    chat = prepare_responses_request(request, "chat_completions")
+    chat = prepare_responses_request(request, "chat/completions")
 
     # include_usage is a streaming-only option; non-stream requests carry no
     # stream_options to the provider, and the usage is always returned.
@@ -173,7 +173,7 @@ def test_responses_request_preparation_removes_chat_unsupported_controls() -> No
     )
 
     responses = prepare_responses_request(request, "responses")
-    chat = prepare_responses_request(request, "chat_completions")
+    chat = prepare_responses_request(request, "chat/completions")
 
     assert responses.include == ("reasoning.encrypted_content",)
     assert responses.generation.reasoning_summary == "auto"
@@ -205,9 +205,9 @@ def test_responses_web_search_is_projected_to_openai_chat_options() -> None:
         ],
     )
 
-    ir = prepare_responses_request(request, "chat_completions")
+    ir = prepare_responses_request(request, "chat/completions")
 
-    assert build_openai_request(ir, "chat_completions") == {
+    assert build_openai_request(ir, "chat/completions") == {
         "model": "gpt-test",
         "messages": [{"role": "user", "content": "Find nearby events."}],
         "web_search_options": {
@@ -237,9 +237,9 @@ def test_responses_bare_web_search_is_projected_to_openai_chat_options() -> None
         tools=[{"type": "web_search"}],
     )
 
-    ir = prepare_responses_request(request, "chat_completions")
+    ir = prepare_responses_request(request, "chat/completions")
 
-    assert build_openai_request(ir, "chat_completions")["web_search_options"] == {}
+    assert build_openai_request(ir, "chat/completions")["web_search_options"] == {}
 
 
 def test_responses_web_search_rejects_fields_openai_chat_cannot_represent() -> None:
@@ -250,7 +250,7 @@ def test_responses_web_search_rejects_fields_openai_chat_cannot_represent() -> N
     )
 
     with pytest.raises(BadInputError, match="filters"):
-        prepare_responses_request(request, "chat_completions")
+        prepare_responses_request(request, "chat/completions")
 
 
 def test_responses_web_search_on_anthropic_chat_is_rejected() -> None:
@@ -260,12 +260,12 @@ def test_responses_web_search_on_anthropic_chat_is_rejected() -> None:
         tools=[{"type": "web_search"}],
     )
 
-    ir = prepare_responses_request(request, "chat_completions")
+    ir = prepare_responses_request(request, "chat/completions")
 
     # The Anthropic compatibility endpoint validates tools as function-only and
     # has no web search field, so hosted web search fails closed on the wire.
     with pytest.raises(BadInputError, match="cannot represent Responses hosted tool"):
-        build_openai_request(ir, "chat_completions")
+        build_openai_request(ir, "chat/completions")
 
 
 def test_chat_store_survives_ir_and_request_translation() -> None:
@@ -275,7 +275,7 @@ def test_chat_store_survives_ir_and_request_translation() -> None:
         store=False,
     )
 
-    assert build_openai_request(request.to_ir(), "chat_completions") == {
+    assert build_openai_request(request.to_ir(), "chat/completions") == {
         "model": "claude-test",
         "store": False,
         "messages": [{"role": "user", "content": "hello"}],
@@ -301,7 +301,7 @@ def test_responses_sdk_payload_omits_unsupported_penalties(field: str) -> None:
     ("endpoint", "openai_request", "expected"),
     [
         (
-            "chat_completions",
+            "chat/completions",
             OpenAIChatCompletionRequest(
                 model="openai/gpt-test",
                 messages=[{"role": "user", "content": "hello"}],
@@ -557,4 +557,4 @@ def test_chat_request_rejects_namespaced_function_call_history() -> None:
     )
 
     with pytest.raises(BadInputError, match="namespaced function calls"):
-        build_openai_request(request.to_ir(), "chat_completions")
+        build_openai_request(request.to_ir(), "chat/completions")

@@ -4,9 +4,9 @@ from typing import Annotated, Literal, Union
 
 from pydantic import Field, model_validator
 
-from .base import AssistantPhase, IRModel, ItemStatus, StableId
-from .content import AssistantContentPart, ReasoningPart, UrlCitation
-from .tools import FunctionName
+from molto.types.ir.base import AssistantPhase, IRModel, ItemStatus, StableId
+from molto.types.ir.content import AssistantContentPart, ReasoningPart, UrlCitation
+from molto.types.ir.tools import FunctionName
 
 
 class GeneratedAudio(IRModel):

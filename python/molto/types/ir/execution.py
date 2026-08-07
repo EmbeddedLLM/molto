@@ -1,8 +1,8 @@
 from collections.abc import AsyncIterable
 
-from .aggregates import OutputIR
-from .events import OutputEvent, OutputEventSequence
-from .state import StateReferences
+from molto.types.ir.aggregates import OutputIR
+from molto.types.ir.events import OutputEvent, OutputEventSequence
+from molto.types.ir.state import StateReferences
 
 
 async def collect_output_ir(

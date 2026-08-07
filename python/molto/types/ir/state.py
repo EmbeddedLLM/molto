@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import model_validator
 
-from .base import IRModel, ProviderName, StableId
+from molto.types.ir.base import IRModel, ProviderName, StableId
 
 
 class StateReference(IRModel):

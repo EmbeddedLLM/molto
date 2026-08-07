@@ -1,7 +1,7 @@
 """Portable OpenAI-compatible IR models."""
 
-from .aggregates import InputIR, OutputIR
-from .base import (
+from molto.types.ir.aggregates import InputIR, OutputIR
+from molto.types.ir.base import (
     AssistantPhase,
     ContentIndex,
     IRModel,
@@ -12,7 +12,7 @@ from .base import (
     SequenceNumber,
     StableId,
 )
-from .config import (
+from molto.types.ir.config import (
     AudioOutputConfig,
     CustomVoice,
     GenerationConfig,
@@ -28,7 +28,7 @@ from .config import (
     WebSearchOptions,
     WebSearchUserLocation,
 )
-from .content import (
+from molto.types.ir.content import (
     AssistantContentPart,
     EncryptedReasoningPart,
     InputAudioPart,
@@ -43,8 +43,8 @@ from .content import (
     RequestContentPart,
     UrlCitation,
 )
-from .errors import ErrorDetail
-from .events import (
+from molto.types.ir.errors import ErrorDetail
+from molto.types.ir.events import (
     ContentPartAddedEvent,
     ContentPartDeltaEvent,
     ContentPartDoneEvent,
@@ -63,8 +63,8 @@ from .events import (
     ResponseMetadata,
     ResponseStartedEvent,
 )
-from .execution import collect_output_ir
-from .output_items import (
+from molto.types.ir.execution import collect_output_ir
+from molto.types.ir.output_items import (
     AssistantMessageItem,
     FunctionCallItem,
     GeneratedAudio,
@@ -73,7 +73,7 @@ from .output_items import (
     OutputItems,
     ReasoningItem,
 )
-from .request_items import (
+from molto.types.ir.request_items import (
     CodeInterpreterCallRequestItem,
     CodeInterpreterOutput,
     CodeInterpreterOutputImage,
@@ -91,8 +91,8 @@ from .request_items import (
     WebSearchCallRequestItem,
     WebSearchSource,
 )
-from .state import StateReference, StateReferences
-from .tools import (
+from molto.types.ir.state import StateReference, StateReferences
+from molto.types.ir.tools import (
     OPENAI_WEB_SEARCH_TOOL_TYPES,
     AllowedFunctionTools,
     FunctionName,
@@ -103,7 +103,7 @@ from .tools import (
     ToolChoice,
     ToolDefinition,
 )
-from .usage import TokenCount, Usage
+from molto.types.ir.usage import TokenCount, Usage
 
 __all__ = [
     "AllowedFunctionTools",

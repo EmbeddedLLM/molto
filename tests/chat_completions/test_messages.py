@@ -102,6 +102,6 @@ async def test_multimodal_messages_round_trip_through_sdk(stream: bool, cassette
                 ],
                 stream=False,
             ),
-            endpoint="chat_completions",
+            endpoint="chat/completions",
         )
         assert cross_result.object == "response"

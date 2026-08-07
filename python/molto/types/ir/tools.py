@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import Field, model_validator
 
-from .base import IRModel, StableId
+from molto.types.ir.base import IRModel, StableId
 
 FunctionName = StableId
 OPENAI_WEB_SEARCH_TOOL_TYPES = frozenset(

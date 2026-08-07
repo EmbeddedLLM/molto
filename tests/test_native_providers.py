@@ -43,7 +43,7 @@ from molto.utils.exceptions import BadInputError, ModelCapabilityError, ModelOve
 
 def _canned_response(endpoint: str) -> httpx.Response:
     """Return a minimal canned SDK response so a request can be sent and captured."""
-    if endpoint == "chat_completions":
+    if endpoint == "chat/completions":
         body = {
             "id": "x",
             "object": "chat.completion",
@@ -80,7 +80,7 @@ async def _assert_sdk_serializes_same(endpoint: str, body: dict) -> None:
     )
     create = (
         client.chat.completions.create
-        if endpoint == "chat_completions"
+        if endpoint == "chat/completions"
         else client.responses.create
     )
     accepted = set(inspect.signature(create).parameters)
@@ -445,7 +445,7 @@ def test_responses_request_translates_to_chat_endpoint() -> None:
         },
     )
 
-    assert build_openai_request(request.to_ir(), "chat_completions") == {
+    assert build_openai_request(request.to_ir(), "chat/completions") == {
         "model": "gpt-4.1-nano",
         "messages": [{"role": "user", "content": "Use one function."}],
         "tools": [
@@ -477,7 +477,7 @@ def test_generated_audio_request_survives_the_input_ir() -> None:
         audio={"format": "mp3", "voice": "alloy"},
     )
 
-    assert build_openai_request(request.to_ir(), "chat_completions") == {
+    assert build_openai_request(request.to_ir(), "chat/completions") == {
         "model": "gpt-4o-audio-preview",
         "audio": {"format": "mp3", "voice": "alloy"},
         "modalities": ["text", "audio"],
@@ -506,7 +506,7 @@ async def test_mcp_rejects_before_provider_construction(
     )
 
     with pytest.raises(BadInputError, match="tool.hosted"):
-        await Molto(strict=True).responses(request, api_key="test", endpoint="chat_completions")
+        await Molto(strict=True).responses(request, api_key="test", endpoint="chat/completions")
 
 
 async def test_public_payloads_attach_outer_provider_and_model(
@@ -641,7 +641,7 @@ async def test_responses_state_rejects_chat_endpoint_before_provider_constructio
     )
 
     with pytest.raises(ModelCapabilityError, match="state.response"):
-        await Molto(strict=True).responses(request, api_key="test", endpoint="chat_completions")
+        await Molto(strict=True).responses(request, api_key="test", endpoint="chat/completions")
 
 
 @pytest.mark.parametrize(
@@ -832,7 +832,7 @@ async def test_previous_chat_audio_rejects_responses_endpoint_before_constructio
         await Molto(strict=True).chat_completions(request, api_key="test", endpoint="responses")
 
 
-@pytest.mark.parametrize("public_endpoint", ["chat_completions", "responses"])
+@pytest.mark.parametrize("public_endpoint", ["chat/completions", "responses"])
 async def test_anthropic_defaults_to_chat_completions_endpoint(
     public_endpoint: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -847,7 +847,7 @@ async def test_anthropic_defaults_to_chat_completions_endpoint(
             return chat_response_to_output_events(_chat_payload("Hello"))
 
     monkeypatch.setattr("molto.core.OpenAIProvider", AnthropicChatProvider)
-    if public_endpoint == "chat_completions":
+    if public_endpoint == "chat/completions":
         request = OpenAIChatCompletionRequest(
             model="anthropic/claude-sonnet-5",
             messages=[{"role": "user", "content": "hi"}],
@@ -859,7 +859,7 @@ async def test_anthropic_defaults_to_chat_completions_endpoint(
         response = await Molto().responses(request, api_key="test")
         assert response.output[0].content[0].text == "Hello"
 
-    assert captured["endpoint"] == "chat_completions"
+    assert captured["endpoint"] == "chat/completions"
 
 
 async def test_anthropic_responses_to_chat_projects_endpoint_specific_controls(
@@ -887,7 +887,7 @@ async def test_anthropic_responses_to_chat_projects_endpoint_specific_controls(
     response = await Molto().responses(request, api_key="test")
 
     assert response.output[0].content[0].text == "Hello"
-    assert captured["endpoint"] == "chat_completions"
+    assert captured["endpoint"] == "chat/completions"
     assert captured["request"].include is None
     assert captured["request"].generation.reasoning_summary is None
     assert captured["request"].generation.reasoning_effort == "high"
@@ -904,7 +904,7 @@ async def test_responses_web_search_projects_to_chat_provider_shape(
             captured["endpoint"] = endpoint
 
         def run(self, request) -> AsyncIterator:
-            captured["payload"] = build_openai_request(request, "chat_completions")
+            captured["payload"] = build_openai_request(request, "chat/completions")
             return chat_response_to_output_events(_chat_payload("Hello"))
 
     monkeypatch.setattr("molto.core.OpenAIProvider", ChatProvider)
@@ -915,11 +915,11 @@ async def test_responses_web_search_projects_to_chat_provider_shape(
             tools=[{"type": "web_search"}],
         ),
         api_key="test",
-        endpoint="chat_completions",
+        endpoint="chat/completions",
     )
 
     assert response.output[0].content[0].text == "Hello"
-    assert captured["endpoint"] == "chat_completions"
+    assert captured["endpoint"] == "chat/completions"
     assert captured["payload"]["web_search_options"] == {}
 
 
@@ -938,11 +938,11 @@ async def test_anthropic_responses_web_search_rejects_before_provider_constructi
                 tools=[{"type": "web_search"}],
             ),
             api_key="test",
-            endpoint="chat_completions",
+            endpoint="chat/completions",
         )
 
 
-@pytest.mark.parametrize("public_endpoint", ["chat_completions", "responses"])
+@pytest.mark.parametrize("public_endpoint", ["chat/completions", "responses"])
 async def test_anthropic_responses_endpoint_rejects_before_provider_construction(
     public_endpoint: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -951,7 +951,7 @@ async def test_anthropic_responses_endpoint_rejects_before_provider_construction
         raise AssertionError("OpenAIProvider must not be constructed")
 
     monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
-    if public_endpoint == "chat_completions":
+    if public_endpoint == "chat/completions":
         request = OpenAIChatCompletionRequest(
             model="anthropic/claude-test",
             messages=[{"role": "user", "content": "hi"}],
@@ -980,7 +980,7 @@ def test_endpoint_is_not_part_of_openai_request_models() -> None:
         OpenAIResponsesRequest(
             model="openai/gpt-4.1-nano",
             input="hi",
-            endpoint="chat_completions",
+            endpoint="chat/completions",
         )
 
 
@@ -1014,7 +1014,7 @@ async def test_endpoint_is_keyword_only() -> None:
     request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
     with pytest.raises(TypeError, match="positional"):
-        await Molto().responses(request, "test", "chat_completions")
+        await Molto().responses(request, "test", "chat/completions")
 
 
 async def test_vllm_audio_rejects_before_provider_construction(
@@ -1064,7 +1064,7 @@ async def test_vllm_image_generation_rejects_before_provider_construction(
         await Molto(strict=True).responses(
             request,
             api_key="test",
-            endpoint="chat_completions",
+            endpoint="chat/completions",
             base_url="https://example.test/v1",
         )
 
@@ -1162,7 +1162,7 @@ async def test_responses_terminal_state_rejects_unrepresentable_chat_output(
 
 async def test_provider_closes_owned_client_when_sdk_call_fails() -> None:
     provider = OpenAIProvider(
-        "chat_completions",
+        "chat/completions",
         api_key="test",
         max_retries=0,
         base_url="http://127.0.0.1:1/v1",
@@ -1272,13 +1272,13 @@ async def test_openai_client_close_matrix(injected: bool, stream: bool) -> None:
     transport_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     if injected:
         provider = OpenAIProvider(
-            "chat_completions",
+            "chat/completions",
             api_key="test",
             http_client=transport_client,
             max_retries=0,
         )
     else:
-        provider = OpenAIProvider("chat_completions", api_key="test", max_retries=0)
+        provider = OpenAIProvider("chat/completions", api_key="test", max_retries=0)
         provider._client._client = transport_client
 
     request = OpenAIChatCompletionRequest(

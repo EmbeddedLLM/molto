@@ -4,20 +4,24 @@ from typing import Literal
 
 from pydantic import model_validator
 
-from .base import IRModel, ResponseStatus, StableId
-from .config import GenerationConfig, OutputFormat, StreamOptions, TextOutputFormat
-from .errors import ErrorDetail
-from .events import (
+from molto.types.ir.base import IRModel, ResponseStatus, StableId
+from molto.types.ir.config import GenerationConfig, OutputFormat, StreamOptions, TextOutputFormat
+from molto.types.ir.errors import ErrorDetail
+from molto.types.ir.events import (
     OutputEventSequence,
     ResponseCompletedEvent,
     ResponseFailedEvent,
     ResponseIncompleteEvent,
     ResponseMetadata,
 )
-from .output_items import OutputItems
-from .request_items import FunctionCallRequestItem, FunctionCallResultItem, RequestItem
-from .state import StateReferences
-from .tools import (
+from molto.types.ir.output_items import OutputItems
+from molto.types.ir.request_items import (
+    FunctionCallRequestItem,
+    FunctionCallResultItem,
+    RequestItem,
+)
+from molto.types.ir.state import StateReferences
+from molto.types.ir.tools import (
     AllowedFunctionTools,
     FunctionToolChoice,
     FunctionToolDefinition,
@@ -25,7 +29,7 @@ from .tools import (
     ToolChoice,
     ToolDefinition,
 )
-from .usage import Usage
+from molto.types.ir.usage import Usage
 
 
 class InputIR(IRModel):

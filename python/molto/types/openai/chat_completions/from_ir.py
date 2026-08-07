@@ -14,8 +14,10 @@ from molto.types.ir.events import (
 )
 from molto.types.ir.output_items import AssistantMessageItem, FunctionCallItem
 from molto.types.ir.portable import OutputIR, OutputTextPart, RefusalPart
-
-from .models_response import OpenAIChatCompletionChunk, OpenAIChatCompletionResponse
+from molto.types.openai.chat_completions.models_response import (
+    OpenAIChatCompletionChunk,
+    OpenAIChatCompletionResponse,
+)
 
 
 def _finish_reason(output: OutputIR, has_tool_calls: bool) -> str:
@@ -91,7 +93,7 @@ def _response_values(output: OutputIR) -> dict:
         "model": output.metadata.model,
         "object": "chat.completion",
         "system_fingerprint": output.metadata.system_fingerprint,
-        "usage": usage_to_openai(output.usage, "chat_completions"),
+        "usage": usage_to_openai(output.usage, "chat/completions"),
     }
     if output.metadata.service_tier_present:
         values["service_tier"] = output.metadata.service_tier
@@ -118,7 +120,7 @@ async def from_output_event_stream(
     event_values: list[OutputEvent] = []
     matching_frames = False
     async for event in events:
-        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat_completions":
+        if isinstance(event, PreservedOpenAIStreamEvent) and event.endpoint == "chat/completions":
             matching_frames = True
             if event.event_type != "chat.completion.chunk":
                 raise ValueError(f"Unexpected OpenAI Chat stream event {event.event_type!r}.")

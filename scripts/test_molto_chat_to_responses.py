@@ -21,7 +21,7 @@ async def main() -> None:
             input=QUESTION,
         ),
         api_key=api_key,
-        endpoint="chat_completions",
+        endpoint="chat/completions",
     )
     print_value(
         "Molto Responses request -> Chat execution -> Responses non-stream output",
@@ -35,7 +35,7 @@ async def main() -> None:
             stream=True,
         ),
         api_key=api_key,
-        endpoint="chat_completions",
+        endpoint="chat/completions",
     )
     await print_stream(
         "Molto Responses request -> Chat execution -> Responses stream output",

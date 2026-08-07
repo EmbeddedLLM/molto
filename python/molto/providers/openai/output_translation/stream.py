@@ -17,13 +17,13 @@ def openai_stream_frame(
     response_id: str,
     sequence_number: int,
     payload: dict[str, Any],
-    endpoint: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat/completions", "responses"],
 ) -> PreservedOpenAIStreamEvent:
     """Create one preserved stream frame without waiting for the stream terminal."""
 
     event_type = payload.get("type")
     if not isinstance(event_type, str):
-        if endpoint == "chat_completions" and payload.get("object") == "chat.completion.chunk":
+        if endpoint == "chat/completions" and payload.get("object") == "chat.completion.chunk":
             event_type = "chat.completion.chunk"
         else:
             raise BadInputError("OpenAI stream frame is missing its event type.")
@@ -39,7 +39,7 @@ def openai_stream_frame(
 def attach_openai_response_snapshot(
     semantic_events: list[OutputEvent],
     payload: dict[str, Any],
-    endpoint: Literal["chat_completions", "responses"],
+    endpoint: Literal["chat/completions", "responses"],
 ) -> list[OutputEvent]:
     """Insert one exact OpenAI response snapshot after response start."""
 

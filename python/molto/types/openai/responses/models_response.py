@@ -8,9 +8,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from molto.utils import uuid7_str
-
-from .models_items import (
+from molto.types.openai.responses.models_items import (
     OpenAIConversation,
     OpenAIOutput,
     OpenAIOutputRefusal,
@@ -24,6 +22,7 @@ from .models_items import (
     OpenAITextFormat,
     OpenAIToolChoice,
 )
+from molto.utils import uuid7_str
 
 
 class OpenAIResponsesResponseError(BaseModel):

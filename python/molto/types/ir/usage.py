@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import Field, model_validator
 
-from .base import IRModel
+from molto.types.ir.base import IRModel
 
 TokenCount = Annotated[int, Field(ge=0)]
 

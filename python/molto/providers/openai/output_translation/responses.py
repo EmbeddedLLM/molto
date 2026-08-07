@@ -6,6 +6,11 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+from molto.providers.openai.output_translation.stream import (
+    attach_openai_response_snapshot,
+    openai_stream_frame,
+)
+from molto.providers.openai.usage import usage_from_openai
 from molto.types.ir.base import ItemStatus
 from molto.types.ir.content import (
     EncryptedReasoningPart,
@@ -25,9 +30,6 @@ from molto.types.ir.output_items import (
     ReasoningItem,
 )
 from molto.utils.exceptions import BadInputError
-
-from ..usage import usage_from_openai
-from .stream import attach_openai_response_snapshot, openai_stream_frame
 
 
 def _metadata(payload: dict[str, Any]) -> ResponseMetadata:
