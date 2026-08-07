@@ -38,7 +38,7 @@ The Chat request adapter removes `stream_options` when the selected endpoint is 
 
 ## Client configuration and strict mode
 
-Transport configuration is per call: `Molto.responses()` and `Molto.chat_completions()` accept `api_key`, `base_url`, `max_retries`, and `http_client`, so one gateway can serve multiple providers and credentials. `Molto` itself is constructed with only the `strict` flag.
+Transport configuration is split by lifetime: `Molto` accepts an optional shared `http_client` and default `max_retries`, while `Molto.responses()` and `Molto.chat_completions()` require `api_key` and accept `base_url` plus an optional per-call `max_retries` override. A per-call retry value takes priority over the gateway default.
 
 `strict` controls how unsupported request features are handled. Without it (the default), a feature the selected provider/endpoint contract does not honor is dropped and ignored, and the request proceeds with the supported subset. With `strict=True`, the same feature raises `ModelCapabilityError` before provider construction. The Anthropic `ignored_features` carve-out follows the same rule: fields the compatibility endpoint accepts but ignores are silent in non-strict mode and rejected in strict mode.
 

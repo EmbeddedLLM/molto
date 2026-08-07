@@ -69,7 +69,6 @@ from .models_items import (  # noqa: F401
     OpenAIWebSearchToolCall,
 )
 from .models_request import (  # noqa: F401
-    OpenAIResponsesBody,
     OpenAIResponsesRequest,
     OpenAIResponsesRestrictedRequest,
 )

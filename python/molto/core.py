@@ -1,9 +1,8 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from functools import partial
-from typing import Any, Literal
+from typing import Any
 
 from httpx import AsyncClient
-from pydantic import BaseModel
 
 from molto.providers import (
     OpenAIProvider,
@@ -12,8 +11,8 @@ from molto.providers import (
 )
 from molto.providers.openai.types import OpenAIEndpoint
 from molto.types.ir.portable import InputIR, collect_output_ir
+from molto.types.openai._common import OpenAIProviderName
 from molto.types.openai.chat_completions import (
-    OpenAIChatCompletionBody,
     OpenAIChatCompletionChunk,
     OpenAIChatCompletionRequest,
     OpenAIChatCompletionResponse,
@@ -30,7 +29,6 @@ from molto.types.openai.cross_endpoint import (
     responses_from_chat_output_ir,
 )
 from molto.types.openai.responses import (
-    OpenAIResponsesBody,
     OpenAIResponsesRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
@@ -44,71 +42,13 @@ from molto.types.openai.responses import (
 from molto.types.openai.responses.to_ir import prepare_responses_request
 from molto.utils.exceptions import BadInputError
 
-ProviderName = Literal["openai", "vllm", "anthropic"]
-
 
 def default_endpoint_for(
-    provider: ProviderName, public_endpoint: OpenAIEndpoint
+    provider: OpenAIProviderName, public_endpoint: OpenAIEndpoint
 ) -> OpenAIEndpoint:
     """Resolve the provider-aware execution endpoint when the caller omits it."""
 
     return "chat_completions" if provider == "anthropic" else public_endpoint
-
-
-def _qualified_model(provider: ProviderName, model: str) -> str:
-    """Build the internal provider-qualified model identifier."""
-
-    if not model or "/" in model:
-        raise BadInputError("model must be a non-empty provider-local model name.")
-    return f"{provider}/{model}"
-
-
-def _normalize_body(
-    body: Any,
-    *,
-    payload_type: type[Any],
-    request_type: type[Any],
-    provider: ProviderName | None,
-    model: str | None,
-    name: str,
-) -> tuple[Any, ProviderName]:
-    """Validate a public payload and attach its outer routing identity."""
-
-    if isinstance(body, Mapping) and "model" in body:
-        body = request_type.model_validate(body)
-
-    if isinstance(body, request_type):
-        if provider is None and model is None:
-            legacy_provider, separator, legacy_model = body.model.partition("/")
-            if separator and legacy_provider in {"openai", "vllm", "anthropic"}:
-                return body, legacy_provider
-            if not separator:
-                return body.model_copy(
-                    update={"model": _qualified_model("openai", body.model)}
-                ), "openai"
-            raise BadInputError("Request model has an unsupported provider prefix.")
-        if provider is None or model is None:
-            raise BadInputError("provider and model must be supplied together.")
-        if body.model != _qualified_model(provider, model):
-            raise BadInputError("The body model must match the provider and model arguments.")
-        return body, provider
-
-    if isinstance(body, BaseModel) and not isinstance(body, payload_type):
-        raise BadInputError(f"{name} requests must use {request_type.__name__}.")
-    if provider is None or model is None:
-        raise BadInputError("provider and model are required when body has no model.")
-    if isinstance(body, payload_type):
-        payload = body
-    elif isinstance(body, Mapping):
-        payload = payload_type.model_validate(body)
-    else:
-        raise BadInputError(f"{name} body must be its payload model or a mapping.")
-    return (
-        request_type.model_validate(
-            {"model": _qualified_model(provider, model), **payload.model_dump(exclude_unset=True)}
-        ),
-        provider,
-    )
 
 
 async def _execute(
@@ -142,9 +82,9 @@ async def _execute(
 class Molto:
     """Public gateway entry point.
 
-    Transport configuration (``api_key``, ``base_url``, ``max_retries``,
-    ``http_client``) is passed per call, so a single gateway can serve
-    multiple providers and credentials. ``strict`` controls capability
+    ``http_client`` and the default ``max_retries`` are configured on the
+    gateway. Each call supplies its provider credential and can override
+    ``base_url`` and ``max_retries``. ``strict`` controls capability
     enforcement: strict mode rejects unsupported request features, non-strict
     mode drops and ignores them.
 
@@ -154,23 +94,28 @@ class Molto:
     documented no-op kept for API symmetry.
     """
 
-    def __init__(self, *, strict: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        strict: bool = False,
+        max_retries: int = 2,
+        http_client: AsyncClient | None = None,
+    ) -> None:
         self._strict = strict
+        self._max_retries = max_retries
+        self._http_client = http_client
 
     async def close(self) -> None:
         """Release Molto-owned resources (see the class resource contract)."""
 
-    def _check_model(
+    def _check_base_url(
         self,
         model: str,
         *,
         base_url: str | None,
-        allowed_prefixes: tuple[str, ...],
     ) -> None:
-        """Reject unsupported model prefixes and vLLM without an explicit base_url."""
+        """Check base_url combinations before provider construction."""
 
-        if not any(model.startswith(prefix) for prefix in allowed_prefixes):
-            raise ValueError(f"Unsupported model: {model}")
         if model.startswith("vllm/") and base_url is None:
             raise BadInputError("vLLM execution requires an explicit base_url.")
 
@@ -179,17 +124,15 @@ class Molto:
         ir: InputIR,
         *,
         endpoint: OpenAIEndpoint,
-        api_key: str | None,
+        api_key: str,
         base_url: str | None,
         max_retries: int,
-        http_client: AsyncClient | None,
     ) -> OpenAIProvider:
         """Validate one provider/endpoint route before constructing its SDK client."""
 
-        self._check_model(
+        self._check_base_url(
             ir.model,
             base_url=base_url,
-            allowed_prefixes=("openai/", "vllm/", "anthropic/"),
         )
         if endpoint not in ("chat_completions", "responses"):
             raise BadInputError(f"Unsupported endpoint: {endpoint}")
@@ -203,7 +146,7 @@ class Molto:
             ir,
             lambda: OpenAIProvider(
                 endpoint,
-                http_client=http_client,
+                http_client=self._http_client,
                 api_key=api_key,
                 base_url=provider_base_url,
                 max_retries=max_retries,
@@ -213,37 +156,26 @@ class Molto:
 
     async def responses(
         self,
-        body: OpenAIResponsesBody | Mapping[str, Any],
-        api_key: str | None = None,
+        body: OpenAIResponsesRequest | Mapping[str, Any],
+        api_key: str,
         *,
         endpoint: OpenAIEndpoint | None = None,
-        provider: ProviderName | None = None,
         model: str | None = None,
         base_url: str | None = None,
-        max_retries: int = 2,
-        http_client: AsyncClient | None = None,
+        max_retries: int | None = None,
     ) -> OpenAIResponsesResponse | AsyncIterator[OpenAIResponsesStreamEvent]:
         """Return Responses output using the selected OpenAI-compatible endpoint."""
 
-        body, resolved_provider = _normalize_body(
-            body,
-            payload_type=OpenAIResponsesBody,
-            request_type=OpenAIResponsesRequest,
-            provider=provider,
-            model=model,
-            name="Responses",
-        )
-        endpoint = (
-            body.endpoint or endpoint or default_endpoint_for(resolved_provider, "responses")
-        )
+        body = OpenAIResponsesRequest.from_body(body, model)
+        resolved_provider = body.provider
+        endpoint = endpoint or default_endpoint_for(resolved_provider, "responses")
         ir = prepare_responses_request(body, endpoint)
         provider = self._create_provider(
             ir,
             endpoint=endpoint,
             api_key=api_key,
             base_url=base_url,
-            max_retries=max_retries,
-            http_client=http_client,
+            max_retries=self._max_retries if max_retries is None else max_retries,
         )
 
         if endpoint == "chat_completions":
@@ -262,39 +194,26 @@ class Molto:
 
     async def chat_completions(
         self,
-        body: OpenAIChatCompletionBody | Mapping[str, Any],
-        api_key: str | None = None,
+        body: OpenAIChatCompletionRequest | Mapping[str, Any],
+        api_key: str,
         *,
         endpoint: OpenAIEndpoint | None = None,
-        provider: ProviderName | None = None,
         model: str | None = None,
         base_url: str | None = None,
-        max_retries: int = 2,
-        http_client: AsyncClient | None = None,
+        max_retries: int | None = None,
     ) -> OpenAIChatCompletionResponse | AsyncIterator[OpenAIChatCompletionChunk]:
         """Return Chat output using the selected OpenAI-compatible endpoint."""
 
-        body, resolved_provider = _normalize_body(
-            body,
-            payload_type=OpenAIChatCompletionBody,
-            request_type=OpenAIChatCompletionRequest,
-            provider=provider,
-            model=model,
-            name="Chat Completions",
-        )
-        endpoint = (
-            body.endpoint
-            or endpoint
-            or default_endpoint_for(resolved_provider, "chat_completions")
-        )
+        body = OpenAIChatCompletionRequest.from_body(body, model)
+        resolved_provider = body.provider
+        endpoint = endpoint or default_endpoint_for(resolved_provider, "chat_completions")
         ir = prepare_chat_request(body, endpoint)
         provider = self._create_provider(
             ir,
             endpoint=endpoint,
             api_key=api_key,
             base_url=base_url,
-            max_retries=max_retries,
-            http_client=http_client,
+            max_retries=self._max_retries if max_retries is None else max_retries,
         )
 
         if endpoint == "responses":

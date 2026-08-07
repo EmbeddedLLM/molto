@@ -628,8 +628,7 @@ def make_molto_client(
 ) -> Molto:
     """Create a Molto instance backed by playback-only cassette transport.
 
-    Transport configuration is passed per call, so the cassette client and
-    retry setting are bound into a thin gateway wrapper.
+    The cassette transport and retry setting are configured on the gateway.
     """
 
     return _CassetteGateway(
@@ -645,15 +644,13 @@ def make_molto_client(
 
 
 class _CassetteGateway(Molto):
-    """Molto that injects a cassette transport into every call."""
+    """Molto that provides playback credentials when a test omits them."""
 
     def __init__(self, http_client: httpx.AsyncClient, *, max_retries: int) -> None:
-        super().__init__()
-        self._cassette_http_client = http_client
-        self._cassette_max_retries = max_retries
+        super().__init__(http_client=http_client, max_retries=max_retries)
 
     @staticmethod
-    def _resolve_api_key(api_key: str | None) -> str | None:
+    def _resolve_api_key(api_key: str | None) -> str:
         """Resolve Molto credentials for playback from the env config.
 
         Mirrors ``make_openai_client``: an explicit key wins, otherwise the
@@ -673,15 +670,13 @@ class _CassetteGateway(Molto):
         endpoint: str | None = None,
         base_url: str | None = None,
         max_retries: int | None = None,
-        http_client: httpx.AsyncClient | None = None,
     ):
         return await super().responses(
             body,
             api_key=self._resolve_api_key(api_key),
             endpoint=endpoint,
             base_url=base_url,
-            max_retries=self._cassette_max_retries if max_retries is None else max_retries,
-            http_client=self._cassette_http_client if http_client is None else http_client,
+            max_retries=max_retries,
         )
 
     async def chat_completions(
@@ -692,15 +687,13 @@ class _CassetteGateway(Molto):
         endpoint: str | None = None,
         base_url: str | None = None,
         max_retries: int | None = None,
-        http_client: httpx.AsyncClient | None = None,
     ):
         return await super().chat_completions(
             body,
             api_key=self._resolve_api_key(api_key),
             endpoint=endpoint,
             base_url=base_url,
-            max_retries=self._cassette_max_retries if max_retries is None else max_retries,
-            http_client=self._cassette_http_client if http_client is None else http_client,
+            max_retries=max_retries,
         )
 
 

@@ -15,7 +15,10 @@ from pydantic import (
 from molto.types.ir.portable import (
     InputIR,
 )
-from molto.types.openai._common import OpenAIReasoningEffortLevel
+from molto.types.openai._common import (
+    OpenAIReasoningEffortLevel,
+    OpenAIRequestBase,
+)
 
 # ---------------------------------------------------------------------------
 # Request message types
@@ -422,8 +425,8 @@ class ChatCompletionAudioConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class OpenAIChatCompletionBody(BaseModel):
-    """Chat Completions JSON body, without Molto routing information."""
+class OpenAIChatCompletionRequest(OpenAIRequestBase):
+    """Chat Completions JSON request body."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -587,26 +590,6 @@ class OpenAIChatCompletionBody(BaseModel):
     extra_body: Annotated[
         dict[str, Any] | None,
         Field(description="Additional provider-specific request body fields."),
-    ] = None
-
-
-class OpenAIChatCompletionRequest(OpenAIChatCompletionBody):
-    """Legacy complete Chat request retained for direct adapter use."""
-
-    model: Annotated[
-        str,
-        Field(
-            description="The model to use for the chat completion; an optional provider prefix selects a non-OpenAI adapter."
-        ),
-    ]
-    endpoint: Annotated[
-        Literal["responses", "chat_completions"] | None,
-        Field(
-            default=None,
-            exclude=True,
-            validation_alias="endpoint",
-            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
-        ),
     ] = None
 
     def to_ir(self) -> InputIR:

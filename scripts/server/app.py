@@ -516,12 +516,23 @@ async def _serve(
     request: Request,
     *,
     stream: bool,
-    execute: Callable[[str | None], Awaitable[Any]],
+    execute: Callable[[str], Awaitable[Any]],
     to_sse: Callable[[AsyncIterator[Any], Request], AsyncIterator[str]],
 ) -> Response:
     """Run one gateway call and render it as JSON or an SSE stream."""
 
-    result = await execute(_request_api_key(request, request.app.state.settings))
+    api_key = _request_api_key(request, request.app.state.settings)
+    if api_key is None:
+        raise _ServerError(
+            401,
+            "No API key was provided. Pass one with the request "
+            "(Authorization: Bearer <key> or body `api_key`) or configure "
+            "the server's MOLTO_API_KEY or OPENAI_API_KEY.",
+            error_type="authentication_error",
+            code="missing_api_key",
+        )
+
+    result = await execute(api_key)
     if stream:
         return StreamingResponse(
             to_sse(cast(AsyncIterator[Any], result), request),
@@ -554,8 +565,11 @@ def create_app(
             yield
             return
         async with AsyncClient(timeout=None) as http_client:
-            app.state.http_client = http_client
-            app.state.gateway = Molto(strict=resolved_settings.strict)
+            app.state.gateway = Molto(
+                strict=resolved_settings.strict,
+                max_retries=resolved_settings.max_retries,
+                http_client=http_client,
+            )
             yield
 
     app = FastAPI(
@@ -653,14 +667,12 @@ def create_app(
         endpoint = _chat_endpoint(request, body)
         _log_request(request)
 
-        async def execute(api_key: str | None) -> Any:
+        async def execute(api_key: str) -> Any:
             return await request.app.state.gateway.chat_completions(
                 body,
                 api_key=api_key,
                 endpoint=endpoint,
-                http_client=request.app.state.http_client,
                 base_url=resolved_settings.provider_base_url,
-                max_retries=resolved_settings.max_retries,
             )
 
         return await _serve(request, stream=body.stream, execute=execute, to_sse=_chat_sse)
@@ -675,14 +687,12 @@ def create_app(
         )
         _log_request(request)
 
-        async def execute(api_key: str | None) -> Any:
+        async def execute(api_key: str) -> Any:
             return await request.app.state.gateway.responses(
                 body,
                 api_key=api_key,
                 endpoint=endpoint,
-                http_client=request.app.state.http_client,
                 base_url=resolved_settings.provider_base_url,
-                max_retries=resolved_settings.max_retries,
             )
 
         return await _serve(request, stream=body.stream, execute=execute, to_sse=_responses_sse)

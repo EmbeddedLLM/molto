@@ -23,6 +23,13 @@ Endpoint = Literal["responses", "chat_completions"]
 ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat_completions")
 
 
+def _with_openai_model_prefix(body: dict[str, Any]) -> dict[str, Any]:
+    body = deepcopy(body)
+    if "/" not in body["model"]:
+        body["model"] = f"openai/{body['model']}"
+    return body
+
+
 def _cassette_dir(endpoint: Endpoint, *, matched: bool = False) -> Path:
     root = CASSETTE_DIR / "openai"
     if matched:
@@ -198,7 +205,7 @@ async def test_extra_inputs():
     ]
 
     async with _get_http_client(cassette_names, matched=True) as http_client:
-        client = Molto()
+        client = Molto(http_client=http_client)
 
         # --- Extra inputs --- #
         cassette = _read_cassette(_cassette_dir("responses", matched=True) / cassette_names[0])
@@ -208,10 +215,9 @@ async def test_extra_inputs():
                     messages=[
                         {"role": "user", "content": "Write one short sentence about the ocean."}
                     ],
-                    **cassette["request"]["body"],
+                    **_with_openai_model_prefix(cassette["request"]["body"]),
                 ),
                 api_key="missing",
-                http_client=http_client,
             )
 
 
@@ -223,16 +229,15 @@ async def _assert_responses_events(
 ) -> None:
     num_turns = len(cassette_names)
     async with _get_http_client(cassette_names, endpoint, matched=matched) as http_client:
-        client = Molto()
+        client = Molto(http_client=http_client)
         # --- Output matches upstream format (Responses <-> Responses) --- #
         for _ in range(num_turns):
             cassette = _read_cassette(
                 _cassette_dir("responses", matched=matched) / cassette_names.pop(0)
             )
             response = await client.responses(
-                body=deepcopy(cassette["request"]["body"]),
+                body=_with_openai_model_prefix(cassette["request"]["body"]),
                 endpoint=endpoint,
-                http_client=http_client,
                 api_key="missing",
             )
             events = [event async for event in response]

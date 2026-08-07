@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from molto import Molto
 from molto.types.openai.responses import OpenAIResponsesRequest
@@ -8,10 +9,13 @@ QUESTION = "How many Rs are in strawberry?"
 
 
 async def main() -> None:
+    api_key = os.environ["ANTHROPIC_API_KEY"]
     molto = Molto()
 
     response = await molto.responses(
-        OpenAIResponsesRequest(model=MODEL, input=QUESTION, endpoint="chat_completions"),
+        OpenAIResponsesRequest(model=MODEL, input=QUESTION),
+        api_key=api_key,
+        endpoint="chat_completions",
     )
     print("Non-stream response:")
     print("----")
@@ -23,8 +27,9 @@ async def main() -> None:
             model=MODEL,
             input=QUESTION,
             stream=True,
-            endpoint="chat_completions",
         ),
+        api_key=api_key,
+        endpoint="chat_completions",
     )
     output_items = []
 

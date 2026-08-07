@@ -11,9 +11,8 @@ from pydantic import (
     field_validator,
 )
 
-from molto.types.ir.portable import (
-    InputIR,
-)
+from molto.types.ir.portable import InputIR
+from molto.types.openai._common import OpenAIRequestBase
 
 from .models_items import (
     OpenAIAllowedToolsChoice,
@@ -290,8 +289,8 @@ class OpenAIResponsesRestrictedRequest(_ResponsesRequestBase):
         return v
 
 
-class OpenAIResponsesBody(_ResponsesRequestBase):
-    """Responses JSON body, without Molto routing information."""
+class OpenAIResponsesRequest(_ResponsesRequestBase, OpenAIRequestBase):
+    """Responses JSON request body."""
 
     background: Annotated[
         Literal[False] | None,
@@ -439,26 +438,6 @@ class OpenAIResponsesBody(_ResponsesRequestBase):
         cls, v: list[OpenAIResponsesTool] | None
     ) -> list[OpenAIResponsesTool] | None:
         return _validate_tools_unique(v)
-
-
-class OpenAIResponsesRequest(OpenAIResponsesBody):
-    """Legacy complete Responses request retained for direct adapter use."""
-
-    model: Annotated[
-        str,
-        Field(
-            description="The model used to generate the response; an optional provider prefix selects a non-OpenAI adapter."
-        ),
-    ]
-    endpoint: Annotated[
-        Literal["responses", "chat_completions"] | None,
-        Field(
-            default=None,
-            exclude=True,
-            validation_alias="endpoint",
-            description="Molto execution endpoint. This routing field is consumed before IR conversion.",
-        ),
-    ] = None
 
     def to_ir(self) -> InputIR:
         from .to_ir import _responses_request_to_ir

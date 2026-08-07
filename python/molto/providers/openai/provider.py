@@ -113,7 +113,7 @@ class OpenAIProvider:
         self,
         endpoint: OpenAIEndpoint,
         *,
-        api_key: str | None = None,
+        api_key: str,
         base_url: str | None = None,
         max_retries: int = 2,
         http_client: AsyncClient | None = None,

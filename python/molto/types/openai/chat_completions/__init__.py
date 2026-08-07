@@ -38,7 +38,6 @@ from .models_request import (  # noqa: F401
     ChatCompletionToolChoiceOption,
     ChatCompletionToolMessage,
     ChatCompletionUserMessage,
-    OpenAIChatCompletionBody,
     OpenAIChatCompletionRequest,
 )
 from .models_response import (  # noqa: F401

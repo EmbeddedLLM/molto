@@ -23,6 +23,7 @@ the request:
 ```python
 await Molto().responses(
     {"model": "gpt-5.6", "input": "Summarize this document."},
+    api_key="sk-...",
     endpoint="responses",
 )
 ```
@@ -36,11 +37,11 @@ Molto converts data between endpoints only when both formats can represent it.
 The one documented exception is that Responses reasoning items are omitted
 from Chat output (Will be supported in the following updates).
 
-Both methods accept `api_key`, `base_url`, `max_retries`, and `http_client` for
-each call. This lets one `Molto` instance use different providers and
-credentials. The constructor only accepts `strict`. By default, Molto ignores
-unsupported request parameters. With `Molto(strict=True)`, it raises
-`ModelCapabilityError` before creating the provider.
+Create `Molto` with an optional shared `http_client` and default `max_retries`.
+Each call requires `api_key` and accepts `base_url` plus an optional
+`max_retries` override. By default, Molto ignores unsupported request
+parameters. With `Molto(strict=True)`, it raises `ModelCapabilityError` before
+creating the provider.
 
 Models use these prefixes:
 

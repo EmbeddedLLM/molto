@@ -33,11 +33,11 @@ from molto.types.ir.portable import (
     ResponseStartedEvent,
     Usage,
 )
-from molto.types.openai.chat_completions import (
-    OpenAIChatCompletionBody,
-    OpenAIChatCompletionRequest,
+from molto.types.openai.chat_completions import OpenAIChatCompletionRequest
+from molto.types.openai.responses import (
+    OpenAIResponsesRequest,
+    OpenAIResponsesRestrictedRequest,
 )
-from molto.types.openai.responses import OpenAIResponsesBody, OpenAIResponsesRequest
 from molto.utils.exceptions import BadInputError, ModelCapabilityError, ModelOverloadError
 
 
@@ -495,7 +495,6 @@ async def test_mcp_rejects_before_provider_construction(
     request = OpenAIResponsesRequest(
         model="openai/gpt-5.1",
         input="List the available tools.",
-        endpoint="chat_completions",
         tools=[
             {
                 "type": "mcp",
@@ -507,7 +506,7 @@ async def test_mcp_rejects_before_provider_construction(
     )
 
     with pytest.raises(BadInputError, match="tool.hosted"):
-        await Molto(strict=True).responses(request)
+        await Molto(strict=True).responses(request, api_key="test", endpoint="chat_completions")
 
 
 async def test_public_payloads_attach_outer_provider_and_model(
@@ -520,29 +519,112 @@ async def test_public_payloads_attach_outer_provider_and_model(
 
     with pytest.raises(BadInputError, match="Unsupported endpoint"):
         await Molto().responses(
-            OpenAIResponsesBody(input="hi"),
-            provider="openai",
-            model="gpt-5.6",
+            {"input": "hi"},
+            api_key="test",
+            model="openai/gpt-5.6",
             endpoint="invalid",  # type: ignore[arg-type]
         )
 
     with pytest.raises(BadInputError, match="Unsupported endpoint"):
         await Molto().chat_completions(
             {"messages": [{"role": "user", "content": "hi"}]},
-            provider="openai",
-            model="gpt-5.6",
+            api_key="test",
+            model="openai/gpt-5.6",
             endpoint="invalid",  # type: ignore[arg-type]
         )
 
 
 def test_public_payloads_validate_dicts_with_endpoint_schema() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        OpenAIResponsesBody.model_validate({"input": "hi", "model": "gpt-5.6"})
+        OpenAIResponsesRequest.model_validate(
+            {"model": "openai/gpt-5.6", "input": "hi", "endpoint": "responses"}
+        )
 
-    body = OpenAIChatCompletionBody.model_validate(
-        {"messages": [{"role": "user", "content": "hi"}]}
+    body = OpenAIChatCompletionRequest.model_validate(
+        {
+            "model": "openai/gpt-5.6",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
     )
     assert body.messages[0].content == "hi"
+
+
+def test_complete_request_models_validate_provider_qualified_models() -> None:
+    with pytest.raises(ValidationError, match="provider prefix"):
+        OpenAIResponsesRequest(model="gpt-5.6", input="hi")
+
+    with pytest.raises(ValidationError, match="unsupported provider prefix"):
+        OpenAIChatCompletionRequest(
+            model="other/gpt-5.6",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+
+def test_public_methods_require_api_key() -> None:
+    required = inspect.Parameter.empty
+
+    assert inspect.signature(Molto.responses).parameters["api_key"].default is required
+    assert inspect.signature(Molto.chat_completions).parameters["api_key"].default is required
+
+
+async def test_molto_uses_init_http_client_and_per_call_retry_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[dict] = []
+    http_client = httpx.AsyncClient()
+
+    class CapturingProvider:
+        def __init__(self, endpoint, **kwargs) -> None:
+            captured.append({"endpoint": endpoint, **kwargs})
+
+        def run(self, _request) -> AsyncIterator:
+            return chat_response_to_output_events(_chat_payload("Hello"))
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", CapturingProvider)
+    request = OpenAIChatCompletionRequest(
+        model="openai/gpt-4.1-nano",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    gateway = Molto(http_client=http_client, max_retries=5)
+
+    try:
+        await gateway.chat_completions(request, api_key="test")
+        await gateway.chat_completions(request, api_key="test", max_retries=1)
+        await gateway.close()
+
+        assert captured[0]["api_key"] == "test"
+        assert captured[0]["http_client"] is http_client
+        assert captured[0]["max_retries"] == 5
+        assert captured[1]["http_client"] is http_client
+        assert captured[1]["max_retries"] == 1
+        assert not http_client.is_closed
+    finally:
+        await http_client.aclose()
+
+
+def test_responses_request_models_reject_duplicate_tools() -> None:
+    duplicate_tools = [
+        {
+            "type": "function",
+            "name": "get_weather",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "type": "function",
+            "name": "get_weather",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    ]
+
+    with pytest.raises(ValidationError, match="Duplicate tool names"):
+        OpenAIResponsesRequest(
+            model="openai/gpt-4.1-nano",
+            input="hi",
+            tools=duplicate_tools,
+        )
+
+    with pytest.raises(ValidationError, match="Duplicate tool names"):
+        OpenAIResponsesRestrictedRequest(input="hi", tools=duplicate_tools)
 
 
 async def test_responses_state_rejects_chat_endpoint_before_provider_construction(
@@ -555,12 +637,11 @@ async def test_responses_state_rejects_chat_endpoint_before_provider_constructio
     request = OpenAIResponsesRequest(
         model="openai/gpt-4.1-nano",
         input="Continue.",
-        endpoint="chat_completions",
         previous_response_id="resp_1",
     )
 
     with pytest.raises(ModelCapabilityError, match="state.response"):
-        await Molto(strict=True).responses(request)
+        await Molto(strict=True).responses(request, api_key="test", endpoint="chat_completions")
 
 
 @pytest.mark.parametrize(
@@ -619,10 +700,9 @@ async def test_chat_stream_usage_option_is_not_forwarded_to_responses_endpoint(
         stream_options={"include_usage": include_usage},
         frequency_penalty=0,
         presence_penalty=0,
-        endpoint="responses",
     )
 
-    result = await Molto().chat_completions(request)
+    result = await Molto().chat_completions(request, api_key="test", endpoint="responses")
     chunks = [chunk async for chunk in result]
 
     assert captured["stream_options"] is None
@@ -647,12 +727,11 @@ async def test_chat_non_neutral_penalty_rejects_responses_endpoint_before_constr
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
-        endpoint="responses",
         **{field: 0.5},
     )
 
     with pytest.raises(ModelCapabilityError, match=field):
-        await Molto(strict=True).chat_completions(request)
+        await Molto(strict=True).chat_completions(request, api_key="test", endpoint="responses")
 
 
 @pytest.mark.parametrize("field", ["frequency_penalty", "presence_penalty"])
@@ -703,11 +782,10 @@ async def test_non_strict_drops_unsupported_penalty_for_responses_endpoint(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
         stream=True,
-        endpoint="responses",
         **{field: 0.5},
     )
 
-    response = await Molto().chat_completions(request)
+    response = await Molto().chat_completions(request, api_key="test", endpoint="responses")
     chunks = [chunk async for chunk in response]
 
     assert getattr(captured["generation"], field) == 0.5
@@ -725,12 +803,11 @@ async def test_strict_rejects_unsupported_penalty_for_responses_endpoint(
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-5.6-luna",
         messages=[{"role": "user", "content": "hi"}],
-        endpoint="responses",
         frequency_penalty=0.5,
     )
 
     with pytest.raises(ModelCapabilityError, match="frequency_penalty"):
-        await Molto(strict=True).chat_completions(request)
+        await Molto(strict=True).chat_completions(request, api_key="test", endpoint="responses")
 
 
 async def test_previous_chat_audio_rejects_responses_endpoint_before_construction(
@@ -749,11 +826,10 @@ async def test_previous_chat_audio_rejects_responses_endpoint_before_constructio
                 "audio": {"id": "audio_1"},
             }
         ],
-        endpoint="responses",
     )
 
     with pytest.raises(ModelCapabilityError, match="input.audio"):
-        await Molto(strict=True).chat_completions(request)
+        await Molto(strict=True).chat_completions(request, api_key="test", endpoint="responses")
 
 
 @pytest.mark.parametrize("public_endpoint", ["chat_completions", "responses"])
@@ -776,11 +852,11 @@ async def test_anthropic_defaults_to_chat_completions_endpoint(
             model="anthropic/claude-sonnet-5",
             messages=[{"role": "user", "content": "hi"}],
         )
-        response = await Molto().chat_completions(request)
+        response = await Molto().chat_completions(request, api_key="test")
         assert response.choices[0].message.content == "Hello"
     else:
         request = OpenAIResponsesRequest(model="anthropic/claude-sonnet-5", input="hi")
-        response = await Molto().responses(request)
+        response = await Molto().responses(request, api_key="test")
         assert response.output[0].content[0].text == "Hello"
 
     assert captured["endpoint"] == "chat_completions"
@@ -808,7 +884,7 @@ async def test_anthropic_responses_to_chat_projects_endpoint_specific_controls(
         store=False,
     )
 
-    response = await Molto().responses(request)
+    response = await Molto().responses(request, api_key="test")
 
     assert response.output[0].content[0].text == "Hello"
     assert captured["endpoint"] == "chat_completions"
@@ -836,9 +912,10 @@ async def test_responses_web_search_projects_to_chat_provider_shape(
         OpenAIResponsesRequest(
             model="openai/gpt-test",
             input="Search the web.",
-            endpoint="chat_completions",
             tools=[{"type": "web_search"}],
-        )
+        ),
+        api_key="test",
+        endpoint="chat_completions",
     )
 
     assert response.output[0].content[0].text == "Hello"
@@ -858,9 +935,10 @@ async def test_anthropic_responses_web_search_rejects_before_provider_constructi
             OpenAIResponsesRequest(
                 model="anthropic/claude-test",
                 input="Search the web.",
-                endpoint="chat_completions",
                 tools=[{"type": "web_search"}],
-            )
+            ),
+            api_key="test",
+            endpoint="chat_completions",
         )
 
 
@@ -877,40 +955,33 @@ async def test_anthropic_responses_endpoint_rejects_before_provider_construction
         request = OpenAIChatCompletionRequest(
             model="anthropic/claude-test",
             messages=[{"role": "user", "content": "hi"}],
-            endpoint="responses",
         )
-        call = Molto().chat_completions(request)
+        call = Molto().chat_completions(request, api_key="test", endpoint="responses")
     else:
         request = OpenAIResponsesRequest(
             model="anthropic/claude-test",
             input="hi",
-            endpoint="responses",
         )
-        call = Molto().responses(request)
+        call = Molto().responses(request, api_key="test", endpoint="responses")
 
     with pytest.raises(ValueError, match="does not support endpoint 'responses'"):
         await call
 
 
-def test_endpoint_is_validated_on_the_request_and_excluded_from_ir() -> None:
-    chat = OpenAIChatCompletionRequest(
-        model="openai/gpt-4.1-nano",
-        messages=[{"role": "user", "content": "hi"}],
-        endpoint="responses",
-    )
-    responses = OpenAIResponsesRequest(
-        model="openai/gpt-4.1-nano",
-        input="hi",
-        endpoint="chat_completions",
-    )
+def test_endpoint_is_not_part_of_openai_request_models() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        OpenAIChatCompletionRequest(
+            model="openai/gpt-4.1-nano",
+            messages=[{"role": "user", "content": "hi"}],
+            endpoint="responses",
+        )
 
-    assert "endpoint" not in chat.model_dump()
-    assert "endpoint" not in chat.to_ir().model_dump()
-    assert "endpoint" not in responses.model_dump()
-    assert "endpoint" not in responses.to_ir().model_dump()
-
-    with pytest.raises(ValidationError, match="responses"):
-        OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi", endpoint="invalid")
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        OpenAIResponsesRequest(
+            model="openai/gpt-4.1-nano",
+            input="hi",
+            endpoint="chat_completions",
+        )
 
 
 async def test_invalid_endpoint_keyword_rejects_before_provider_construction(
@@ -923,7 +994,7 @@ async def test_invalid_endpoint_keyword_rejects_before_provider_construction(
     request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
     with pytest.raises(BadInputError, match="Unsupported endpoint"):
-        await Molto().responses(request, endpoint="invalid")
+        await Molto().responses(request, api_key="test", endpoint="invalid")
 
 
 async def test_public_methods_reject_the_other_request_type() -> None:
@@ -934,16 +1005,16 @@ async def test_public_methods_reject_the_other_request_type() -> None:
     responses_request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
     with pytest.raises(BadInputError, match="OpenAIResponsesRequest"):
-        await Molto().responses(chat_request)
+        await Molto().responses(chat_request, api_key="test")
     with pytest.raises(BadInputError, match="OpenAIChatCompletionRequest"):
-        await Molto().chat_completions(responses_request)
+        await Molto().chat_completions(responses_request, api_key="test")
 
 
 async def test_endpoint_is_keyword_only() -> None:
     request = OpenAIResponsesRequest(model="openai/gpt-4.1-nano", input="hi")
 
     with pytest.raises(TypeError, match="positional"):
-        await Molto().responses(request, None, "chat_completions")
+        await Molto().responses(request, "test", "chat_completions")
 
 
 async def test_vllm_audio_rejects_before_provider_construction(
@@ -969,7 +1040,11 @@ async def test_vllm_audio_rejects_before_provider_construction(
     )
 
     with pytest.raises(BadInputError, match="input.audio"):
-        await Molto(strict=True).chat_completions(request, base_url="https://example.test/v1")
+        await Molto(strict=True).chat_completions(
+            request,
+            api_key="test",
+            base_url="https://example.test/v1",
+        )
 
 
 async def test_vllm_image_generation_rejects_before_provider_construction(
@@ -982,12 +1057,16 @@ async def test_vllm_image_generation_rejects_before_provider_construction(
     request = OpenAIResponsesRequest(
         model="vllm/image-model",
         input="Draw a red circle.",
-        endpoint="chat_completions",
         tools=[{"type": "image_generation"}],
     )
 
     with pytest.raises(BadInputError, match="tool.hosted"):
-        await Molto(strict=True).responses(request, base_url="https://example.test/v1")
+        await Molto(strict=True).responses(
+            request,
+            api_key="test",
+            endpoint="chat_completions",
+            base_url="https://example.test/v1",
+        )
 
 
 async def test_chat_audio_to_responses_rejects_before_provider_construction(
@@ -1002,11 +1081,10 @@ async def test_chat_audio_to_responses_rejects_before_provider_construction(
         messages=[{"role": "user", "content": "Say hello."}],
         modalities=["text", "audio"],
         audio={"format": "mp3", "voice": "alloy"},
-        endpoint="responses",
     )
 
     with pytest.raises(BadInputError, match="audio"):
-        await Molto(strict=True).chat_completions(request)
+        await Molto(strict=True).chat_completions(request, api_key="test", endpoint="responses")
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -1031,10 +1109,9 @@ async def test_responses_reasoning_to_chat_is_intentionally_omitted(
         messages=[{"role": "user", "content": "Think carefully."}],
         reasoning_effort="high",
         stream=stream,
-        endpoint="responses",
     )
 
-    response = await Molto().chat_completions(request, endpoint="chat_completions")
+    response = await Molto().chat_completions(request, api_key="test", endpoint="responses")
 
     assert ReasoningProvider.endpoint == "responses"
     if stream:
@@ -1072,16 +1149,15 @@ async def test_responses_terminal_state_rejects_unrepresentable_chat_output(
         model="openai/gpt-5-nano",
         messages=[{"role": "user", "content": "hi"}],
         stream=stream,
-        endpoint="responses",
     )
 
     if stream:
-        result = await Molto().chat_completions(request)
+        result = await Molto().chat_completions(request, api_key="test", endpoint="responses")
         with pytest.raises(BadInputError, match=message):
             _ = [chunk async for chunk in result]
     else:
         with pytest.raises(BadInputError, match=message):
-            await Molto().chat_completions(request)
+            await Molto().chat_completions(request, api_key="test", endpoint="responses")
 
 
 async def test_provider_closes_owned_client_when_sdk_call_fails() -> None:
@@ -1124,21 +1200,34 @@ def test_sdk_error_mapping_preserves_provider_context() -> None:
     assert mapped.provider_code == "bad_parameter"
 
 
-async def test_molto_does_not_close_caller_owned_http_client() -> None:
-    http_client = httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda request: _canned_response("chat_completions")),
-    )
-    molto = Molto()
+async def test_molto_does_not_close_caller_owned_http_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict = {}
+    http_client = httpx.AsyncClient()
+
+    class CapturingProvider:
+        def __init__(self, _endpoint, **kwargs) -> None:
+            captured.update(kwargs)
+
+        def run(self, _request) -> AsyncIterator:
+            return chat_response_to_output_events(_chat_payload("Hello"))
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", CapturingProvider)
+    molto = Molto(http_client=http_client)
     request = OpenAIChatCompletionRequest(
         model="openai/gpt-4.1-nano",
         messages=[{"role": "user", "content": "Say hello."}],
     )
 
-    await molto.chat_completions(request, http_client=http_client, api_key="test")
-    await molto.close()
+    try:
+        await molto.chat_completions(request, api_key="test")
+        await molto.close()
 
-    assert not http_client.is_closed
-    await http_client.aclose()
+        assert captured["http_client"] is http_client
+        assert not http_client.is_closed
+    finally:
+        await http_client.aclose()
 
 
 def _chat_stream_sse() -> str:

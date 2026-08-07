@@ -36,7 +36,7 @@ def _single_history_tool_call(items: object) -> FunctionCallRequestItem:
 @pytest.mark.parametrize("arguments", _ARGUMENTS)
 def test_responses_history_tool_arguments_are_preserved_verbatim(arguments: str) -> None:
     request = OpenAIResponsesRequest(
-        model="gpt-test",
+        model="openai/gpt-test",
         input=[
             {
                 "type": "function_call",
@@ -56,7 +56,7 @@ def test_responses_history_tool_arguments_are_preserved_verbatim(arguments: str)
 @pytest.mark.parametrize("arguments", _ARGUMENTS)
 def test_chat_history_tool_arguments_are_preserved_verbatim(arguments: str) -> None:
     request = OpenAIChatCompletionRequest(
-        model="gpt-test",
+        model="openai/gpt-test",
         messages=[
             {
                 "role": "assistant",
