@@ -28,6 +28,7 @@ class EnvConfig(BaseSettings):
     log_timings: bool = False
     # External services
     anthropic_api_key: SecretStr = ""
+    deepseek_api_key: SecretStr = ""
     gemini_api_key: SecretStr = ""
     openai_api_key: SecretStr = ""
     openrouter_api_key: SecretStr = ""
@@ -36,6 +37,10 @@ class EnvConfig(BaseSettings):
     @property
     def anthropic_api_key_plain(self) -> str:
         return self.anthropic_api_key.get_secret_value()
+
+    @property
+    def deepseek_api_key_plain(self) -> str:
+        return self.deepseek_api_key.get_secret_value()
 
     @property
     def gemini_api_key_plain(self) -> str:
