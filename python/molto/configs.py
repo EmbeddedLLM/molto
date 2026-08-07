@@ -1,4 +1,5 @@
 import sys
+from typing import Literal
 
 from loguru import logger
 from pydantic import SecretStr
@@ -26,6 +27,7 @@ class EnvConfig(BaseSettings):
     log_level_stderr: str = "INFO"
     log_level_file: str = "INFO"
     log_timings: bool = False
+    types_allow_extra: bool = False
     # External services
     anthropic_api_key: SecretStr = ""
     deepseek_api_key: SecretStr = ""
@@ -33,6 +35,10 @@ class EnvConfig(BaseSettings):
     openai_api_key: SecretStr = ""
     openrouter_api_key: SecretStr = ""
     together_ai_api_key: SecretStr = ""
+
+    @property
+    def pydantic_extra_behavior(self) -> Literal["allow", "forbid"]:
+        return "allow" if self.types_allow_extra else "forbid"
 
     @property
     def anthropic_api_key_plain(self) -> str:
