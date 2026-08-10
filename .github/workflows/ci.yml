@@ -29,7 +29,7 @@ jobs:
         run: python -m pip install -e ".[test]"
 
       - name: Run tests
-        run: pytest
+        run: pytest tests
 
       - name: Verify cassettes are unchanged
         if: always()
