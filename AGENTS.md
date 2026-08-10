@@ -91,6 +91,8 @@ Before reporting completion, review the final diff and ask:
 
 #### Python
 
+When working on the Python Molto library, read `python/ARCHITECTURE.md` and `python/CONVENTIONS.md` before making changes.
+
 From the repository root:
 
 1. Inspect the Ruff installation and check steps in `.github/workflows/lint.yml`.
