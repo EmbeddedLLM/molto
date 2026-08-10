@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import Annotated, Literal, Sequence, TypeAlias, Union
+from typing import Annotated, Any, Literal, TypeAlias, Union
 
 from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.response_input_param import (
@@ -12,13 +12,6 @@ from openai.types.responses.response_input_param import (
 )
 from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
-from pydantic_ai import (
-    TextPart,
-    ThinkingPart,
-    ToolCallPart,
-    ToolReturnContent,
-    UserContent,
-)
 
 from molto.types.base import _NormalizedModel
 
@@ -27,23 +20,148 @@ class SystemPrompt(_NormalizedModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
-    part_type: Annotated[
+    input_type: Annotated[
         Literal["system-prompt"],
-        Field(description="Part type identifier as a discriminator."),
+        Field(description="Content type identifier as a discriminator."),
     ] = "system-prompt"
 
 
-class UserPrompt(_NormalizedModel):
-    """A user prompt, generally written by the end user."""
+class TextInput(_NormalizedModel):
+    """Text content with application-only metadata."""
 
-    content: Annotated[
-        str | Sequence[UserContent],
-        Field(description="The content of the prompt."),
-    ]
-    part_type: Annotated[
-        Literal["user-prompt"],
-        Field(description="Part type identifier as a discriminator."),
-    ] = "user-prompt"
+    content: Annotated[str, Field(description="The content sent to the model.")]
+    metadata: Annotated[
+        Any | None,
+        Field(description="Additional application-only metadata."),
+    ] = None
+    input_type: Annotated[
+        Literal["text-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "text-input"
+
+
+# class _FileUrlInput(_NormalizedModel):
+#     """Common fields for URL-based user content."""
+
+#     url: Annotated[str, Field(description="The URL of the file.")]
+#     vendor_metadata: Annotated[
+#         dict[str, Any] | None,
+#         Field(description="Vendor-specific metadata for the file."),
+#     ] = None
+#     media_type: Annotated[
+#         str | None,
+#         Field(description="The media type of the file."),
+#     ] = None
+#     identifier: Annotated[
+#         str | None,
+#         Field(description="An optional identifier for the file."),
+#     ] = None
+
+
+# class ImageUrl(_FileUrl):
+#     """An image referenced by URL."""
+
+#     input_type: Annotated[
+#         Literal["image-url"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "image-url"
+
+
+# class AudioUrl(_FileUrl):
+#     """An audio file referenced by URL."""
+
+#     input_type: Annotated[
+#         Literal["audio-url"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "audio-url"
+
+
+# class DocumentUrl(_FileUrl):
+#     """A document referenced by URL."""
+
+#     input_type: Annotated[
+#         Literal["document-url"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "document-url"
+
+
+# class VideoUrl(_FileUrl):
+#     """A video referenced by URL."""
+
+#     input_type: Annotated[
+#         Literal["video-url"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "video-url"
+
+
+# class BinaryInput(_NormalizedModel):
+#     """Binary user content."""
+
+#     data: Annotated[bytes, Field(description="The binary file data.")]
+#     media_type: Annotated[str, Field(description="The media type of the binary data.")]
+#     vendor_metadata: Annotated[
+#         dict[str, Any] | None,
+#         Field(description="Vendor-specific metadata for the file."),
+#     ] = None
+#     identifier: Annotated[
+#         str | None,
+#         Field(description="An optional identifier for the file."),
+#     ] = None
+#     input_type: Annotated[
+#         Literal["binary"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "binary"
+
+
+# UploadedFileProviderName: TypeAlias = Literal[
+#     "anthropic",
+#     "openai",
+#     "google",
+#     "google-cloud",
+#     "google-gla",
+#     "google-vertex",
+#     "bedrock",
+#     "xai",
+# ]
+
+
+# class UploadedFileInput(_NormalizedModel):
+#     """A reference to a provider-uploaded file."""
+
+#     file_id: Annotated[str, Field(description="The provider-specific file identifier.")]
+#     provider_name: Annotated[
+#         UploadedFileProviderName,
+#         Field(description="The provider that owns the file."),
+#     ]
+#     vendor_metadata: Annotated[
+#         dict[str, Any] | None,
+#         Field(description="Vendor-specific metadata for the file."),
+#     ] = None
+#     media_type: Annotated[
+#         str | None,
+#         Field(description="The media type of the file."),
+#     ] = None
+#     identifier: Annotated[
+#         str | None,
+#         Field(description="An optional identifier for the file."),
+#     ] = None
+#     input_type: Annotated[
+#         Literal["uploaded-file"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "uploaded-file"
+
+
+# class CachePointInput(_NormalizedModel):
+#     """A prompt-caching boundary marker."""
+
+#     input_type: Annotated[
+#         Literal["cache-point"],
+#         Field(description="Content type identifier as a discriminator."),
+#     ] = "cache-point"
+#     ttl: Annotated[
+#         Literal["5m", "1h"],
+#         Field(description="The cache time-to-live."),
+#     ] = "5m"
 
 
 class ToolReturn(_NormalizedModel):
@@ -58,7 +176,7 @@ class ToolReturn(_NormalizedModel):
         Field(description="The name of the tool that was called."),
     ]
     content: Annotated[
-        ToolReturnContent,
+        str | list[TextInput],
         Field(description="The tool return content, which may include multimodal files."),
     ]
     tool_call_id: Annotated[
@@ -75,6 +193,10 @@ class ToolReturn(_NormalizedModel):
             )
         ),
     ]
+    input_type: Annotated[
+        Literal["tool-return"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "tool-return"
 
 
 ResponseInputItemParam: TypeAlias = Union[
@@ -114,11 +236,11 @@ ResponseInputItemParam: TypeAlias = Union[
 ResponseInputParam: TypeAlias = list[ResponseInputItemParam]
 
 InputItem = Annotated[
-    SystemPrompt | UserPrompt | ToolReturn,
+    SystemPrompt | TextInput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
-    Discriminator("part_type"),
+    Discriminator("input_type"),
 ]
 Input: TypeAlias = list[InputItem]
 
@@ -213,127 +335,71 @@ class NormalizedRequest(_NormalizedModel):
     ] = None
 
 
-class TextPart(_NormalizedModel):
+class TextOutput(_NormalizedModel):
     """A plain text response from a model."""
 
-    content: str
-    """The text content of the response."""
-
-    id: str | None = None
-    """An optional identifier of the text part.
-
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    provider_name: str | None = None
-    """The name of the provider that generated the response.
-
-    Required to be set when `provider_details` or `id` is set.
-    """
-
-    provider_details: dict[str, Any] | None = None
-    """Additional data returned by the provider that can't be mapped to standard fields.
-
-    This is used for data that is required to be sent back to APIs, as well as data users may want to access programmatically.
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    part_kind: Literal["text"] = "text"
-    """Part type identifier, this is available on all parts as a discriminator."""
+    content: Annotated[
+        str,
+        Field(description="The text content of the response."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="An optional identifier of the text part."),
+    ] = None
+    output_type: Annotated[
+        Literal["text-output"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "text-output"
 
 
-class ToolCallPart(_NormalizedModel):
+class ToolCall(_NormalizedModel):
     """A tool call from a model."""
 
-    tool_name: str
-    """The name of the tool to call."""
-
-    args: str | dict[str, Any] | None = None
-    """The arguments to pass to the tool.
-
-    This is stored either as a JSON string or a Python dictionary depending on how data was received.
-    """
-
-    tool_call_id: str = field(default_factory=_generate_tool_call_id)
-    """The tool call identifier, this is used by some models including OpenAI.
-
-    In case the tool call id is not provided by the model, Pydantic AI will generate a random one.
-    """
-
-    tool_kind: ToolPartKind | None = None
-    """Discriminator for the typed subclass of this part (e.g. `'tool-search'`).
-
-    See [`BaseToolReturnPart.tool_kind`][pydantic_ai.messages.BaseToolReturnPart.tool_kind] for
-    the full semantics.
-    """
-
-    id: str | None = None
-    """An optional identifier of the tool call part, separate from the tool call ID.
-
-    This is used by some APIs like OpenAI Responses.
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    provider_name: str | None = None
-    """The name of the provider that generated the response.
-
-    Native tool calls are only sent back to the same provider.
-    Required to be set when `provider_details` or `id` is set.
-    """
-
-    provider_details: dict[str, Any] | None = None
-    """Additional data returned by the provider that can't be mapped to standard fields.
-
-    This is used for data that is required to be sent back to APIs, as well as data users may want to access programmatically.
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
+    tool_name: Annotated[
+        str,
+        Field(description="The name of the tool to call."),
+    ]
+    args: Annotated[
+        str | None,
+        Field(description="The arguments to pass to the tool."),
+    ] = None
+    tool_call_id: Annotated[
+        str,
+        Field(description="The tool call identifier."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="An optional identifier of the tool call part"),
+    ] = None
+    output_type: Annotated[
+        Literal["tool-call"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "tool-call"
 
 
-class ThinkingPart(_NormalizedModel):
+class Thinking(_NormalizedModel):
     """A thinking response from a model."""
 
-    content: str
-    """The thinking content of the response."""
-
-    id: str | None = None
-    """The identifier of the thinking part.
-
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    signature: str | None = None
-    """The signature of the thinking.
-
-    Supported by:
-
-    * Anthropic (corresponds to the `signature` field)
-    * Bedrock (corresponds to the `signature` field)
-    * Google (corresponds to the `thought_signature` field)
-    * OpenAI (corresponds to the `encrypted_content` field)
-
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    provider_name: str | None = None
-    """The name of the provider that generated the response.
-
-    Signatures are only sent back to the same provider.
-    Required to be set when `provider_details`, `id` or `signature` is set.
-    """
-
-    provider_details: dict[str, Any] | None = None
-    """Additional data returned by the provider that can't be mapped to standard fields.
-
-    This is used for data that is required to be sent back to APIs, as well as data users may want to access programmatically.
-    When this field is set, `provider_name` is required to identify the provider that generated this data.
-    """
-
-    part_kind: Literal["thinking"] = "thinking"
-    """Part type identifier, this is available on all parts as a discriminator."""
+    content: Annotated[
+        str,
+        Field(description="The thinking content of the response."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="The identifier of the thinking part."),
+    ] = None
+    signature: Annotated[
+        str | None,
+        Field(description="The signature or encrypted content of the thinking."),
+    ] = None
+    output_type: Annotated[
+        Literal["thinking"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "thinking"
 
 
 OutputItem = Annotated[
-    TextPart | ToolCallPart | ThinkingPart,
+    TextOutput | ToolCall | Thinking,
     # | ToolSearchCallPart
     # | LoadCapabilityCallPart
     # | NativeToolSearchCallPart
@@ -342,5 +408,5 @@ OutputItem = Annotated[
     # | NativeToolReturnPart
     # | CompactionPart
     # | FilePart,
-    Discriminator("part_type"),
+    Discriminator("output_type"),
 ]
