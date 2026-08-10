@@ -5,20 +5,20 @@ from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
 
-from molto.types.base import NormalizedModel
+from molto.types.base import ExtraModel
 
 
-class SystemPrompt(NormalizedModel):
+class SystemPrompt(ExtraModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
-    input_type: Annotated[
+    content_type: Annotated[
         Literal["system-prompt"],
         Field(description="Content type identifier as a discriminator."),
     ] = "system-prompt"
 
 
-class TextInput(NormalizedModel):
+class TextInput(ExtraModel):
     """Text content with application-only metadata."""
 
     content: Annotated[str, Field(description="The content sent to the model.")]
@@ -26,13 +26,13 @@ class TextInput(NormalizedModel):
         Any | None,
         Field(description="Additional application-only metadata."),
     ] = None
-    input_type: Annotated[
+    content_type: Annotated[
         Literal["text-input"],
         Field(description="Content type identifier as a discriminator."),
     ] = "text-input"
 
 
-# class _FileUrlInput(NormalizedModel):
+# class _FileUrlInput(ExtraModel):
 #     """Common fields for URL-based user content."""
 
 #     url: Annotated[str, Field(description="The URL of the file.")]
@@ -53,7 +53,7 @@ class TextInput(NormalizedModel):
 # class ImageUrl(_FileUrl):
 #     """An image referenced by URL."""
 
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["image-url"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "image-url"
@@ -62,7 +62,7 @@ class TextInput(NormalizedModel):
 # class AudioUrl(_FileUrl):
 #     """An audio file referenced by URL."""
 
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["audio-url"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "audio-url"
@@ -71,7 +71,7 @@ class TextInput(NormalizedModel):
 # class DocumentUrl(_FileUrl):
 #     """A document referenced by URL."""
 
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["document-url"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "document-url"
@@ -80,13 +80,13 @@ class TextInput(NormalizedModel):
 # class VideoUrl(_FileUrl):
 #     """A video referenced by URL."""
 
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["video-url"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "video-url"
 
 
-# class BinaryInput(NormalizedModel):
+# class BinaryInput(ExtraModel):
 #     """Binary user content."""
 
 #     data: Annotated[bytes, Field(description="The binary file data.")]
@@ -99,7 +99,7 @@ class TextInput(NormalizedModel):
 #         str | None,
 #         Field(description="An optional identifier for the file."),
 #     ] = None
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["binary"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "binary"
@@ -117,7 +117,7 @@ class TextInput(NormalizedModel):
 # ]
 
 
-# class UploadedFileInput(NormalizedModel):
+# class UploadedFileInput(ExtraModel):
 #     """A reference to a provider-uploaded file."""
 
 #     file_id: Annotated[str, Field(description="The provider-specific file identifier.")]
@@ -137,16 +137,16 @@ class TextInput(NormalizedModel):
 #         str | None,
 #         Field(description="An optional identifier for the file."),
 #     ] = None
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["uploaded-file"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "uploaded-file"
 
 
-# class CachePointInput(NormalizedModel):
+# class CachePointInput(ExtraModel):
 #     """A prompt-caching boundary marker."""
 
-#     input_type: Annotated[
+#     content_type: Annotated[
 #         Literal["cache-point"],
 #         Field(description="Content type identifier as a discriminator."),
 #     ] = "cache-point"
@@ -156,7 +156,7 @@ class TextInput(NormalizedModel):
 #     ] = "5m"
 
 
-class ToolReturn(NormalizedModel):
+class ToolReturn(ExtraModel):
     """Tool return parts."""
 
     id: Annotated[
@@ -185,18 +185,99 @@ class ToolReturn(NormalizedModel):
             )
         ),
     ]
-    input_type: Annotated[
+    content_type: Annotated[
         Literal["tool-return"],
         Field(description="Content type identifier as a discriminator."),
     ] = "tool-return"
 
 
+class TextOutput(ExtraModel):
+    """A plain text response from a model, including one used as conversation history."""
+
+    content: Annotated[
+        str,
+        Field(description="The text content of the response."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="An optional identifier of the text part."),
+    ] = None
+    content_type: Annotated[
+        Literal["text-output"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "text-output"
+
+
+class ToolCall(ExtraModel):
+    """A tool call from a model."""
+
+    tool_name: Annotated[
+        str,
+        Field(description="The name of the tool to call."),
+    ]
+    args: Annotated[
+        str | None,
+        Field(description="The arguments to pass to the tool."),
+    ] = None
+    tool_call_id: Annotated[
+        str,
+        Field(description="The tool call identifier."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="An optional identifier of the tool call part"),
+    ] = None
+    content_type: Annotated[
+        Literal["tool-call"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "tool-call"
+
+
+class Thinking(ExtraModel):
+    """A thinking response from a model."""
+
+    content: Annotated[
+        str,
+        Field(description="The reasoning content."),
+    ]
+    summary: Annotated[
+        str,
+        Field(description="A summary of the reasoning."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="The identifier of the thinking part."),
+    ] = None
+    signature: Annotated[
+        str | None,
+        Field(description="The signature or encrypted content of the thinking."),
+    ] = None
+    content_type: Annotated[
+        Literal["thinking"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "thinking"
+
+
+OutputItem = Annotated[
+    Thinking | TextOutput | ToolCall,
+    # | ToolSearchCallPart
+    # | LoadCapabilityCallPart
+    # | NativeToolSearchCallPart
+    # | NativeToolCallPart
+    # | NativeToolSearchReturnPart
+    # | NativeToolReturnPart
+    # | CompactionPart
+    # | FilePart,
+    Discriminator("content_type"),
+]
+
+
 InputItem = Annotated[
-    SystemPrompt | TextInput | ToolReturn,
+    SystemPrompt | TextInput | TextOutput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
-    Discriminator("input_type"),
+    Discriminator("content_type"),
 ]
 Input: TypeAlias = list[InputItem]
 
@@ -206,7 +287,7 @@ ReasoningEffort: TypeAlias = (
 )
 
 
-class Reasoning(NormalizedModel):
+class Reasoning(ExtraModel):
     """
     Configuration options for
     [reasoning models](https://platform.openai.com/docs/guides/reasoning).
@@ -222,7 +303,7 @@ class Reasoning(NormalizedModel):
     ] = None
 
 
-class StreamOptions(NormalizedModel):
+class StreamOptions(ExtraModel):
     """Options for streaming responses. Only set this when you set `stream: true`."""
 
     include_obfuscation: Annotated[
@@ -240,7 +321,7 @@ class StreamOptions(NormalizedModel):
     ] = None
 
 
-class NormalizedRequest(NormalizedModel):
+class NormalizedRequest(ExtraModel):
     input: Annotated[
         str | Input | None,
         Field(description="Text, image, or file inputs to the model."),
@@ -291,88 +372,7 @@ class NormalizedRequest(NormalizedModel):
     ] = None
 
 
-class TextOutput(NormalizedModel):
-    """A plain text response from a model."""
-
-    content: Annotated[
-        str,
-        Field(description="The text content of the response."),
-    ]
-    id: Annotated[
-        str | None,
-        Field(description="An optional identifier of the text part."),
-    ] = None
-    output_type: Annotated[
-        Literal["text-output"],
-        Field(description="Content type identifier as a discriminator."),
-    ] = "text-output"
-
-
-class ToolCall(NormalizedModel):
-    """A tool call from a model."""
-
-    tool_name: Annotated[
-        str,
-        Field(description="The name of the tool to call."),
-    ]
-    args: Annotated[
-        str | None,
-        Field(description="The arguments to pass to the tool."),
-    ] = None
-    tool_call_id: Annotated[
-        str,
-        Field(description="The tool call identifier."),
-    ]
-    id: Annotated[
-        str | None,
-        Field(description="An optional identifier of the tool call part"),
-    ] = None
-    output_type: Annotated[
-        Literal["tool-call"],
-        Field(description="Content type identifier as a discriminator."),
-    ] = "tool-call"
-
-
-class Thinking(NormalizedModel):
-    """A thinking response from a model."""
-
-    content: Annotated[
-        str,
-        Field(description="The reasoning content."),
-    ]
-    summary: Annotated[
-        str,
-        Field(description="A summary of the reasoning."),
-    ]
-    id: Annotated[
-        str | None,
-        Field(description="The identifier of the thinking part."),
-    ] = None
-    signature: Annotated[
-        str | None,
-        Field(description="The signature or encrypted content of the thinking."),
-    ] = None
-    output_type: Annotated[
-        Literal["thinking"],
-        Field(description="Content type identifier as a discriminator."),
-    ] = "thinking"
-
-
-OutputItem = Annotated[
-    TextOutput | ToolCall | Thinking,
-    # | ToolSearchCallPart
-    # | LoadCapabilityCallPart
-    # | NativeToolSearchCallPart
-    # | NativeToolCallPart
-    # | NativeToolSearchReturnPart
-    # | NativeToolReturnPart
-    # | CompactionPart
-    # | FilePart,
-    Discriminator("output_type"),
-]
-
-
-class TextDelta(NormalizedModel):
+class TextDelta(ExtraModel):
     """A partial update (delta) for a `TextOutput` to append new text content."""
 
     content_delta: Annotated[
@@ -385,7 +385,7 @@ class TextDelta(NormalizedModel):
     ] = "text-delta"
 
 
-class ThinkingDelta(NormalizedModel):
+class ThinkingDelta(ExtraModel):
     """A partial update (delta) for a `Thinking` to append new thinking content."""
 
     content_delta: Annotated[
@@ -406,7 +406,7 @@ class ThinkingDelta(NormalizedModel):
     ] = "thinking-delta"
 
 
-class ToolCallDelta(NormalizedModel):
+class ToolCallDelta(ExtraModel):
     """A partial update (delta) for a `ToolCall` to modify tool name, arguments, or tool call ID."""
 
     tool_name_delta: Annotated[
@@ -433,7 +433,69 @@ DeltaItem = Annotated[
 ]
 
 
-class PartStartEvent(NormalizedModel):
+class InputTokenDetails(ExtraModel):
+    cached_tokens: Annotated[int, Field(description="The number of cached input tokens.")] = 0
+    cache_write_tokens: Annotated[
+        int,
+        Field(description="The number of input tokens written to a prompt cache."),
+    ] = 0
+
+
+class OutputTokenDetails(ExtraModel):
+    reasoning_tokens: Annotated[
+        int,
+        Field(description="The number of output tokens used for reasoning."),
+    ] = 0
+
+
+class Usage(ExtraModel):
+    input_tokens: Annotated[int, Field(description="The number of input tokens used.")]
+    input_tokens_details: Annotated[
+        InputTokenDetails,
+        Field(description="A breakdown of the input token usage."),
+    ]
+    output_tokens: Annotated[int, Field(description="The number of output tokens used.")]
+    output_tokens_details: Annotated[
+        OutputTokenDetails,
+        Field(description="A breakdown of the output token usage."),
+    ]
+    total_tokens: Annotated[int, Field(description="The total number of tokens used.")]
+
+
+class ResponseStartEvent(ExtraModel):
+    """Provider-backed response metadata available when a response stream starts."""
+
+    id: Annotated[str, Field(description="The upstream response identifier.")]
+    created_at: Annotated[int, Field(description="The upstream response creation time.")]
+    model: Annotated[str, Field(description="The model that produced the response.")]
+    service_tier: Annotated[
+        str | None,
+        Field(description="The service tier used for the response."),
+    ] = None
+    event_kind: Annotated[
+        Literal["response_start"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "response_start"
+
+
+class ResponseEndEvent(ExtraModel):
+    """Provider-backed response metadata available when a response stream ends."""
+
+    id: Annotated[str, Field(description="The upstream response identifier.")]
+    created_at: Annotated[int, Field(description="The upstream response creation time.")]
+    model: Annotated[str, Field(description="The model that produced the response.")]
+    service_tier: Annotated[
+        str | None,
+        Field(description="The service tier used for the response."),
+    ] = None
+    usage: Annotated[Usage | None, Field(description="The response token usage.")] = None
+    event_kind: Annotated[
+        Literal["response_end"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "response_end"
+
+
+class PartStartEvent(ExtraModel):
     """An event indicating that a new part has started.
 
     If multiple `PartStartEvent`s are received with the same index,
@@ -464,7 +526,7 @@ class PartStartEvent(NormalizedModel):
     ] = "part_start"
 
 
-class PartDeltaEvent(NormalizedModel):
+class PartDeltaEvent(ExtraModel):
     """An event indicating a delta update for an existing part."""
 
     index: Annotated[
@@ -478,7 +540,7 @@ class PartDeltaEvent(NormalizedModel):
     ] = "part_delta"
 
 
-class PartEndEvent(NormalizedModel):
+class PartEndEvent(ExtraModel):
     """An event indicating that a part is complete."""
 
     index: Annotated[
@@ -505,7 +567,7 @@ class PartEndEvent(NormalizedModel):
     ] = "part_end"
 
 
-class FinalResultEvent(NormalizedModel):
+class FinalResultEvent(ExtraModel):
     """An event indicating the response to the current model request matches the output schema and will produce a result."""
 
     tool_name: Annotated[
@@ -528,6 +590,11 @@ class FinalResultEvent(NormalizedModel):
 
 
 ModelResponseStreamEvent = Annotated[
-    PartStartEvent | PartDeltaEvent | PartEndEvent | FinalResultEvent,
+    ResponseStartEvent
+    | PartStartEvent
+    | PartDeltaEvent
+    | PartEndEvent
+    | FinalResultEvent
+    | ResponseEndEvent,
     Discriminator("event_kind"),
 ]

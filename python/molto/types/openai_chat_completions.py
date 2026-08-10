@@ -36,10 +36,10 @@ from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import Field
 
-from molto.types.base import _Model
+from molto.types.base import ExcludeNoneModel
 
 
-class OpenAIChatCompletionsCreateRequest(_Model):
+class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 
     messages: Annotated[

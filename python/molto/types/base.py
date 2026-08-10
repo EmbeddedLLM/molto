@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from molto.configs import ENV_CONFIG
 
 
-class _Model(BaseModel):
+class ExcludeNoneModel(BaseModel):
     model_config = ConfigDict(
         extra=ENV_CONFIG.pydantic_extra_behavior,
         populate_by_name=True,
@@ -49,7 +49,7 @@ class _Model(BaseModel):
     #     )
 
 
-class NormalizedModel(_Model):
+class ExtraModel(ExcludeNoneModel):
     extra_fields: Annotated[
         dict[str, Any],
         Field(
