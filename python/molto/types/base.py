@@ -48,7 +48,7 @@ class _Model(BaseModel):
     #     )
 
 
-class _NormalizedModel(_Model):
+class NormalizedModel(_Model):
     extra_fields: Annotated[
         dict[str, Any],
         Field(

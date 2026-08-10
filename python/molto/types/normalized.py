@@ -13,10 +13,10 @@ from openai.types.responses.response_input_param import (
 from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
 
-from molto.types.base import _NormalizedModel
+from molto.types.base import NormalizedModel
 
 
-class SystemPrompt(_NormalizedModel):
+class SystemPrompt(NormalizedModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
@@ -26,7 +26,7 @@ class SystemPrompt(_NormalizedModel):
     ] = "system-prompt"
 
 
-class TextInput(_NormalizedModel):
+class TextInput(NormalizedModel):
     """Text content with application-only metadata."""
 
     content: Annotated[str, Field(description="The content sent to the model.")]
@@ -40,7 +40,7 @@ class TextInput(_NormalizedModel):
     ] = "text-input"
 
 
-# class _FileUrlInput(_NormalizedModel):
+# class _FileUrlInput(NormalizedModel):
 #     """Common fields for URL-based user content."""
 
 #     url: Annotated[str, Field(description="The URL of the file.")]
@@ -94,7 +94,7 @@ class TextInput(_NormalizedModel):
 #     ] = "video-url"
 
 
-# class BinaryInput(_NormalizedModel):
+# class BinaryInput(NormalizedModel):
 #     """Binary user content."""
 
 #     data: Annotated[bytes, Field(description="The binary file data.")]
@@ -125,7 +125,7 @@ class TextInput(_NormalizedModel):
 # ]
 
 
-# class UploadedFileInput(_NormalizedModel):
+# class UploadedFileInput(NormalizedModel):
 #     """A reference to a provider-uploaded file."""
 
 #     file_id: Annotated[str, Field(description="The provider-specific file identifier.")]
@@ -151,7 +151,7 @@ class TextInput(_NormalizedModel):
 #     ] = "uploaded-file"
 
 
-# class CachePointInput(_NormalizedModel):
+# class CachePointInput(NormalizedModel):
 #     """A prompt-caching boundary marker."""
 
 #     input_type: Annotated[
@@ -164,7 +164,7 @@ class TextInput(_NormalizedModel):
 #     ] = "5m"
 
 
-class ToolReturn(_NormalizedModel):
+class ToolReturn(NormalizedModel):
     """Tool return parts."""
 
     id: Annotated[
@@ -250,7 +250,7 @@ ReasoningEffort: TypeAlias = (
 )
 
 
-class Reasoning(_NormalizedModel):
+class Reasoning(NormalizedModel):
     """
     Configuration options for
     [reasoning models](https://platform.openai.com/docs/guides/reasoning).
@@ -266,7 +266,7 @@ class Reasoning(_NormalizedModel):
     ] = None
 
 
-class StreamOptions(_NormalizedModel):
+class StreamOptions(NormalizedModel):
     """Options for streaming responses. Only set this when you set `stream: true`."""
 
     include_obfuscation: Annotated[
@@ -284,7 +284,7 @@ class StreamOptions(_NormalizedModel):
     ] = None
 
 
-class NormalizedRequest(_NormalizedModel):
+class NormalizedRequest(NormalizedModel):
     input: Annotated[
         str | InputItem | None,
         Field(description="Text, image, or file inputs to the model."),
@@ -335,7 +335,7 @@ class NormalizedRequest(_NormalizedModel):
     ] = None
 
 
-class TextOutput(_NormalizedModel):
+class TextOutput(NormalizedModel):
     """A plain text response from a model."""
 
     content: Annotated[
@@ -352,7 +352,7 @@ class TextOutput(_NormalizedModel):
     ] = "text-output"
 
 
-class ToolCall(_NormalizedModel):
+class ToolCall(NormalizedModel):
     """A tool call from a model."""
 
     tool_name: Annotated[
@@ -377,7 +377,7 @@ class ToolCall(_NormalizedModel):
     ] = "tool-call"
 
 
-class Thinking(_NormalizedModel):
+class Thinking(NormalizedModel):
     """A thinking response from a model."""
 
     content: Annotated[
@@ -416,7 +416,7 @@ OutputItem = Annotated[
 ]
 
 
-class TextDelta(_NormalizedModel):
+class TextDelta(NormalizedModel):
     """A partial update (delta) for a `TextOutput` to append new text content."""
 
     content_delta: Annotated[
@@ -429,7 +429,7 @@ class TextDelta(_NormalizedModel):
     ] = "text-delta"
 
 
-class ThinkingDelta(_NormalizedModel):
+class ThinkingDelta(NormalizedModel):
     """A partial update (delta) for a `Thinking` to append new thinking content."""
 
     content_delta: Annotated[
@@ -450,7 +450,7 @@ class ThinkingDelta(_NormalizedModel):
     ] = "thinking-delta"
 
 
-class ToolCallDelta(_NormalizedModel):
+class ToolCallDelta(NormalizedModel):
     """A partial update (delta) for a `ToolCall` to modify tool name, arguments, or tool call ID."""
 
     tool_name_delta: Annotated[
@@ -477,7 +477,7 @@ DeltaItem = Annotated[
 ]
 
 
-class PartStartEvent(_NormalizedModel):
+class PartStartEvent(NormalizedModel):
     """An event indicating that a new part has started.
 
     If multiple `PartStartEvent`s are received with the same index,
@@ -508,7 +508,7 @@ class PartStartEvent(_NormalizedModel):
     ] = "part_start"
 
 
-class PartDeltaEvent(_NormalizedModel):
+class PartDeltaEvent(NormalizedModel):
     """An event indicating a delta update for an existing part."""
 
     index: Annotated[
@@ -522,7 +522,7 @@ class PartDeltaEvent(_NormalizedModel):
     ] = "part_delta"
 
 
-class PartEndEvent(_NormalizedModel):
+class PartEndEvent(NormalizedModel):
     """An event indicating that a part is complete."""
 
     index: Annotated[
@@ -549,7 +549,7 @@ class PartEndEvent(_NormalizedModel):
     ] = "part_end"
 
 
-class FinalResultEvent(_NormalizedModel):
+class FinalResultEvent(NormalizedModel):
     """An event indicating the response to the current model request matches the output schema and will produce a result."""
 
     tool_name: Annotated[
