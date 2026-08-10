@@ -53,6 +53,8 @@ class OpenAIResponsesClient(BaseClient):
 class OpenAIChatCompletionsClient(BaseClient):
     """Translate normalized requests to Chat Completions and normalize its stream."""
 
+    DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         if isinstance(request.input, str):
