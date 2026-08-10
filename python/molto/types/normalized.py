@@ -410,3 +410,169 @@ OutputItem = Annotated[
     # | FilePart,
     Discriminator("output_type"),
 ]
+
+
+class TextPartDelta(_NormalizedModel):
+    """A partial update (delta) for a `TextPart` to append new text content."""
+
+    content_delta: Annotated[
+        str,
+        Field(description="The incremental text content to add to the existing TextPart content."),
+    ]
+    delta_type: Annotated[
+        Literal["text"],
+        Field(description="Part delta type identifier, used as a discriminator."),
+    ] = "text"
+
+
+class ThinkingPartDelta(_NormalizedModel):
+    """A partial update (delta) for a `ThinkingPart` to append new thinking content."""
+
+    content_delta: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The incremental thinking content to add to the existing ThinkingPart content."
+            )
+        ),
+    ] = None
+    signature_delta: Annotated[
+        str | None,
+        Field(description="Optional signature delta. It can replace None."),
+    ] = None
+    delta_type: Annotated[
+        Literal["thinking"],
+        Field(description="Part delta type identifier, used as a discriminator."),
+    ] = "thinking"
+
+
+class ToolCallPartDelta(_NormalizedModel):
+    """A partial update (delta) for a `ToolCallPart` to modify tool name, arguments, or tool call ID."""
+
+    tool_name_delta: Annotated[
+        str | None,
+        Field(description="Incremental text to add to the existing tool name, if any."),
+    ] = None
+    args_delta: Annotated[
+        str | dict[str, Any] | None,
+        Field(description="Incremental data to add to the tool arguments."),
+    ] = None
+    tool_call_id: Annotated[
+        str | None,
+        Field(description="Optional tool call identifier."),
+    ] = None
+    delta_type: Annotated[
+        Literal["tool_call"],
+        Field(
+            description=(
+                "Part delta type identifier, used as a discriminator. "
+                "This differs from ToolCallPart.part_kind."
+            )
+        ),
+    ] = "tool_call"
+
+
+DeltaItem = Annotated[
+    TextPartDelta | ThinkingPartDelta | ToolCallPartDelta,
+    Discriminator("delta_type"),
+]
+
+
+class PartStartEvent(_NormalizedModel):
+    """An event indicating that a new part has started.
+
+    If multiple `PartStartEvent`s are received with the same index,
+    the new one should fully replace the old one.
+    """
+
+    index: Annotated[
+        int,
+        Field(description="The index of the part within the overall response parts list."),
+    ]
+    part: Annotated[OutputItem, Field(description="The newly started response part.")]
+    previous_part_kind: Annotated[
+        Literal[
+            "text",
+            "thinking",
+            "tool-call",
+            "builtin-tool-call",
+            "builtin-tool-return",
+            "compaction",
+            "file",
+        ]
+        | None,
+        Field(description="The kind of the previous part, if any."),
+    ] = None
+    event_kind: Annotated[
+        Literal["part_start"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "part_start"
+
+
+class PartDeltaEvent(_NormalizedModel):
+    """An event indicating a delta update for an existing part."""
+
+    index: Annotated[
+        int,
+        Field(description="The index of the part within the overall response parts list."),
+    ]
+    delta: Annotated[DeltaItem, Field(description="The delta to apply to the specified part.")]
+    event_kind: Annotated[
+        Literal["part_delta"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "part_delta"
+
+
+class PartEndEvent(_NormalizedModel):
+    """An event indicating that a part is complete."""
+
+    index: Annotated[
+        int,
+        Field(description="The index of the part within the overall response parts list."),
+    ]
+    part: Annotated[OutputItem, Field(description="The complete response part.")]
+    next_part_kind: Annotated[
+        Literal[
+            "text",
+            "thinking",
+            "tool-call",
+            "builtin-tool-call",
+            "builtin-tool-return",
+            "compaction",
+            "file",
+        ]
+        | None,
+        Field(description="The kind of the next part, if any."),
+    ] = None
+    event_kind: Annotated[
+        Literal["part_end"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "part_end"
+
+
+class FinalResultEvent(_NormalizedModel):
+    """An event indicating the response to the current model request matches the output schema and will produce a result."""
+
+    tool_name: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The name of the output tool that was called. "
+                "None if the result is from text content."
+            )
+        ),
+    ]
+    tool_call_id: Annotated[
+        str | None,
+        Field(description="The tool call ID associated with this result, if any."),
+    ]
+    event_kind: Annotated[
+        Literal["final_result"],
+        Field(description="Event type identifier, used as a discriminator."),
+    ] = "final_result"
+
+
+ModelResponseStreamEvent = Annotated[
+    PartStartEvent | PartDeltaEvent | PartEndEvent | FinalResultEvent,
+    Discriminator("event_kind"),
+]
