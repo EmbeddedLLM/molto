@@ -24,12 +24,20 @@ Endpoint = Literal["responses", "chat/completions"]
 ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat/completions")
 
 
-def _cassette_dir(endpoint: Endpoint, *, matched: bool = False) -> Path:
-    root = CASSETTE_DIR / "openai"
-    if matched:
-        root /= "matched"
+def _cassette_path(
+    endpoint: Endpoint,
+    cassette_name: str,
+    *,
+    matched: bool = False,
+) -> Path:
     endpoint_dir = "chat_completions" if endpoint == "chat/completions" else endpoint
-    return root / endpoint_dir / "test_interface"
+    if not matched:
+        return CASSETTE_DIR / "openai" / endpoint_dir / "test_interface" / cassette_name
+
+    scenario, separator, variant = cassette_name.partition("-")
+    if not separator:
+        raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
+    return CASSETTE_DIR / "matched" / scenario / f"openai_{endpoint_dir}-{variant}"
 
 
 @lru_cache(maxsize=5)
@@ -45,10 +53,9 @@ def _get_http_client(
     matched: bool = False,
 ) -> AsyncClient:
     cassette_names = cassette_names.copy()
-    cassette_dir = _cassette_dir(endpoint, matched=matched)
 
     def cassette_handler(request: Request) -> Response:
-        cassette = _read_cassette(cassette_dir / cassette_names.pop(0))
+        cassette = _read_cassette(_cassette_path(endpoint, cassette_names.pop(0), matched=matched))
         request_body = json.loads(request.content)
 
         assert request.method == cassette["request"]["method"]
@@ -96,7 +103,7 @@ def _mock_responses_factory(
         assert self._http_client is not None
 
         cassette_name = cassette_names.pop(0)
-        cassette = _read_cassette(_cassette_dir(endpoint, matched=matched) / cassette_name)
+        cassette = _read_cassette(_cassette_path(endpoint, cassette_name, matched=matched))
         response = await self._http_client.post(
             f"https://api.openai.com/v1/{endpoint}",
             json=body if endpoint == "responses" else cassette["request"]["body"],
@@ -110,7 +117,7 @@ def _mock_responses_factory(
                         yield _MockResponsesEvent(sse=f"{event}\n\n")
             else:
                 cassette = _read_cassette(
-                    _cassette_dir("responses", matched=matched) / cassette_name
+                    _cassette_path("responses", cassette_name, matched=matched)
                 )
                 for event in "".join(cassette["response"]["sse"]).split("\n\n"):
                     if event:
@@ -231,7 +238,7 @@ async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
         client = Molto(http_client=http_client)
 
         # --- Extra inputs --- #
-        cassette = _read_cassette(_cassette_dir("responses", matched=True) / cassette_names[0])
+        cassette = _read_cassette(_cassette_path("responses", cassette_names[0], matched=True))
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
                 body=dict(
@@ -255,7 +262,7 @@ async def _assert_responses_events(
         # --- Output matches upstream format (Responses <-> Responses) --- #
         for _ in range(num_turns):
             cassette = _read_cassette(
-                _cassette_dir("responses", matched=matched) / cassette_names.pop(0)
+                _cassette_path("responses", cassette_names.pop(0), matched=matched)
             )
             response = await client.responses(
                 body=deepcopy(cassette["request"]["body"]),

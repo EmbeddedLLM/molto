@@ -1,6 +1,7 @@
 import inspect
 
 from openai.resources.chat.completions.completions import AsyncCompletions
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -35,7 +36,20 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
-def test_non_streaming_chat_completion_is_a_pydantic_model():
+def test_non_streaming_chat_completion_uses_sdk_model():
+    assert OpenAIChatCompletionsResponse is ChatCompletion
+    assert set(OpenAIChatCompletionsResponse.model_fields) == {
+        "id",
+        "choices",
+        "created",
+        "model",
+        "object",
+        "moderation",
+        "service_tier",
+        "system_fingerprint",
+        "usage",
+    }
+
     response = OpenAIChatCompletionsResponse.model_validate(
         {
             "id": "chatcmpl_123",
@@ -49,7 +63,20 @@ def test_non_streaming_chat_completion_is_a_pydantic_model():
     assert response.id == "chatcmpl_123"
 
 
-def test_streaming_chat_completion_chunk_is_a_pydantic_model():
+def test_streaming_chat_completion_chunk_uses_sdk_model():
+    assert OpenAIChatCompletionsStreamChunk is ChatCompletionChunk
+    assert set(OpenAIChatCompletionsStreamChunk.model_fields) == {
+        "id",
+        "choices",
+        "created",
+        "model",
+        "object",
+        "moderation",
+        "service_tier",
+        "system_fingerprint",
+        "usage",
+    }
+
     chunk = OpenAIChatCompletionsStreamChunk.model_validate(
         {
             "id": "chatcmpl_123",

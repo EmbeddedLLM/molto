@@ -29,9 +29,10 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, TypeAdapter
 
-from molto.utils.io import json_dumps, json_loads
+from molto.types.base import ExcludeNoneModel
+from molto.utils.io import json_dumps
 
 RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "id",
@@ -43,7 +44,7 @@ RECONSTRUCTIBLE_RESPONSE_FIELDS = {
 }
 
 
-class OpenAIResponsesCreateRequest(BaseModel, extra="forbid"):
+class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by `AsyncOpenAI.responses.create`.
 
     Use `model_dump()` when sending a partially populated request so omitted
@@ -175,12 +176,6 @@ class OpenAIResponsesCreateRequest(BaseModel, extra="forbid"):
         Field(default=None, description="A stable identifier for the end user."),
     ]
 
-    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """Serialize only populated fields for direct use as SDK keyword arguments."""
-        kwargs.setdefault("exclude_none", True)
-        kwargs.setdefault("mode", "json")
-        return super().model_dump(*args, **kwargs)
-
 
 # These are aliases rather than duplicate classes intentionally: the SDK's response
 # models are already Pydantic models generated from the same schema as the endpoint.
@@ -195,12 +190,6 @@ OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 _STREAM_EVENT_ADAPTER = TypeAdapter(OpenAIResponsesStreamEvent)
 
 
-class _OpenAIResponsesPOCStreamEvent(BaseModel, extra="allow"):
-    """Fallback for newer wire events not modeled by the repository's pinned SDK."""
-
-    type: str
-
-
 def openai_responses_event_from_sse(sse: str) -> ResponseStreamEvent:
     """Parse one Responses SSE record while retaining its original wire representation."""
     data = "\n".join(
@@ -208,10 +197,7 @@ def openai_responses_event_from_sse(sse: str) -> ResponseStreamEvent:
         for line in sse.splitlines()
         if line.startswith("data:")
     )
-    try:
-        event = _STREAM_EVENT_ADAPTER.validate_json(data)
-    except ValidationError:
-        event = _OpenAIResponsesPOCStreamEvent.model_validate(json_loads(data))
+    event = _STREAM_EVENT_ADAPTER.validate_json(data)
 
     def as_sse(_: BaseModel) -> str:
         return sse

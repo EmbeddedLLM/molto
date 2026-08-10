@@ -24,7 +24,6 @@ __pycache__/
 .venv/
 **/.venv/
 venv/
-clients/python/tests/**/*
 
 # pip
 **/build/
@@ -44,6 +43,3 @@ clients/python/tests/**/*
 # Frontend
 services/app
 clients/typescript
-
-# Markdown files - handled by mdformat
-**/*.md

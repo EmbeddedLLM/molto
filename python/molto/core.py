@@ -4,22 +4,10 @@ from typing import Any, Literal
 from httpx import AsyncClient
 from pydantic import BaseModel
 
-from molto.providers import (
-    AnthropicMessagesProvider,
-    OpenAIChatCompletionsProvider,
-    OpenAIResponsesProvider,
-)
-from molto.runner import Runner
-from molto.types.openai.chat_completions import (
-    OpenAIChatCompletionChunk,
-    OpenAIChatCompletionRequest,
-    OpenAIChatCompletionResponse,
-)
-from molto.types.openai.responses import (
-    OpenAIResponsesRequest,
-    OpenAIResponsesResponse,
-    _OpenAIStreamEvent,
-)
+from molto.adapters.openai import OpenAIResponsesAdapter
+from molto.configs import ENV_CONFIG
+from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 
 class Molto:
@@ -27,7 +15,7 @@ class Molto:
         self,
         http_client: AsyncClient | None = None,
     ) -> None:
-        self._http_client = http_client
+        self._http_client = http_client or AsyncClient()
 
     async def close(self) -> None:
         await self._http_client.aclose()
@@ -39,7 +27,7 @@ class Molto:
         provider: Literal["openai", "vllm"] = "openai",
         api_key: str | None = None,
         base_url: str | None = None,
-    ):
+    ) -> AsyncIterator[BaseModel]:
         """
         Consume OpenAI Responses request and return Responses output.
         The upstream format can be either OpenAI Responses or OpenAI Chat Completions.
@@ -53,49 +41,27 @@ class Molto:
             api_key (str | None, optional): API key for the provider. Defaults to None (infer from provider).
             base_url (str | None, optional): Base URL for the provider API. Defaults to None (infer from provider).
         """
-        pass
+        request = OpenAIResponsesCreateRequest.model_validate(body)
+        if request.stream is not True:
+            raise NotImplementedError("Only streaming Responses requests are currently supported.")
 
-    async def chat(
-        self,
-        body: OpenAIResponsesRequest | OpenAIChatCompletionRequest,
-        api_key: str | None = None,
-        protocol: Literal["responses", "chat_completions"] = "responses",
-    ) -> (
-        OpenAIResponsesResponse
-        | AsyncIterator[_OpenAIStreamEvent]
-        | OpenAIChatCompletionResponse
-        | AsyncIterator[OpenAIChatCompletionChunk]
-    ):
-        """Orchestrate the pipeline."""
-        ir = body.to_ir()
-        if isinstance(body, OpenAIChatCompletionRequest):
-            request_provider = OpenAIChatCompletionsProvider(ir=ir)
-        elif isinstance(body, OpenAIResponsesRequest):
-            request_provider = OpenAIResponsesProvider(ir=ir)
-        else:
-            raise ValueError(f"Unsupported request type: {type(body)}")
+        resolved_api_key = api_key
+        if resolved_api_key is None and provider == "openai":
+            resolved_api_key = ENV_CONFIG.openai_api_key_plain
 
-        def openai_provider_for_endpoint():
-            if protocol == "responses":
-                return OpenAIResponsesProvider()
-            if protocol == "chat_completions":
-                return OpenAIChatCompletionsProvider()
-            raise ValueError(f"Unsupported protocol: {protocol}")
+        if endpoint == "responses":
+            upstream = OpenAIResponsesClient(
+                self._http_client,
+                api_key=resolved_api_key,
+                base_url=base_url,
+            )
+            return upstream.native_events(request)
 
-        if ir.model.startswith("openai/") or ir.model.startswith("vllm/"):
-            model_provider = openai_provider_for_endpoint()
-        elif ir.model.startswith("anthropic/"):
-            # TODO: implement responses for Anthropic
-            model_provider = AnthropicMessagesProvider()
-        else:
-            raise ValueError(f"Unsupported model: {ir.model}")
-
-        agent_settings = await model_provider.parse_agent_settings(
-            ir, self._http_client, api_key=api_key
+        adapter = OpenAIResponsesAdapter()
+        normalized_request = adapter.normalize_request(request)
+        upstream = OpenAIChatCompletionsClient(
+            self._http_client,
+            api_key=resolved_api_key,
+            base_url=base_url,
         )
-        run_settings = await model_provider.parse_run_settings(ir)
-        runner = Runner(agent_settings, run_settings)
-        if ir.stream:
-            return request_provider.compose_outputs(runner.run_stream())
-        else:
-            return await request_provider.get_output(runner.run_stream())
+        return adapter.project_events(upstream.events(normalized_request), normalized_request)

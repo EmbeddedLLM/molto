@@ -1,6 +1,9 @@
 import inspect
+from typing import get_args
 
 from openai.resources.responses.responses import AsyncResponses
+from openai.types.responses.response import Response
+from openai.types.responses.response_stream_event import ResponseStreamEvent
 from pydantic import TypeAdapter
 
 from molto.types.openai_responses import (
@@ -54,7 +57,45 @@ def test_request_dump_is_ready_for_responses_create():
     }
 
 
-def test_non_streaming_response_is_a_pydantic_model():
+def test_non_streaming_response_uses_sdk_model():
+    assert OpenAIResponsesResponse is Response
+    assert set(OpenAIResponsesResponse.model_fields) == {
+        "id",
+        "created_at",
+        "error",
+        "incomplete_details",
+        "instructions",
+        "metadata",
+        "model",
+        "object",
+        "output",
+        "parallel_tool_calls",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p",
+        "background",
+        "completed_at",
+        "conversation",
+        "max_output_tokens",
+        "max_tool_calls",
+        "moderation",
+        "previous_response_id",
+        "prompt",
+        "prompt_cache_key",
+        "prompt_cache_options",
+        "prompt_cache_retention",
+        "reasoning",
+        "safety_identifier",
+        "service_tier",
+        "status",
+        "text",
+        "top_logprobs",
+        "truncation",
+        "usage",
+        "user",
+    }
+
     response = OpenAIResponsesResponse.model_validate(
         {
             "id": "resp_123",
@@ -70,6 +111,13 @@ def test_non_streaming_response_is_a_pydantic_model():
 
     assert response.id == "resp_123"
     assert response.model_dump()["object"] == "response"
+
+
+def test_stream_event_union_wraps_every_sdk_event_and_field():
+    molto_events = get_args(get_args(OpenAIResponsesStreamEvent)[0])
+
+    assert molto_events == get_args(get_args(ResponseStreamEvent)[0])
+    assert all("sequence_number" in event.model_fields for event in molto_events)
 
 
 def test_streaming_event_union_validates_by_type():
