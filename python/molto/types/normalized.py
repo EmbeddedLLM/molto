@@ -1,15 +1,7 @@
 from textwrap import dedent
-from typing import Annotated, Any, Literal, TypeAlias, Union
+from typing import Annotated, Any, Literal, TypeAlias
 
 from openai.types.responses.response_create_params import ToolChoice
-from openai.types.responses.response_input_param import (
-    EasyInputMessageParam,
-    FunctionCallOutput,
-    Message,
-    ResponseFunctionToolCallParam,
-    ResponseOutputMessageParam,
-    ResponseReasoningItemParam,
-)
 from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
 
@@ -199,42 +191,6 @@ class ToolReturn(NormalizedModel):
     ] = "tool-return"
 
 
-ResponseInputItemParam: TypeAlias = Union[
-    EasyInputMessageParam,
-    Message,
-    ResponseOutputMessageParam,
-    # ResponseFileSearchToolCallParam,
-    # ResponseComputerToolCallParam,
-    # ComputerCallOutput,
-    # ResponseFunctionWebSearchParam,
-    ResponseFunctionToolCallParam,
-    FunctionCallOutput,
-    # ToolSearchCall,
-    # ResponseToolSearchOutputItemParamParam,
-    # AdditionalTools,
-    ResponseReasoningItemParam,
-    # ResponseCompactionItemParamParam,
-    # ImageGenerationCall,
-    # ResponseCodeInterpreterToolCallParam,
-    # LocalShellCall,
-    # LocalShellCallOutput,
-    # ShellCall,
-    # ShellCallOutput,
-    # ApplyPatchCall,
-    # ApplyPatchCallOutput,
-    # McpListTools,
-    # McpApprovalRequest,
-    # McpApprovalResponse,
-    # McpCall,
-    # ResponseCustomToolCallOutputParam,
-    # ResponseCustomToolCallParam,
-    # CompactionTrigger,
-    # ItemReference,
-    # Program,
-    # ProgramOutput,
-]
-ResponseInputParam: TypeAlias = list[ResponseInputItemParam]
-
 InputItem = Annotated[
     SystemPrompt | TextInput | ToolReturn,
     # | ToolSearchReturnPart
@@ -286,7 +242,7 @@ class StreamOptions(NormalizedModel):
 
 class NormalizedRequest(NormalizedModel):
     input: Annotated[
-        str | InputItem | None,
+        str | Input | None,
         Field(description="Text, image, or file inputs to the model."),
     ] = None
     max_output_tokens: Annotated[

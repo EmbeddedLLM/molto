@@ -16,6 +16,7 @@ class _Model(BaseModel):
     def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Serialize only populated fields."""
         kwargs.setdefault("exclude_unset", True)
+        kwargs.setdefault("exclude_none", True)
         kwargs.setdefault("mode", "json")
         return super().model_dump(*args, **kwargs)
 
