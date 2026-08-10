@@ -128,7 +128,7 @@ def _mock_responses_factory(
     return _mock_responses
 
 
-def _responses_event_data(sse: str) -> dict[str, Any]:
+def _load_sse(sse: str) -> dict[str, Any]:
     data = "\n".join(
         line.removeprefix("data:").lstrip()
         for line in sse.splitlines()
@@ -140,7 +140,7 @@ def _responses_event_data(sse: str) -> dict[str, Any]:
 
 
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
-    events = [_responses_event_data(sse) for sse in sse_events]
+    events = [_load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
     assert all(current == previous + 1 for previous, current in pairwise(sequence_numbers)), (
         f"Non-contiguous sequence numbers: {sequence_numbers}"
@@ -157,7 +157,7 @@ def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
 
 
 def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
-    event = _responses_event_data(sse)
+    event = _load_sse(sse)
     event.pop("item_id", None)
 
     item = event.get("item")
@@ -222,17 +222,10 @@ def test_chat_completions_event_comparison_preserves_reconstructable_fields():
     assert reconstructable(actual_events, {}) != reconstructable(expected_events, {})
 
 
-async def test_extra_inputs(monkeypatch: pytest.MonkeyPatch):
+async def test_extra_inputs():
     cassette_names = [
         "simple_text-stream-00.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(
-        Molto,
-        "responses",
-        _mock_responses_factory(cassette_names, matched=True),
-        raising=False,
-    )
 
     async with _get_http_client(cassette_names, matched=True) as http_client:
         client = Molto(http_client=http_client)
@@ -282,7 +275,7 @@ async def _assert_responses_events(
             _assert_responses_stream_invariants(actual_sse_events)
 
             if endpoint == "responses":
-                assert actual_sse_events == expected_sse_events
+                assert _load_sse(actual_sse_events) == _load_sse(expected_sse_events)
             else:
                 # Chat does not expose Responses output-item IDs or the exact terminal
                 # timestamp. Every other translated field must still match exactly.
@@ -304,52 +297,34 @@ async def _assert_responses_events(
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_simple_text_stream(endpoint: str, monkeypatch: pytest.MonkeyPatch):
+async def test_simple_text_stream(endpoint: str):
     cassette_names = [
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    # # TODO: Remove monkeypatching
-    # monkeypatch.setattr(
-    #     Molto,
-    #     "responses",
-    #     _mock_responses_factory(cassette_names, matched=True),
-    #     raising=False,
-    # )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_reasoning_stream_raw_content(endpoint: str, monkeypatch: pytest.MonkeyPatch):
+async def test_reasoning_stream_raw_content(endpoint: str):
     cassette_names = [
         "reasoning_raw-stream-00.yaml",
         "reasoning_raw-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(
-        Molto,
-        "responses",
-        _mock_responses_factory(cassette_names, matched=True),
-        raising=False,
-    )
     await _assert_responses_events(cassette_names, endpoint, matched=True)
 
 
-async def test_reasoning_stream_encrypted_content(monkeypatch: pytest.MonkeyPatch):
+async def test_reasoning_stream_encrypted_content():
     cassette_names = [
         "reasoning-stream-00.yaml",
         "reasoning-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
     await _assert_responses_events(cassette_names)
 
 
-async def test_instructions_stream(monkeypatch: pytest.MonkeyPatch):
+async def test_instructions_stream():
     cassette_names = [
         "instructions-stream-00.yaml",
         "instructions-stream-01.yaml",
     ]
-    # TODO: Remove monkeypatching
-    monkeypatch.setattr(Molto, "responses", _mock_responses_factory(cassette_names), raising=False)
     await _assert_responses_events(cassette_names)
