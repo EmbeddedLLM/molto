@@ -80,6 +80,7 @@ class GenerationConfig(IRModel):
     frequency_penalty: Penalty | None = None
     presence_penalty: Penalty | None = None
     top_logprobs: TopLogprobs | None = None
+    text_verbosity: Literal["low", "medium", "high"] | None = None
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
     parallel_tool_calls: bool | None = None

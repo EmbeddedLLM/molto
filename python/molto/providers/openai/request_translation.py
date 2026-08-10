@@ -400,8 +400,13 @@ def build_openai_request(ir, endpoint: OpenAIEndpoint) -> dict[str, Any]:
         if reasoning:
             request["reasoning"] = reasoning
         request.update(_state_values(ir))
+        text_payload = {}
         if format_payload is not None:
-            request["text"] = {"format": format_payload}
+            text_payload["format"] = format_payload
+        if generation.text_verbosity is not None:
+            text_payload["verbosity"] = generation.text_verbosity
+        if text_payload:
+            request["text"] = text_payload
 
     if ir.tools:
         request["tools"] = [_tool(tool, endpoint) for tool in ir.tools]

@@ -15,7 +15,7 @@ This document describes the supported OpenAI-compatible boundary. Every route us
 | `responses(OpenAIResponsesRequest)` | `anthropic/` | `chat/completions` (default) | Responses response/events | Supported semantic subset; unverified |
 | Either matching public method/body | `anthropic/` | `responses` | None | Unsupported |
 
-The public method selects both the accepted OpenAI request schema and returned output protocol. The request's optional `endpoint` field selects the execution endpoint ahead of the keyword-only `endpoint` fallback and the provider-aware default. Anthropic models default to Chat Completions for both public methods because Anthropic does not provide an OpenAI-compatible Responses endpoint. The routing field is consumed before `InputIR` conversion, so it never reaches provider translation. The model prefix selects the provider configuration.
+The public method selects both the accepted OpenAI request schema and returned output protocol. The keyword-only `endpoint` argument selects the execution endpoint, ahead of the provider-aware default. It is separate from the OpenAI request body and never reaches `InputIR` conversion or provider translation. Anthropic models default to Chat Completions for both public methods because Anthropic does not provide an OpenAI-compatible Responses endpoint. The model prefix selects the provider configuration.
 
 Anthropic's OpenAI-compatible endpoint fully supports common text, token-limit, streaming, and function-calling fields. It accepts but ignores OpenAI `response_format`, function-tool `strict`, `reasoning_effort`, `store`, penalties, and logprob controls; those fields are recorded separately from effective provider capabilities. Claude Sonnet 5 also rejects non-default sampling parameters, so callers should omit `temperature` and `top_p` for that model.
 
@@ -30,9 +30,10 @@ Anthropic's OpenAI-compatible endpoint fully supports common text, token-limit, 
 - stateless Responses continuation for assistant output, reasoning, web-search-call, code-interpreter-call, and image-generation-call history, including `store=False` and image-generation ID-only references;
 - reasoning items when the selected output contract supports them;
 - Responses reasoning effort when `Molto.chat_completions()` selects Chat output;
+- Responses text verbosity (`low`, `medium`, or `high`) on the native Responses route;
 - ordinary completion, incomplete, failed, refusal, and portable usage data.
 
-When an `OpenAIChatCompletionRequest` uses `endpoint="responses"`, Chat Completions has no reasoning-item or reasoning-event shape. Molto therefore passes representable reasoning configuration through to the provider, retains standard Chat reasoning-token usage, and intentionally omits returned Responses reasoning items and events from the Chat response or stream.
+When `Molto.chat_completions(..., endpoint="responses")` executes an `OpenAIChatCompletionRequest`, Chat Completions has no reasoning-item or reasoning-event shape. Molto therefore passes representable reasoning configuration through to the provider, retains standard Chat reasoning-token usage, and intentionally omits returned Responses reasoning items and events from the Chat response or stream.
 
 The Chat request adapter removes `stream_options` when the selected endpoint is Responses because it is not a Responses SDK argument. In the other direction, the Responses request adapter removes `include` and reasoning `summary` when the selected endpoint is Chat Completions because Chat has no corresponding request fields. `store` remains a Chat field; Anthropic accepts and ignores it as documented by its OpenAI compatibility layer. The Responses request builder omits neutral `frequency_penalty=0` and `presence_penalty=0` defaults because the Responses SDK does not accept those arguments; non-zero penalties are dropped in non-strict mode and rejected before provider construction when `strict=True`.
 

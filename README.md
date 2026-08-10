@@ -28,10 +28,9 @@ await Molto().responses(
 )
 ```
 
-Molto removes `endpoint` before converting the request to `InputIR`. The public
-method still controls the output format. Use `OpenAIResponsesBody` or
-`OpenAIChatCompletionBody` when you want to pass the provider and model
-separately.
+`endpoint` is execution routing supplied separately from the request body. Molto
+converts the endpoint-specific body to `InputIR`, while the public method still
+controls the output format.
 
 Molto converts data between endpoints only when both formats can represent it.
 The one documented exception is that Responses reasoning items are omitted

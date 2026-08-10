@@ -363,15 +363,35 @@ def test_responses_service_tier_without_ir_rejects() -> None:
         request.to_ir()
 
 
-def test_responses_text_verbosity_without_ir_rejects() -> None:
+def test_responses_text_verbosity_survives_ir_and_provider_translation() -> None:
     request = OpenAIResponsesRequest(
         model="openai/gpt-4.1-nano",
         input="hi",
         text={"verbosity": "low"},
     )
 
-    with pytest.raises(BadInputError, match="verbosity"):
-        request.to_ir()
+    ir = request.to_ir()
+    validate_provider_request(OPENAI_RESPONSES_CAPABILITIES, ir, strict=True)
+
+    assert ir.generation.text_verbosity == "low"
+    assert build_openai_request(ir, "responses") == {
+        "model": "gpt-4.1-nano",
+        "input": "hi",
+        "text": {"verbosity": "low"},
+    }
+
+
+def test_responses_text_verbosity_combines_with_structured_format() -> None:
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-4.1-nano",
+        input="hi",
+        text={"verbosity": "high", "format": {"type": "json_object"}},
+    )
+
+    assert build_openai_request(request.to_ir(), "responses")["text"] == {
+        "format": {"type": "json_object"},
+        "verbosity": "high",
+    }
 
 
 def test_responses_function_output_status_without_ir_rejects() -> None:
@@ -534,7 +554,7 @@ async def test_public_payloads_attach_outer_provider_and_model(
         )
 
 
-def test_public_payloads_validate_dicts_with_endpoint_schema() -> None:
+def test_request_models_reject_endpoint_and_validate_complete_payloads() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         OpenAIResponsesRequest.model_validate(
             {"model": "openai/gpt-5.6", "input": "hi", "endpoint": "responses"}
@@ -641,6 +661,23 @@ async def test_responses_state_rejects_chat_endpoint_before_provider_constructio
     )
 
     with pytest.raises(ModelCapabilityError, match="state.response"):
+        await Molto(strict=True).responses(request, api_key="test", endpoint="chat/completions")
+
+
+async def test_responses_text_verbosity_rejects_chat_endpoint_in_strict_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_provider(*_args, **_kwargs):
+        raise AssertionError("OpenAIProvider must not be constructed")
+
+    monkeypatch.setattr("molto.core.OpenAIProvider", unexpected_provider)
+    request = OpenAIResponsesRequest(
+        model="openai/gpt-4.1-nano",
+        input="hi",
+        text={"verbosity": "low"},
+    )
+
+    with pytest.raises(ModelCapabilityError, match="config.text_verbosity"):
         await Molto(strict=True).responses(request, api_key="test", endpoint="chat/completions")
 
 

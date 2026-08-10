@@ -319,11 +319,10 @@ def _molto_error(exc: MoltoException) -> tuple[int, str, ErrorType, str]:
 
 def _endpoint(
     request: Request,
-    body: OpenAIChatCompletionRequest | OpenAIResponsesRequest,
     *,
     default: OpenAIEndpoint,
 ) -> OpenAIEndpoint:
-    value = body.endpoint or request.headers.get("X-Molto-Endpoint")
+    value = request.headers.get("X-Molto-Endpoint")
     if value is None:
         request.state.resolved_endpoint = default
         return default
@@ -350,7 +349,6 @@ def _chat_endpoint(
     )
     if (
         request.headers.get("X-Molto-Endpoint") is None
-        and body.endpoint is None
         and is_openai_gpt_5_6
         and body.tools
         and body.reasoning_effort != "none"
@@ -358,7 +356,7 @@ def _chat_endpoint(
         request.state.requested_endpoint = "responses"
         request.state.resolved_endpoint = "responses"
         return "responses"
-    return _endpoint(request, body, default="chat/completions")
+    return _endpoint(request, default="chat/completions")
 
 
 def _prepare_payload(request: Request, payload: Any) -> Any:
@@ -682,7 +680,6 @@ def create_app(
         body = await _body(request, OpenAIResponsesRequest)
         endpoint = _endpoint(
             request,
-            body,
             default=default_endpoint_for(cast(Any, body.model.partition("/")[0]), "responses"),
         )
         _log_request(request)

@@ -252,8 +252,6 @@ def _input_items_to_ir(input_value: str | list[OpenAIInput]):
 
 def _output_format(request) -> object:
     text = getattr(request, "text", None)
-    if getattr(text, "requested_verbosity", None) is not None:
-        raise BadInputError("Responses text verbosity has no IR representation.")
     text_format = getattr(text, "format", None)
     if isinstance(text_format, OpenAIJsonObjectFormat):
         return JsonObjectOutputFormat()
@@ -378,6 +376,11 @@ def _responses_request_to_ir(request) -> InputIR:
             frequency_penalty=request.frequency_penalty,
             presence_penalty=request.presence_penalty,
             top_logprobs=request.top_logprobs,
+            text_verbosity=(
+                request.text.requested_verbosity
+                if getattr(request, "text", None) is not None
+                else None
+            ),
             reasoning_effort=reasoning.effort if reasoning is not None else None,
             reasoning_summary=reasoning.summary if reasoning is not None else None,
             parallel_tool_calls=request.parallel_tool_calls,

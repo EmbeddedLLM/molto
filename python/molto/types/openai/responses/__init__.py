@@ -138,7 +138,6 @@ __all__ = [
     "OpenAIResponsesOutputImageGenerationTool",
     "OpenAIResponsesOutputTool",
     "OpenAIResponsesPlainTextConfig",
-    "OpenAIResponsesBody",
     "OpenAIResponsesRequest",
     "OpenAIResponsesResponse",
     "OpenAIResponsesResponseError",

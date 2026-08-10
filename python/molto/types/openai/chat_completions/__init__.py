@@ -103,7 +103,6 @@ __all__ = [
     "ChatCompletionUserMessage",
     "FinishReason",
     "OpenAIChatCompletionChunk",
-    "OpenAIChatCompletionBody",
     "OpenAIChatCompletionRequest",
     "OpenAIChatCompletionResponse",
     "from_output_event_stream",

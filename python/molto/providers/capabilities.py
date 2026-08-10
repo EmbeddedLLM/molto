@@ -47,6 +47,7 @@ class RequestFeature(str, Enum):
     CONFIG_FREQUENCY_PENALTY = "config.frequency_penalty"
     CONFIG_PRESENCE_PENALTY = "config.presence_penalty"
     CONFIG_TOP_LOGPROBS = "config.top_logprobs"
+    CONFIG_TEXT_VERBOSITY = "config.text_verbosity"
     CONFIG_REASONING_EFFORT = "config.reasoning_effort"
     CONFIG_REASONING_SUMMARY = "config.reasoning_summary"
     CONFIG_PARALLEL_TOOL_CALLS = "config.parallel_tool_calls"
@@ -79,6 +80,7 @@ _CONFIG_FEATURES = {
     "frequency_penalty": RequestFeature.CONFIG_FREQUENCY_PENALTY,
     "presence_penalty": RequestFeature.CONFIG_PRESENCE_PENALTY,
     "top_logprobs": RequestFeature.CONFIG_TOP_LOGPROBS,
+    "text_verbosity": RequestFeature.CONFIG_TEXT_VERBOSITY,
     "reasoning_effort": RequestFeature.CONFIG_REASONING_EFFORT,
     "reasoning_summary": RequestFeature.CONFIG_REASONING_SUMMARY,
     "parallel_tool_calls": RequestFeature.CONFIG_PARALLEL_TOOL_CALLS,
@@ -312,6 +314,7 @@ OPENAI_RESPONSES_CAPABILITIES = ProviderContract(
     | {
         RequestFeature.INPUT_IMAGE,
         RequestFeature.CONFIG_TOP_LOGPROBS,
+        RequestFeature.CONFIG_TEXT_VERBOSITY,
         RequestFeature.CONFIG_REASONING_SUMMARY,
         RequestFeature.CONFIG_MAX_TOOL_CALLS,
         RequestFeature.CONFIG_INCLUDE,
