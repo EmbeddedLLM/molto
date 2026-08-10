@@ -91,11 +91,10 @@ Before reporting completion, review the final diff and ask:
 
 ### 7. Linting Workflow
 
-Run formatting, linting, and static analysis after implementation and before reporting completion.
-
-The CI workflow is the source of truth. Before running checks, inspect `.github/workflows/lint.yml` and use its commands, installation method, configuration, and tool versions. Do not substitute globally installed tools or copy version numbers into this document.
-
-Start with changed files for fast feedback, then run the applicable repository-wide checks used by CI.
+- Run formatting, linting, and static analysis after implementation and before reporting completion.
+- The `.github/workflows/lint.yml` workflow is the source of truth. Before running checks, inspect it and use the commands, installation method, configuration, and tool versions selected by that workflow. Do not substitute globally installed tools or copy version numbers into this document.
+- Start with changed files for fast feedback, then run the applicable repository-wide checks used by CI.
+- When editing or creating Markdown files, run every applicable formatting or linting checks.
 
 #### Python
 

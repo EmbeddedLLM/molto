@@ -2,10 +2,11 @@
 """Prepare a Chat Completions cassette for CC-to-Responses stream parity tests.
 
 The Responses cassette is the canonical expected output. This script rewrites the
-Chat Completions SSE stream so a converter receives one CC text delta for every
-``response.output_text.delta`` event, in the same order and with the same content.
-It also synchronizes fields that can pass through the conversion, including the
-response ID, creation time, model, service tier, and usage.
+Chat Completions SSE stream so a converter receives one corresponding CC delta for
+every ``response.output_text.delta`` and ``response.reasoning_text.delta`` event,
+in the same order and with the same content. It also synchronizes fields that can
+pass through the conversion, including the response ID, creation time, model,
+service tier, and usage.
 
 The result remains a Chat Completions wire-format cassette. Responses-only envelope
 fields such as message item IDs, sequence numbers, and a distinct completion time
@@ -69,6 +70,48 @@ def _serialize_data_event(event: dict[str, Any], template: str) -> str:
     return f"data: {json_dumps(event)}{suffix}"
 
 
+def _response_text_deltas(
+    events: list[dict[str, Any]], event_prefix: str, *, optional: bool = False
+) -> list[str]:
+    delta_type = f"{event_prefix}.delta"
+    done_type = f"{event_prefix}.done"
+    deltas = [event["delta"] for event in events if event.get("type") == delta_type]
+    if not all(isinstance(delta, str) for delta in deltas):
+        raise ValueError(f"{event_prefix} deltas must be strings.")
+
+    done_events = [event for event in events if event.get("type") == done_type]
+    if optional and not deltas and not done_events:
+        return []
+    if len(done_events) != 1:
+        raise ValueError(f"Expected exactly one {done_type!r} event, found {len(done_events)}.")
+
+    done_text = done_events[0].get("text")
+    if "".join(deltas) != done_text:
+        raise ValueError(f"{event_prefix} deltas do not match {event_prefix}.done.")
+    return deltas
+
+
+def _chat_delta_events(
+    indexed_events: list[tuple[int, dict[str, Any]]], delta_field: str
+) -> list[tuple[int, int, dict[str, Any]]]:
+    matches: list[tuple[int, int, dict[str, Any]]] = []
+    for event_position, (sse_index, event) in enumerate(indexed_events):
+        choices = event.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            continue
+
+        choice = choices[0]
+        delta = choice.get("delta")
+        if (
+            isinstance(delta, dict)
+            and "role" not in delta
+            and choice.get("finish_reason") is None
+            and isinstance(delta.get(delta_field), str)
+        ):
+            matches.append((event_position, sse_index, event))
+    return matches
+
+
 def _map_usage(response_usage: dict[str, Any], chat_usage: dict[str, Any]) -> None:
     chat_usage["prompt_tokens"] = response_usage["input_tokens"]
     chat_usage["completion_tokens"] = response_usage["output_tokens"]
@@ -87,24 +130,27 @@ def _map_usage(response_usage: dict[str, Any], chat_usage: dict[str, Any]) -> No
         completion_details["reasoning_tokens"] = output_details["reasoning_tokens"]
 
 
-def _replace_content_events(
+def _replace_delta_events(
     chat_cassette: dict[str, Any],
     indexed_chat_events: list[tuple[int, dict[str, Any]]],
-    content_events: list[tuple[int, int, dict[str, Any]]],
+    delta_events: list[tuple[int, int, dict[str, Any]]],
     response_deltas: list[str],
+    delta_field: str,
 ) -> None:
-    if not content_events and not response_deltas:
+    if not delta_events and not response_deltas:
         return
-    if not content_events:
-        raise ValueError("Cannot insert content deltas without a Chat Completions template.")
+    if not delta_events:
+        raise ValueError(
+            f"Cannot insert {delta_field} deltas without a Chat Completions template."
+        )
 
     sse_entries = chat_cassette["response"]["sse"]
-    event_positions = [event_position for event_position, _, _ in content_events]
+    event_positions = [event_position for event_position, _, _ in delta_events]
     if event_positions != list(range(event_positions[0], event_positions[-1] + 1)):
-        raise ValueError("Chat Completions content delta events must be contiguous.")
+        raise ValueError(f"Chat Completions {delta_field} delta events must be contiguous.")
 
-    first_event_position, segment_start, _ = content_events[0]
-    last_event_position = content_events[-1][0]
+    first_event_position, segment_start, _ = delta_events[0]
+    last_event_position = delta_events[-1][0]
     segment_end = (
         indexed_chat_events[last_event_position + 1][0]
         if last_event_position + 1 < len(indexed_chat_events)
@@ -116,14 +162,14 @@ def _replace_content_events(
         else len(sse_entries)
     )
     separator_entries = sse_entries[segment_start + 1 : next_event_index]
-    templates = [(sse_index, event) for _, sse_index, event in content_events]
+    templates = [(sse_index, event) for _, sse_index, event in delta_events]
 
     replacement_entries: list[str] = []
-    for index, content in enumerate(response_deltas):
+    for index, delta_value in enumerate(response_deltas):
         template_index, template_event = templates[min(index, len(templates) - 1)]
         event = deepcopy(template_event)
         choice = event["choices"][0]
-        choice["delta"] = {"content": content}
+        choice["delta"] = {delta_field: delta_value}
         choice["finish_reason"] = None
         event["usage"] = None
         replacement_entries.append(_serialize_data_event(event, sse_entries[template_index]))
@@ -157,41 +203,36 @@ def match_chat_completions_events(
     if not isinstance(response_usage, dict):
         raise ValueError("response.completed must contain usage for stream matching.")
 
-    response_deltas = [
-        event["delta"]
-        for event in response_events
-        if event.get("type") == "response.output_text.delta"
+    response_content_deltas = _response_text_deltas(response_events, "response.output_text")
+    response_reasoning_deltas = _response_text_deltas(
+        response_events, "response.reasoning_text", optional=True
+    )
+
+    usage_events = [
+        usage
+        for _, event in indexed_chat_events
+        if isinstance((usage := event.get("usage")), dict)
     ]
-    if not all(isinstance(delta, str) for delta in response_deltas):
-        raise ValueError("Response output text deltas must be strings.")
-
-    text_done = _response_event(response_events, "response.output_text.done").get("text")
-    if "".join(response_deltas) != text_done:
-        raise ValueError("Response output text deltas do not match response.output_text.done.")
-
-    chat_content_events: list[tuple[int, int, dict[str, Any]]] = []
-    usage_events: list[dict[str, Any]] = []
-    for event_position, (sse_index, event) in enumerate(indexed_chat_events):
-        choices = event.get("choices")
-        if isinstance(choices, list) and choices and isinstance(choices[0], dict):
-            delta = choices[0].get("delta")
-            if isinstance(delta, dict) and "content" in delta and "role" not in delta:
-                chat_content_events.append((event_position, sse_index, event))
-
-        usage = event.get("usage")
-        if isinstance(usage, dict):
-            usage_events.append(usage)
 
     if len(usage_events) != 1:
         raise ValueError(
             f"Expected exactly one Chat Completions usage event, found {len(usage_events)}."
         )
 
-    _replace_content_events(
+    _replace_delta_events(
         chat_cassette,
         indexed_chat_events,
-        chat_content_events,
-        response_deltas,
+        _chat_delta_events(indexed_chat_events, "reasoning_content"),
+        response_reasoning_deltas,
+        "reasoning_content",
+    )
+    indexed_chat_events = _data_events(chat_cassette)
+    _replace_delta_events(
+        chat_cassette,
+        indexed_chat_events,
+        _chat_delta_events(indexed_chat_events, "content"),
+        response_content_deltas,
+        "content",
     )
     indexed_chat_events = _data_events(chat_cassette)
     usage_events = [
