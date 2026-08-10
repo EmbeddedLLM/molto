@@ -2,6 +2,8 @@ import inspect
 from typing import get_args
 
 from openai.resources.responses.responses import AsyncResponses
+from openai.types.responses.response import Response
+from openai.types.responses.response_stream_event import ResponseStreamEvent
 from pydantic import TypeAdapter
 
 from molto.types.openai_responses import (
@@ -55,8 +57,8 @@ def test_request_dump_is_ready_for_responses_create():
     }
 
 
-def test_non_streaming_response_is_a_pydantic_model():
-    assert OpenAIResponsesResponse.__module__ == "molto.types.openai_responses"
+def test_non_streaming_response_uses_sdk_model():
+    assert OpenAIResponsesResponse is Response
     assert set(OpenAIResponsesResponse.model_fields) == {
         "id",
         "created_at",
@@ -111,11 +113,10 @@ def test_non_streaming_response_is_a_pydantic_model():
     assert response.model_dump()["object"] == "response"
 
 
-def test_stream_event_union_owns_every_sdk_event_and_field():
+def test_stream_event_union_wraps_every_sdk_event_and_field():
     molto_events = get_args(get_args(OpenAIResponsesStreamEvent)[0])
 
-    assert len(molto_events) == 53
-    assert all(event.__module__ == "molto.types.openai_responses" for event in molto_events)
+    assert molto_events == get_args(get_args(ResponseStreamEvent)[0])
     assert all("sequence_number" in event.model_fields for event in molto_events)
 
 
