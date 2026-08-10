@@ -382,7 +382,11 @@ class Thinking(_NormalizedModel):
 
     content: Annotated[
         str,
-        Field(description="The thinking content of the response."),
+        Field(description="The reasoning content."),
+    ]
+    summary: Annotated[
+        str,
+        Field(description="A summary of the reasoning."),
     ]
     id: Annotated[
         str | None,
@@ -412,42 +416,42 @@ OutputItem = Annotated[
 ]
 
 
-class TextPartDelta(_NormalizedModel):
-    """A partial update (delta) for a `TextPart` to append new text content."""
+class TextDelta(_NormalizedModel):
+    """A partial update (delta) for a `TextOutput` to append new text content."""
 
     content_delta: Annotated[
         str,
-        Field(description="The incremental text content to add to the existing TextPart content."),
+        Field(description="The incremental text content."),
     ]
     delta_type: Annotated[
-        Literal["text"],
+        Literal["text-delta"],
         Field(description="Part delta type identifier, used as a discriminator."),
-    ] = "text"
+    ] = "text-delta"
 
 
-class ThinkingPartDelta(_NormalizedModel):
-    """A partial update (delta) for a `ThinkingPart` to append new thinking content."""
+class ThinkingDelta(_NormalizedModel):
+    """A partial update (delta) for a `Thinking` to append new thinking content."""
 
     content_delta: Annotated[
         str | None,
-        Field(
-            description=(
-                "The incremental thinking content to add to the existing ThinkingPart content."
-            )
-        ),
+        Field(description="The incremental reasoning content."),
+    ] = None
+    summary_delta: Annotated[
+        str | None,
+        Field(description="The incremental summary of the reasoning."),
     ] = None
     signature_delta: Annotated[
         str | None,
         Field(description="Optional signature delta. It can replace None."),
     ] = None
     delta_type: Annotated[
-        Literal["thinking"],
+        Literal["thinking-delta"],
         Field(description="Part delta type identifier, used as a discriminator."),
-    ] = "thinking"
+    ] = "thinking-delta"
 
 
-class ToolCallPartDelta(_NormalizedModel):
-    """A partial update (delta) for a `ToolCallPart` to modify tool name, arguments, or tool call ID."""
+class ToolCallDelta(_NormalizedModel):
+    """A partial update (delta) for a `ToolCall` to modify tool name, arguments, or tool call ID."""
 
     tool_name_delta: Annotated[
         str | None,
@@ -462,18 +466,13 @@ class ToolCallPartDelta(_NormalizedModel):
         Field(description="Optional tool call identifier."),
     ] = None
     delta_type: Annotated[
-        Literal["tool_call"],
-        Field(
-            description=(
-                "Part delta type identifier, used as a discriminator. "
-                "This differs from ToolCallPart.part_kind."
-            )
-        ),
-    ] = "tool_call"
+        Literal["tool-call-delta"],
+        Field(description="Part delta type identifier, used as a discriminator."),
+    ] = "tool-call-delta"
 
 
 DeltaItem = Annotated[
-    TextPartDelta | ThinkingPartDelta | ToolCallPartDelta,
+    TextDelta | ThinkingDelta | ToolCallDelta,
     Discriminator("delta_type"),
 ]
 
