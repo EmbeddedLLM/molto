@@ -1,0 +1,393 @@
+filename: 2026-08-10-019fea5c-1fc0-7041-a2dd-396b35e4020d
+request:
+  body:
+    max_tokens: 20000
+    messages:
+    - content: Why is the sky blue?
+      role: user
+    - content:
+      - signature: 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
+        thinking: Sunlight contains all visible wavelengths, and air molecules scatter
+          shorter wavelengths much more strongly through Rayleigh scattering—which
+          scales as 1/λ⁴. Violet and blue light scatter roughly 5-10 times more than
+          red light, so when looking away from the sun, the scattered light appears
+          blue.
+        type: thinking
+      - text: 'Sunlight looks white but contains all the visible wavelengths. When
+          it enters the atmosphere, it runs into air molecules — mostly nitrogen and
+          oxygen — that are far smaller than the wavelength of light. These molecules
+          scatter the light in all directions, and crucially, they scatter short wavelengths
+          much more strongly than long ones.
+
+
+          The physics behind this is **Rayleigh scattering**. The light''s oscillating
+          electric field jiggles the electrons in a molecule, making it act like a
+          tiny antenna that re-radiates the light. The power radiated by such an oscillating
+          dipole grows as the fourth power of the frequency, so scattering intensity
+          goes as 1/λ⁴. Violet light (~400 nm) is therefore scattered roughly nine
+          times more efficiently than red light (~700 nm). When you look at any patch
+          of sky away from the sun, you''re seeing sunlight that''s been redirected
+          toward you by the air — and that redirected light is dominated by the blue
+          end of the spectrum.
+
+
+          **So why isn''t the sky violet?** Two reasons. First, sunlight itself contains
+          less violet than blue, so there''s less to scatter. Second, our eyes aren''t
+          equally sensitive across the spectrum: the scattered light is a mixture
+          of violet, blue, green, and some longer wavelengths, and our three cone
+          types add that mixture up to a perception of pale blue rather than violet.
+
+
+          A few related consequences of the same effect:
+
+
+          - **Sunsets are red.** When the sun is low, its light travels through far
+          more atmosphere to reach you, and most of the blue has been scattered out
+          of the direct beam, leaving reds and oranges.
+
+          - **The sky is whiter near the horizon.** That light has passed through
+          more air and been scattered multiple times, which mixes the wavelengths
+          back together and desaturates the color.
+
+          - **Space is black.** No air, no scattering — which is why the sky darkens
+          as you climb a mountain or ride in a high-altitude aircraft.
+
+
+          One common myth worth dispelling: the sky isn''t blue because it reflects
+          the ocean. It''s the other way around, if anything — water bodies often
+          look blue partly because they reflect the sky (though water also absorbs
+          red light on its own).'
+        type: text
+      role: assistant
+    - content: What about sea water?
+      role: user
+    model: claude-opus-5
+    stream: true
+    thinking:
+      display: summarized
+      type: adaptive
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    anthropic-version: '2023-06-01'
+    connection: keep-alive
+    content-length: '5329'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.117.0
+    x-api-key: '***'
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 019fea5c-1fc0-7041-a2dd-396b35e4020d
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-opus-5","id":"msg_011CdtbUb4hh9mDb5TNM6eA8","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":1333,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":6,"service_tier":"standard","inference_geo":"global"}}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}      }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    user is asking why the ocean is blue, so I need to explain the physics behind
+    it. Water itself is intrinsically blue because it absorbs red and infrared wavelengths
+    through molecular vibration of the"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    O-H bonds, leaving blue-green light to pass through. Beyond that intrinsic color,
+    there''s also light scattering, reflection"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    from the sky above, and the effects of dissolved organic matter and phytoplankton
+    that can shift the color."}   }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"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"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0 }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Sea
+    water is a genuinely different story, and a more interesting one, because water
+    is intrinsically blue — it is"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"n''t
+    just borrowing the sky''s color.\n\n**Water absorbs red light.** Pure water is
+    very slightly colored, with an absorption minimum in the blue around 420–480 nm
+    and"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    increasing absorption toward the red. Red light is attenuated over a few meters;
+    blue light penetrates tens of meters. So light that goes down into the water"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":",
+    gets scattered, and comes back up has had its red end preferentially stripped
+    out, leaving blue. This is why a glass of water looks colorless, a white-t"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"iled
+    swimming pool looks faintly blue, and a deep ocean looks intensely blue — the
+    effect accumulates with path length.\n\nWhat makes this unusual is the mechanism.
+    Almost everything you see"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    is colored by electronic transitions — electrons hopping between energy levels.
+    Water''s visible absorption instead comes from **molecular vibration**: the O–H
+    stretching"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    and bending modes sit in the infrared, but their overtones and combination bands
+    extend weakly into the red end of the visible spectrum. Water is essentially the
+    only common substance colored this way. A lovely conf"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"irmation:
+    heavy water (D₂O) is completely colorless, because the heavier deuterium vibrates
+    more slowly and its overtones never reach visible wavelengths.\n\n**Sky reflection
+    does contribute**, especially when"}     }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    you look at the surface at a grazing angle or on a calm day — that''s why the
+    sea can look leaden grey under overcast sk"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ies.
+    But look straight down into deep clear water on a sunny day and the blue you see
+    is coming from the water itself.\n\nThen there''s everything d"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"issolved
+    and living in it, which usually matters more than either effect near shore:\n\n-
+    **Phytoplankton** cont"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ain
+    chlorophyll, which absorbs blue and red and reflects green — so productive coastal
+    and polar waters look green. Satellites use exactly this to map ocean life"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".\n-
+    **Dissolved organic matter** (\"yellow substance,\" from decaying plants and river
+    runoff) absorbs blue strongly, pushing water toward green, brown, or t"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ea-colored.\n-
+    **Suspended sediment** scatters broadly, giving murky brown or, with fine glacial
+    rock flour, a milky turquoise.\n\nOne cons"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"equence
+    worth noting: the bluest water is the emptiest. The famously deep blue of the
+    mid-ocean gyres, like the Sargasso Sea or"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    the South Pacific, signals a biological desert — nothing in it but water."}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1 }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":1333,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1498,"output_tokens_details":{"thinking_tokens":711}}  }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop" }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-10T06:28:53.824246+00:00'
