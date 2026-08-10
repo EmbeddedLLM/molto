@@ -31,6 +31,7 @@ from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
+from molto.types.base import _Model
 from molto.utils.io import json_dumps, json_loads
 
 RECONSTRUCTIBLE_RESPONSE_FIELDS = {
@@ -43,7 +44,7 @@ RECONSTRUCTIBLE_RESPONSE_FIELDS = {
 }
 
 
-class OpenAIResponsesCreateRequest(BaseModel, extra="forbid"):
+class OpenAIResponsesCreateRequest(_Model):
     """The JSON parameters accepted by `AsyncOpenAI.responses.create`.
 
     Use `model_dump()` when sending a partially populated request so omitted
@@ -175,12 +176,6 @@ class OpenAIResponsesCreateRequest(BaseModel, extra="forbid"):
         Field(default=None, description="A stable identifier for the end user."),
     ]
 
-    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """Serialize only populated fields for direct use as SDK keyword arguments."""
-        kwargs.setdefault("exclude_none", True)
-        kwargs.setdefault("mode", "json")
-        return super().model_dump(*args, **kwargs)
-
 
 # These are aliases rather than duplicate classes intentionally: the SDK's response
 # models are already Pydantic models generated from the same schema as the endpoint.
@@ -195,7 +190,7 @@ OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 _STREAM_EVENT_ADAPTER = TypeAdapter(OpenAIResponsesStreamEvent)
 
 
-class _OpenAIResponsesPOCStreamEvent(BaseModel, extra="allow"):
+class _OpenAIResponsesPOCStreamEvent(_Model):
     """Fallback for newer wire events not modeled by the repository's pinned SDK."""
 
     type: str

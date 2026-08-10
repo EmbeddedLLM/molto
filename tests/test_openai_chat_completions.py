@@ -2,7 +2,7 @@ import inspect
 
 from openai.resources.chat.completions.completions import AsyncCompletions
 
-from molto.types_v2.openai_chat_completions import (
+from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,

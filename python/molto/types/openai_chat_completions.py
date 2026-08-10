@@ -8,7 +8,7 @@ requests and typed result aliases for both response modes.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from openai import AsyncStream
 from openai._types import SequenceNotStr
@@ -34,10 +34,12 @@ from openai.types.chat.completion_create_params import (
 from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from molto.types.base import _Model
 
 
-class OpenAIChatCompletionsCreateRequest(BaseModel):
+class OpenAIChatCompletionsCreateRequest(_Model):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 
     messages: Annotated[
@@ -188,11 +190,6 @@ class OpenAIChatCompletionsCreateRequest(BaseModel):
         WebSearchOptions | None,
         Field(default=None, description="Configuration for the web search tool."),
     ]
-
-    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """Serialize only populated fields for direct use as SDK keyword arguments."""
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(*args, **kwargs)
 
 
 # The SDK's response classes are already Pydantic models generated from the

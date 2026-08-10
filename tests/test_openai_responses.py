@@ -4,7 +4,7 @@ from typing import get_args
 from openai.resources.responses.responses import AsyncResponses
 from pydantic import TypeAdapter
 
-from molto.types_v2.openai_responses import (
+from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,

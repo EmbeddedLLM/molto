@@ -12,7 +12,7 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
-from molto.types_v2.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
+from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
 from molto.utils.io import read_yaml
 
 XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
