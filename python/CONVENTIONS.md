@@ -29,6 +29,8 @@ Do not recreate SDK infrastructure objects such as `AsyncStream`. Molto owns its
 
 The exact OpenAI SDK pin in `pyproject.toml` is the schema source of truth. When it changes, recheck request-signature parity, response aliases, event union members, field mappings, and cassette-backed parity.
 
+Treat OpenAI Responses as the canonical behavioral reference when matching other protocols. Match their equivalent semantics and lifecycle behavior to Responses wherever the target protocol can represent them, while preserving genuine protocol-specific differences.
+
 When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every Chat message to an untyped dictionary.
 
 Prefer concrete lists over SDK `Iterable` annotations in local compatibility models. Concrete lists validate nested content at request construction time and avoid lazy validation or iterator consumption while Pydantic evaluates union branches.
