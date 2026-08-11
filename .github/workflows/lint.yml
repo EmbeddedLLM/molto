@@ -36,14 +36,12 @@ jobs:
       - name: Check Python files using Ruff
         run: |
           uv run \
-            --locked \
             --extra lint \
             ruff check \
             --output-format github \
             --config pyproject.toml \
             .
           uv run \
-            --locked \
             --extra lint \
             ruff format \
             --diff \
