@@ -55,6 +55,8 @@ kind: Annotated[
 ] = "text-content"
 ```
 
+Keep all field default assignments outside `Annotated`; do not pass defaults such as `default=None` to `Field`.
+
 Models used as API request bodies inherit from `ExcludeNoneModel`. Call `model_dump()` instead of `BaseModel.model_dump()` so unset and `None` values do not become unintended provider parameters.
 
 Normalized models inherit from `ExtraModel`. `extra_fields` is an internal escape hatch for provider-specific values, not a vendor wire field. Never blindly dump a normalized model into a provider request or response; project supported fields explicitly.

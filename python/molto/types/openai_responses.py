@@ -134,132 +134,131 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
 
     background: Annotated[
         bool | None,
-        Field(default=None, description="Whether to run the model response in the background."),
-    ]
+        Field(description="Whether to run the model response in the background."),
+    ] = None
     context_management: Annotated[
         list[ContextManagement] | None,
-        Field(default=None, description="Context management configuration for this request."),
-    ]
+        Field(description="Context management configuration for this request."),
+    ] = None
     conversation: Annotated[
         Conversation | None,
-        Field(description="The conversation that this response belongs to.", default=None),
-    ]
+        Field(description="The conversation that this response belongs to."),
+    ] = None
     include: Annotated[
         list[ResponseIncludable] | None,
-        Field(default=None, description="Additional output data to include in the response."),
-    ]
+        Field(description="Additional output data to include in the response."),
+    ] = None
     input: Annotated[
         str | OpenAIResponsesInputParam | None,
         Field(
-            default=None,
             description=(
                 "Text, image, file, or provider response-history items sent to the model."
             ),
         ),
-    ]
+    ] = None
     instructions: Annotated[
         str | None,
-        Field(default=None, description="A system or developer message for the model."),
-    ]
+        Field(description="A system or developer message for the model."),
+    ] = None
     max_output_tokens: Annotated[
         int | None,
-        Field(default=None, description="The upper bound for generated tokens."),
-    ]
+        Field(description="The upper bound for generated tokens."),
+    ] = None
     max_tool_calls: Annotated[
         int | None,
-        Field(default=None, description="The maximum number of built-in tool calls."),
-    ]
+        Field(description="The maximum number of built-in tool calls."),
+    ] = None
     metadata: Annotated[
         Metadata | None,
-        Field(default=None, description="Key-value metadata attached to the response."),
-    ]
+        Field(description="Key-value metadata attached to the response."),
+    ] = None
     model: Annotated[
         ResponsesModel | None,
-        Field(default=None, description="The model ID used to generate the response."),
-    ]
+        Field(description="The model ID used to generate the response."),
+    ] = None
     moderation: Annotated[
         Moderation | None,
-        Field(default=None, description="Configuration for input and output moderation."),
-    ]
+        Field(description="Configuration for input and output moderation."),
+    ] = None
     parallel_tool_calls: Annotated[
         bool | None,
-        Field(default=None, description="Whether the model may run tool calls in parallel."),
-    ]
+        Field(description="Whether the model may run tool calls in parallel."),
+    ] = None
     previous_response_id: Annotated[
         str | None,
-        Field(default=None, description="The unique ID of a previous response."),
-    ]
+        Field(description="The unique ID of a previous response."),
+    ] = None
     prompt: Annotated[
         ResponsePromptParam | None,
-        Field(default=None, description="A prompt template and its variables."),
-    ]
+        Field(description="A prompt template and its variables."),
+    ] = None
     prompt_cache_key: Annotated[
         str | None,
-        Field(default=None, description="A key used to optimize prompt-cache hits."),
-    ]
+        Field(description="A key used to optimize prompt-cache hits."),
+    ] = None
     prompt_cache_options: Annotated[
         PromptCacheOptions | None,
-        Field(default=None, description="Options for prompt caching."),
-    ]
+        Field(description="Options for prompt caching."),
+    ] = None
     prompt_cache_retention: Annotated[
         Literal["in_memory", "24h"] | None,
-        Field(default=None, description="The prompt-cache retention policy."),
-    ]
+        Field(description="The prompt-cache retention policy."),
+    ] = None
     reasoning: Annotated[
         Reasoning | None,
-        Field(default=None, description="Reasoning configuration for supported models."),
-    ]
+        Field(description="Reasoning configuration for supported models."),
+    ] = None
     safety_identifier: Annotated[
         str | None,
-        Field(default=None, description="A stable identifier for a user or application user."),
-    ]
+        Field(description="A stable identifier for a user or application user."),
+    ] = None
     service_tier: Annotated[
         Literal["auto", "default", "flex", "scale", "priority", "fast"] | None,
-        Field(default=None, description="The processing service tier for the request."),
-    ]
+        Field(description="The processing service tier for the request."),
+    ] = None
     store: Annotated[
         bool | None,
-        Field(default=None, description="Whether to store the generated response."),
-    ]
+        Field(description="Whether to store the generated response."),
+    ] = None
     stream: Annotated[
         Literal[True, False] | None,
-        Field(default=None, description="Whether to stream the response."),
-    ]
+        Field(description="Whether to stream the response."),
+    ] = None
     stream_options: Annotated[
         StreamOptions | None,
-        Field(default=None, description="Options for streaming responses."),
-    ]
+        Field(description="Options for streaming responses."),
+    ] = None
     temperature: Annotated[
         float | None,
-        Field(default=None, description="Sampling temperature between 0 and 2."),
-    ]
+        Field(description="Sampling temperature between 0 and 2."),
+    ] = None
     text: Annotated[
         ResponseTextConfigParam | None,
-        Field(default=None, description="Configuration for a text response."),
-    ]
+        Field(description="Configuration for a text response."),
+    ] = None
     tool_choice: Annotated[
         ToolChoice | None,
-        Field(default=None, description="How the model should select tools."),
-    ]
+        Field(description="How the model should select tools."),
+    ] = None
     tools: Annotated[
         list[ToolParam] | None,
-        Field(default=None, description="Tools available to the model."),
-    ]
+        Field(description="Tools available to the model."),
+    ] = None
     top_logprobs: Annotated[
         int | None,
-        Field(default=None, description="The maximum number of token log probabilities."),
-    ]
+        Field(description="The maximum number of token log probabilities."),
+    ] = None
     top_p: Annotated[
         float | None,
-        Field(default=None, description="The nucleus-sampling probability mass."),
-    ]
+        Field(description="The nucleus-sampling probability mass."),
+    ] = None
     truncation: Annotated[
         Literal["auto", "disabled"] | None,
-        Field(default=None, description="The context-window truncation strategy."),
-    ]
+        Field(description="The context-window truncation strategy."),
+    ] = None
     user: Annotated[
         str | None,
-        Field(default=None, description="A stable identifier for the end user."),
+        Field(description="A stable identifier for the end user."),
     ]
 
 

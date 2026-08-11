@@ -62,143 +62,143 @@ class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     ]
     audio: Annotated[
         ChatCompletionAudioParam | None,
-        Field(default=None, description="Parameters for audio output."),
-    ]
+        Field(description="Parameters for audio output."),
+    ] = None
     frequency_penalty: Annotated[
         float | None,
-        Field(default=None, description="A penalty for tokens based on their frequency."),
-    ]
+        Field(description="A penalty for tokens based on their frequency."),
+    ] = None
     function_call: Annotated[
         FunctionCall | None,
-        Field(default=None, description="Deprecated control for function calling."),
-    ]
+        Field(description="Deprecated control for function calling."),
+    ] = None
     functions: Annotated[
         list[Function] | None,
-        Field(default=None, description="Deprecated function definitions."),
-    ]
+        Field(description="Deprecated function definitions."),
+    ] = None
     logit_bias: Annotated[
         dict[str, int] | None,
-        Field(default=None, description="Token IDs and their associated likelihood bias."),
-    ]
+        Field(description="Token IDs and their associated likelihood bias."),
+    ] = None
     logprobs: Annotated[
         bool | None,
-        Field(default=None, description="Whether to return output token log probabilities."),
-    ]
+        Field(description="Whether to return output token log probabilities."),
+    ] = None
     max_completion_tokens: Annotated[
         int | None,
-        Field(default=None, description="The upper bound for generated completion tokens."),
-    ]
+        Field(description="The upper bound for generated completion tokens."),
+    ] = None
     max_tokens: Annotated[
         int | None,
-        Field(default=None, description="Deprecated maximum number of generated tokens."),
-    ]
+        Field(description="Deprecated maximum number of generated tokens."),
+    ] = None
     metadata: Annotated[
         Metadata | None,
-        Field(default=None, description="Key-value metadata attached to the completion."),
-    ]
+        Field(description="Key-value metadata attached to the completion."),
+    ] = None
     modalities: Annotated[
         list[Literal["text", "audio"]] | None,
-        Field(default=None, description="Output modalities requested from the model."),
-    ]
+        Field(description="Output modalities requested from the model."),
+    ] = None
     moderation: Annotated[
         Moderation | None,
-        Field(default=None, description="Input and output moderation configuration."),
-    ]
+        Field(description="Input and output moderation configuration."),
+    ] = None
     n: Annotated[
         int | None,
-        Field(default=None, description="The number of completion choices to generate."),
-    ]
+        Field(description="The number of completion choices to generate."),
+    ] = None
     parallel_tool_calls: Annotated[
         bool | None,
-        Field(default=None, description="Whether to enable parallel tool calls."),
-    ]
+        Field(description="Whether to enable parallel tool calls."),
+    ] = None
     prediction: Annotated[
         ChatCompletionPredictionContentParam | None,
-        Field(default=None, description="Static predicted output content."),
-    ]
+        Field(description="Static predicted output content."),
+    ] = None
     presence_penalty: Annotated[
         float | None,
-        Field(default=None, description="A penalty for tokens based on their presence."),
-    ]
+        Field(description="A penalty for tokens based on their presence."),
+    ] = None
     prompt_cache_key: Annotated[
         str | None,
-        Field(default=None, description="A key used to optimize prompt-cache hits."),
-    ]
+        Field(description="A key used to optimize prompt-cache hits."),
+    ] = None
     prompt_cache_options: Annotated[
         PromptCacheOptions | None,
-        Field(default=None, description="Options for prompt caching."),
-    ]
+        Field(description="Options for prompt caching."),
+    ] = None
     prompt_cache_retention: Annotated[
         Literal["in_memory", "24h"] | None,
-        Field(default=None, description="The prompt-cache retention policy."),
-    ]
+        Field(description="The prompt-cache retention policy."),
+    ] = None
     reasoning_effort: Annotated[
         ReasoningEffort | None,
-        Field(default=None, description="Reasoning effort for supported models."),
-    ]
+        Field(description="Reasoning effort for supported models."),
+    ] = None
     response_format: Annotated[
         ResponseFormat | None,
-        Field(default=None, description="The format that the model must output."),
-    ]
+        Field(description="The format that the model must output."),
+    ] = None
     safety_identifier: Annotated[
         str | None,
-        Field(default=None, description="A stable identifier for an end user."),
-    ]
+        Field(description="A stable identifier for an end user."),
+    ] = None
     seed: Annotated[
         int | None,
-        Field(default=None, description="A best-effort deterministic sampling seed."),
-    ]
+        Field(description="A best-effort deterministic sampling seed."),
+    ] = None
     service_tier: Annotated[
         Literal["auto", "default", "flex", "scale", "priority", "fast"] | None,
-        Field(default=None, description="The processing service tier for the request."),
-    ]
+        Field(description="The processing service tier for the request."),
+    ] = None
     stop: Annotated[
         str | SequenceNotStr[str] | None,
-        Field(default=None, description="Up to four sequences that stop generation."),
-    ]
+        Field(description="Up to four sequences that stop generation."),
+    ] = None
     store: Annotated[
         bool | None,
-        Field(default=None, description="Whether to store the completion."),
-    ]
+        Field(description="Whether to store the completion."),
+    ] = None
     stream: Annotated[
         Literal[True, False] | None,
-        Field(default=None, description="Whether to stream the completion."),
-    ]
+        Field(description="Whether to stream the completion."),
+    ] = None
     stream_options: Annotated[
         ChatCompletionStreamOptionsParam | None,
-        Field(default=None, description="Options for streaming completions."),
-    ]
+        Field(description="Options for streaming completions."),
+    ] = None
     temperature: Annotated[
         float | None,
-        Field(default=None, description="Sampling temperature between 0 and 2."),
-    ]
+        Field(description="Sampling temperature between 0 and 2."),
+    ] = None
     tool_choice: Annotated[
         ChatCompletionToolChoiceOptionParam | None,
-        Field(default=None, description="How the model should select tools."),
-    ]
+        Field(description="How the model should select tools."),
+    ] = None
     tools: Annotated[
         list[ChatCompletionToolUnionParam] | None,
-        Field(default=None, description="Tools available to the model."),
-    ]
+        Field(description="Tools available to the model."),
+    ] = None
     top_logprobs: Annotated[
         int | None,
-        Field(default=None, description="The maximum number of token log probabilities."),
-    ]
+        Field(description="The maximum number of token log probabilities."),
+    ] = None
     top_p: Annotated[
         float | None,
-        Field(default=None, description="The nucleus-sampling probability mass."),
-    ]
+        Field(description="The nucleus-sampling probability mass."),
+    ] = None
     user: Annotated[
         str | None,
-        Field(default=None, description="A stable identifier for the end user."),
-    ]
+        Field(description="A stable identifier for the end user."),
+    ] = None
     verbosity: Annotated[
         Literal["low", "medium", "high"] | None,
-        Field(default=None, description="The response verbosity for supported models."),
-    ]
+        Field(description="The response verbosity for supported models."),
+    ] = None
     web_search_options: Annotated[
         WebSearchOptions | None,
-        Field(default=None, description="Configuration for the web search tool."),
+        Field(description="Configuration for the web search tool."),
     ]
 
 
