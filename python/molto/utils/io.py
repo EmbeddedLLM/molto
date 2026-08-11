@@ -147,10 +147,7 @@ def load_sse(sse: str) -> dict[str, Any]:
 
 def dumps_sse(data: BaseModel | dict[str, Any], event_type: str = "") -> str:
     if isinstance(data, BaseModel):
-        data_json = data.model_dump_json(
-            exclude_unset=True,
-            exclude_none=True,
-        )
+        data_json = data.model_dump_json(exclude_unset=True)
     else:
         data_json = json_dumps(data)
     if event_type:

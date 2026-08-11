@@ -7,8 +7,7 @@ while this module provides Pydantic entry points for request bodies and results.
 
 from __future__ import annotations
 
-from types import MethodType
-from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
+from typing import Annotated, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai.types.responses.response import Response
@@ -40,10 +39,9 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import Field, TypeAdapter
 
 from molto.types.base import ExcludeNoneModel
-from molto.utils.io import json_dumps, json_loads
 
 RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "id",
@@ -268,48 +266,10 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
 # These are aliases rather than duplicate classes intentionally: the SDK's response
 # models are already Pydantic models generated from the same schema as the endpoint.
 OpenAIResponsesResponse = Response
-OpenAIResponsesStreamEvent = Annotated[
-    ResponseStreamEvent,
-    Field(description="A discriminated event yielded by a streaming response."),
-]
+OpenAIResponsesStreamEvent = ResponseStreamEvent
+OpenAIResponsesStreamEventAdapter = TypeAdapter(OpenAIResponsesStreamEvent)
 OpenAIResponsesStream = AsyncStream[OpenAIResponsesStreamEvent]
 OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
-
-_STREAM_EVENT_ADAPTER = TypeAdapter(OpenAIResponsesStreamEvent)
-
-
-def openai_responses_event_from_sse(sse: str) -> ResponseStreamEvent:
-    """Parse one Responses SSE record while retaining its original wire representation."""
-    data = "\n".join(
-        line.removeprefix("data:").removeprefix(" ")
-        for line in sse.splitlines()
-        if line.startswith("data:")
-    )
-    event_data = json_loads(data)
-    response = event_data.get("response")
-    if isinstance(response, dict):
-        usage = response.get("usage")
-        if isinstance(usage, dict):
-            input_details = usage.get("input_tokens_details")
-            if isinstance(input_details, dict):
-                # Some OpenAI-compatible providers omit this newer SDK field.
-                # Default it for typed access while preserving the original SSE below.
-                input_details.setdefault("cache_write_tokens", 0)
-    event = _STREAM_EVENT_ADAPTER.validate_python(event_data)
-
-    def as_sse(_: BaseModel) -> str:
-        return sse
-
-    # OpenAI's generated models allow extra runtime attributes. Attaching the raw
-    # record keeps the concrete SDK event type while exposing Molto's wire helper.
-    object.__setattr__(event, "as_sse", MethodType(as_sse, event))
-    return event
-
-
-def openai_responses_event_from_data(data: dict[str, Any]) -> BaseModel:
-    """Build one compact Responses SSE event from translated data."""
-    event_type = data["type"]
-    return openai_responses_event_from_sse(f"event: {event_type}\ndata: {json_dumps(data)}\n\n")
 
 
 __all__ = [
@@ -322,6 +282,4 @@ __all__ = [
     "OpenAIResponsesResponse",
     "OpenAIResponsesStream",
     "OpenAIResponsesStreamEvent",
-    "openai_responses_event_from_data",
-    "openai_responses_event_from_sse",
 ]

@@ -24,11 +24,11 @@ from molto.types.normalized import (
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
-    openai_chat_completion_chunk_from_data,
+    OpenAIChatCompletionsStreamChunk,
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
-    openai_responses_event_from_data,
+    OpenAIResponsesStreamEventAdapter,
 )
 
 
@@ -128,7 +128,8 @@ class OpenAIResponsesAdapter:
             nonlocal sequence_number
             data["sequence_number"] = sequence_number
             sequence_number += 1
-            return openai_responses_event_from_data(data)
+            event = OpenAIResponsesStreamEventAdapter.validate_python(data)
+            return event
 
         def response_data(
             metadata: ResponseStartEvent | ResponseEndEvent,
@@ -417,7 +418,7 @@ class OpenAIChatCompletionsAdapter:
             choices: list[dict[str, Any]],
             usage: dict[str, Any] | None = None,
         ) -> BaseModel:
-            return openai_chat_completion_chunk_from_data(
+            return OpenAIChatCompletionsStreamChunk.model_validate(
                 {
                     "id": metadata.id,
                     "object": "chat.completion.chunk",

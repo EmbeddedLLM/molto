@@ -75,8 +75,7 @@ When downstream and upstream use the same protocol, preserve the native protocol
 
 - Validate the request with that protocol's request model.
 - Parse every SSE record into that protocol's SDK event model.
-- Retain the original record for `event.as_sse()`.
-- Do not parse and reserialize a native event when exact passthrough is promised.
+- Do not route a native event through the normalized IR.
 
 The bypass belongs in the relevant coordinator; transport remains in the matching upstream client.
 
@@ -86,7 +85,7 @@ Reuse `BaseClient` for endpoint construction, authorization headers, SSE record 
 
 An upstream client must raise on an unsuccessful HTTP response before yielding events. It must ignore protocol terminal markers such as Chat Completions `data: [DONE]` rather than trying to validate them as event models.
 
-If a compatible provider omits a newly required SDK field, default only that field for typed access and retain the untouched source record in `as_sse()`. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
+If a compatible provider omits a newly required SDK field, default only that field for typed access. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
 
 ## Unsupported semantics
 
@@ -111,7 +110,7 @@ tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
 
 Treat each cassette as canonical for its own downstream protocol. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
 
-For native passthrough, compare exact parsed events and preserve exact SSE records. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
+For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
 
 Never record cassettes during a normal test run. New cassettes must come from an approved recorded source. Moving or renaming a cassette must not alter its bytes.
 

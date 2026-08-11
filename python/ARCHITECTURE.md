@@ -128,17 +128,16 @@ OpenAIResponsesClient.native_events()
       +-- POST /responses
       +-- split SSE records
       +-- validate each record as an SDK ResponseStreamEvent
-      +-- retain the original SSE record as event.as_sse()
       |
       v
 Responses SDK event stream
 ```
 
-The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or SSE framing. Direct passthrough therefore preserves the exact upstream record returned by `event.as_sse()`.
+The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or SSE framing.
 
 Molto still validates the request and each response event. Passthrough means no IR translation, not untyped proxying.
 
-The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. It validates each data record as an SDK `ChatCompletionChunk`, retains the original record through `as_sse()`, and consumes `[DONE]` as a transport terminator rather than exposing it as a chunk.
+The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. It validates each data record as an SDK `ChatCompletionChunk` and consumes `[DONE]` as a transport terminator rather than exposing it as a chunk.
 
 ## Responses through Chat Completions
 
@@ -326,7 +325,7 @@ Molto does not subclass or duplicate these result models. The SDK already owns t
 
 Molto also does not recreate the OpenAI SDK's transport-bearing `AsyncStream` runtime object. The library owns the async iterator and yields SDK-native data models from it. This preserves useful SDK compatibility without coupling Molto to the SDK's connection and parsing internals.
 
-Generated protocol event dictionaries are serialized to SSE and parsed through the same SDK models as native records. Both native and translated events therefore expose SDK models and Molto's `as_sse()` helper.
+Generated protocol event dictionaries are serialized to SSE and parsed through the same SDK models as native records.
 
 ## Transport and SSE framing
 
@@ -365,7 +364,7 @@ Each fixture is canonical for its own downstream protocol. Matched pairs preserv
 
 Parity differs by path:
 
-- same-protocol routes assert exact request bodies and parsed stream events while retaining exact native SSE records;
+- same-protocol routes assert exact request bodies and parsed SDK stream events;
 - Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, and generated IDs;
 - Responses to Chat Completions compares ordered text and reasoning deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
 

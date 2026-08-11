@@ -1,4 +1,3 @@
-import json
 from copy import deepcopy
 from functools import lru_cache
 from itertools import pairwise, product
@@ -11,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from molto import Molto
 from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
-from molto.utils.io import dumps_sse, read_yaml
+from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions"]
@@ -51,7 +50,7 @@ def _get_http_client(
 
     def cassette_handler(request: Request) -> Response:
         cassette = _read_cassette(_cassette_path(upstream, cassette_names.pop(0), matched=matched))
-        request_body = json.loads(request.content)
+        request_body = json_loads(request.content)
 
         assert request.method == cassette["request"]["method"]
         assert request.url.path == cassette["request"]["path"]
@@ -64,17 +63,6 @@ def _get_http_client(
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
-
-
-def _load_sse(sse: str) -> dict[str, Any]:
-    data = "\n".join(
-        line.removeprefix("data:").lstrip()
-        for line in sse.splitlines()
-        if line.startswith("data:")
-    )
-    event = json.loads(data)
-    assert isinstance(event, dict)
-    return event
 
 
 def _assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
@@ -103,8 +91,8 @@ def _assert_sse_events_contain(
         zip(actual_sse_events, expected_sse_events, strict=True)
     ):
         _assert_contains_expected(
-            _load_sse(actual_sse),
-            _load_sse(expected_sse),
+            load_sse(actual_sse),
+            load_sse(expected_sse),
             path=f"event[{index}]",
         )
 
@@ -144,7 +132,7 @@ def _sse_records(cassette: dict[str, Any]) -> list[str]:
 
 
 def _chat_stream_semantics(sse_events: list[str]) -> dict[str, Any]:
-    events = [_load_sse(sse) for sse in sse_events]
+    events = [load_sse(sse) for sse in sse_events]
     first = events[0]
     reasoning_deltas: list[str] = []
     text_deltas: list[str] = []
@@ -187,7 +175,7 @@ def _chat_stream_semantics(sse_events: list[str]) -> dict[str, Any]:
 
 
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
-    events = [_load_sse(sse) for sse in sse_events]
+    events = [load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
     assert all(current == previous + 1 for previous, current in pairwise(sequence_numbers)), (
         f"Non-contiguous sequence numbers: {sequence_numbers}"
@@ -204,7 +192,7 @@ def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
 
 
 def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
-    event = _load_sse(sse)
+    event = load_sse(sse)
     event.pop("item_id", None)
 
     item = event.get("item")
@@ -316,7 +304,7 @@ async def _assert_stream_events(
             actual_sse_events = []
             for event in events:
                 assert isinstance(event, BaseModel)
-                actual_sse_events.append(event.as_sse())
+                actual_sse_events.append(dumps_sse(event))
             if downstream == "responses":
                 assert len(events) == len(expected_sse_events)
                 _assert_responses_stream_invariants(actual_sse_events)

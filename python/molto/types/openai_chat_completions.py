@@ -8,8 +8,7 @@ requests and typed result aliases for both response modes.
 
 from __future__ import annotations
 
-from types import MethodType
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from openai import AsyncStream
 from openai._types import SequenceNotStr
@@ -38,11 +37,10 @@ from openai.types.chat.completion_create_params import (
 from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing_extensions import NotRequired
 
 from molto.types.base import ExcludeNoneModel
-from molto.utils.io import json_dumps
 
 
 class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMessageParam):
@@ -212,33 +210,10 @@ OpenAIChatCompletionsStream = AsyncStream[OpenAIChatCompletionsStreamChunk]
 OpenAIChatCompletionsCreateResult = OpenAIChatCompletionsResponse | OpenAIChatCompletionsStream
 
 
-def openai_chat_completion_chunk_from_sse(sse: str) -> ChatCompletionChunk:
-    """Parse one Chat Completions SSE record and retain its wire representation."""
-    data = "\n".join(
-        line.removeprefix("data:").removeprefix(" ")
-        for line in sse.splitlines()
-        if line.startswith("data:")
-    )
-    chunk = ChatCompletionChunk.model_validate_json(data)
-
-    def as_sse(_: BaseModel) -> str:
-        return sse
-
-    object.__setattr__(chunk, "as_sse", MethodType(as_sse, chunk))
-    return chunk
-
-
-def openai_chat_completion_chunk_from_data(data: dict[str, Any]) -> ChatCompletionChunk:
-    """Build one compact Chat Completions SSE chunk from translated data."""
-    return openai_chat_completion_chunk_from_sse(f"data: {json_dumps(data)}\n\n")
-
-
 __all__ = [
     "OpenAIChatCompletionsCreateRequest",
     "OpenAIChatCompletionsCreateResult",
     "OpenAIChatCompletionsResponse",
     "OpenAIChatCompletionsStream",
     "OpenAIChatCompletionsStreamChunk",
-    "openai_chat_completion_chunk_from_data",
-    "openai_chat_completion_chunk_from_sse",
 ]

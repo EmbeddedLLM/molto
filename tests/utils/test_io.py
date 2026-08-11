@@ -29,10 +29,10 @@ def test_dump_sse_serializes_dict_with_event_type():
     )
 
 
-def test_dump_sse_serializes_only_set_non_null_model_fields():
+def test_dump_sse_serializes_only_set_model_fields():
     event = ExampleEvent(type="response.created", detail=None)
 
-    assert dumps_sse(event) == 'data: {"type":"response.created"}\n\n'
+    assert dumps_sse(event) == 'data: {"type":"response.created","detail":null}\n\n'
 
 
 def test_sse_round_trip():
