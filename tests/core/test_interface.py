@@ -9,8 +9,8 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
-from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
+from molto.utils.test import reconstructable_responses_event
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions"]
@@ -191,70 +191,6 @@ def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
     )
 
 
-def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
-    event = load_sse(sse)
-    event.pop("item_id", None)
-
-    item = event.get("item")
-    if isinstance(item, dict):
-        item.pop("id", None)
-
-    response = event.get("response")
-    if isinstance(response, dict):
-        response = {
-            k: v for k, v in response.items() if k in body or k in RECONSTRUCTIBLE_RESPONSE_FIELDS
-        }
-        usage = response.get("usage")
-        if usage is not None:
-            assert isinstance(usage, dict)
-            input_details = usage.get("input_tokens_details")
-            if isinstance(input_details, dict):
-                input_details.setdefault("cache_write_tokens", 0)
-        for output_item in response.get("output") or []:
-            if isinstance(output_item, dict):
-                output_item.pop("id", None)
-        event["response"] = response
-
-    return event
-
-
-def test_chat_completions_event_comparison_preserves_reconstructable_fields():
-    expected_events = [
-        {
-            "type": "response.output_item.added",
-            "output_index": 0,
-            "item": {"id": "msg_expected"},
-        },
-        {
-            "type": "response.completed",
-            "response": {
-                "background": False,
-                "completed_at": 123,
-                "model": "expected-model",
-                "output": [{"id": "msg_expected"}],
-            },
-        },
-    ]
-    actual_events = deepcopy(expected_events)
-    actual_events[0]["item"]["id"] = "msg_generated"
-    actual_events[1]["response"].pop("background")
-    actual_events[1]["response"]["completed_at"] = 456
-    actual_events[1]["response"]["output"][0]["id"] = "msg_generated"
-
-    def reconstructable(
-        events: list[dict[str, Any]], body: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        return [_reconstructable_responses_event(dumps_sse(e), body) for e in events]
-
-    assert reconstructable(actual_events, {}) == reconstructable(expected_events, {})
-    assert reconstructable(actual_events, {"background": False}) != reconstructable(
-        expected_events, {"background": False}
-    )
-
-    actual_events[1]["response"]["model"] = "different-model"
-    assert reconstructable(actual_events, {}) != reconstructable(expected_events, {})
-
-
 async def test_extra_inputs():
     cassette_names = [
         "simple_text-stream-00.yaml",
@@ -312,13 +248,13 @@ async def _assert_stream_events(
                     # Chat does not expose Responses output-item IDs or the exact terminal
                     # timestamp. Every other translated field must still match exactly.
                     actual_events = [
-                        _reconstructable_responses_event(
+                        reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
                         )
                         for sse in actual_sse_events
                     ]
                     expected_events = [
-                        _reconstructable_responses_event(
+                        reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
                         )
                         for sse in expected_sse_events

@@ -7,7 +7,7 @@ while this module provides Pydantic entry points for request bodies and results.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypeAlias, Union, get_args
+from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai.types.responses.response import Response
@@ -42,15 +42,6 @@ from openai.types.shared.responses_model import ResponsesModel
 from pydantic import Field, TypeAdapter
 
 from molto.types.base import ExcludeNoneModel
-
-RECONSTRUCTIBLE_RESPONSE_FIELDS = {
-    "id",
-    "model",
-    "object",
-    "output",
-    "status",
-    "usage",
-}
 
 
 class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
@@ -271,6 +262,19 @@ OpenAIResponsesStream = AsyncStream[OpenAIResponsesStreamEvent]
 OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 
 
+def validate_openai_responses_stream_event(data: Any) -> OpenAIResponsesStreamEvent:
+    """Validate a Responses event, defaulting the one known provider omission."""
+    response = data.get("response") if isinstance(data, dict) else None
+    if isinstance(response, dict):
+        usage = response.get("usage")
+        if isinstance(usage, dict):
+            input_details = usage.get("input_tokens_details")
+            if isinstance(input_details, dict):
+                # Some compatible providers omit this newer SDK field.
+                input_details.setdefault("cache_write_tokens", 0)
+    return OpenAIResponsesStreamEventAdapter.validate_python(data)
+
+
 __all__ = [
     "OpenAIResponsesCreateRequest",
     "OpenAIResponsesCreateResult",
@@ -281,4 +285,5 @@ __all__ = [
     "OpenAIResponsesResponse",
     "OpenAIResponsesStream",
     "OpenAIResponsesStreamEvent",
+    "validate_openai_responses_stream_event",
 ]

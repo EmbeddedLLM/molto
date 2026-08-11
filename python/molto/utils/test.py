@@ -12,9 +12,52 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
-from molto.utils.io import json_loads, read_yaml
+from molto.types.openai_responses import (
+    OpenAIResponsesCreateRequest,
+    validate_openai_responses_stream_event,
+)
+from molto.utils.io import json_loads, load_sse, read_yaml
 
 STREAM_PARAMS = dict(argvalues=[True, False], ids=["stream", "non-stream"])
+
+_RECONSTRUCTIBLE_RESPONSE_FIELDS = {
+    "id",
+    "model",
+    "object",
+    "output",
+    "status",
+    "usage",
+}
+
+
+def reconstructable_responses_event(
+    sse: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate a Responses SSE event and retain its reconstructible fields."""
+    request = OpenAIResponsesCreateRequest.model_validate(body)
+    event = validate_openai_responses_stream_event(load_sse(sse)).model_dump(
+        mode="json",
+        exclude_unset=True,
+    )
+    event.pop("item_id", None)
+
+    item = event.get("item")
+    if isinstance(item, dict):
+        item.pop("id", None)
+
+    response = event.get("response")
+    if isinstance(response, dict):
+        response = {
+            key: value
+            for key, value in response.items()
+            if key in request.model_fields_set or key in _RECONSTRUCTIBLE_RESPONSE_FIELDS
+        }
+        for output_item in response.get("output") or []:
+            output_item.pop("id", None)
+        event["response"] = response
+
+    return event
 
 
 def stream_reference_cassette_suffix(stream: bool) -> str | None:
