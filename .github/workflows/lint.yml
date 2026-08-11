@@ -17,6 +17,9 @@ jobs:
     name: Python linting and formatting checks
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    strategy:
+      matrix:
+        python-version: ["3.12"]
 
     steps:
       - name: Checkout code
