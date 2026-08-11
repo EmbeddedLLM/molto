@@ -205,9 +205,7 @@ def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str
             k: v for k, v in response.items() if k in body or k in RECONSTRUCTIBLE_RESPONSE_FIELDS
         }
         usage = response.get("usage")
-        if usage is None:
-            response.pop("usage", None)
-        else:
+        if usage is not None:
             assert isinstance(usage, dict)
             input_details = usage.get("input_tokens_details")
             if isinstance(input_details, dict):
