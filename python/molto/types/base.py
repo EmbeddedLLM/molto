@@ -13,8 +13,23 @@ class ExcludeNoneModel(BaseModel):
         from_attributes=True,
     )
 
-    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def model_dump_populated(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Serialize only populated fields."""
+        return super().model_dump(
+            *args,
+            **kwargs,
+            exclude_unset=True,
+            exclude_none=True,
+            mode="json",
+        )
+
+    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """
+        Serialize only populated fields.
+
+        If possible, use `model_dump_populated` instead.
+        This serves as a fallback.
+        """
         kwargs.setdefault("exclude_unset", True)
         kwargs.setdefault("exclude_none", True)
         kwargs.setdefault("mode", "json")

@@ -5,42 +5,63 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python_lint:
     name: Python linting and formatting checks
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     strategy:
       matrix:
         python-version: ["3.12"]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install linting libraries
-        run: |
-          python3 -m pip install "ruff~=0.12"
+          python-version: "3.12"
 
       - name: Check Python files using Ruff
         run: |
-          ruff check --output-format github .
-          ruff format --diff .
+          uv run \
+            --extra lint \
+            ruff check \
+            --output-format github \
+            --config pyproject.toml \
+            .
+          uv run \
+            --extra lint \
+            ruff format \
+            --diff \
+            --config pyproject.toml \
+            .
 
   prettier_lint:
     name: Prettier Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 2
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
 

@@ -13,6 +13,9 @@ from typing import Annotated, Literal
 from openai import AsyncStream
 from openai._types import SequenceNotStr
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.chat_completion_assistant_message_param import (
+    ChatCompletionAssistantMessageParam,
+)
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_prediction_content_param import (
@@ -35,15 +38,22 @@ from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import Field
+from typing_extensions import NotRequired
 
 from molto.types.base import ExcludeNoneModel
+
+
+class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMessageParam):
+    """Provider-compatible assistant history containing raw reasoning text."""
+
+    reasoning_content: NotRequired[str]
 
 
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 
     messages: Annotated[
-        list[ChatCompletionMessageParam],
+        list[ChatCompletionMessageParam | ChatCompletionAssistantMessageWithReasoningParam],
         Field(description="A list of messages comprising the conversation."),
     ]
     model: Annotated[

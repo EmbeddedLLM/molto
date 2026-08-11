@@ -273,7 +273,7 @@ OutputItem = Annotated[
 
 
 InputItem = Annotated[
-    SystemPrompt | TextInput | TextOutput | ToolReturn,
+    SystemPrompt | TextInput | Thinking | TextOutput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart

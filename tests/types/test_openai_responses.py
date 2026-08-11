@@ -1,15 +1,22 @@
 import inspect
 from typing import get_args
 
+import pytest
 from openai.resources.responses.responses import AsyncResponses
 from openai.types.responses.response import Response
+from openai.types.responses.response_input_param import ResponseInputItemParam
+from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
+from openai.types.responses.response_reasoning_item_param import ResponseReasoningItemParam
 from openai.types.responses.response_stream_event import ResponseStreamEvent
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
+    OpenAIResponsesInputItemParam,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
+    ResponseOutputMessageOptionalIDParam,
+    ResponseReasoningItemOptionalIDParam,
 )
 
 
@@ -23,6 +30,19 @@ def test_request_fields_match_responses_create_body_parameters():
     }
 
     assert set(OpenAIResponsesCreateRequest.model_fields) == sdk_parameters
+
+
+def test_request_input_replaces_only_sdk_history_types():
+    sdk_items = set(get_args(ResponseInputItemParam))
+    molto_items = set(get_args(OpenAIResponsesInputItemParam))
+
+    assert molto_items == sdk_items - {
+        ResponseReasoningItemParam,
+        ResponseOutputMessageParam,
+    } | {
+        ResponseReasoningItemOptionalIDParam,
+        ResponseOutputMessageOptionalIDParam,
+    }
 
 
 def test_request_dump_is_ready_for_responses_create():
@@ -55,6 +75,66 @@ def test_request_dump_is_ready_for_responses_create():
             }
         ],
     }
+
+
+def test_request_validates_idless_provider_response_history():
+    history = [
+        {
+            "type": "reasoning",
+            "summary": [],
+            "content": [{"type": "reasoning_text", "text": "2+2=4"}],
+            "status": "completed",
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "phase": "final_answer",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "4",
+                    "annotations": [],
+                    "logprobs": [],
+                }
+            ],
+        },
+    ]
+
+    request = OpenAIResponsesCreateRequest(input=history, model="reasoning-model", stream=True)
+
+    assert isinstance(request.input[0], ResponseReasoningItemOptionalIDParam)
+    assert isinstance(request.input[1], ResponseOutputMessageOptionalIDParam)
+    assert request.model_dump()["input"] == history
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {
+            "type": "reasoning",
+            "content": [{"type": "reasoning_text", "text": "2+2=4"}],
+        },
+        {
+            "type": "reasoning",
+            "summary": "not-a-list",
+        },
+        {
+            "id": "reasoning_123",
+            "type": "reasoning",
+            "summary": "not-a-list",
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "4", "annotations": []}],
+        },
+        {"type": "unsupported"},
+    ],
+)
+def test_request_rejects_invalid_response_history(item):
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(input=[item], model="reasoning-model", stream=True)
 
 
 def test_non_streaming_response_uses_sdk_model():
