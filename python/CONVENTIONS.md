@@ -112,11 +112,25 @@ tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
 tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
 ```
 
-Treat each cassette as canonical for its own downstream protocol. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
+Treat each cassette as authoritative native wire data for its own downstream protocol. For cross-protocol matching, the Responses cassette is the canonical behavioral reference. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
 
 Never record cassettes during a normal test run. New cassettes must come from an approved recorded source. Moving or renaming a cassette must not alter its bytes.
+
+## Implementing protocol features
+
+Use the following workflow when adding a feature shared by Responses and one or more other protocols:
+
+1. Record semantically equivalent Responses and counterpart protocol cassettes directly under `tests/cassettes/matched/` from approved official sources. Inspect their requests and events, verify that they contain no secrets, validate them against their native SDK types, and commit the unchanged recordings before modifying them.
+2. Add or extend deterministic matching tooling when the current tooling cannot align the new scenario. Use Responses as the canonical input and modify only the non-Responses response fixtures needed to align source-backed values and observable chunk boundaries. Never rewrite native request bodies or transport metadata, and keep every transformed fixture valid native wire data.
+3. Run the matching tooling on each non-Responses cassette paired with the canonical Responses cassette.
+4. Review every resulting cassette diff before implementation. The diff must contain only intentional, representable alignment changes and must not remove meaningful native fields. If it does not, correct the matching logic and repeat the matching and review steps. Commit the reviewed matching-tool and cassette changes before implementation.
+5. Add a failing interface test covering all applicable routes: same-protocol passthrough for every participating protocol and both translation directions between Responses and each counterpart protocol. Assert translated upstream request bodies exactly; response parity alone cannot prove that request features reached the upstream protocol.
+6. Implement request schemas and native transport support until all same-protocol routes pass without crossing the normalized IR.
+7. Add the smallest provider-neutral representation and the required downstream-adapter and upstream-client mappings until all cross-protocol routes pass. Explicitly reject semantics that a target protocol cannot represent; never silently drop them.
+
+Run all implementation tests in cassette playback mode. Actual translated output may be written to a temporary location for diagnosis, but it must never be promoted automatically to an expected fixture.
 
 ## Verification
 
