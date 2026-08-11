@@ -199,7 +199,7 @@ class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     web_search_options: Annotated[
         WebSearchOptions | None,
         Field(description="Configuration for the web search tool."),
-    ]
+    ] = None
 
 
 # The SDK's response classes are already Pydantic models generated from the

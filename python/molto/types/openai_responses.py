@@ -259,7 +259,7 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     user: Annotated[
         str | None,
         Field(description="A stable identifier for the end user."),
-    ]
+    ] = None
 
 
 # These are aliases rather than duplicate classes intentionally: the SDK's response
