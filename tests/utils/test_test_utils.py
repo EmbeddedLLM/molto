@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from molto.utils.io import dumps_sse
 from molto.utils.test import (
+    assert_contains_expected,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
 )
@@ -15,6 +16,68 @@ CHAT_BODY = {
     "model": "test-model",
     "stream": True,
 }
+
+
+def test_assert_contains_expected_allows_extra_dictionary_fields():
+    expected = {
+        "type": "response.completed",
+        "response": {
+            "output": [
+                {
+                    "type": "message",
+                    "status": "completed",
+                }
+            ],
+        },
+    }
+    actual = {
+        "type": "response.completed",
+        "sequence_number": 10,
+        "response": {
+            "id": "response_123",
+            "output": [
+                {
+                    "id": "message_123",
+                    "type": "message",
+                    "status": "completed",
+                }
+            ],
+        },
+    }
+
+    assert_contains_expected(actual, expected)
+
+
+@pytest.mark.parametrize(
+    ("actual", "expected", "message"),
+    [
+        ({"response": []}, {"response": {}}, r"Expected an object at \$\.response"),
+        ({"response": {}}, {"response": []}, r"Expected a list at \$\.response"),
+        (
+            {"response": {}},
+            {"response": {"id": "response_123"}},
+            r"Missing keys at \$\.response: \['id'\]",
+        ),
+        ({"output": [1]}, {"output": [1, 2]}, r"Expected 2 items at \$\.output, got 1"),
+        (
+            {"output": [{"type": "actual"}]},
+            {"output": [{"type": "expected"}]},
+            r"Value mismatch at \$\.output\[0\]\.type: 'actual' != 'expected'",
+        ),
+    ],
+)
+def test_assert_contains_expected_reports_mismatch_path(
+    actual: Any,
+    expected: Any,
+    message: str,
+):
+    with pytest.raises(AssertionError, match=message):
+        assert_contains_expected(actual, expected)
+
+
+def test_assert_contains_expected_uses_custom_root_path():
+    with pytest.raises(AssertionError, match=r"Value mismatch at event\[2\]\.type"):
+        assert_contains_expected("actual", "expected", path="event[2].type")
 
 
 def _chat_chunk(*, choices: list[dict[str, Any]], usage: dict[str, Any] | None) -> dict[str, Any]:

@@ -45,6 +45,25 @@ _RECONSTRUCTIBLE_CHAT_COMPLETIONS_FIELDS = {
 }
 
 
+def assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
+    """Assert that actual recursively contains the expected value."""
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict), f"Expected an object at {path}, got {type(actual)}"
+        missing_keys = expected.keys() - actual.keys()
+        assert not missing_keys, f"Missing keys at {path}: {sorted(missing_keys)}"
+        for key, expected_value in expected.items():
+            assert_contains_expected(actual[key], expected_value, f"{path}.{key}")
+    elif isinstance(expected, list):
+        assert isinstance(actual, list), f"Expected a list at {path}, got {type(actual)}"
+        assert len(actual) == len(expected), (
+            f"Expected {len(expected)} items at {path}, got {len(actual)}"
+        )
+        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
+            assert_contains_expected(actual_item, expected_item, f"{path}[{index}]")
+    else:
+        assert actual == expected, f"Value mismatch at {path}: {actual!r} != {expected!r}"
+
+
 def reconstructable_chat_completions_chunks(
     sse: str,
     body: dict[str, Any],

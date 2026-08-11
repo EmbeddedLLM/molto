@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 from molto import Molto
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
+    assert_contains_expected,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
 )
@@ -68,24 +69,6 @@ def _get_http_client(
     return AsyncClient(transport=MockTransport(cassette_handler))
 
 
-def _assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
-    if isinstance(expected, dict):
-        assert isinstance(actual, dict), f"Expected an object at {path}, got {type(actual)}"
-        missing_keys = expected.keys() - actual.keys()
-        assert not missing_keys, f"Missing keys at {path}: {sorted(missing_keys)}"
-        for key, expected_value in expected.items():
-            _assert_contains_expected(actual[key], expected_value, f"{path}.{key}")
-    elif isinstance(expected, list):
-        assert isinstance(actual, list), f"Expected a list at {path}, got {type(actual)}"
-        assert len(actual) == len(expected), (
-            f"Expected {len(expected)} items at {path}, got {len(actual)}"
-        )
-        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
-            _assert_contains_expected(actual_item, expected_item, f"{path}[{index}]")
-    else:
-        assert actual == expected, f"Value mismatch at {path}: {actual!r} != {expected!r}"
-
-
 def _assert_sse_events_contain(
     actual_sse_events: list[str], expected_sse_events: list[str]
 ) -> None:
@@ -93,36 +76,11 @@ def _assert_sse_events_contain(
     for index, (actual_sse, expected_sse) in enumerate(
         zip(actual_sse_events, expected_sse_events, strict=True)
     ):
-        _assert_contains_expected(
+        assert_contains_expected(
             load_sse(actual_sse),
             load_sse(expected_sse),
             path=f"event[{index}]",
         )
-
-
-def test_event_comparison_allows_extra_actual_fields():
-    expected = {
-        "type": "response.completed",
-        "response": {"output": [{"type": "message", "status": "completed"}]},
-    }
-    actual = {
-        "type": "response.completed",
-        "sequence_number": 10,
-        "response": {
-            "id": "response_123",
-            "output": [
-                {
-                    "id": "message_123",
-                    "type": "message",
-                    "status": "completed",
-                }
-            ],
-        },
-    }
-
-    _assert_contains_expected(actual, expected)
-    with pytest.raises(AssertionError, match="Missing keys"):
-        _assert_contains_expected(expected, actual)
 
 
 def _sse_records(cassette: dict[str, Any]) -> list[str]:
