@@ -1,9 +1,7 @@
 import json
-from base64 import b64encode
-from collections.abc import AsyncIterator
 from copy import deepcopy
 from functools import lru_cache
-from itertools import pairwise
+from itertools import pairwise, product
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,31 +11,28 @@ from pydantic import BaseModel, ValidationError
 
 from molto import Molto
 from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
-from molto.utils.io import read_yaml
-
-XLSX_IMAGE_URL = "data:image/jpeg;base64," + b64encode(
-    (Path(__file__).parents[1] / "files" / "xlsx.jpg").read_bytes()
-).decode("ascii")
+from molto.utils.io import dumps_sse, read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
-Endpoint = Literal["responses", "chat/completions"]
-ENDPOINTS: tuple[Endpoint, ...] = ("responses", "chat/completions")
+Protocol = Literal["responses", "chat/completions"]
+PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions")
+ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
 
 
 def _cassette_path(
-    endpoint: Endpoint,
+    protocol: Protocol,
     cassette_name: str,
     *,
     matched: bool = False,
 ) -> Path:
-    endpoint_dir = "chat_completions" if endpoint == "chat/completions" else endpoint
+    protocol_dir = "chat_completions" if protocol == "chat/completions" else protocol
     if not matched:
-        return CASSETTE_DIR / "openai" / endpoint_dir / "test_interface" / cassette_name
+        return CASSETTE_DIR / "openai" / protocol_dir / "test_interface" / cassette_name
 
     scenario, separator, variant = cassette_name.partition("-")
     if not separator:
         raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    return CASSETTE_DIR / "matched" / scenario / f"openai_{endpoint_dir}-{variant}"
+    return CASSETTE_DIR / "matched" / scenario / f"openai_{protocol_dir}-{variant}"
 
 
 @lru_cache(maxsize=5)
@@ -48,14 +43,14 @@ def _read_cassette(path: Path) -> dict[str, Any]:
 
 def _get_http_client(
     cassette_names: list[str],
-    endpoint: Endpoint = "responses",
+    upstream: Protocol = "responses",
     *,
     matched: bool = False,
 ) -> AsyncClient:
     cassette_names = cassette_names.copy()
 
     def cassette_handler(request: Request) -> Response:
-        cassette = _read_cassette(_cassette_path(endpoint, cassette_names.pop(0), matched=matched))
+        cassette = _read_cassette(_cassette_path(upstream, cassette_names.pop(0), matched=matched))
         request_body = json.loads(request.content)
 
         assert request.method == cassette["request"]["method"]
@@ -71,63 +66,6 @@ def _get_http_client(
     return AsyncClient(transport=MockTransport(cassette_handler))
 
 
-class _MockResponsesEvent(BaseModel, extra="forbid"):
-    sse: str
-
-    def as_sse(self) -> str:
-        return self.sse
-
-
-def _mock_responses_factory(
-    cassette_names: list[str],
-    *,
-    matched: bool = False,
-):
-    cassette_names = cassette_names.copy()
-
-    async def _mock_responses(
-        self: Molto,
-        *,
-        body: dict[str, Any],
-        endpoint: Endpoint = "responses",
-        provider: Literal["openai", "vllm"] = "openai",
-        api_key: str | None = None,
-        base_url: str | None = None,
-    ) -> AsyncIterator[BaseModel]:
-        # Mock validation
-        if "messages" in body:
-            raise ValidationError.from_exception_data(
-                "ResponsesRequest",
-                [{"type": "extra_forbidden", "loc": ("messages",), "input": body["messages"]}],
-            )
-        assert self._http_client is not None
-
-        cassette_name = cassette_names.pop(0)
-        cassette = _read_cassette(_cassette_path(endpoint, cassette_name, matched=matched))
-        response = await self._http_client.post(
-            f"https://api.openai.com/v1/{endpoint}",
-            json=body if endpoint == "responses" else cassette["request"]["body"],
-        )
-        response.raise_for_status()
-
-        async def iter_events() -> AsyncIterator[BaseModel]:
-            if endpoint == "responses":
-                for event in response.text.split("\n\n"):
-                    if event:
-                        yield _MockResponsesEvent(sse=f"{event}\n\n")
-            else:
-                cassette = _read_cassette(
-                    _cassette_path("responses", cassette_name, matched=matched)
-                )
-                for event in "".join(cassette["response"]["sse"]).split("\n\n"):
-                    if event:
-                        yield _MockResponsesEvent(sse=f"{event}\n\n")
-
-        return iter_events()
-
-    return _mock_responses
-
-
 def _load_sse(sse: str) -> dict[str, Any]:
     data = "\n".join(
         line.removeprefix("data:").lstrip()
@@ -137,6 +75,115 @@ def _load_sse(sse: str) -> dict[str, Any]:
     event = json.loads(data)
     assert isinstance(event, dict)
     return event
+
+
+def _assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict), f"Expected an object at {path}, got {type(actual)}"
+        missing_keys = expected.keys() - actual.keys()
+        assert not missing_keys, f"Missing keys at {path}: {sorted(missing_keys)}"
+        for key, expected_value in expected.items():
+            _assert_contains_expected(actual[key], expected_value, f"{path}.{key}")
+    elif isinstance(expected, list):
+        assert isinstance(actual, list), f"Expected a list at {path}, got {type(actual)}"
+        assert len(actual) == len(expected), (
+            f"Expected {len(expected)} items at {path}, got {len(actual)}"
+        )
+        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
+            _assert_contains_expected(actual_item, expected_item, f"{path}[{index}]")
+    else:
+        assert actual == expected, f"Value mismatch at {path}: {actual!r} != {expected!r}"
+
+
+def _assert_sse_events_contain(
+    actual_sse_events: list[str], expected_sse_events: list[str]
+) -> None:
+    assert len(actual_sse_events) == len(expected_sse_events)
+    for index, (actual_sse, expected_sse) in enumerate(
+        zip(actual_sse_events, expected_sse_events, strict=True)
+    ):
+        _assert_contains_expected(
+            _load_sse(actual_sse),
+            _load_sse(expected_sse),
+            path=f"event[{index}]",
+        )
+
+
+def test_event_comparison_allows_extra_actual_fields():
+    expected = {
+        "type": "response.completed",
+        "response": {"output": [{"type": "message", "status": "completed"}]},
+    }
+    actual = {
+        "type": "response.completed",
+        "sequence_number": 10,
+        "response": {
+            "id": "response_123",
+            "output": [
+                {
+                    "id": "message_123",
+                    "type": "message",
+                    "status": "completed",
+                }
+            ],
+        },
+    }
+
+    _assert_contains_expected(actual, expected)
+    with pytest.raises(AssertionError, match="Missing keys"):
+        _assert_contains_expected(expected, actual)
+
+
+def _sse_records(cassette: dict[str, Any]) -> list[str]:
+    records = []
+    for event in "".join(cassette["response"]["sse"]).split("\n\n"):
+        event = event.strip()
+        if event and event != "data: [DONE]":
+            records.append(f"{event}\n\n")
+    return records
+
+
+def _chat_stream_semantics(sse_events: list[str]) -> dict[str, Any]:
+    events = [_load_sse(sse) for sse in sse_events]
+    first = events[0]
+    reasoning_deltas: list[str] = []
+    text_deltas: list[str] = []
+    finish_reasons: list[str] = []
+    usage: dict[str, Any] | None = None
+
+    for event in events:
+        for choice in event["choices"]:
+            delta = choice["delta"]
+            if choice["finish_reason"] is None:
+                if delta.get("reasoning_content") is not None:
+                    reasoning_deltas.append(delta["reasoning_content"])
+                if delta.get("content") is not None:
+                    text_deltas.append(delta["content"])
+            else:
+                finish_reasons.append(choice["finish_reason"])
+
+        raw_usage = event.get("usage")
+        if raw_usage is not None:
+            prompt_details = raw_usage.get("prompt_tokens_details") or {}
+            completion_details = raw_usage.get("completion_tokens_details") or {}
+            usage = {
+                "prompt_tokens": raw_usage["prompt_tokens"],
+                "completion_tokens": raw_usage["completion_tokens"],
+                "total_tokens": raw_usage["total_tokens"],
+                "cached_tokens": prompt_details.get("cached_tokens", 0),
+                "cache_write_tokens": prompt_details.get("cache_write_tokens", 0),
+                "reasoning_tokens": completion_details.get("reasoning_tokens", 0),
+            }
+
+    return {
+        "id": first["id"],
+        "created": first["created"],
+        "model": first["model"],
+        "reasoning_deltas": reasoning_deltas,
+        "text_deltas": text_deltas,
+        "finish_reasons": finish_reasons,
+        "usage": usage,
+    }
 
 
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
@@ -174,6 +221,9 @@ def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str
             response.pop("usage", None)
         else:
             assert isinstance(usage, dict)
+            input_details = usage.get("input_tokens_details")
+            if isinstance(input_details, dict):
+                input_details.setdefault("cache_write_tokens", 0)
         for output_item in response.get("output") or []:
             if isinstance(output_item, dict):
                 output_item.pop("id", None)
@@ -205,13 +255,10 @@ def test_chat_completions_event_comparison_preserves_reconstructable_fields():
     actual_events[1]["response"]["completed_at"] = 456
     actual_events[1]["response"]["output"][0]["id"] = "msg_generated"
 
-    def as_sse(events: list[dict[str, Any]]) -> list[str]:
-        return [f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in events]
-
     def reconstructable(
         events: list[dict[str, Any]], body: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        return [_reconstructable_responses_event(sse, body) for sse in as_sse(events)]
+        return [_reconstructable_responses_event(dumps_sse(e), body) for e in events]
 
     assert reconstructable(actual_events, {}) == reconstructable(expected_events, {})
     assert reconstructable(actual_events, {"background": False}) != reconstructable(
@@ -243,75 +290,100 @@ async def test_extra_inputs():
             )
 
 
-async def _assert_responses_events(
+async def _assert_stream_events(
     cassette_names: list[str],
-    endpoint: Endpoint = "responses",
+    downstream: Protocol,
+    upstream: Protocol,
     *,
     matched: bool = False,
 ) -> None:
     num_turns = len(cassette_names)
-    async with _get_http_client(cassette_names, endpoint, matched=matched) as http_client:
+    async with _get_http_client(cassette_names, upstream, matched=matched) as http_client:
         client = Molto(http_client=http_client)
-        # --- Output matches upstream format (Responses <-> Responses) --- #
         for _ in range(num_turns):
             cassette = _read_cassette(
-                _cassette_path("responses", cassette_names.pop(0), matched=matched)
+                _cassette_path(downstream, cassette_names.pop(0), matched=matched)
             )
-            response = await client.responses(
+            coordinator = (
+                client.responses if downstream == "responses" else client.chat_completions
+            )
+            response = await coordinator(
                 body=deepcopy(cassette["request"]["body"]),
-                endpoint=endpoint,
+                endpoint=upstream,
             )
             events = [event async for event in response]
-            expected_sse_events = [
-                f"{event}\n\n"
-                for event in "".join(cassette["response"]["sse"]).split("\n\n")
-                if event
-            ]
-            assert len(events) == len(expected_sse_events)
+            expected_sse_events = _sse_records(cassette)
             actual_sse_events = []
             for event in events:
                 assert isinstance(event, BaseModel)
                 actual_sse_events.append(event.as_sse())
-            _assert_responses_stream_invariants(actual_sse_events)
-
-            if endpoint == "responses":
-                assert _load_sse(actual_sse_events) == _load_sse(expected_sse_events)
+            if downstream == "responses":
+                assert len(events) == len(expected_sse_events)
+                _assert_responses_stream_invariants(actual_sse_events)
+                if upstream == "responses":
+                    _assert_sse_events_contain(actual_sse_events, expected_sse_events)
+                elif upstream == "chat/completions":
+                    # Chat does not expose Responses output-item IDs or the exact terminal
+                    # timestamp. Every other translated field must still match exactly.
+                    actual_events = [
+                        _reconstructable_responses_event(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                        for sse in actual_sse_events
+                    ]
+                    expected_events = [
+                        _reconstructable_responses_event(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                        for sse in expected_sse_events
+                    ]
+                    assert actual_events == expected_events
+                else:
+                    raise ValueError(f"Unsupported upstream protocol: {upstream}")
+            elif downstream == "chat/completions":
+                if upstream == "chat/completions":
+                    assert len(events) == len(expected_sse_events)
+                    _assert_sse_events_contain(actual_sse_events, expected_sse_events)
+                elif upstream == "responses":
+                    assert _chat_stream_semantics(actual_sse_events) == _chat_stream_semantics(
+                        expected_sse_events
+                    )
+                else:
+                    raise ValueError(f"Unsupported upstream protocol: {upstream}")
             else:
-                # Chat does not expose Responses output-item IDs or the exact terminal
-                # timestamp. Every other translated field must still match exactly.
-                actual_events = [
-                    _reconstructable_responses_event(
-                        sse, body=deepcopy(cassette["request"]["body"])
-                    )
-                    for sse in actual_sse_events
-                ]
-                for e in actual_events:
-                    print(e)
-                expected_events = [
-                    _reconstructable_responses_event(
-                        sse, body=deepcopy(cassette["request"]["body"])
-                    )
-                    for sse in expected_sse_events
-                ]
-                assert actual_events == expected_events
+                raise ValueError(f"Unsupported downstream protocol: {downstream}")
 
 
-@pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_simple_text_stream(endpoint: str):
+async def _assert_responses_events(
+    cassette_names: list[str],
+    upstream: Protocol = "responses",
+    *,
+    matched: bool = False,
+) -> None:
+    await _assert_stream_events(
+        cassette_names,
+        downstream="responses",
+        upstream=upstream,
+        matched=matched,
+    )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
     cassette_names = [
         "simple_text-stream-00.yaml",
         "simple_text-stream-01.yaml",
     ]
-    await _assert_responses_events(cassette_names, endpoint, matched=True)
+    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
 
 
-@pytest.mark.parametrize("endpoint", ENDPOINTS)
-async def test_reasoning_stream_raw_content(endpoint: str):
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Protocol):
     cassette_names = [
         "reasoning_raw-stream-00.yaml",
         "reasoning_raw-stream-01.yaml",
     ]
-    await _assert_responses_events(cassette_names, endpoint, matched=True)
+    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
 
 
 async def test_reasoning_stream_encrypted_content():

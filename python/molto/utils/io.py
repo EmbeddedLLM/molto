@@ -4,6 +4,7 @@ from typing import Any
 import orjson
 import yaml
 from httpx import AsyncClient, HTTPStatusError, Response
+from pydantic import BaseModel
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -133,6 +134,29 @@ def dump_yaml(
     with open(path, "w") as f:
         yaml.dump(data, f, allow_unicode=allow_unicode, encoding=encoding, **kwargs)
     return path
+
+
+def load_sse(sse: str) -> dict[str, Any]:
+    data = "\n".join(
+        line.removeprefix("data:").lstrip()
+        for line in sse.splitlines()
+        if line.startswith("data:")
+    )
+    return json_loads(data)
+
+
+def dumps_sse(data: BaseModel | dict[str, Any], event_type: str = "") -> str:
+    if isinstance(data, BaseModel):
+        data_json = data.model_dump_json(
+            exclude_unset=True,
+            exclude_none=True,
+        )
+    else:
+        data_json = json_dumps(data)
+    if event_type:
+        return f"event: {event_type}\ndata: {data_json}\n\n"
+    else:
+        return f"data: {data_json}\n\n"
 
 
 def truncate_utf8(text: str, *, max_bytes: int = 50 * 1024) -> str:

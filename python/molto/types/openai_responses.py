@@ -8,7 +8,7 @@ while this module provides Pydantic entry points for request bodies and results.
 from __future__ import annotations
 
 from types import MethodType
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai.types.responses.response import Response
@@ -21,8 +21,19 @@ from openai.types.responses.response_create_params import (
     ToolChoice,
 )
 from openai.types.responses.response_includable import ResponseIncludable
-from openai.types.responses.response_input_param import ResponseInputParam
+from openai.types.responses.response_input_param import ResponseInputItemParam
+from openai.types.responses.response_output_message_param import (
+    Content as ResponseOutputMessageContentParam,
+)
+from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
 from openai.types.responses.response_prompt_param import ResponsePromptParam
+from openai.types.responses.response_reasoning_item_param import (
+    Content as ResponseReasoningContentParam,
+)
+from openai.types.responses.response_reasoning_item_param import ResponseReasoningItemParam
+from openai.types.responses.response_reasoning_item_param import (
+    Summary as ResponseReasoningSummaryParam,
+)
 from openai.types.responses.response_stream_event import ResponseStreamEvent
 from openai.types.responses.response_text_config_param import ResponseTextConfigParam
 from openai.types.responses.tool_param import ToolParam
@@ -32,7 +43,7 @@ from openai.types.shared.responses_model import ResponsesModel
 from pydantic import BaseModel, Field, TypeAdapter
 
 from molto.types.base import ExcludeNoneModel
-from molto.utils.io import json_dumps
+from molto.utils.io import json_dumps, json_loads
 
 RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "id",
@@ -42,6 +53,78 @@ RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "status",
     "usage",
 }
+
+
+class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
+    """Reasoning history accepted by compatible Responses APIs without an item ID."""
+
+    id: Annotated[str | None, Field(description="The optional reasoning item ID.")] = None
+    summary: Annotated[
+        list[ResponseReasoningSummaryParam],
+        Field(description="Reasoning summary content."),
+    ]
+    type: Annotated[
+        Literal["reasoning"],
+        Field(description="The reasoning item discriminator."),
+    ]
+    content: Annotated[
+        list[ResponseReasoningContentParam] | None,
+        Field(description="Raw reasoning text content."),
+    ] = None
+    encrypted_content: Annotated[
+        str | None,
+        Field(description="Encrypted reasoning content."),
+    ] = None
+    status: Annotated[
+        Literal["in_progress", "completed", "incomplete"] | None,
+        Field(description="The reasoning item status."),
+    ] = None
+
+
+class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
+    """Assistant output history accepted by compatible Responses APIs without an ID."""
+
+    id: Annotated[
+        str | None,
+        Field(description="The optional output message ID."),
+    ] = None
+    content: Annotated[
+        list[ResponseOutputMessageContentParam],
+        Field(description="The assistant message content."),
+    ]
+    role: Annotated[
+        Literal["assistant"],
+        Field(description="The output message role."),
+    ]
+    status: Annotated[
+        Literal["in_progress", "completed", "incomplete"],
+        Field(description="The output message status."),
+    ]
+    type: Annotated[
+        Literal["message"],
+        Field(description="The output message discriminator."),
+    ]
+    phase: Annotated[
+        Literal["commentary", "final_answer"] | None,
+        Field(description="The assistant message phase."),
+    ] = None
+
+
+# Compatible providers omit IDs from response history, so replace only the two
+# overly strict SDK members while inheriting every other current SDK input type.
+_REPLACED_SDK_INPUT_ITEMS = {
+    ResponseReasoningItemParam,
+    ResponseOutputMessageParam,
+}
+_RETAINED_SDK_INPUT_ITEMS = tuple(
+    item for item in get_args(ResponseInputItemParam) if item not in _REPLACED_SDK_INPUT_ITEMS
+)
+OpenAIResponsesInputItemParam: TypeAlias = Union[
+    ResponseReasoningItemOptionalIDParam,
+    ResponseOutputMessageOptionalIDParam,
+    *_RETAINED_SDK_INPUT_ITEMS,
+]
+OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
 
 
 class OpenAIResponsesCreateRequest(ExcludeNoneModel):
@@ -68,8 +151,13 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         Field(default=None, description="Additional output data to include in the response."),
     ]
     input: Annotated[
-        str | ResponseInputParam | None,
-        Field(default=None, description="Text, image, or file inputs to the model."),
+        str | OpenAIResponsesInputParam | None,
+        Field(
+            default=None,
+            description=(
+                "Text, image, file, or provider response-history items sent to the model."
+            ),
+        ),
     ]
     instructions: Annotated[
         str | None,
@@ -197,7 +285,17 @@ def openai_responses_event_from_sse(sse: str) -> ResponseStreamEvent:
         for line in sse.splitlines()
         if line.startswith("data:")
     )
-    event = _STREAM_EVENT_ADAPTER.validate_json(data)
+    event_data = json_loads(data)
+    response = event_data.get("response")
+    if isinstance(response, dict):
+        usage = response.get("usage")
+        if isinstance(usage, dict):
+            input_details = usage.get("input_tokens_details")
+            if isinstance(input_details, dict):
+                # Some OpenAI-compatible providers omit this newer SDK field.
+                # Default it for typed access while preserving the original SSE below.
+                input_details.setdefault("cache_write_tokens", 0)
+    event = _STREAM_EVENT_ADAPTER.validate_python(event_data)
 
     def as_sse(_: BaseModel) -> str:
         return sse
@@ -217,6 +315,10 @@ def openai_responses_event_from_data(data: dict[str, Any]) -> BaseModel:
 __all__ = [
     "OpenAIResponsesCreateRequest",
     "OpenAIResponsesCreateResult",
+    "OpenAIResponsesInputItemParam",
+    "OpenAIResponsesInputParam",
+    "ResponseOutputMessageOptionalIDParam",
+    "ResponseReasoningItemOptionalIDParam",
     "OpenAIResponsesResponse",
     "OpenAIResponsesStream",
     "OpenAIResponsesStreamEvent",

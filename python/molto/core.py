@@ -4,8 +4,9 @@ from typing import Any, Literal
 from httpx import AsyncClient
 from pydantic import BaseModel
 
-from molto.adapters.openai import OpenAIResponsesAdapter
+from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.configs import ENV_CONFIG
+from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
@@ -19,6 +20,12 @@ class Molto:
 
     async def close(self) -> None:
         await self._http_client.aclose()
+
+    @staticmethod
+    def _resolve_api_key(provider: str, api_key: str | None) -> str | None:
+        if api_key is None and provider == "openai":
+            return ENV_CONFIG.openai_api_key_plain
+        return api_key
 
     async def responses(
         self,
@@ -45,9 +52,7 @@ class Molto:
         if request.stream is not True:
             raise NotImplementedError("Only streaming Responses requests are currently supported.")
 
-        resolved_api_key = api_key
-        if resolved_api_key is None and provider == "openai":
-            resolved_api_key = ENV_CONFIG.openai_api_key_plain
+        resolved_api_key = self._resolve_api_key(provider, api_key)
 
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(
@@ -60,6 +65,39 @@ class Molto:
         adapter = OpenAIResponsesAdapter()
         normalized_request = adapter.normalize_request(request)
         upstream = OpenAIChatCompletionsClient(
+            self._http_client,
+            api_key=resolved_api_key,
+            base_url=base_url,
+        )
+        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+
+    async def chat_completions(
+        self,
+        body: BaseModel | dict[str, Any],
+        endpoint: Literal["responses", "chat/completions"] = "chat/completions",
+        provider: Literal["openai", "vllm"] = "openai",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ) -> AsyncIterator[BaseModel]:
+        """Consume a Chat Completions request using either OpenAI endpoint upstream."""
+        request = OpenAIChatCompletionsCreateRequest.model_validate(body)
+        if request.stream is not True:
+            raise NotImplementedError(
+                "Only streaming Chat Completions requests are currently supported."
+            )
+
+        resolved_api_key = self._resolve_api_key(provider, api_key)
+        if endpoint == "chat/completions":
+            upstream = OpenAIChatCompletionsClient(
+                self._http_client,
+                api_key=resolved_api_key,
+                base_url=base_url,
+            )
+            return upstream.native_events(request)
+
+        adapter = OpenAIChatCompletionsAdapter()
+        normalized_request = adapter.normalize_request(request)
+        upstream = OpenAIResponsesClient(
             self._http_client,
             api_key=resolved_api_key,
             base_url=base_url,
