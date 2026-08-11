@@ -10,7 +10,10 @@ from pydantic import BaseModel, ValidationError
 
 from molto import Molto
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
-from molto.utils.test import reconstructable_responses_event
+from molto.utils.test import (
+    reconstructable_chat_completions_chunks,
+    reconstructable_responses_event,
+)
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions"]
@@ -131,49 +134,6 @@ def _sse_records(cassette: dict[str, Any]) -> list[str]:
     return records
 
 
-def _chat_stream_semantics(sse_events: list[str]) -> dict[str, Any]:
-    events = [load_sse(sse) for sse in sse_events]
-    first = events[0]
-    reasoning_deltas: list[str] = []
-    text_deltas: list[str] = []
-    finish_reasons: list[str] = []
-    usage: dict[str, Any] | None = None
-
-    for event in events:
-        for choice in event["choices"]:
-            delta = choice["delta"]
-            if choice["finish_reason"] is None:
-                if delta.get("reasoning_content") is not None:
-                    reasoning_deltas.append(delta["reasoning_content"])
-                if delta.get("content") is not None:
-                    text_deltas.append(delta["content"])
-            else:
-                finish_reasons.append(choice["finish_reason"])
-
-        raw_usage = event.get("usage")
-        if raw_usage is not None:
-            prompt_details = raw_usage.get("prompt_tokens_details") or {}
-            completion_details = raw_usage.get("completion_tokens_details") or {}
-            usage = {
-                "prompt_tokens": raw_usage["prompt_tokens"],
-                "completion_tokens": raw_usage["completion_tokens"],
-                "total_tokens": raw_usage["total_tokens"],
-                "cached_tokens": prompt_details.get("cached_tokens", 0),
-                "cache_write_tokens": prompt_details.get("cache_write_tokens", 0),
-                "reasoning_tokens": completion_details.get("reasoning_tokens", 0),
-            }
-
-    return {
-        "id": first["id"],
-        "created": first["created"],
-        "model": first["model"],
-        "reasoning_deltas": reasoning_deltas,
-        "text_deltas": text_deltas,
-        "finish_reasons": finish_reasons,
-        "usage": usage,
-    }
-
-
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
     events = [load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
@@ -267,9 +227,21 @@ async def _assert_stream_events(
                     assert len(events) == len(expected_sse_events)
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "responses":
-                    assert _chat_stream_semantics(actual_sse_events) == _chat_stream_semantics(
-                        expected_sse_events
-                    )
+                    actual_events = [
+                        chunk
+                        for sse in actual_sse_events
+                        for chunk in reconstructable_chat_completions_chunks(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                    ]
+                    expected_events = [
+                        chunk
+                        for sse in expected_sse_events
+                        for chunk in reconstructable_chat_completions_chunks(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                    ]
+                    assert actual_events == expected_events
                 else:
                     raise ValueError(f"Unsupported upstream protocol: {upstream}")
             else:

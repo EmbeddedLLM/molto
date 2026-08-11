@@ -5,7 +5,106 @@ import pytest
 from pydantic import ValidationError
 
 from molto.utils.io import dumps_sse
-from molto.utils.test import reconstructable_responses_event
+from molto.utils.test import (
+    reconstructable_chat_completions_chunks,
+    reconstructable_responses_event,
+)
+
+CHAT_BODY = {
+    "messages": [{"role": "user", "content": "Hello"}],
+    "model": "test-model",
+    "stream": True,
+}
+
+
+def _chat_chunk(*, choices: list[dict[str, Any]], usage: dict[str, Any] | None) -> dict[str, Any]:
+    return {
+        "id": "chatcmpl_123",
+        "object": "chat.completion.chunk",
+        "created": 123,
+        "model": "test-model",
+        "service_tier": "default",
+        "system_fingerprint": "provider-only",
+        "choices": choices,
+        "usage": usage,
+    }
+
+
+def test_reconstructable_chat_completions_chunks_normalize_terminal_usage():
+    finish_choice = {
+        "index": 0,
+        "delta": {"content": "", "reasoning_content": None},
+        "logprobs": None,
+        "finish_reason": "stop",
+    }
+    usage = {
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "total_tokens": 15,
+        "prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 0},
+        "completion_tokens_details": {"reasoning_tokens": 3, "audio_tokens": 0},
+        "prompt_cache_hit_tokens": 0,
+    }
+    combined = reconstructable_chat_completions_chunks(
+        dumps_sse(_chat_chunk(choices=[finish_choice], usage=usage)),
+        CHAT_BODY,
+    )
+    separate = [
+        *reconstructable_chat_completions_chunks(
+            dumps_sse(_chat_chunk(choices=[finish_choice], usage=None)),
+            CHAT_BODY,
+        ),
+        *reconstructable_chat_completions_chunks(
+            dumps_sse(_chat_chunk(choices=[], usage=usage)),
+            CHAT_BODY,
+        ),
+    ]
+
+    assert combined == separate
+
+    different_usage = deepcopy(usage)
+    different_usage["completion_tokens"] = 6
+    different_usage["total_tokens"] = 16
+    assert combined != reconstructable_chat_completions_chunks(
+        dumps_sse(_chat_chunk(choices=[finish_choice], usage=different_usage)),
+        CHAT_BODY,
+    )
+
+
+def test_reconstructable_chat_completions_chunks_preserve_each_delta():
+    chunk = _chat_chunk(
+        choices=[
+            {
+                "index": 0,
+                "delta": {"content": "Hello"},
+                "logprobs": None,
+                "finish_reason": None,
+            }
+        ],
+        usage=None,
+    )
+    provider_variant = deepcopy(chunk)
+    provider_variant["service_tier"] = "auto"
+    provider_variant["system_fingerprint"] = "different"
+
+    expected = reconstructable_chat_completions_chunks(dumps_sse(chunk), CHAT_BODY)
+    assert expected == reconstructable_chat_completions_chunks(
+        dumps_sse(provider_variant), CHAT_BODY
+    )
+
+    provider_variant["choices"][0]["delta"]["content"] = "Different"
+    assert expected != reconstructable_chat_completions_chunks(
+        dumps_sse(provider_variant), CHAT_BODY
+    )
+
+
+def test_reconstructable_chat_completions_chunks_validate_chunk_and_request():
+    chunk = _chat_chunk(choices=[], usage=None)
+
+    with pytest.raises(ValidationError):
+        reconstructable_chat_completions_chunks(dumps_sse({}), CHAT_BODY)
+    with pytest.raises(ValidationError):
+        reconstructable_chat_completions_chunks(dumps_sse(chunk), {})
 
 
 def _responses_events() -> list[dict[str, Any]]:

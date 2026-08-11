@@ -12,6 +12,10 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsStreamChunk,
+)
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     validate_openai_responses_stream_event,
@@ -28,6 +32,68 @@ _RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "status",
     "usage",
 }
+
+# Responses reports the final service tier only at completion, so matching it on
+# every Chat chunk would require buffering the stream.
+_RECONSTRUCTIBLE_CHAT_COMPLETIONS_FIELDS = {
+    "choices",
+    "created",
+    "id",
+    "model",
+    "object",
+    "usage",
+}
+
+
+def reconstructable_chat_completions_chunks(
+    sse: str,
+    body: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Validate and normalize one Chat Completions SSE chunk for comparison."""
+    OpenAIChatCompletionsCreateRequest.model_validate(body)
+    chunk = OpenAIChatCompletionsStreamChunk.model_validate(load_sse(sse)).model_dump(
+        mode="json",
+        exclude_unset=True,
+    )
+    chunk = {
+        key: value
+        for key, value in chunk.items()
+        if key in _RECONSTRUCTIBLE_CHAT_COMPLETIONS_FIELDS
+    }
+
+    choices = chunk["choices"]
+    for choice in choices:
+        if choice["finish_reason"] is not None:
+            delta = choice["delta"]
+            for field_name in ("content", "reasoning_content"):
+                if delta.get(field_name) in (None, ""):
+                    delta.pop(field_name, None)
+
+    usage = chunk.get("usage")
+    if not isinstance(usage, dict):
+        return [chunk]
+
+    prompt_details = usage.get("prompt_tokens_details") or {}
+    completion_details = usage.get("completion_tokens_details") or {}
+    chunk["usage"] = {
+        "prompt_tokens": usage["prompt_tokens"],
+        "completion_tokens": usage["completion_tokens"],
+        "total_tokens": usage["total_tokens"],
+        "prompt_tokens_details": {
+            "cached_tokens": prompt_details.get("cached_tokens") or 0,
+            "cache_write_tokens": prompt_details.get("cache_write_tokens") or 0,
+        },
+        "completion_tokens_details": {
+            "reasoning_tokens": completion_details.get("reasoning_tokens") or 0,
+        },
+    }
+    if not choices:
+        return [chunk]
+
+    # Providers may combine terminal usage with the finish chunk or send it next.
+    usage_chunk = {**chunk, "choices": []}
+    chunk["usage"] = None
+    return [chunk, usage_chunk]
 
 
 def reconstructable_responses_event(
