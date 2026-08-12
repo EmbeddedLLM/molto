@@ -9,12 +9,12 @@ request:
           media_type: image/png
           type: base64
         type: image
-      - text: Think, what is logo is this?
+      - text: Think, what logo is this?
         type: text
       role: user
     model: claude-sonnet-5
     output_config:
-      effort: max
+      effort: medium
     stream: true
     thinking:
       display: summarized
