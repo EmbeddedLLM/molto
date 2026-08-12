@@ -1,4 +1,4 @@
-name: Weekly live provider API compatibility
+name: Weekly OpenAI OpenAPI compatibility
 
 on:
   schedule:
@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  live_provider_compatibility:
-    name: Weekly live provider API compatibility
+  openapi_compatibility:
+    name: OpenAI OpenAPI compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -37,18 +37,36 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install package and test dependencies
-        run: uv pip install --system -e ".[test]"
-
-      - name: Inspect pip packages
-        run: uv pip list --system
-
-      - name: Verify OpenAI credential is configured
+      - name: Fetch OpenAI OpenAPI specifications
+        env:
+          BASELINE_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/577fa92299e000af1616f3be1fec740e3383a86a/openapi.json
+          LATEST_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/master/openapi.json
         run: |
-          if [[ -z "$MOLTO_OPENAI_API_KEY" ]]; then
-            echo "MOLTO_OPENAI_API_KEY secret is not configured."
-            exit 1
-          fi
+          curl --fail --silent --show-error --location --retry 3 \
+            "$BASELINE_OPENAPI_URL" \
+            --output "$RUNNER_TEMP/openai-openapi-baseline.json"
+          curl --fail --silent --show-error --location --retry 3 \
+            "$LATEST_OPENAPI_URL" \
+            --output "$RUNNER_TEMP/openai-openapi-latest.json"
 
-      - name: Run live provider compatibility suite
-        run: python -m pytest --record-cassettes
+      - name: Compare OpenAI API programmatic contracts
+        run: |
+          python scripts/compare_openai_openapi.py \
+            "$RUNNER_TEMP/openai-openapi-baseline.json" \
+            "$RUNNER_TEMP/openai-openapi-latest.json"
+
+      # - name: Install package and test dependencies
+      #   run: uv pip install --system -e ".[test]"
+
+      # - name: Inspect pip packages
+      #   run: uv pip list --system
+
+      # - name: Verify OpenAI credential is configured
+      #   run: |
+      #     if [[ -z "$MOLTO_OPENAI_API_KEY" ]]; then
+      #       echo "MOLTO_OPENAI_API_KEY secret is not configured."
+      #       exit 1
+      #     fi
+
+      # - name: Run live provider compatibility suite
+      #   run: python -m pytest --record-cassettes
