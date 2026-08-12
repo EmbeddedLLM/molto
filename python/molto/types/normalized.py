@@ -5,7 +5,7 @@ from openai.types.responses.response_create_params import ToolChoice
 from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
 
-from molto.types.base import ExtraModel
+from molto.types.base import ExtraModel, ZeroIfNoneInt
 
 
 class SystemPrompt(ExtraModel):
@@ -434,32 +434,44 @@ DeltaItem = Annotated[
 
 
 class InputTokenDetails(ExtraModel):
-    cached_tokens: Annotated[int, Field(description="The number of cached input tokens.")] = 0
+    cached_tokens: Annotated[
+        ZeroIfNoneInt,
+        Field(description="The number of cached input tokens."),
+    ] = 0
     cache_write_tokens: Annotated[
-        int,
+        ZeroIfNoneInt,
         Field(description="The number of input tokens written to a prompt cache."),
     ] = 0
 
 
 class OutputTokenDetails(ExtraModel):
     reasoning_tokens: Annotated[
-        int,
+        ZeroIfNoneInt,
         Field(description="The number of output tokens used for reasoning."),
     ] = 0
 
 
 class Usage(ExtraModel):
-    input_tokens: Annotated[int, Field(description="The number of input tokens used.")]
+    input_tokens: Annotated[
+        ZeroIfNoneInt,
+        Field(description="The number of input tokens used."),
+    ]
     input_tokens_details: Annotated[
         InputTokenDetails,
         Field(description="A breakdown of the input token usage."),
     ]
-    output_tokens: Annotated[int, Field(description="The number of output tokens used.")]
+    output_tokens: Annotated[
+        ZeroIfNoneInt,
+        Field(description="The number of output tokens used."),
+    ]
     output_tokens_details: Annotated[
         OutputTokenDetails,
         Field(description="A breakdown of the output token usage."),
     ]
-    total_tokens: Annotated[int, Field(description="The total number of tokens used.")]
+    total_tokens: Annotated[
+        ZeroIfNoneInt,
+        Field(description="The total number of tokens used."),
+    ]
 
 
 class ResponseStartEvent(ExtraModel):

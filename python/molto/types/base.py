@@ -1,8 +1,17 @@
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from molto.configs import ENV_CONFIG
+
+
+def _none_to_zero(v: int | None) -> int:
+    if v is None:
+        return 0
+    return v
+
+
+ZeroIfNoneInt = Annotated[int, BeforeValidator(_none_to_zero)]
 
 
 class ExcludeNoneModel(BaseModel):

@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 import pytest
 from httpx import AsyncClient, MockTransport, Request, Response
+from openai import AsyncOpenAI, AsyncStream
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
@@ -57,6 +58,7 @@ def _get_http_client(
         request_body = json_loads(request.content)
 
         assert request.method == cassette["request"]["method"]
+        assert str(request.url) == f"https://api.openai.com{cassette['request']['path']}"
         assert request.url.path == cassette["request"]["path"]
         assert request_body == cassette["request"]["body"]
 
@@ -128,6 +130,59 @@ async def test_extra_inputs():
                     **cassette["request"]["body"],
                 )
             )
+
+
+@pytest.mark.parametrize("protocol", PROTOCOLS)
+async def test_native_stream_matches_openai_sdk(protocol: Protocol):
+    cassette_name = "simple_text-stream-00.yaml"
+    cassette = _read_cassette(_cassette_path(protocol, cassette_name, matched=True))
+    request_body = deepcopy(cassette["request"]["body"])
+
+    async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
+        sdk_client = AsyncOpenAI(
+            api_key="test-api-key",
+            base_url="https://api.openai.com/v1",
+            http_client=http_client,
+        )
+        if protocol == "responses":
+            sdk_stream = await sdk_client.responses.create(**request_body)
+        else:
+            sdk_stream = await sdk_client.chat.completions.create(**request_body)
+        assert isinstance(sdk_stream, AsyncStream)
+        async with sdk_stream:
+            sdk_events = [event async for event in sdk_stream]
+
+    async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = client.responses if protocol == "responses" else client.chat_completions
+        molto_stream = await coordinator(
+            body=request_body, endpoint=protocol, api_key="test-api-key"
+        )
+        molto_events = [event async for event in molto_stream]
+
+    assert [type(event) for event in molto_events] == [type(event) for event in sdk_events]
+    assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
+        event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
+    ]
+
+
+async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
+    cassette_name = "reasoning_raw-stream-00.yaml"
+    cassette = _read_cassette(_cassette_path("responses", cassette_name, matched=True))
+    request_body = deepcopy(cassette["request"]["body"])
+
+    async with _get_http_client([cassette_name], "responses", matched=True) as http_client:
+        client = Molto(http_client=http_client)
+        stream = await client.responses(
+            body=request_body,
+            endpoint="responses",
+            api_key="test-api-key",
+        )
+        events = [event async for event in stream]
+
+    completed = next(event for event in events if event.type == "response.completed")
+    assert completed.response.usage is not None
+    assert completed.response.usage.input_tokens_details.cache_write_tokens == 0
 
 
 async def _assert_stream_events(
