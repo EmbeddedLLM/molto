@@ -32,7 +32,7 @@ from molto.types.openai_responses import (
     validate_openai_responses_stream_event,
 )
 from molto.upstream.base import BaseClient
-from molto.utils.io import json_loads, load_sse
+from molto.utils.io import load_sse
 
 
 class OpenAIResponsesClient(BaseClient):
@@ -125,111 +125,95 @@ class OpenAIResponsesClient(BaseClient):
         return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
-        async with self._http_client.stream(
-            "POST",
-            self._endpoint_url("responses"),
-            headers=self._authorization_headers(),
-            json=self._request_body(request),
-        ) as response:
-            response.raise_for_status()
-            async for record in self._iter_sse_records(response):
-                payload = self._sse_data(record)
-                if not payload:
-                    continue
-                data = json_loads(payload)
-                event_type = data["type"]
+        native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        async for event in self.native_events(native_request):
+            event_type = event.type
 
-                if event_type == "response.created":
-                    metadata = data["response"]
-                    yield ResponseStartEvent(
-                        id=metadata["id"],
-                        created_at=int(metadata["created_at"]),
-                        model=metadata["model"],
-                        service_tier=metadata.get("service_tier"),
-                    )
-                elif event_type == "response.output_item.added":
-                    item = data["item"]
-                    if item["type"] == "reasoning":
-                        part = Thinking(content="", summary="", id=item.get("id"))
-                    elif item["type"] == "message":
-                        part = TextOutput(content="", id=item.get("id"))
-                    else:
-                        raise ValueError(f"Unsupported Responses output item: {item['type']}")
-                    yield PartStartEvent(index=data["output_index"], part=part)
-                elif event_type == "response.reasoning_text.delta":
-                    yield PartDeltaEvent(
-                        index=data["output_index"],
-                        delta=ThinkingDelta(content_delta=data["delta"]),
-                    )
-                elif event_type == "response.output_text.delta":
-                    yield PartDeltaEvent(
-                        index=data["output_index"],
-                        delta=TextDelta(content_delta=data["delta"]),
-                    )
-                elif event_type == "response.output_item.done":
-                    item = data["item"]
-                    if item["type"] == "reasoning":
-                        content = "".join(
-                            part["text"]
-                            for part in item.get("content", [])
-                            if part.get("type") == "reasoning_text"
-                        )
-                        summary = "".join(
-                            part["text"]
-                            for part in item.get("summary", [])
-                            if part.get("type") == "summary_text"
-                        )
-                        part = Thinking(
-                            content=content,
-                            summary=summary,
-                            id=item.get("id"),
-                        )
-                    elif item["type"] == "message":
-                        content = "".join(
-                            part["text"]
-                            for part in item.get("content", [])
-                            if part.get("type") == "output_text"
-                        )
-                        part = TextOutput(content=content, id=item.get("id"))
-                    else:
-                        raise ValueError(f"Unsupported Responses output item: {item['type']}")
-                    yield PartEndEvent(index=data["output_index"], part=part)
-                elif event_type == "response.completed":
-                    metadata = data["response"]
-                    raw_usage = metadata.get("usage")
-                    usage = None
-                    if raw_usage is not None:
-                        input_details = raw_usage.get("input_tokens_details") or {}
-                        output_details = raw_usage.get("output_tokens_details") or {}
-                        usage = Usage(
-                            input_tokens=raw_usage["input_tokens"],
-                            input_tokens_details=InputTokenDetails(
-                                cached_tokens=input_details.get("cached_tokens", 0),
-                                cache_write_tokens=input_details.get("cache_write_tokens", 0),
-                            ),
-                            output_tokens=raw_usage["output_tokens"],
-                            output_tokens_details=OutputTokenDetails(
-                                reasoning_tokens=output_details.get("reasoning_tokens", 0)
-                            ),
-                            total_tokens=raw_usage["total_tokens"],
-                        )
-                    yield ResponseEndEvent(
-                        id=metadata["id"],
-                        created_at=int(metadata["created_at"]),
-                        model=metadata["model"],
-                        service_tier=metadata.get("service_tier"),
-                        usage=usage,
-                    )
-                elif event_type in {
-                    "response.in_progress",
-                    "response.content_part.added",
-                    "response.content_part.done",
-                    "response.reasoning_text.done",
-                    "response.output_text.done",
-                }:
-                    continue
+            if event_type == "response.created":
+                metadata = event.response
+                yield ResponseStartEvent(
+                    id=metadata.id,
+                    created_at=int(metadata.created_at),
+                    model=metadata.model,
+                    service_tier=metadata.service_tier,
+                )
+            elif event_type == "response.output_item.added":
+                item = event.item
+                if item.type == "reasoning":
+                    part = Thinking(content="", summary="", id=item.id)
+                elif item.type == "message":
+                    part = TextOutput(content="", id=item.id)
                 else:
-                    raise ValueError(f"Unsupported Responses stream event: {event_type}")
+                    raise ValueError(f"Unsupported Responses output item: {item.type}")
+                yield PartStartEvent(index=event.output_index, part=part)
+            elif event_type == "response.reasoning_text.delta":
+                yield PartDeltaEvent(
+                    index=event.output_index,
+                    delta=ThinkingDelta(content_delta=event.delta),
+                )
+            elif event_type == "response.output_text.delta":
+                yield PartDeltaEvent(
+                    index=event.output_index,
+                    delta=TextDelta(content_delta=event.delta),
+                )
+            elif event_type == "response.output_item.done":
+                item = event.item
+                if item.type == "reasoning":
+                    content = "".join(
+                        part.text for part in item.content or [] if part.type == "reasoning_text"
+                    )
+                    summary = "".join(
+                        part.text for part in item.summary if part.type == "summary_text"
+                    )
+                    part = Thinking(
+                        content=content,
+                        summary=summary,
+                        id=item.id,
+                    )
+                elif item.type == "message":
+                    content = "".join(
+                        part.text for part in item.content if part.type == "output_text"
+                    )
+                    part = TextOutput(content=content, id=item.id)
+                else:
+                    raise ValueError(f"Unsupported Responses output item: {item.type}")
+                yield PartEndEvent(index=event.output_index, part=part)
+            elif event_type == "response.completed":
+                metadata = event.response
+                raw_usage = metadata.usage
+                usage = None
+                if raw_usage is not None:
+                    input_details = raw_usage.input_tokens_details
+                    output_details = raw_usage.output_tokens_details
+                    usage = Usage(
+                        input_tokens=raw_usage.input_tokens,
+                        input_tokens_details=InputTokenDetails(
+                            cached_tokens=input_details.cached_tokens,
+                            cache_write_tokens=input_details.cache_write_tokens,
+                        ),
+                        output_tokens=raw_usage.output_tokens,
+                        output_tokens_details=OutputTokenDetails(
+                            reasoning_tokens=output_details.reasoning_tokens
+                        ),
+                        total_tokens=raw_usage.total_tokens,
+                    )
+                yield ResponseEndEvent(
+                    id=metadata.id,
+                    created_at=int(metadata.created_at),
+                    model=metadata.model,
+                    service_tier=metadata.service_tier,
+                    usage=usage,
+                )
+            elif event_type in {
+                "response.in_progress",
+                "response.content_part.added",
+                "response.content_part.done",
+                "response.reasoning_text.done",
+                "response.output_text.done",
+            }:
+                continue
+            else:
+                raise ValueError(f"Unsupported Responses stream event: {event_type}")
 
 
 class OpenAIChatCompletionsClient(BaseClient):
@@ -332,93 +316,84 @@ class OpenAIChatCompletionsClient(BaseClient):
             active_part = None
             return PartEndEvent(index=next_part_index - 1, part=part)
 
-        async with self._http_client.stream(
-            "POST",
-            self._endpoint_url("chat/completions"),
-            headers=self._authorization_headers(),
-            json=self._request_body(request),
-        ) as response:
-            response.raise_for_status()
-            async for record in self._iter_sse_records(response):
-                data = self._sse_data(record)
-                if not data or data == "[DONE]":
-                    continue
-                chunk = OpenAIChatCompletionsStreamChunk.model_validate_json(data)
+        native_request = OpenAIChatCompletionsCreateRequest.model_validate(
+            self._request_body(request)
+        )
+        async for chunk in self.native_events(native_request):
+            if response_metadata is None:
+                response_metadata = ResponseStartEvent(
+                    id=chunk.id,
+                    created_at=chunk.created,
+                    model=chunk.model,
+                    service_tier=chunk.service_tier,
+                )
+                yield response_metadata
 
-                if response_metadata is None:
-                    response_metadata = ResponseStartEvent(
-                        id=chunk.id,
-                        created_at=chunk.created,
-                        model=chunk.model,
-                        service_tier=chunk.service_tier,
-                    )
-                    yield response_metadata
+            if chunk.choices:
+                choice = chunk.choices[0]
+                reasoning_delta = getattr(choice.delta, "reasoning_content", None)
+                if reasoning_delta is not None:
+                    if active_part is None:
+                        active_part = "thinking"
+                        yield PartStartEvent(
+                            index=next_part_index,
+                            part=Thinking(content="", summary=""),
+                        )
+                        next_part_index += 1
+                    elif active_part != "thinking":
+                        raise ValueError("Received reasoning after text output started.")
+                    if reasoning_delta:
+                        thinking_content += reasoning_delta
+                        yield PartDeltaEvent(
+                            index=next_part_index - 1,
+                            delta=ThinkingDelta(content_delta=reasoning_delta),
+                        )
 
-                if chunk.choices:
-                    choice = chunk.choices[0]
-                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                    if reasoning_delta is not None:
-                        if active_part is None:
-                            active_part = "thinking"
-                            yield PartStartEvent(
-                                index=next_part_index,
-                                part=Thinking(content="", summary=""),
-                            )
-                            next_part_index += 1
-                        elif active_part != "thinking":
-                            raise ValueError("Received reasoning after text output started.")
-                        if reasoning_delta:
-                            thinking_content += reasoning_delta
-                            yield PartDeltaEvent(
-                                index=next_part_index - 1,
-                                delta=ThinkingDelta(content_delta=reasoning_delta),
-                            )
-
-                    if choice.delta.content is not None:
-                        if active_part == "thinking":
-                            ended_part = end_active_part()
-                            if ended_part is not None:
-                                yield ended_part
-                        if active_part is None:
-                            active_part = "text"
-                            yield PartStartEvent(
-                                index=next_part_index,
-                                part=TextOutput(content=""),
-                            )
-                            next_part_index += 1
-                        if choice.delta.content:
-                            text_content += choice.delta.content
-                            yield PartDeltaEvent(
-                                index=next_part_index - 1,
-                                delta=TextDelta(content_delta=choice.delta.content),
-                            )
-
-                    if choice.finish_reason is not None:
+                if choice.delta.content is not None:
+                    if active_part == "thinking":
                         ended_part = end_active_part()
                         if ended_part is not None:
                             yield ended_part
+                    if active_part is None:
+                        active_part = "text"
+                        yield PartStartEvent(
+                            index=next_part_index,
+                            part=TextOutput(content=""),
+                        )
+                        next_part_index += 1
+                    if choice.delta.content:
+                        text_content += choice.delta.content
+                        yield PartDeltaEvent(
+                            index=next_part_index - 1,
+                            delta=TextDelta(content_delta=choice.delta.content),
+                        )
 
-                if chunk.usage is not None:
-                    prompt_details = chunk.usage.prompt_tokens_details
-                    completion_details = chunk.usage.completion_tokens_details
-                    usage = Usage(
-                        input_tokens=chunk.usage.prompt_tokens,
-                        input_tokens_details=InputTokenDetails(
-                            cached_tokens=(prompt_details.cached_tokens or 0)
-                            if prompt_details is not None
-                            else 0,
-                            cache_write_tokens=(prompt_details.cache_write_tokens or 0)
-                            if prompt_details is not None
-                            else 0,
-                        ),
-                        output_tokens=chunk.usage.completion_tokens,
-                        output_tokens_details=OutputTokenDetails(
-                            reasoning_tokens=(completion_details.reasoning_tokens or 0)
-                            if completion_details is not None
-                            else 0,
-                        ),
-                        total_tokens=chunk.usage.total_tokens,
-                    )
+                if choice.finish_reason is not None:
+                    ended_part = end_active_part()
+                    if ended_part is not None:
+                        yield ended_part
+
+            if chunk.usage is not None:
+                prompt_details = chunk.usage.prompt_tokens_details
+                completion_details = chunk.usage.completion_tokens_details
+                usage = Usage(
+                    input_tokens=chunk.usage.prompt_tokens,
+                    input_tokens_details=InputTokenDetails(
+                        cached_tokens=(prompt_details.cached_tokens or 0)
+                        if prompt_details is not None
+                        else 0,
+                        cache_write_tokens=(prompt_details.cache_write_tokens or 0)
+                        if prompt_details is not None
+                        else 0,
+                    ),
+                    output_tokens=chunk.usage.completion_tokens,
+                    output_tokens_details=OutputTokenDetails(
+                        reasoning_tokens=(completion_details.reasoning_tokens or 0)
+                        if completion_details is not None
+                        else 0,
+                    ),
+                    total_tokens=chunk.usage.total_tokens,
+                )
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
