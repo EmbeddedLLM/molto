@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
-from openai.types.responses.response import Response
+from openai.types.responses import Response, ResponseStreamEvent
 from openai.types.responses.response_create_params import (
     ContextManagement,
     Conversation,
@@ -33,7 +33,6 @@ from openai.types.responses.response_reasoning_item_param import ResponseReasoni
 from openai.types.responses.response_reasoning_item_param import (
     Summary as ResponseReasoningSummaryParam,
 )
-from openai.types.responses.response_stream_event import ResponseStreamEvent
 from openai.types.responses.response_text_config_param import ResponseTextConfigParam
 from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
@@ -111,7 +110,7 @@ _RETAINED_SDK_INPUT_ITEMS = tuple(
 OpenAIResponsesInputItemParam: TypeAlias = Union[
     ResponseReasoningItemOptionalIDParam,
     ResponseOutputMessageOptionalIDParam,
-    *_RETAINED_SDK_INPUT_ITEMS,
+    *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
 
@@ -253,6 +252,38 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     ] = None
 
 
+# class OpenAIResponseCompletedEvent(ResponseCompletedEvent):
+#     """ResponseCompletedEvent but with usage that is set to zero when null."""
+
+#     @model_validator(mode="before")
+#     @classmethod
+#     def set_usage_to_zero(cls, data: dict[str, Any]) -> dict[str, Any]:
+#         usage = data.get("response", {}).get("usage")
+#         if (
+#             usage is not None
+#             and usage.get("input_tokens_details", {}).get("cache_write_tokens") is None
+#         ):
+#             usage["input_tokens_details"]["cache_write_tokens"] = 0
+#         return data
+
+
+# # Some compatible providers omit `cache_write_tokens`
+# _REPLACED_SDK_INPUT_ITEMS = {
+#     ResponseCompletedEvent,
+# }
+# _RETAINED_SDK_INPUT_ITEMS = tuple(
+#     item
+#     for item in get_args(get_args(ResponseStreamEvent))
+#     if item not in _REPLACED_SDK_INPUT_ITEMS
+# )
+# OpenAIResponsesStreamEvent: TypeAlias = Annotated[
+#     Union[
+#         OpenAIResponseCompletedEvent,
+#         *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
+#     ],
+#     Discriminator("type"),
+# ]
+
 # These are aliases rather than duplicate classes intentionally: the SDK's response
 # models are already Pydantic models generated from the same schema as the endpoint.
 OpenAIResponsesResponse = Response
@@ -271,8 +302,9 @@ def validate_openai_responses_stream_event(data: Any) -> OpenAIResponsesStreamEv
             input_details = usage.get("input_tokens_details")
             if isinstance(input_details, dict):
                 # Some compatible providers omit this newer SDK field.
-                input_details.setdefault("cache_write_tokens", 0)
-    return OpenAIResponsesStreamEventAdapter.validate_python(data)
+                if input_details.get("cache_write_tokens") is None:
+                    input_details["cache_write_tokens"] = 0
+    return OpenAIResponsesStreamEventAdapter.validate_python(data, strict=True)
 
 
 __all__ = [

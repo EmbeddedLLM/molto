@@ -77,9 +77,9 @@ The layers have distinct ownership:
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream native events | HTTP transport |
-| `upstream/` | Upstream request construction, HTTP/SSE transport, upstream response normalization | Downstream response formatting |
+| `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
-| `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and wire parsing helpers | Cross-protocol orchestration |
+| `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
 
@@ -109,6 +109,8 @@ Each implemented coordinator performs the following work:
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
+`Molto` owns the injected or default `httpx.AsyncClient`. Short-lived `AsyncOpenAI` wrappers borrow that client and are not closed independently. Each returned SDK stream is context-managed so its response is released on completion or early termination; `Molto.close()` remains the only operation that closes the shared HTTP client.
+
 ## Native protocol passthrough
 
 When the downstream and upstream protocols match, Molto skips request and response normalization. The Responses path is:
@@ -125,19 +127,20 @@ Molto.responses(endpoint="responses")
       v
 OpenAIResponsesClient.native_events()
       |
-      +-- POST /responses
-      +-- split SSE records
-      +-- validate each record as an SDK ResponseStreamEvent
+      +-- AsyncOpenAI.responses.create()
+      +-- SDK-owned HTTP and SSE processing
+      +-- direct SDK event yielding
+      +-- narrow completed-usage compatibility normalization
       |
       v
 Responses SDK event stream
 ```
 
-The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or SSE framing.
+The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or native event fidelity.
 
-Molto still validates the request and each response event. Passthrough means no IR translation, not untyped proxying.
+Molto validates the request and relies on the SDK's native event models. Passthrough means no IR translation or duplicate model validation, not untyped proxying.
 
-The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. It validates each data record as an SDK `ChatCompletionChunk` and consumes `[DONE]` as a transport terminator rather than exposing it as a chunk.
+The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
 ## Responses through Chat Completions
 
@@ -156,8 +159,9 @@ NormalizedRequest
 OpenAIChatCompletionsClient.events()
       |
       +-- construct OpenAIChatCompletionsCreateRequest
-      +-- POST /chat/completions
-      +-- parse ChatCompletionChunk SDK models
+      +-- delegate to native_events()
+      +-- stream through AsyncOpenAI.chat.completions.create()
+      +-- consume ChatCompletionChunk SDK models directly
       +-- emit normalized lifecycle and content events
       |
       v
@@ -251,7 +255,7 @@ For the text and raw-reasoning paths:
 - `PartEndEvent` carries the complete reasoning or text accumulated from the deltas;
 - `ResponseEndEvent` carries terminal metadata and normalized usage.
 
-Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SSE stream has been consumed.
+Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 
 ## Response collection
 
@@ -323,20 +327,23 @@ Response and stream result types are intentional SDK aliases:
 
 Molto does not subclass or duplicate these result models. The SDK already owns the wire schema, and aliases avoid schema drift while giving callers familiar types.
 
-Molto also does not recreate the OpenAI SDK's transport-bearing `AsyncStream` runtime object. The library owns the async iterator and yields SDK-native data models from it. This preserves useful SDK compatibility without coupling Molto to the SDK's connection and parsing internals.
+Molto does not recreate or expose the OpenAI SDK's transport-bearing `AsyncStream` runtime object. It context-manages the SDK stream internally and exposes a Molto-owned async iterator that yields SDK-native Responses events and Chat Completions chunks directly.
 
-Generated protocol event dictionaries are serialized to SSE and parsed through the same SDK models as native records.
+Generated protocol event dictionaries are validated directly with SDK model adapters.
 
-## Transport and SSE framing
+## OpenAI SDK transport
 
-`BaseClient` centralizes OpenAI-compatible transport behavior:
+Each OpenAI upstream client constructs a short-lived `AsyncOpenAI` wrapper with:
 
-- endpoint URL construction from a client-specific `DEFAULT_BASE_URL` or supplied `base_url`;
-- optional bearer authentication;
-- SSE record splitting;
-- extraction of multi-line `data:` payloads.
+- Molto's shared `httpx.AsyncClient`;
+- the resolved API key;
+- an explicit supplied or default base URL, so SDK environment settings cannot redirect the request.
 
-Concrete clients declare their default base URL and own endpoint-specific request and response handling. Adapters never access `httpx`.
+An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI organization and project environment settings are suppressed so compatible-provider requests cannot leak OpenAI account metadata.
+
+The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Molto accepts the SDK retry policy and OpenAI exceptions rather than wrapping them as the previous `httpx` behavior. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
+
+SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.close()` owns that client's lifetime. Adapters never access `httpx`.
 
 ## Replay and parity testing
 

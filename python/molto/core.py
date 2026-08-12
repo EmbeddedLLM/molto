@@ -10,6 +10,8 @@ from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateReque
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
+VLLM_DUMMY_API_KEY = "EMPTY"
+
 
 class Molto:
     def __init__(
@@ -25,6 +27,8 @@ class Molto:
     def _resolve_api_key(provider: str, api_key: str | None) -> str | None:
         if api_key is None and provider == "openai":
             return ENV_CONFIG.openai_api_key_plain
+        if api_key is None and provider == "vllm":
+            return VLLM_DUMMY_API_KEY
         return api_key
 
     async def responses(

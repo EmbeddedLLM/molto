@@ -2,7 +2,10 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
+from openai import AuthenticationError
 
+from molto import Molto
+from molto.core import VLLM_DUMMY_API_KEY
 from molto.types.normalized import (
     NormalizedRequest,
     PartDeltaEvent,
@@ -29,6 +32,14 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 
 def _unexpected_http(request: httpx.Request) -> httpx.Response:
     raise AssertionError(f"events() performed independent HTTP I/O: {request.url}")
+
+
+def _sse_response(*records: str) -> httpx.Response:
+    return httpx.Response(
+        200,
+        text="".join(f"data: {record}\n\n" for record in records),
+        headers={"content-type": "text/event-stream"},
+    )
 
 
 def _response(*, usage: bool = False) -> dict[str, object]:
@@ -409,3 +420,135 @@ async def test_chat_completions_events_reject_empty_native_stream(
             match="Chat Completions stream did not contain a response chunk",
         ):
             [event async for event in client.events(NormalizedRequest(model="m"))]
+
+
+async def test_vllm_uses_explicit_url_and_dummy_credential(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("OPENAI_API_KEY", "environment-api-key")
+    monkeypatch.setenv("OPENAI_ORG_ID", "environment-organization")
+    monkeypatch.setenv("OPENAI_PROJECT_ID", "environment-project")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://environment.invalid/v1")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _sse_response("[DONE]")
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = Molto(http_client=http_client)
+    stream = await client.responses(
+        body={"input": "Hi", "model": "m", "stream": True},
+        provider="vllm",
+        base_url="https://vllm.example/v1",
+    )
+
+    assert [event async for event in stream] == []
+    assert len(requests) == 1
+    assert str(requests[0].url) == "https://vllm.example/v1/responses"
+    assert requests[0].headers["authorization"] == f"Bearer {VLLM_DUMMY_API_KEY}"
+    assert "openai-organization" not in requests[0].headers
+    assert "openai-project" not in requests[0].headers
+    await client.close()
+
+
+async def test_chat_completions_sdk_consumes_terminal_marker():
+    valid_chunk = (
+        '{"id":"chatcmpl_123","choices":[],"created":1,"model":"m",'
+        '"object":"chat.completion.chunk"}'
+    )
+    malformed_after_done = (
+        '{"choices":[],"created":1,"model":"m","object":"chat.completion.chunk"}'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _sse_response(valid_chunk, "[DONE]", malformed_after_done)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, api_key="test-api-key")
+        request = OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
+        )
+        events = [event async for event in client.native_events(request)]
+
+    assert len(events) == 1
+    assert type(events[0]) is OpenAIChatCompletionsStreamChunk
+    assert events[0].id == "chatcmpl_123"
+
+
+class _TrackingStream(httpx.AsyncByteStream):
+    def __init__(self, content: bytes) -> None:
+        self.content = content
+        self.closed = False
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield self.content
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+async def test_early_stop_closes_stream_but_keeps_shared_client_usable():
+    first_chunk = (
+        '{"id":"first","choices":[],"created":1,"model":"m","object":"chat.completion.chunk"}'
+    )
+    second_chunk = (
+        '{"id":"second","choices":[],"created":2,"model":"m","object":"chat.completion.chunk"}'
+    )
+    response_streams = [
+        _TrackingStream(_sse_response(first_chunk, second_chunk, "[DONE]").content),
+        _TrackingStream(_sse_response(second_chunk, "[DONE]").content),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            stream=response_streams.pop(0),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = Molto(http_client=http_client)
+    body = {"messages": [{"role": "user", "content": "Hi"}], "model": "m", "stream": True}
+
+    first_response_stream = response_streams[0]
+    first_events = await client.chat_completions(body=body, api_key="test-api-key")
+    assert (await anext(first_events)).id == "first"
+    await first_events.aclose()  # type: ignore[attr-defined]
+    assert first_response_stream.closed
+    assert not http_client.is_closed
+
+    second_events = await client.chat_completions(body=body, api_key="test-api-key")
+    assert [event.id async for event in second_events] == ["second"]
+    assert not http_client.is_closed
+
+    await client.close()
+    assert http_client.is_closed
+
+
+async def test_native_events_use_openai_sdk_errors():
+    request_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(
+            401,
+            json={
+                "error": {
+                    "code": "invalid_api_key",
+                    "message": "Invalid key",
+                    "type": "invalid_request_error",
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = OpenAIResponsesClient(http_client, api_key="bad-key")
+        request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+        with pytest.raises(AuthenticationError) as exc_info:
+            [event async for event in client.native_events(request)]
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.code == "invalid_api_key"
+    assert request_count == 1

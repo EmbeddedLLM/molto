@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any, Literal
 
+from openai import AsyncStream
+from openai.types.responses.response_completed_event import ResponseCompletedEvent
+
 from molto.types.normalized import (
     InputTokenDetails,
     ModelResponseStreamEvent,
@@ -29,10 +32,8 @@ from molto.types.openai_chat_completions import (
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesStreamEvent,
-    validate_openai_responses_stream_event,
 )
 from molto.upstream.base import BaseClient
-from molto.utils.io import load_sse
 
 
 class OpenAIResponsesClient(BaseClient):
@@ -43,15 +44,19 @@ class OpenAIResponsesClient(BaseClient):
     async def native_events(
         self, request: OpenAIResponsesCreateRequest
     ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-        async with self._http_client.stream(
-            "POST",
-            self._endpoint_url("responses"),
-            headers=self._authorization_headers(),
-            json=request.model_dump(),
-        ) as response:
-            response.raise_for_status()
-            async for record in self._iter_sse_records(response):
-                yield validate_openai_responses_stream_event(load_sse(record))
+        sdk_client = self._make_sdk_client()
+        stream = await sdk_client.responses.create(**request.model_dump())
+        if not isinstance(stream, AsyncStream):
+            raise TypeError("Responses request did not return a stream.")
+        async with stream:
+            async for event in stream:
+                if isinstance(event, ResponseCompletedEvent):
+                    usage = event.response.usage
+                    if usage is not None and usage.input_tokens_details.cache_write_tokens is None:
+                        usage.input_tokens_details.cache_write_tokens = 0
+                # The SDK already constructs ResponseStreamEvent instances. Apart from
+                # the provider omission above, avoid validating every event twice.
+                yield event
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:
@@ -224,16 +229,15 @@ class OpenAIChatCompletionsClient(BaseClient):
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
-        async with self._http_client.stream(
-            "POST",
-            self._endpoint_url("chat/completions"),
-            headers=self._authorization_headers(),
-            json=request.model_dump(),
-        ) as response:
-            response.raise_for_status()
-            async for record in self._iter_sse_records(response):
-                if self._sse_data(record) != "[DONE]":
-                    yield OpenAIChatCompletionsStreamChunk.model_validate(load_sse(record))
+        sdk_client = self._make_sdk_client()
+        stream = await sdk_client.chat.completions.create(**request.model_dump())
+        if not isinstance(stream, AsyncStream):
+            raise TypeError("Chat Completions request did not return a stream.")
+        async with stream:
+            async for chunk in stream:
+                # The SDK already constructs ChatCompletionChunk instances. Trust that
+                # boundary to avoid serializing and validating every streaming chunk twice.
+                yield chunk
 
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
