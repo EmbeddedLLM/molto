@@ -1,4 +1,4 @@
-filename: 2026-08-12-019ff56a-c965-7671-b2a7-ff4081509f0e
+filename: 2026-08-12-019ff57f-8618-7eb2-944f-dad6439cb962
 request:
   body:
     input:
@@ -20,13 +20,13 @@ request:
     accept-encoding: gzip, deflate
     authorization: Bearer ***
     connection: keep-alive
-    content-length: '1763'
+    content-length: '1772'
     content-type: application/json
     user-agent: AsyncOpenAI/Python 2.53.0
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 019ff56a-c965-7671-b2a7-ff4081509f0e
+request_id: 019ff57f-8618-7eb2-944f-dad6439cb962
 response:
   headers:
     connection: keep-alive
@@ -35,7 +35,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"resp_00c0e7423b71d21f006a7c499b8e20819bbd009385429347db","object":"response","created_at":1786530203,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -44,7 +44,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_00c0e7423b71d21f006a7c499b8e20819bbd009385429347db","object":"response","created_at":1786530203,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '
@@ -53,7 +53,7 @@ response:
   - 'event: response.output_item.added
 
     '
-  - 'data: {"type":"response.output_item.added","item":{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":2}
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","type":"message","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":2}
 
     '
   - '
@@ -62,7 +62,7 @@ response:
   - 'event: response.content_part.added
 
     '
-  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
 
     '
   - '
@@ -71,7 +71,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"That","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":4}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"That","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":4}
 
     '
   - '
@@ -80,7 +80,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’s","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":5}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" is","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":5}
 
     '
   - '
@@ -89,7 +89,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":6}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":6}
 
     '
   - '
@@ -98,7 +98,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":7}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":7}
 
     '
   - '
@@ -107,7 +107,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Git","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":8}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Git","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":8}
 
     '
   - '
@@ -116,7 +116,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":9}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":9}
 
     '
   - '
@@ -125,7 +125,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Oct","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":10}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Oct","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":10}
 
     '
   - '
@@ -134,7 +134,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ocat","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":11}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ocat","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":11}
 
     '
   - '
@@ -143,7 +143,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" logo","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":12}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" logo","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":12}
 
     '
   - '
@@ -152,7 +152,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"**","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":13}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"**","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":13}
 
     '
   - '
@@ -161,7 +161,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"—","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":14}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"—","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":14}
 
     '
   - '
@@ -170,7 +170,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"the","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":15}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"the","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":15}
 
     '
   - '
@@ -179,7 +179,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" styl","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":16}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" styl","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":16}
 
     '
   - '
@@ -188,7 +188,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ized","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":17}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ized","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":17}
 
     '
   - '
@@ -197,7 +197,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" silhouette","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":18}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" silhouette","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":18}
 
     '
   - '
@@ -206,7 +206,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" of","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":19}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" of","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":19}
 
     '
   - '
@@ -215,7 +215,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Git","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":20}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Git","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":20}
 
     '
   - '
@@ -224,7 +224,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":21}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":21}
 
     '
   - '
@@ -233,7 +233,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’s","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":22}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’s","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":22}
 
     '
   - '
@@ -242,7 +242,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" mascot","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":23}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" mascot","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":23}
 
     '
   - '
@@ -251,7 +251,7 @@ response:
   - 'event: response.output_text.delta
 
     '
-  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":24}
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":24}
 
     '
   - '
@@ -260,8 +260,8 @@ response:
   - 'event: response.output_text.done
 
     '
-  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":25,"text":"That’s
-    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","logprobs":[],"output_index":0,"sequence_number":25,"text":"That
+    is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}
 
     '
   - '
@@ -270,8 +270,8 @@ response:
   - 'event: response.content_part.done
 
     '
-  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
-    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."},"sequence_number":26}
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"That
+    is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."},"sequence_number":26}
 
     '
   - '
@@ -280,8 +280,8 @@ response:
   - 'event: response.output_item.done
 
     '
-  - 'data: {"type":"response.output_item.done","item":{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
-    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":27}
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That
+    is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":27}
 
     '
   - '
@@ -290,12 +290,12 @@ response:
   - 'event: response.completed
 
     '
-  - 'data: {"type":"response.completed","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"completed","background":false,"completed_at":1786528845,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
-    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":320,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":25,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":345},"user":null,"metadata":{}},"sequence_number":28}
+  - 'data: {"type":"response.completed","response":{"id":"resp_00c0e7423b71d21f006a7c499b8e20819bbd009385429347db","object":"response","created_at":1786530203,"status":"completed","background":false,"completed_at":1786530204,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That
+    is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":320,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":25,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":345},"user":null,"metadata":{}},"sequence_number":28}
 
     '
   - '
 
     '
   status_code: 200
-timestamp: '2026-08-12T10:00:44.133722+00:00'
+timestamp: '2026-08-12T10:23:23.160837+00:00'
