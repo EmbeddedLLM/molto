@@ -195,8 +195,13 @@ def test_non_streaming_response_uses_sdk_model():
 
 def test_stream_event_union_wraps_every_sdk_event_and_field():
     molto_events = get_args(get_args(OpenAIResponsesStreamEvent)[0])
+    sdk_events = get_args(get_args(ResponseStreamEvent)[0])
 
-    assert molto_events == get_args(get_args(ResponseStreamEvent)[0])
+    assert len(molto_events) == len(sdk_events)
+    assert all(
+        any(issubclass(molto_event, sdk_event) for molto_event in molto_events)
+        for sdk_event in sdk_events
+    )
     assert all("sequence_number" in event.model_fields for event in molto_events)
 
 

@@ -25,7 +25,7 @@ from molto.types.openai_chat_completions import (
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesStreamEvent,
-    validate_openai_responses_stream_event,
+    OpenAIResponsesStreamEventAdapter,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
@@ -66,7 +66,7 @@ def _response(*, usage: bool = False) -> dict[str, object]:
 
 
 def _response_event(data: dict[str, object]) -> OpenAIResponsesStreamEvent:
-    return validate_openai_responses_stream_event(data)
+    return OpenAIResponsesStreamEventAdapter.validate_python(data)
 
 
 def _chat_chunk(

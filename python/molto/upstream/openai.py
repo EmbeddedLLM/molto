@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Any, Literal
 
 from openai import AsyncStream
-from openai.types.responses.response_completed_event import ResponseCompletedEvent
+from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
     InputTokenDetails,
@@ -29,10 +29,7 @@ from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsStreamChunk,
 )
-from molto.types.openai_responses import (
-    OpenAIResponsesCreateRequest,
-    OpenAIResponsesStreamEvent,
-)
+from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
 
 
@@ -43,7 +40,7 @@ class OpenAIResponsesClient(BaseClient):
 
     async def native_events(
         self, request: OpenAIResponsesCreateRequest
-    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+    ) -> AsyncIterator[ResponseStreamEvent]:
         sdk_client = self._make_sdk_client()
         stream = await sdk_client.responses.create(**request.model_dump())
         if not isinstance(stream, AsyncStream):
