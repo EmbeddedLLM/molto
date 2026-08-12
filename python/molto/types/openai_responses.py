@@ -268,18 +268,18 @@ class OpenAIResponseCompletedEvent(ResponseCompletedEvent):
 
 
 # Some compatible providers omit `cache_write_tokens`
-_REPLACED_SDK_INPUT_ITEMS = {
+_REPLACED_SDK_STREAM_ITEMS = {
     ResponseCompletedEvent,
 }
-_RETAINED_SDK_INPUT_ITEMS = tuple(
+_RETAINED_SDK_STREAM_ITEMS = tuple(
     item
     for item in get_args(get_args(ResponseStreamEvent)[0])
-    if item not in _REPLACED_SDK_INPUT_ITEMS
+    if item not in _REPLACED_SDK_STREAM_ITEMS
 )
 OpenAIResponsesStreamEvent: TypeAlias = Annotated[
     Union[
         OpenAIResponseCompletedEvent,
-        *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
+        *_RETAINED_SDK_STREAM_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
     ],
     Discriminator("type"),
 ]
