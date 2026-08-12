@@ -29,7 +29,7 @@ from molto.types.openai_chat_completions import (
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesStreamEvent,
-    OpenAIResponsesStreamEventAdapter,
+    validate_openai_responses_stream_event,
 )
 from molto.upstream.base import BaseClient
 from molto.utils.io import json_loads, load_sse
@@ -51,16 +51,7 @@ class OpenAIResponsesClient(BaseClient):
         ) as response:
             response.raise_for_status()
             async for record in self._iter_sse_records(response):
-                event_data = load_sse(record)
-                event_response = event_data.get("response")
-                if isinstance(event_response, dict):
-                    usage = event_response.get("usage")
-                    if isinstance(usage, dict):
-                        input_details = usage.get("input_tokens_details")
-                        if isinstance(input_details, dict):
-                            # Some compatible providers omit this newer SDK field.
-                            input_details.setdefault("cache_write_tokens", 0)
-                yield OpenAIResponsesStreamEventAdapter.validate_python(event_data)
+                yield validate_openai_responses_stream_event(load_sse(record))
 
     @staticmethod
     def _input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:

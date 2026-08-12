@@ -144,6 +144,7 @@ class OpenAIResponsesAdapter:
                 "status": status,
                 "model": metadata.model,
                 "output": output,
+                "usage": None,
                 "parallel_tool_calls": request.parallel_tool_calls
                 if request.parallel_tool_calls is not None
                 else True,

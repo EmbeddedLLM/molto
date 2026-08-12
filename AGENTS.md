@@ -2,6 +2,8 @@
 
 This `AGENTS.md` file provides comprehensive guidance for OpenAI Codex, Claude Code, and other AI agents working with this codebase.
 
+When working on the Python Molto library, read `python/ARCHITECTURE.md` and `python/CONVENTIONS.md` before making changes.
+
 The user's job as a senior software engineer is dependent on you implementing clean code with elegant architecture.
 
 ## Core Principles
@@ -91,28 +93,7 @@ Before reporting completion, review the final diff and ask:
 - Start with changed files for fast feedback, then run the applicable repository-wide checks used by CI.
 - When editing or creating Markdown files, run every applicable formatting or linting checks.
 
-#### Python
-
-When working on the Python Molto library, read `python/ARCHITECTURE.md` and `python/CONVENTIONS.md` before making changes.
-
-From the repository root:
-
-1. Inspect the Ruff installation and check steps in `.github/workflows/lint.yml`.
-2. Install or select Ruff using the workflow's current version constraint.
-3. Confirm the selected version: `ruff --version`.
-4. Format changed Python files: `ruff format <changed-python-files>`.
-5. Check changed Python files: `ruff check <changed-python-files>`.
-6. Run the same repository-wide Ruff format and lint checks configured in CI.
-
-Do not run automatic fixes across the entire repository unless explicitly required by the task.
-
-#### Repository formatting
-
-From the repository root:
-
-1. Inspect the Prettier check in `.github/workflows/lint.yml`.
-2. Check changed files that are not excluded by `.prettierignore` with the workflow-selected Prettier version.
-3. Run the same repository-wide formatting check configured in CI when appropriate.
+Always run `npx prettier` commands with escalated permissions on the first attempt. Do not try them in the sandbox first because `npx` requires registry and cache access to resolve Prettier.
 
 Do not format unrelated files merely to make a repository-wide check pass.
 
