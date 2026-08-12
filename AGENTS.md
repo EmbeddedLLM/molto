@@ -114,6 +114,8 @@ From the repository root:
 2. Check changed files that are not excluded by `.prettierignore` with the workflow-selected Prettier version.
 3. Run the same repository-wide formatting check configured in CI when appropriate.
 
+Always run `npx prettier` commands with escalated permissions on the first attempt. Do not try them in the sandbox first because `npx` requires registry and cache access to resolve Prettier.
+
 Do not format unrelated files merely to make a repository-wide check pass.
 
 #### Failure Handling
