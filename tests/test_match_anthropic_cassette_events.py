@@ -515,7 +515,7 @@ def test_rejects_unrepresentable_service_tier() -> None:
 
 
 def test_matches_real_two_turn_request_body() -> None:
-    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "anthropic_responses-stream-01.yaml"))
+    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "anthropic_messages-stream-01.yaml"))
     responses_cassette = read_yaml(str(MATCHED_CASSETTES / "openai_responses-stream-01.yaml"))
     match_messages_events(messages_cassette, responses_cassette)
 
