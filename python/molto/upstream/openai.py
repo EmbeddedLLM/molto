@@ -54,7 +54,7 @@ class OpenAIResponsesClient(BaseClient):
                 yield validate_openai_responses_stream_event(load_sse(record))
 
     @staticmethod
-    def _input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:
+    def _process_input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:
         if isinstance(request.input, str) or request.input is None:
             return request.input
 
@@ -102,7 +102,7 @@ class OpenAIResponsesClient(BaseClient):
     @classmethod
     def _request_body(cls, request: NormalizedRequest) -> dict[str, Any]:
         body: dict[str, Any] = {
-            "input": cls._input(request),
+            "input": cls._process_input(request),
             "model": request.model,
             "stream": request.stream,
         }
