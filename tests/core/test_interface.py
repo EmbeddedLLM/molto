@@ -9,8 +9,12 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
-from molto.types.openai_responses import RECONSTRUCTIBLE_RESPONSE_FIELDS
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
+from molto.utils.test import (
+    assert_contains_expected,
+    reconstructable_chat_completions_chunks,
+    reconstructable_responses_event,
+)
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions"]
@@ -65,24 +69,6 @@ def _get_http_client(
     return AsyncClient(transport=MockTransport(cassette_handler))
 
 
-def _assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
-    if isinstance(expected, dict):
-        assert isinstance(actual, dict), f"Expected an object at {path}, got {type(actual)}"
-        missing_keys = expected.keys() - actual.keys()
-        assert not missing_keys, f"Missing keys at {path}: {sorted(missing_keys)}"
-        for key, expected_value in expected.items():
-            _assert_contains_expected(actual[key], expected_value, f"{path}.{key}")
-    elif isinstance(expected, list):
-        assert isinstance(actual, list), f"Expected a list at {path}, got {type(actual)}"
-        assert len(actual) == len(expected), (
-            f"Expected {len(expected)} items at {path}, got {len(actual)}"
-        )
-        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
-            _assert_contains_expected(actual_item, expected_item, f"{path}[{index}]")
-    else:
-        assert actual == expected, f"Value mismatch at {path}: {actual!r} != {expected!r}"
-
-
 def _assert_sse_events_contain(
     actual_sse_events: list[str], expected_sse_events: list[str]
 ) -> None:
@@ -90,36 +76,11 @@ def _assert_sse_events_contain(
     for index, (actual_sse, expected_sse) in enumerate(
         zip(actual_sse_events, expected_sse_events, strict=True)
     ):
-        _assert_contains_expected(
+        assert_contains_expected(
             load_sse(actual_sse),
             load_sse(expected_sse),
             path=f"event[{index}]",
         )
-
-
-def test_event_comparison_allows_extra_actual_fields():
-    expected = {
-        "type": "response.completed",
-        "response": {"output": [{"type": "message", "status": "completed"}]},
-    }
-    actual = {
-        "type": "response.completed",
-        "sequence_number": 10,
-        "response": {
-            "id": "response_123",
-            "output": [
-                {
-                    "id": "message_123",
-                    "type": "message",
-                    "status": "completed",
-                }
-            ],
-        },
-    }
-
-    _assert_contains_expected(actual, expected)
-    with pytest.raises(AssertionError, match="Missing keys"):
-        _assert_contains_expected(expected, actual)
 
 
 def _sse_records(cassette: dict[str, Any]) -> list[str]:
@@ -129,49 +90,6 @@ def _sse_records(cassette: dict[str, Any]) -> list[str]:
         if event and event != "data: [DONE]":
             records.append(f"{event}\n\n")
     return records
-
-
-def _chat_stream_semantics(sse_events: list[str]) -> dict[str, Any]:
-    events = [load_sse(sse) for sse in sse_events]
-    first = events[0]
-    reasoning_deltas: list[str] = []
-    text_deltas: list[str] = []
-    finish_reasons: list[str] = []
-    usage: dict[str, Any] | None = None
-
-    for event in events:
-        for choice in event["choices"]:
-            delta = choice["delta"]
-            if choice["finish_reason"] is None:
-                if delta.get("reasoning_content") is not None:
-                    reasoning_deltas.append(delta["reasoning_content"])
-                if delta.get("content") is not None:
-                    text_deltas.append(delta["content"])
-            else:
-                finish_reasons.append(choice["finish_reason"])
-
-        raw_usage = event.get("usage")
-        if raw_usage is not None:
-            prompt_details = raw_usage.get("prompt_tokens_details") or {}
-            completion_details = raw_usage.get("completion_tokens_details") or {}
-            usage = {
-                "prompt_tokens": raw_usage["prompt_tokens"],
-                "completion_tokens": raw_usage["completion_tokens"],
-                "total_tokens": raw_usage["total_tokens"],
-                "cached_tokens": prompt_details.get("cached_tokens", 0),
-                "cache_write_tokens": prompt_details.get("cache_write_tokens", 0),
-                "reasoning_tokens": completion_details.get("reasoning_tokens", 0),
-            }
-
-    return {
-        "id": first["id"],
-        "created": first["created"],
-        "model": first["model"],
-        "reasoning_deltas": reasoning_deltas,
-        "text_deltas": text_deltas,
-        "finish_reasons": finish_reasons,
-        "usage": usage,
-    }
 
 
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
@@ -189,72 +107,6 @@ def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
     assert len(output_item_ids) == len(set(output_item_ids)), (
         f"Duplicate output item IDs: {output_item_ids}"
     )
-
-
-def _reconstructable_responses_event(sse: str, body: dict[str, Any]) -> dict[str, Any]:
-    event = load_sse(sse)
-    event.pop("item_id", None)
-
-    item = event.get("item")
-    if isinstance(item, dict):
-        item.pop("id", None)
-
-    response = event.get("response")
-    if isinstance(response, dict):
-        response = {
-            k: v for k, v in response.items() if k in body or k in RECONSTRUCTIBLE_RESPONSE_FIELDS
-        }
-        usage = response.get("usage")
-        if usage is None:
-            response.pop("usage", None)
-        else:
-            assert isinstance(usage, dict)
-            input_details = usage.get("input_tokens_details")
-            if isinstance(input_details, dict):
-                input_details.setdefault("cache_write_tokens", 0)
-        for output_item in response.get("output") or []:
-            if isinstance(output_item, dict):
-                output_item.pop("id", None)
-        event["response"] = response
-
-    return event
-
-
-def test_chat_completions_event_comparison_preserves_reconstructable_fields():
-    expected_events = [
-        {
-            "type": "response.output_item.added",
-            "output_index": 0,
-            "item": {"id": "msg_expected"},
-        },
-        {
-            "type": "response.completed",
-            "response": {
-                "background": False,
-                "completed_at": 123,
-                "model": "expected-model",
-                "output": [{"id": "msg_expected"}],
-            },
-        },
-    ]
-    actual_events = deepcopy(expected_events)
-    actual_events[0]["item"]["id"] = "msg_generated"
-    actual_events[1]["response"].pop("background")
-    actual_events[1]["response"]["completed_at"] = 456
-    actual_events[1]["response"]["output"][0]["id"] = "msg_generated"
-
-    def reconstructable(
-        events: list[dict[str, Any]], body: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        return [_reconstructable_responses_event(dumps_sse(e), body) for e in events]
-
-    assert reconstructable(actual_events, {}) == reconstructable(expected_events, {})
-    assert reconstructable(actual_events, {"background": False}) != reconstructable(
-        expected_events, {"background": False}
-    )
-
-    actual_events[1]["response"]["model"] = "different-model"
-    assert reconstructable(actual_events, {}) != reconstructable(expected_events, {})
 
 
 async def test_extra_inputs():
@@ -314,13 +166,13 @@ async def _assert_stream_events(
                     # Chat does not expose Responses output-item IDs or the exact terminal
                     # timestamp. Every other translated field must still match exactly.
                     actual_events = [
-                        _reconstructable_responses_event(
+                        reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
                         )
                         for sse in actual_sse_events
                     ]
                     expected_events = [
-                        _reconstructable_responses_event(
+                        reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
                         )
                         for sse in expected_sse_events
@@ -333,9 +185,21 @@ async def _assert_stream_events(
                     assert len(events) == len(expected_sse_events)
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "responses":
-                    assert _chat_stream_semantics(actual_sse_events) == _chat_stream_semantics(
-                        expected_sse_events
-                    )
+                    actual_events = [
+                        chunk
+                        for sse in actual_sse_events
+                        for chunk in reconstructable_chat_completions_chunks(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                    ]
+                    expected_events = [
+                        chunk
+                        for sse in expected_sse_events
+                        for chunk in reconstructable_chat_completions_chunks(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                    ]
+                    assert actual_events == expected_events
                 else:
                     raise ValueError(f"Unsupported upstream protocol: {upstream}")
             else:

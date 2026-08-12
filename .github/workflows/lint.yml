@@ -38,6 +38,8 @@ jobs:
 
       - name: Check Python files using Ruff
         run: |
+          # We could used `uv tool run ruff@0.15.9`, but its version would need
+          # to be kept in sync manually with the lint extra in pyproject.toml
           uv run \
             --extra lint \
             ruff check \
