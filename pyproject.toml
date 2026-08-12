@@ -81,6 +81,7 @@ dependencies = [
     "openai==2.53.0",
     "orjson~=3.11",
     "pycountry~=26.2.16",
+    "pydantic-ai-slim[retries]~=1.104.0",
     "pydantic-extra-types~=2.11.1",
     "pydantic-settings~=2.13.1",
     "pydantic[email,timezone]>=2.12.5",
