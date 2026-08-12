@@ -1,0 +1,220 @@
+filename: 2026-08-12-019ff566-d840-71d1-8580-5b9456bb569a
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - source:
+          data: iVBORw0KGgoAAAANSUhEUgAAAgAAAAIAAQMAAADOtka5AAAABlBMVEUcGxv9/f2eWfzwAAAECUlEQVR42u3cQZKkIBAFUAgWLD0CR+FocDSOwhFcujDMiVn00HYM/rSzVao6/7aMV5qkYKlRRqPRaDQajUaj0Wg0Go1Go9FoNBqNRqPR/E2kbA5iaQVAovXYxwAV040j2jCwmG4CBuhwEyIiDPSPwTGB2XQyYcDS0TEkIqKMAcrgQwhU89/4Q6CVqTuQgf6mIKBfhMQC+rtpiQ/UTgkw4KlfhNBwCGzdEmCgWwRLfKAdaGp74wDQur2dDq5p+48wsH7sdDugyAVaFelfWg0x0L40NGBpu8MFinFELcV4HhDaZvEzsDZ64QGro11KPAlscQ+siQt082uAeAOwKqCAAgrwgNefVBXAAL5C+RUAuNR9fcBhoAwOWAxkMSA+BPEwis+FwWck8cqUMLAdAsTIpYDlABk0Iky5EvAcoIJOhpmvBAIHWEAnw6xXAokDbFcCxMqFgOUB+TrA8YByHeB5QB0YmHjAfB0QeMAyMBB5wDowkHjANjBANwH0xoDlAlmBLuBuA4oC1wH+FwFVAQUUUEABDLz+0qaAAueAYS+2FTgDDPvD8x2AN7iHchsw8K2w24CB72jeBcwD35ieXv/uPhMoAz9jYQJ54AdVdz2sG/qBZXr8oW2UPncOtwDz4w/vq/j9g8dfocgHgBUDd7zIsh0CSQy8/nuqL/F+4ujv5hkMGCGwASAxGlHWigsAAqOPZJ1UAeARUADghG2AO8mg4DaQjeMKgQBHUTaOFQIejqJsGAwOGAScBAYBJoBBkFWxGhwHzgQcVENJMy8sYAIlgHGgBJJeNLzE75UgVlAEUAJLGzwG1IAFnA4rGrwFHEMFADwG3D75cBwWDNTDM7JgYO7PKngu8bttPGhj/McA6fSJaPffYs/PBF/q5JkV3O907U0LlXkOzjtxNwI409dKgSYE49jKyJ6K7Jdau04Nj6vYW2AKdybLYBTgolg6wMytYt15J1cUt/+meHZZN1YKmP2upvOratp90/eW5a0DEAsInwH7PYB6QOaej71FPnM7KXeAwu2k0rSfBSq3FSsAYCvOnRV65rbi8iwQidbONffCBTYA4F4WA1kCTNQ6KYLLCzCtCoAZAPBkWKTAJgEstXFMe2DjAxkA8DqpioBWRfoW0Db1AIB/AhUFwNzm5NNA/Ng20NecAKgaTwCAP/1fF5geB/zjgJMC9nHAiIH0OBClQJACkxTwUsBJASsFjBhIUiBKgSAFJingpYCVAiZJgSgFJingpIARA0EKeAAwB3IBANwFAwBUhQIAnDcENgUUUOApICmggAIKKKCAAmNdK1vw/gKM+3GgnAQm8DrX+Z/Qi7CGROcrIKlC6LxKI7uJsBrhL/hNCpBoDHAzygF8G6TcB/iLgDom8AflkuIJHUxkLgAAAABJRU5ErkJggg==
+          media_type: image/png
+          type: base64
+        type: image
+      - text: Think, what is logo is this?
+        type: text
+      role: user
+    - content:
+      - signature: Eu0HCokBCBAYAipAKkdnSAtvurcN3zlnl1hQcOLIzTnjBAklvx5OovAdhKPuAmH5VcV60supzV5V9SpXDg1E/HEgdzM4XNUydqryEjIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDGtrSDpmhonhVHAuHxoMm8or4CfY/LRK0DrQIjDsF/fXFpLEf8hdwYbu64+Qugsr5j+RgFp+sK8Fce/3FnwHsn0m1I38VMljsGxVvGsqkAbV981ZCXwQHqAqwJmXW+1y9g1kIlUoFGgWD94h15F/OhA7Sa5+5799o0uAahQK0zdgtk1ZPK5RegA90ZKWnw9Wza03MZi9R+04f7/66bQdn4G7rMdi3kqTXmWlHQUtRiLaQ4SGEejh2BXrE1sfa2fviaqbwsdewk0O4uMiEfm0MRSI3G9H7GSHa7p+Mnno1cx9vxlz3uFwH8rnIO0wFPRe1xaN5dIEWvoz96f3Idqx3WWaREXb1m5ov8CzkEXGWSPG/2hWD+QDFV6J2w+TgqVuMae4lwOcLHCO52alPoFyGcZgnqzkus+uJXMmex/3qSzYuKXVZk8DPXZtFXv5P1Z58BV0Xig4YYSVcp2D0UY5ETK8Qg9EgoULz8aKyRN7UqSJLy18H2jHBfuc40KvyPjWyMmEUBYmxN/3/Gh2zGzGtZ3Jt2y+dmR4iWaiM5kjWkK7+opjGoaERbPXoIES53YI4DErQnC2APIgAzBryUJra7deuCHCTzDiPg4eWOkqphllUCuxXi7y5YMd5dS5frYJ7SMQ0gzxpnLugeftuQJCgi66eFnFJ+aiW34epWJgLDTzhRmotgJYooV+V0FJKR0XuDQtYClC6Ok4KBHyIXU8xh1Tx87vd1dLNyf89/oZ+ceScdrjAV6yTAOH6q0rwFTZIUnjJX6jEdhV5Eq/shUWvd+mzANUlwujpFE+6M3bgOrdZGOCyMcCRnDtWNTVEKD2QpTSCAGP+iMrS0xEnqJCXj0xoG12b0mxfX8hTcShwLSrLu9OlcKKFzScl8XejLDML1nh+a5XwwhgZT9H2n8d+UzeITEr9KrGfo16E8J6QnhUJ6/E8bTkoK0lnvldtyoVa5Zv1m2Q8Dj/U9/uGwqH/mFIlfVlsLlIwo3ZXny+8D+/y9H6/HBOmHWZIoIrTCce/7NLvX9lWthFb5Y5urS1ov5vz3WiTfDGLeuiJSfBgnmWHfOsHiNTuz7JiJkaGnqJSbusBc0FU9lZtVncVd2WD6S1DN9X4B7iv5ucY3JF6Lm+86g+hSKluwJz1nQgIyEYGAE=
+        thinking: Looking at the image, I can see a white silhouette on a dark background
+          that appears to be the GitHub Octocat mascot - a cat-like figure with pointed
+          ears, a round head, curved tail, and a body shape.…
+        type: thinking
+      - text: This is the **GitHub** logo — specifically their iconic "Octocat" mascot
+          silhouette. It's commonly used as GitHub's icon/favicon, featuring the cat-like
+          character with pointed ears and a curved tail, typically shown in this white-on-dark
+          color scheme.
+        type: text
+      role: assistant
+    - content: Think, what is the animal?
+      role: user
+    model: claude-sonnet-5
+    output_config:
+      effort: max
+    stream: true
+    thinking:
+      display: summarized
+      type: adaptive
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '3769'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 019ff566-d840-71d1-8580-5b9456bb569a
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-5","id":"msg_011CdxevJBY2doHeeqz28aeA","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":754,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard","inference_geo":"global"}}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    GitHub logo is Octocat, a hybrid mascot that combines octopus and cat features—it
+    has a cat-like head and body with octopus tentacles as legs."}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"…"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"ErEQCokBCBAYAipA/9QoE9HyfpPae639l2Wg7LQqF3Oi7XP1OCz27r+IQjuTJ2khbygEpiegcH6rwRvVykivVz934l9Vmq6gsSYA4zIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDB78Rkk+FacOyIN5PhoMt+MwjGIy3JKUm+PTIjBoIMefETr6QvOqLJ7kXaqfGn7xGCNE4eyQgFpDGGRg2pwYJmJta7mYcWfffqA1DBoq1A5r1RRcrDQp4uzI4JgJl+iyelg2Qlu//XWT1Jcq9o0UfEkH1nAnY/iPKgGvfkbMQvcxAI7VmiGmWsmQG9yW2VZAP5S3Xbmc4+ctEhOPbCNbn/ye7WtuCeSnWR90QMbOHEeIL68rl2HCTiEsdNHCLE8i11UMfFqndL1bPpGBGILr+/tNG5HR8WlkZv/NLGWdjUB0E0tsQtl/4YdcD8IhrUWwezZVyuguQRsG7Zd/7iGznGu6oyBkWIG1yCZfICZ3PAZaWkXstOmVQkQ8s2V+y/eGubCOKy9reNhC34RTZueDAr57JOpuC/uB6bF22GPDRpoYNq82Jqhj4u9D8GwBRRAmtJOme5ua59hbPHCkXi5CjXmfOX5GwWXxslwnA3vJgPj4mGYfvbt4NB9h/4WGD3vJUFIwt7sBu5LQma1hATIS9GtD2iRZv3MIHrfk0M39AZ+CaWx3Dd0fjLcpGsRCKu/MblbR+EBfL2vQiHCufpexKPEtYgPCX6qpPqJfxq9YOFYUno69QXtpcBWNYU3zjD59LN2NZ1+y4xam7FN1aSeN4MC+zMqTCPTdYGneqHbH6M5FmcL0ZQSBlXp+rk+vwO7mPnUTf7JKOAqR7L4CM4ARgR4nI6Jy8P2zGIMBgso8jyILgEfhzHXluQFimgV7mM0jMKB3dytmqVc6Mi+7W5kn2sVPynl6cC8sEupHFnYW2vlmx1VX3LqMInN6NKb+HfePyt20dGUZQI1NhNaHeKdVeYMFipxR0BnIgJEi1HUzHLSVi9QfcsGpxjwPxKZkj5YIiQjzw0q1si24Lm04ZP5rXELIk8h6p8kFxByV8p7G0w0Sw3Y/xAjYFV/TltYWizvDmbUSGvdKfBpEMh77XAXiqMp7lVyy2iy8MwKZIV7qHqy/HAcRZk2sDxEjO8regdikcrL91VKx2cTEMj4IFcbrYRRsj26+auFImlYjU83jkBZWaZKAix5rDBPX0kHFmDTOezPVnlcSEs9AEMyhrkieIJks7Kf3vFzST3LG6eAMLNiFQW4y4aprLMcSCfRQ0rtb2cw8xEIO6oG+LmE/DYl8QAj9t0bOMKafdXduMgayr6KLtfTpCnzXbxa/LjMa+dh/PfbP2uHpy63IVXeiFU0ix/r1XEgI+kS7WQ+XCUgBjWQyQqumrhH+mEXCtQeOvXOH1FVGpEIgBqT5/uJ4gfFayQrWTTkfIX6KpeyzzlEO12F5U7NF2KfYN8T2JhE1oT0x00bE5aygS7hU57yTCdioA5f/Ox8/8SKW3yechKE7ZEWFIdL38Pl67d8vY76nE0IFX3Nf9BwEJc1VFzyQLEanqLTw68MvVppR0W3dC5JTvUbV0MPLXEZOyt1BCzYnRnMEbmZAXm59TRkMcocg/QU1o0LeFfcqhGPv9nv6kXJ7NpaENSZpxbR+ORuN43QF/i7CLP22mF6WnQ+qNP3QS9EDvMT9snrQJ0rPo88gaWnoPlNrLYSA3BgQPzmV2PUWnjfthBEbceA4zJH1JoYgfa13xa5kCTjsuyPCZx5VUqqipMp0Sza1eepNDeZcN/xx4fy8KYENzgPMjtbmnu+gD7x1a+BGOwRsXRw2g9dYaz8F/HOCaqifP4PsaRwKnRjLD69QmKk4QcClmdrZtPOo/pC+WoiavHSUUWtCrVzG0OSZS2jpNOy6fbCMQ4csnNI3MLnh1jsepw/bV+9gTpZz5iIpr2gFVQz6iDR85IK4fGuEauL+pHiIs/JrZ6+hxjmgHoKGfE0AjL8CM3mVQqqWIZXJ2s5O8X0UNIGHlk0aCXnJbeXUgBzd50YZ7mGJcqbVvr2B1tJkc1u0hSBsV3ildpZGy31tdxJJnWGvM8xecuMDNrQQtTjQjOF5BGj/6/QVDkluDCYN0E+axaEQnsjNxy9Dn2S0D76+tOisZx+bTof3RHvxnM7SncLok4Q+KmfMHICp9wkFNf3pfalUUcGQJrOUeRxhtO7imhaQXS9b7gUmuYzB+sNDjGUGpPl/dqTWBT5G/qf+SS3lTN12dfBL3ONsd3Qs6xVp+nx3CTq0XPrr5xBQF8fZcvMLLbGJOIKZGCn0YIxiMoBwfCEa2fH1WxEcoJ63evlQfG2mA3Hi0StMtqeNey8XYtdwI9WgWoYIcMPUexH6vrm4NSfS/d4wk8qD3khKyOlCITdgiZ8YivcjubdHjbY8myBtmXK7zccqYtKLKx4wtdqbGAFYwElEIKtdit5AQ8QCw/h+okJ0yfykMUj78RkCY5xLW6073sy6rVfIAMaE7MMrPjYy4qG0MHUr1GGRKcZ4LW2hMb+QZxPHCrKyydLf5rKWB1PibYZeHCHMP7kDJJHOfzPF8IAWkVNT3H/eA06NXuaMBOnT/T5kntmk3fJYn+QJMUa32Ldt64RLCzhTlbJbA2esZTE7/L73bvwPx8vUc3U6lHaDzm3F64/4pqopKTfaxOutxE5sepe0Ovqj0g4Apn/jw2CR230kJJLrfcZfdZcQxM3b0z4lsGIULCYjGAE="}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0 }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Looking
+    at the silhouette, it''s officially called"}   }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    the **\"Octocat\"** — a hybrid creature combining an **octopus** and a **cat**
+    (hence the name: Octo + Cat).\n\nIn this simplified logo version, it reads primarily
+    as a **"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"cat**
+    — you can see:\n- Pointed cat-like ears\n- A round head\n- A curved tail\n\nHowever,
+    in GitHub''s more detailed/full illustrations of the Octoc"}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"at
+    mascot, it also includes octopus-like tentacles (usually in place of arms), which
+    is where the \"octo\" part of the name comes from. This particular ic"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"on
+    is a simplified silhouette version, so it emphasizes the cat-like features more
+    than the octopus ones."} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1   }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":754,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":833,"output_tokens_details":{"thinking_tokens":614}}    }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"      }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-12T09:56:25.792317+00:00'

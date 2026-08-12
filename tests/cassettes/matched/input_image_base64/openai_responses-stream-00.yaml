@@ -1,0 +1,301 @@
+filename: 2026-08-12-019ff56a-c965-7671-b2a7-ff4081509f0e
+request:
+  body:
+    input:
+    - content:
+      - text: What is logo is this?
+        type: input_text
+      - image_url: data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIAAQMAAADOtka5AAAABlBMVEUcGxv9/f2eWfzwAAAECUlEQVR42u3cQZKkIBAFUAgWLD0CR+FocDSOwhFcujDMiVn00HYM/rSzVao6/7aMV5qkYKlRRqPRaDQajUaj0Wg0Go1Go9FoNBqNRqPR/E2kbA5iaQVAovXYxwAV040j2jCwmG4CBuhwEyIiDPSPwTGB2XQyYcDS0TEkIqKMAcrgQwhU89/4Q6CVqTuQgf6mIKBfhMQC+rtpiQ/UTgkw4KlfhNBwCGzdEmCgWwRLfKAdaGp74wDQur2dDq5p+48wsH7sdDugyAVaFelfWg0x0L40NGBpu8MFinFELcV4HhDaZvEzsDZ64QGro11KPAlscQ+siQt082uAeAOwKqCAAgrwgNefVBXAAL5C+RUAuNR9fcBhoAwOWAxkMSA+BPEwis+FwWck8cqUMLAdAsTIpYDlABk0Iky5EvAcoIJOhpmvBAIHWEAnw6xXAokDbFcCxMqFgOUB+TrA8YByHeB5QB0YmHjAfB0QeMAyMBB5wDowkHjANjBANwH0xoDlAlmBLuBuA4oC1wH+FwFVAQUUUEABDLz+0qaAAueAYS+2FTgDDPvD8x2AN7iHchsw8K2w24CB72jeBcwD35ieXv/uPhMoAz9jYQJ54AdVdz2sG/qBZXr8oW2UPncOtwDz4w/vq/j9g8dfocgHgBUDd7zIsh0CSQy8/nuqL/F+4ujv5hkMGCGwASAxGlHWigsAAqOPZJ1UAeARUADghG2AO8mg4DaQjeMKgQBHUTaOFQIejqJsGAwOGAScBAYBJoBBkFWxGhwHzgQcVENJMy8sYAIlgHGgBJJeNLzE75UgVlAEUAJLGzwG1IAFnA4rGrwFHEMFADwG3D75cBwWDNTDM7JgYO7PKngu8bttPGhj/McA6fSJaPffYs/PBF/q5JkV3O907U0LlXkOzjtxNwI409dKgSYE49jKyJ6K7Jdau04Nj6vYW2AKdybLYBTgolg6wMytYt15J1cUt/+meHZZN1YKmP2upvOratp90/eW5a0DEAsInwH7PYB6QOaej71FPnM7KXeAwu2k0rSfBSq3FSsAYCvOnRV65rbi8iwQidbONffCBTYA4F4WA1kCTNQ6KYLLCzCtCoAZAPBkWKTAJgEstXFMe2DjAxkA8DqpioBWRfoW0Db1AIB/AhUFwNzm5NNA/Ng20NecAKgaTwCAP/1fF5geB/zjgJMC9nHAiIH0OBClQJACkxTwUsBJASsFjBhIUiBKgSAFJingpYCVAiZJgSgFJingpIARA0EKeAAwB3IBANwFAwBUhQIAnDcENgUUUOApICmggAIKKKCAAmNdK1vw/gKM+3GgnAQm8DrX+Z/Qi7CGROcrIKlC6LxKI7uJsBrhL/hNCpBoDHAzygF8G6TcB/iLgDom8AflkuIJHUxkLgAAAABJRU5ErkJggg==
+        type: input_image
+      role: user
+    max_output_tokens: 2048
+    model: gpt-5.6-luna
+    reasoning:
+      effort: none
+    stream: true
+    stream_options:
+      include_obfuscation: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1763'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019ff56a-c965-7671-b2a7-ff4081509f0e
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"That","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’s","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Git","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Oct","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ocat","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" logo","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"**","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"—","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"the","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" styl","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ized","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" silhouette","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" of","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Git","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Hub","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’s","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" mascot","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","logprobs":[],"output_index":0,"sequence_number":25,"text":"That’s
+    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
+    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."},"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
+    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0e588c29e958ecc7006a7c444ccc04819896b8515ec3337774","object":"response","created_at":1786528844,"status":"completed","background":false,"completed_at":1786528845,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"msg_0e588c29e958ecc7006a7c444d6414819880514bf2f48883d6","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That’s
+    the **GitHub Octocat logo**—the stylized silhouette of GitHub’s mascot."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":320,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":25,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":345},"user":null,"metadata":{}},"sequence_number":28}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-12T10:00:44.133722+00:00'
