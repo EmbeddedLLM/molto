@@ -6,7 +6,8 @@ Anthropic Messages SSE stream so a converter receives one corresponding thinking
 or text delta for every ``response.reasoning_text.delta`` or
 ``response.output_text.delta`` event, in the same order and with the same content.
 It also synchronizes fields that can pass through the conversion, including the
-request model, response ID and model, service tier, and terminal usage.
+request model, response ID and model, encrypted reasoning content, service tier,
+and terminal usage.
 
 The result remains an Anthropic Messages wire-format cassette. Responses-only
 envelope fields such as item IDs, sequence numbers, and timestamps cannot be
@@ -72,27 +73,6 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
-def _thinking_signatures(messages: Any) -> list[str]:
-    if not isinstance(messages, list):
-        raise ValueError("Messages request must contain a messages list.")
-
-    signatures: list[str] = []
-    for message in messages:
-        if not isinstance(message, dict) or message.get("role") != "assistant":
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict) or block.get("type") != "thinking":
-                continue
-            signature = block.get("signature")
-            if not isinstance(signature, str):
-                raise ValueError("Messages thinking blocks must contain signatures.")
-            signatures.append(signature)
-    return signatures
-
-
 def _text_content(content: Any) -> str | list[dict[str, str]]:
     if isinstance(content, str):
         return content
@@ -114,7 +94,7 @@ def _text_content(content: Any) -> str | list[dict[str, str]]:
     return blocks
 
 
-def _reasoning_content(item: dict[str, Any]) -> str:
+def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
     content = item.get("content")
     if not isinstance(content, list):
         raise ValueError("Responses reasoning input must contain a content list.")
@@ -127,18 +107,21 @@ def _reasoning_content(item: dict[str, Any]) -> str:
         if not isinstance(text, str):
             raise ValueError("Responses reasoning text must be a string.")
         reasoning_text.append(text)
-    return "".join(reasoning_text)
+    thinking = {"type": "thinking", "thinking": "".join(reasoning_text)}
+    encrypted_content = item.get("encrypted_content")
+    if encrypted_content is not None:
+        if not isinstance(encrypted_content, str):
+            raise ValueError("Responses encrypted reasoning content must be a string.")
+        thinking["signature"] = encrypted_content
+    return thinking
 
 
-def _messages_from_response_input(
-    response_input: Any, template_messages: Any
-) -> list[dict[str, Any]]:
+def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
     if not isinstance(response_input, list):
         raise ValueError("Responses input must be a string or an input-item list.")
 
-    signatures = iter(_thinking_signatures(template_messages))
     messages: list[dict[str, Any]] = []
     pending_assistant_content: list[dict[str, str]] = []
 
@@ -146,19 +129,7 @@ def _messages_from_response_input(
         if not isinstance(item, dict):
             raise ValueError("Responses input items must be objects.")
         if item.get("type") == "reasoning":
-            try:
-                signature = next(signatures)
-            except StopIteration as exc:
-                raise ValueError(
-                    "Cannot map Responses reasoning history without a Messages signature."
-                ) from exc
-            pending_assistant_content.append(
-                {
-                    "type": "thinking",
-                    "thinking": _reasoning_content(item),
-                    "signature": signature,
-                }
-            )
+            pending_assistant_content.append(_reasoning_content(item))
             continue
 
         role = item.get("role")
@@ -194,9 +165,7 @@ def _matched_request_body(
         raise ValueError("Responses request must contain a boolean stream field.")
 
     matched_request = deepcopy(messages_request)
-    matched_request["messages"] = _messages_from_response_input(
-        responses_request.get("input"), messages_request.get("messages")
-    )
+    matched_request["messages"] = _messages_from_response_input(responses_request.get("input"))
     matched_request["model"] = request_model
     matched_request["stream"] = stream
     if responses_request.get("max_output_tokens") is not None:
@@ -280,6 +249,26 @@ def _response_text_deltas(
     if "".join(deltas) != done_text:
         raise ValueError(f"{event_prefix} deltas do not match {event_prefix}.done.")
     return deltas
+
+
+def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str | None:
+    reasoning_items = [
+        event.get("item")
+        for event in events
+        if event.get("type") == "response.output_item.done"
+        and isinstance(event.get("item"), dict)
+        and event["item"].get("type") == "reasoning"
+    ]
+    if len(reasoning_items) != 1:
+        raise ValueError(
+            "Expected exactly one completed Responses reasoning item, "
+            f"found {len(reasoning_items)}."
+        )
+
+    encrypted_content = reasoning_items[0].get("encrypted_content")
+    if encrypted_content is not None and not isinstance(encrypted_content, str):
+        raise ValueError("Responses encrypted reasoning content must be a string.")
+    return encrypted_content
 
 
 def _content_block(units: list[_SSEEventUnit], block_type: str) -> tuple[int, int, int] | None:
@@ -487,6 +476,24 @@ def match_messages_events(
         block_type="thinking",
         delta_type="thinking_delta",
         delta_field="thinking",
+    )
+    response_reasoning_encrypted_content = (
+        None
+        if response_reasoning_deltas is None
+        else _response_reasoning_encrypted_content(response_events)
+    )
+    _replace_content_deltas(
+        message_units,
+        None
+        if response_reasoning_deltas is None
+        else (
+            [response_reasoning_encrypted_content]
+            if response_reasoning_encrypted_content is not None
+            else []
+        ),
+        block_type="thinking",
+        delta_type="signature_delta",
+        delta_field="signature",
     )
     _replace_content_deltas(
         message_units,

@@ -172,6 +172,7 @@ def _responses_cassette(
     reasoning_deltas: list[str] | None,
     text_deltas: list[str],
     request_input: Any = "canonical prompt",
+    reasoning_encrypted_content: str | None = None,
 ) -> dict[str, Any]:
     response = {
         "id": "resp_reference",
@@ -191,6 +192,18 @@ def _responses_cassette(
                 "text": "".join(reasoning_deltas),
             }
         )
+        reasoning_item = {
+            "type": "reasoning",
+            "content": [
+                {
+                    "type": "reasoning_text",
+                    "text": "".join(reasoning_deltas),
+                }
+            ],
+        }
+        if reasoning_encrypted_content is not None:
+            reasoning_item["encrypted_content"] = reasoning_encrypted_content
+        events.append({"type": "response.output_item.done", "item": reasoning_item})
     events.extend({"type": "response.output_text.delta", "delta": delta} for delta in text_deltas)
     events.extend(
         [
@@ -318,14 +331,9 @@ def test_matches_messages_reasoning_and_text_events() -> None:
         for event in events
         if event["type"] == "content_block_delta" and event["delta"]["type"] == "text_delta"
     ] == ["new text"]
-    assert (
-        next(
-            event["delta"]["signature"]
-            for event in events
-            if event["type"] == "content_block_delta"
-            and event["delta"]["type"] == "signature_delta"
-        )
-        == "signed-thinking"
+    assert not any(
+        event["type"] == "content_block_delta" and event["delta"]["type"] == "signature_delta"
+        for event in events
     )
 
     usage = next(event["usage"] for event in events if event["type"] == "message_delta")
@@ -350,11 +358,7 @@ def test_matches_messages_reasoning_and_text_events() -> None:
                 {"content": "canonical question", "role": "user"},
                 {
                     "content": [
-                        {
-                            "signature": "signed-history",
-                            "thinking": "canonical reasoning",
-                            "type": "thinking",
-                        },
+                        {"thinking": "canonical reasoning", "type": "thinking"},
                         {"text": "canonical answer", "type": "text"},
                     ],
                     "role": "assistant",
@@ -427,6 +431,56 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
     ]
 
 
+def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=["canonical reasoning"],
+        reasoning_encrypted_content="canonical-signature",
+        text_deltas=["canonical answer"],
+        request_input=[
+            {"content": "question", "role": "user"},
+            {
+                "content": [{"text": "prior reasoning", "type": "reasoning_text"}],
+                "encrypted_content": "canonical-history-signature",
+                "type": "reasoning",
+            },
+            {"content": "prior answer", "role": "assistant"},
+            {"content": "follow-up", "role": "user"},
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=["template reasoning"],
+        text_deltas=["template answer"],
+        request_messages=[
+            {"content": "template question", "role": "user"},
+            {
+                "content": [
+                    {
+                        "signature": "template-history-signature",
+                        "thinking": "template reasoning",
+                        "type": "thinking",
+                    },
+                    {"text": "template answer", "type": "text"},
+                ],
+                "role": "assistant",
+            },
+        ],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    events = _data_events(messages_cassette)
+    assert [
+        event["delta"]["signature"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "signature_delta"
+    ] == ["canonical-signature"]
+    assert messages_cassette["request"]["body"]["messages"][1]["content"][0] == {
+        "signature": "canonical-history-signature",
+        "thinking": "prior reasoning",
+        "type": "thinking",
+    }
+
+
 @pytest.mark.parametrize(
     ("message_reasoning", "response_reasoning"),
     [(None, ["reasoning"]), (["thinking"], None)],
@@ -463,14 +517,6 @@ def test_rejects_unrepresentable_service_tier() -> None:
 def test_matches_real_two_turn_request_body() -> None:
     messages_cassette = read_yaml(str(MATCHED_CASSETTES / "anthropic_responses-stream-01.yaml"))
     responses_cassette = read_yaml(str(MATCHED_CASSETTES / "openai_responses-stream-01.yaml"))
-    turn_zero = read_yaml(str(MATCHED_CASSETTES / "anthropic_responses-stream-00.yaml"))
-    turn_zero_events = _data_events(turn_zero)
-    signature = next(
-        event["delta"]["signature"]
-        for event in turn_zero_events
-        if event["type"] == "content_block_delta" and event["delta"]["type"] == "signature_delta"
-    )
-
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {
@@ -480,7 +526,6 @@ def test_matches_real_two_turn_request_body() -> None:
             {
                 "content": [
                     {
-                        "signature": signature,
                         "thinking": "We need answer simple. Need comply. 2+2=4.",
                         "type": "thinking",
                     },
