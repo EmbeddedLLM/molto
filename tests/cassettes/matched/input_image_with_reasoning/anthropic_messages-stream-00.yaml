@@ -4,15 +4,15 @@ request:
     max_tokens: 2048
     messages:
     - content:
-      - source:
-          data: iVBORw0KGgoAAAANSUhEUgAAAgAAAAIAAQMAAADOtka5AAAABlBMVEUcGxv9/f2eWfzwAAAECUlEQVR42u3cQZKkIBAFUAgWLD0CR+FocDSOwhFcujDMiVn00HYM/rSzVao6/7aMV5qkYKlRRqPRaDQajUaj0Wg0Go1Go9FoNBqNRqPR/E2kbA5iaQVAovXYxwAV040j2jCwmG4CBuhwEyIiDPSPwTGB2XQyYcDS0TEkIqKMAcrgQwhU89/4Q6CVqTuQgf6mIKBfhMQC+rtpiQ/UTgkw4KlfhNBwCGzdEmCgWwRLfKAdaGp74wDQur2dDq5p+48wsH7sdDugyAVaFelfWg0x0L40NGBpu8MFinFELcV4HhDaZvEzsDZ64QGro11KPAlscQ+siQt082uAeAOwKqCAAgrwgNefVBXAAL5C+RUAuNR9fcBhoAwOWAxkMSA+BPEwis+FwWck8cqUMLAdAsTIpYDlABk0Iky5EvAcoIJOhpmvBAIHWEAnw6xXAokDbFcCxMqFgOUB+TrA8YByHeB5QB0YmHjAfB0QeMAyMBB5wDowkHjANjBANwH0xoDlAlmBLuBuA4oC1wH+FwFVAQUUUEABDLz+0qaAAueAYS+2FTgDDPvD8x2AN7iHchsw8K2w24CB72jeBcwD35ieXv/uPhMoAz9jYQJ54AdVdz2sG/qBZXr8oW2UPncOtwDz4w/vq/j9g8dfocgHgBUDd7zIsh0CSQy8/nuqL/F+4ujv5hkMGCGwASAxGlHWigsAAqOPZJ1UAeARUADghG2AO8mg4DaQjeMKgQBHUTaOFQIejqJsGAwOGAScBAYBJoBBkFWxGhwHzgQcVENJMy8sYAIlgHGgBJJeNLzE75UgVlAEUAJLGzwG1IAFnA4rGrwFHEMFADwG3D75cBwWDNTDM7JgYO7PKngu8bttPGhj/McA6fSJaPffYs/PBF/q5JkV3O907U0LlXkOzjtxNwI409dKgSYE49jKyJ6K7Jdau04Nj6vYW2AKdybLYBTgolg6wMytYt15J1cUt/+meHZZN1YKmP2upvOratp90/eW5a0DEAsInwH7PYB6QOaej71FPnM7KXeAwu2k0rSfBSq3FSsAYCvOnRV65rbi8iwQidbONffCBTYA4F4WA1kCTNQ6KYLLCzCtCoAZAPBkWKTAJgEstXFMe2DjAxkA8DqpioBWRfoW0Db1AIB/AhUFwNzm5NNA/Ng20NecAKgaTwCAP/1fF5geB/zjgJMC9nHAiIH0OBClQJACkxTwUsBJASsFjBhIUiBKgSAFJingpYCVAiZJgSgFJingpIARA0EKeAAwB3IBANwFAwBUhQIAnDcENgUUUOApICmggAIKKKCAAmNdK1vw/gKM+3GgnAQm8DrX+Z/Qi7CGROcrIKlC6LxKI7uJsBrhL/hNCpBoDHAzygF8G6TcB/iLgDom8AflkuIJHUxkLgAAAABJRU5ErkJggg==
-          media_type: image/png
+      - type: text
+        text: Think, what logo is this?
+      - type: image
+        source:
           type: base64
-        type: image
-      - text: Think, what logo is this?
-        type: text
+          media_type: image/png
+          data: iVBORw0KGgoAAAANSUhEUgAAAgAAAAIAAQMAAADOtka5AAAABlBMVEUcGxv9/f2eWfzwAAAECUlEQVR42u3cQZKkIBAFUAgWLD0CR+FocDSOwhFcujDMiVn00HYM/rSzVao6/7aMV5qkYKlRRqPRaDQajUaj0Wg0Go1Go9FoNBqNRqPR/E2kbA5iaQVAovXYxwAV040j2jCwmG4CBuhwEyIiDPSPwTGB2XQyYcDS0TEkIqKMAcrgQwhU89/4Q6CVqTuQgf6mIKBfhMQC+rtpiQ/UTgkw4KlfhNBwCGzdEmCgWwRLfKAdaGp74wDQur2dDq5p+48wsH7sdDugyAVaFelfWg0x0L40NGBpu8MFinFELcV4HhDaZvEzsDZ64QGro11KPAlscQ+siQt082uAeAOwKqCAAgrwgNefVBXAAL5C+RUAuNR9fcBhoAwOWAxkMSA+BPEwis+FwWck8cqUMLAdAsTIpYDlABk0Iky5EvAcoIJOhpmvBAIHWEAnw6xXAokDbFcCxMqFgOUB+TrA8YByHeB5QB0YmHjAfB0QeMAyMBB5wDowkHjANjBANwH0xoDlAlmBLuBuA4oC1wH+FwFVAQUUUEABDLz+0qaAAueAYS+2FTgDDPvD8x2AN7iHchsw8K2w24CB72jeBcwD35ieXv/uPhMoAz9jYQJ54AdVdz2sG/qBZXr8oW2UPncOtwDz4w/vq/j9g8dfocgHgBUDd7zIsh0CSQy8/nuqL/F+4ujv5hkMGCGwASAxGlHWigsAAqOPZJ1UAeARUADghG2AO8mg4DaQjeMKgQBHUTaOFQIejqJsGAwOGAScBAYBJoBBkFWxGhwHzgQcVENJMy8sYAIlgHGgBJJeNLzE75UgVlAEUAJLGzwG1IAFnA4rGrwFHEMFADwG3D75cBwWDNTDM7JgYO7PKngu8bttPGhj/McA6fSJaPffYs/PBF/q5JkV3O907U0LlXkOzjtxNwI409dKgSYE49jKyJ6K7Jdau04Nj6vYW2AKdybLYBTgolg6wMytYt15J1cUt/+meHZZN1YKmP2upvOratp90/eW5a0DEAsInwH7PYB6QOaej71FPnM7KXeAwu2k0rSfBSq3FSsAYCvOnRV65rbi8iwQidbONffCBTYA4F4WA1kCTNQ6KYLLCzCtCoAZAPBkWKTAJgEstXFMe2DjAxkA8DqpioBWRfoW0Db1AIB/AhUFwNzm5NNA/Ng20NecAKgaTwCAP/1fF5geB/zjgJMC9nHAiIH0OBClQJACkxTwUsBJASsFjBhIUiBKgSAFJingpYCVAiZJgSgFJingpIARA0EKeAAwB3IBANwFAwBUhQIAnDcENgUUUOApICmggAIKKKCAAmNdK1vw/gKM+3GgnAQm8DrX+Z/Qi7CGROcrIKlC6LxKI7uJsBrhL/hNCpBoDHAzygF8G6TcB/iLgDom8AflkuIJHUxkLgAAAABJRU5ErkJggg==
       role: user
-    model: claude-sonnet-5
+    model: gpt-5.6-luna
     output_config:
       effort: medium
     stream: true
@@ -39,7 +39,7 @@ response:
   - 'event: message_start
 
     '
-  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-5","id":"msg_011CdxeurDanPr4DdWwwi6pW","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":380,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":3,"service_tier":"standard","inference_geo":"global"}}     }
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_0fb0971199289293006a7c3148a648819aab6ca13ce3c499eb","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":320,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"global"}}}
 
     '
   - '
@@ -48,7 +48,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}       }
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
 
     '
   - '
@@ -57,7 +57,7 @@ response:
   - 'event: ping
 
     '
-  - 'data: {"type": "ping"}
+  - 'data: {"type":"ping"}
 
     '
   - '
@@ -66,7 +66,8 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Looking"}             }
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"**Identifying
+    Octocat silhouette**"}}
 
     '
   - '
@@ -75,57 +76,7 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
-    at the image"}          }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":",
-    I can see a"}           }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
-    white silhouette on"}               }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
-    a dark background that appears to be the GitHub Octocat mascot - a cat-like figure
-    with pointed ears, a round head, curved tail, and a body shape."} }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"…"}             }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"Eu0HCokBCBAYAipAKkdnSAtvurcN3zlnl1hQcOLIzTnjBAklvx5OovAdhKPuAmH5VcV60supzV5V9SpXDg1E/HEgdzM4XNUydqryEjIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDGtrSDpmhonhVHAuHxoMm8or4CfY/LRK0DrQIjDsF/fXFpLEf8hdwYbu64+Qugsr5j+RgFp+sK8Fce/3FnwHsn0m1I38VMljsGxVvGsqkAbV981ZCXwQHqAqwJmXW+1y9g1kIlUoFGgWD94h15F/OhA7Sa5+5799o0uAahQK0zdgtk1ZPK5RegA90ZKWnw9Wza03MZi9R+04f7/66bQdn4G7rMdi3kqTXmWlHQUtRiLaQ4SGEejh2BXrE1sfa2fviaqbwsdewk0O4uMiEfm0MRSI3G9H7GSHa7p+Mnno1cx9vxlz3uFwH8rnIO0wFPRe1xaN5dIEWvoz96f3Idqx3WWaREXb1m5ov8CzkEXGWSPG/2hWD+QDFV6J2w+TgqVuMae4lwOcLHCO52alPoFyGcZgnqzkus+uJXMmex/3qSzYuKXVZk8DPXZtFXv5P1Z58BV0Xig4YYSVcp2D0UY5ETK8Qg9EgoULz8aKyRN7UqSJLy18H2jHBfuc40KvyPjWyMmEUBYmxN/3/Gh2zGzGtZ3Jt2y+dmR4iWaiM5kjWkK7+opjGoaERbPXoIES53YI4DErQnC2APIgAzBryUJra7deuCHCTzDiPg4eWOkqphllUCuxXi7y5YMd5dS5frYJ7SMQ0gzxpnLugeftuQJCgi66eFnFJ+aiW34epWJgLDTzhRmotgJYooV+V0FJKR0XuDQtYClC6Ok4KBHyIXU8xh1Tx87vd1dLNyf89/oZ+ceScdrjAV6yTAOH6q0rwFTZIUnjJX6jEdhV5Eq/shUWvd+mzANUlwujpFE+6M3bgOrdZGOCyMcCRnDtWNTVEKD2QpTSCAGP+iMrS0xEnqJCXj0xoG12b0mxfX8hTcShwLSrLu9OlcKKFzScl8XejLDML1nh+a5XwwhgZT9H2n8d+UzeITEr9KrGfo16E8J6QnhUJ6/E8bTkoK0lnvldtyoVa5Zv1m2Q8Dj/U9/uGwqH/mFIlfVlsLlIwo3ZXny+8D+/y9H6/HBOmHWZIoIrTCce/7NLvX9lWthFb5Y5urS1ov5vz3WiTfDGLeuiJSfBgnmWHfOsHiNTuz7JiJkaGnqJSbusBc0FU9lZtVncVd2WD6S1DN9X4B7iv5ucY3JF6Lm+86g+hSKluwJz1nQgIyEYGAE="}     }
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"gAAAAABqfDFLyPeNLb8VA_VClM3D_NAjLIn1Qky4i2ArePT5Pzx7MSN389VrsFrHY3WI3vT5asmy1XM5SLte_698KxjH1w-tcuUqZKye1HNLzxvnRh_fGMLXfDd2TDbnAb-zar1NyBW7iWWArkqinsz6zqlPOtJtX7qkLFlyKfK4QW-aWkku7t_85RtKPAkPlUHf_pWUny3AgMaSrlVkK7VFskkW0kSe5P85w8f1MasXUyxORHLWFaZe5hxJLsZ_EmFA6DRV4pSL_y9hZujSx2tsL9FFoYvyotkJDnvyMG0OqJDOneYQoo0GTuaJH3RxHKB18VQrC2nLjZUVpaq_B4vD4O_ULzu4elcVHt2mPYG3jkWV4InE0QkiPdvxke7M20J2QUDyXvUPZwapTz6Kgrf4u3CCfnrPOjPamFRxnn--j-Rj44ceHCpuO5c7W6ZZZrgPJaAYYn0Ti4q1hiKMG2POOPme4WUUemVNtEJXdDLZzKAnOmctPbpMKsiOfxHyBhd6nxmr3fqe1cwRxRpDPTN-wtev2d_eRbTFBrLGK6vqFDRW89MqxVIBnBQk2zXECwh3DU3lDxnyXOM_UXlAU7SNmk_eBmellpYTO6Ux2XfNzaImIlmDieNdGM_jvYPUcKaQGhzHMT2_8SsycfRCnsWzoBWBViobEDKe8EwvgNCeKaF0uqIGHUUjn-or-WTQS_0kyul9Ysy1MOtmXqNdsXPjo_A02w-EWsxIdS_WumvjVtT3PKRgt2TyIp8HpH6s6CDAqD6DJNdPUS_74tjTzwOYvpgNHsD7J1h1gYtEd6-kNQJMlarIweiAQnz_w7WT7_mW5E0wPXxBsx-gzUtiKWkohUxo541NiX7peWiXqwr0ejT2jTwZ6ttV9UWALAB6DAw5Vab22sWOeyuhuToDJtyMPSWqSXbLNLCScSgMHMaRAM2Q_ChrAeORS_elVRzumU1tK_bAUE2lL6rwV-YJ6Ycl9MuBQBuKwdbPCUNqKkFRhfAEEXHI8JDBbTLg_gJ-GF3k_bZ8OMxxaRETt046Ij-LBZZtC2YPjApObRrlkjqn6GShgxsmmvrbOCLXb6ZwPpTsCrIPl0k6kCLP9M40EHrV8aKxgFOCLeK2zfFjavu_gK0Drcj1Rzm2at4TxBZ_ln5DrsBAHI8efsvSjQJ7pJTDNz1yOSHZoXYLvkIjxxTeFGWdaMTn_vRbFbqW8FteBOJPjQ0OTocEfgwaW8kmfTDwZ_DlZYeR0Hr_tw_8-7NstLSMrOenKwUtkmdpGGfebV0d8c5Otp1sQ7ac5-idigM7RiAM3HpWyH3DK9tqRetBIn2WslzKElbTJ2qpQhGvFR-z_AA5ndijnd50qzWZz_aLUHX-TBhHRuxePhyE2Tck-YoVSjAFPjVgKQGY8mMdXrMB2r2qDTnP00fLBGnVOBqONBRQVEdYL2sHnRd0bxVN221Y2JFZwh81sioBxJBCkaGQtDLtPPBWfmGj3tWuIYFIIU7E848XOOK4V49xLxstus2tPPOEi0N3rIC_pOGf_MlgmoxCOWtf"}}
 
     '
   - '
@@ -134,7 +85,7 @@ response:
   - 'event: content_block_stop
 
     '
-  - 'data: {"type":"content_block_stop","index":0              }
+  - 'data: {"type":"content_block_stop","index":0}
 
     '
   - '
@@ -143,7 +94,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}         }
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
 
     '
   - '
@@ -152,9 +103,7 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"This
-    is the **GitHub** logo — specifically their iconic \"Octocat\" mascot silhouette.
-    It''s commonly used as GitHub''s icon/fav"}        }
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"That"}}
 
     '
   - '
@@ -163,9 +112,92 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"icon,
-    featuring the cat-like character with pointed ears and a curved tail, typically
-    shown in this white-on-dark color scheme."}}
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"’s"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    **"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Git"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Hub"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    Oct"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ocat"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    logo"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"."}}
 
     '
   - '
@@ -174,7 +206,7 @@ response:
   - 'event: content_block_stop
 
     '
-  - 'data: {"type":"content_block_stop","index":1         }
+  - 'data: {"type":"content_block_stop","index":1}
 
     '
   - '
@@ -183,7 +215,7 @@ response:
   - 'event: message_delta
 
     '
-  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":380,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":364,"output_tokens_details":{"thinking_tokens":270}}          }
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":320,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":123,"output_tokens_details":{"thinking_tokens":106}}}
 
     '
   - '
@@ -192,7 +224,7 @@ response:
   - 'event: message_stop
 
     '
-  - 'data: {"type":"message_stop"      }
+  - 'data: {"type":"message_stop"}
 
     '
   - '

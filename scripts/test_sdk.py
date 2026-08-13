@@ -9,7 +9,7 @@ from molto.configs import ENV_CONFIG
 
 IMAGE_PATH = Path("tests") / "files" / "github.png"
 IMAGE_DATA = base64.b64encode(IMAGE_PATH.read_bytes()).decode("ascii")
-IMAGE_URL = f"data:image/jpeg;base64,{IMAGE_DATA}"
+IMAGE_URL = f"data:image/png;base64,{IMAGE_DATA}"
 
 openai_client = AsyncOpenAI(
     api_key=ENV_CONFIG.openai_api_key_plain,
@@ -24,7 +24,7 @@ anthropic_client = AsyncAnthropic(
 )
 
 PROMPTS = [
-    "What is logo is this?",
+    "What logo is this?",
     "What is the animal?",
 ]
 
