@@ -73,24 +73,44 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
-def _text_content(content: Any) -> str | list[dict[str, str]]:
+def _image_content(image_url: Any) -> dict[str, Any]:
+    if not isinstance(image_url, str):
+        raise ValueError("Responses image content must contain a string image_url field.")
+
+    if not image_url.startswith("data:"):
+        return {"type": "image", "source": {"type": "url", "url": image_url}}
+
+    metadata, separator, data = image_url.partition(",")
+    if not separator or not metadata.endswith(";base64"):
+        raise ValueError("Responses image data URLs must contain base64-encoded data.")
+    media_type = metadata.removeprefix("data:").removesuffix(";base64")
+    if not media_type or not data:
+        raise ValueError("Responses image data URLs must contain a media type and data.")
+    return {
+        "type": "image",
+        "source": {"type": "base64", "media_type": media_type, "data": data},
+    }
+
+
+def _message_content(content: Any) -> str | list[dict[str, Any]]:
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
-        raise ValueError("Responses message content must be text or a list of text parts.")
+        raise ValueError("Responses message content must be text or a list of content parts.")
 
-    blocks: list[dict[str, str]] = []
+    blocks: list[dict[str, Any]] = []
     for part in content:
-        if not isinstance(part, dict) or part.get("type") not in {
-            "input_text",
-            "output_text",
-            "text",
-        }:
-            raise ValueError("Only Responses text message content can map to Messages.")
-        text = part.get("text")
-        if not isinstance(text, str):
-            raise ValueError("Responses text content must contain a string text field.")
-        blocks.append({"type": "text", "text": text})
+        if not isinstance(part, dict):
+            raise ValueError("Responses message content parts must be objects.")
+        if part.get("type") == "input_image":
+            blocks.append(_image_content(part.get("image_url")))
+        elif part.get("type") in {"input_text", "output_text", "text"}:
+            text = part.get("text")
+            if not isinstance(text, str):
+                raise ValueError("Responses text content must contain a string text field.")
+            blocks.append({"type": "text", "text": text})
+        else:
+            raise ValueError("Responses message content cannot map to Messages.")
     return blocks
 
 
@@ -98,6 +118,9 @@ def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
     content = item.get("content")
     if not isinstance(content, list):
         raise ValueError("Responses reasoning input must contain a content list.")
+    summary = item.get("summary", [])
+    if not isinstance(summary, list):
+        raise ValueError("Responses reasoning input summary must be a list.")
 
     reasoning_text: list[str] = []
     for part in content:
@@ -107,7 +130,20 @@ def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
         if not isinstance(text, str):
             raise ValueError("Responses reasoning text must be a string.")
         reasoning_text.append(text)
-    thinking = {"type": "thinking", "thinking": "".join(reasoning_text)}
+
+    summary_text: list[str] = []
+    for part in summary:
+        if not isinstance(part, dict) or part.get("type") != "summary_text":
+            raise ValueError("Only Responses reasoning summaries can map to Messages thinking.")
+        text = part.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Responses reasoning summary text must be a string.")
+        summary_text.append(text)
+
+    thinking = {
+        "type": "thinking",
+        "thinking": "".join(summary_text or reasoning_text),
+    }
     encrypted_content = item.get("encrypted_content")
     if encrypted_content is not None:
         if not isinstance(encrypted_content, str):
@@ -123,7 +159,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
         raise ValueError("Responses input must be a string or an input-item list.")
 
     messages: list[dict[str, Any]] = []
-    pending_assistant_content: list[dict[str, str]] = []
+    pending_assistant_content: list[dict[str, Any]] = []
 
     for item in response_input:
         if not isinstance(item, dict):
@@ -135,7 +171,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
         role = item.get("role")
         if role not in {"user", "assistant"}:
             raise ValueError(f"Responses input role {role!r} cannot map to Messages.")
-        content = _text_content(item.get("content"))
+        content = _message_content(item.get("content"))
         if role == "assistant":
             text_blocks = (
                 [{"type": "text", "text": content}] if isinstance(content, str) else content
@@ -249,6 +285,14 @@ def _response_text_deltas(
     if "".join(deltas) != done_text:
         raise ValueError(f"{event_prefix} deltas do not match {event_prefix}.done.")
     return deltas
+
+
+def _response_reasoning_deltas(events: list[dict[str, Any]]) -> list[str] | None:
+    summary_deltas = _response_text_deltas(
+        events, "response.reasoning_summary_text", optional=True
+    )
+    reasoning_deltas = _response_text_deltas(events, "response.reasoning_text", optional=True)
+    return summary_deltas if summary_deltas is not None else reasoning_deltas
 
 
 def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str | None:
@@ -467,9 +511,7 @@ def match_messages_events(
         raise ValueError("response.completed must contain usage for stream matching.")
 
     response_text_deltas = _response_text_deltas(response_events, "response.output_text")
-    response_reasoning_deltas = _response_text_deltas(
-        response_events, "response.reasoning_text", optional=True
-    )
+    response_reasoning_deltas = _response_reasoning_deltas(response_events)
     _replace_content_deltas(
         message_units,
         response_reasoning_deltas,

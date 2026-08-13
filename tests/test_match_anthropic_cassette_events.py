@@ -170,6 +170,7 @@ def _messages_cassette(
 def _responses_cassette(
     *,
     reasoning_deltas: list[str] | None,
+    reasoning_summary_deltas: list[str] | None = None,
     text_deltas: list[str],
     request_input: Any = "canonical prompt",
     reasoning_encrypted_content: str | None = None,
@@ -182,16 +183,45 @@ def _responses_cassette(
     events: list[dict[str, Any]] = [
         {"type": "response.created", "response": response},
     ]
-    if reasoning_deltas is not None:
+    if reasoning_deltas is not None or reasoning_summary_deltas is not None:
+        if reasoning_summary_deltas is not None:
+            events.extend(
+                [
+                    {
+                        "type": "response.reasoning_summary_part.added",
+                        "part": {"type": "summary_text", "text": ""},
+                    },
+                    *(
+                        {
+                            "type": "response.reasoning_summary_text.delta",
+                            "delta": delta,
+                        }
+                        for delta in reasoning_summary_deltas
+                    ),
+                    {
+                        "type": "response.reasoning_summary_text.done",
+                        "text": "".join(reasoning_summary_deltas),
+                    },
+                    {
+                        "type": "response.reasoning_summary_part.done",
+                        "part": {
+                            "type": "summary_text",
+                            "text": "".join(reasoning_summary_deltas),
+                        },
+                    },
+                ]
+            )
+        reasoning_deltas = reasoning_deltas or []
         events.extend(
             {"type": "response.reasoning_text.delta", "delta": delta} for delta in reasoning_deltas
         )
-        events.append(
-            {
-                "type": "response.reasoning_text.done",
-                "text": "".join(reasoning_deltas),
-            }
-        )
+        if reasoning_deltas:
+            events.append(
+                {
+                    "type": "response.reasoning_text.done",
+                    "text": "".join(reasoning_deltas),
+                }
+            )
         reasoning_item = {
             "type": "reasoning",
             "content": [
@@ -199,7 +229,17 @@ def _responses_cassette(
                     "type": "reasoning_text",
                     "text": "".join(reasoning_deltas),
                 }
-            ],
+            ]
+            if reasoning_deltas
+            else [],
+            "summary": [
+                {
+                    "type": "summary_text",
+                    "text": "".join(reasoning_summary_deltas),
+                }
+            ]
+            if reasoning_summary_deltas is not None
+            else [],
         }
         if reasoning_encrypted_content is not None:
             reasoning_item["encrypted_content"] = reasoning_encrypted_content
@@ -221,7 +261,9 @@ def _responses_cassette(
                         },
                         "output_tokens": 17,
                         "output_tokens_details": {
-                            "reasoning_tokens": 13 if reasoning_deltas is not None else 0
+                            "reasoning_tokens": 13
+                            if reasoning_deltas is not None or reasoning_summary_deltas is not None
+                            else 0
                         },
                         "total_tokens": 107,
                     },
@@ -386,6 +428,49 @@ def test_matches_messages_reasoning_and_text_events() -> None:
     )
 
 
+def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        reasoning_summary_deltas=["summary", " text"],
+        reasoning_encrypted_content="canonical-signature",
+        text_deltas=["answer"],
+        request_input=[
+            {"content": "question", "role": "user"},
+            {
+                "content": [],
+                "encrypted_content": "history-signature",
+                "summary": [{"text": "history summary", "type": "summary_text"}],
+                "type": "reasoning",
+            },
+            {"content": "prior answer", "role": "assistant"},
+            {"content": "follow-up", "role": "user"},
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=["template thinking"],
+        text_deltas=["template answer"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    events = _data_events(messages_cassette)
+    assert [
+        event["delta"]["thinking"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "thinking_delta"
+    ] == ["summary", " text"]
+    assert [
+        event["delta"]["signature"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "signature_delta"
+    ] == ["canonical-signature"]
+    assert messages_cassette["request"]["body"]["messages"][1]["content"][0] == {
+        "signature": "history-signature",
+        "thinking": "history summary",
+        "type": "thinking",
+    }
+
+
 def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
     messages_path = tmp_path / "messages.yaml"
     responses_path = tmp_path / "responses.yaml"
@@ -429,6 +514,80 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
     assert read_yaml(str(output_path))["request"]["body"]["messages"] == [
         {"content": "canonical prompt", "role": "user"}
     ]
+
+
+def test_maps_responses_image_urls_to_messages_sources() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["answer"],
+        request_input=[
+            {
+                "content": [
+                    {"text": "What is this?", "type": "input_text"},
+                    {
+                        "image_url": "data:image/jpeg;base64,aW1hZ2UtZGF0YQ==",
+                        "type": "input_image",
+                    },
+                    {
+                        "image_url": "https://example.com/image.png",
+                        "type": "input_image",
+                    },
+                ],
+                "role": "user",
+            }
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["template"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette["request"]["body"]["messages"] == [
+        {
+            "content": [
+                {"text": "What is this?", "type": "text"},
+                {
+                    "source": {
+                        "data": "aW1hZ2UtZGF0YQ==",
+                        "media_type": "image/jpeg",
+                        "type": "base64",
+                    },
+                    "type": "image",
+                },
+                {
+                    "source": {
+                        "type": "url",
+                        "url": "https://example.com/image.png",
+                    },
+                    "type": "image",
+                },
+            ],
+            "role": "user",
+        }
+    ]
+
+
+@pytest.mark.parametrize("image_url", [None, "data:image/png,not-base64"])
+def test_rejects_invalid_responses_image_urls(image_url: str | None) -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["answer"],
+        request_input=[
+            {
+                "content": [{"image_url": image_url, "type": "input_image"}],
+                "role": "user",
+            }
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["template"],
+    )
+
+    with pytest.raises(ValueError, match="Responses image"):
+        match_messages_events(messages_cassette, responses_cassette)
 
 
 def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
