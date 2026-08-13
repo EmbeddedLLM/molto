@@ -83,6 +83,10 @@ The layers have distinct ownership:
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
 
+`BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. Same-protocol passthrough does not instantiate an adapter and is unaffected by this lifecycle.
+
+`BaseClient[NativeRequestT, NativeEventT]` defines two abstract streaming paths while preserving the concrete upstream-native types. `native_events()` accepts a validated request in the upstream protocol and yields that protocol's native SDK events. `events()` accepts a `NormalizedRequest`, invokes the native path, and yields `ModelResponseStreamEvent` values. Concrete clients own both transformations and the provider transport required by those methods.
+
 ## Orchestration facade and coordinators
 
 `Molto` is expected to expose one coordinator method per downstream protocol:
