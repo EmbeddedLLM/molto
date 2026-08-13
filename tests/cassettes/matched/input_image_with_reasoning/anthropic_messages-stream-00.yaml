@@ -5,7 +5,7 @@ request:
     messages:
     - content:
       - type: text
-        text: Think, What logo is this?
+        text: Think, what logo is this?
       - type: image
         source:
           type: base64
