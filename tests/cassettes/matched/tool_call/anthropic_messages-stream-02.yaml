@@ -1,0 +1,201 @@
+filename: 2026-08-13-019ffb46-0618-7252-a144-4f144b4235d9
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Call Bash with command `sleep 5`, then call DateTime and respond with
+        its result. Describe your action before calling each tool.
+      role: user
+    - content:
+      - text: 'I''ll help you with that. Let me break this down into two steps:
+
+
+          **Step 1: Call Bash with sleep command**
+
+
+          I''ll execute the sleep command to pause for 5 seconds.'
+        type: text
+      - caller:
+          type: direct
+        id: toolu_01PX61ytAEVZ2ghNJ4Xi3EUP
+        input:
+          command: sleep 5
+        name: Bash
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '<returncode>
+
+
+          0
+
+
+          </returncode>
+
+
+          <stdout>
+
+
+
+          </stdout>
+
+
+          <stderr>
+
+
+
+          </stderr>'
+        tool_use_id: toolu_01PX61ytAEVZ2ghNJ4Xi3EUP
+        type: tool_result
+      role: user
+    - content:
+      - text: 'The sleep command completed successfully after 5 seconds.
+
+
+          **Step 2: Call DateTime to get current time**
+
+
+          Now I''ll get the current date and time in UTC format.'
+        type: text
+      - caller:
+          type: direct
+        id: toolu_01MxQWZv8BShe33FQHc2jm6Y
+        input: {}
+        name: DateTime
+        type: tool_use
+      role: assistant
+    - content:
+      - content: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
+
+
+          Current UTC day name: Monday'
+        tool_use_id: toolu_01MxQWZv8BShe33FQHc2jm6Y
+        type: tool_result
+      role: user
+    model: claude-haiku-4-5
+    stream: true
+    thinking:
+      type: disabled
+    tools:
+    - description: Execute bash commands.
+      input_schema:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      name: Bash
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      input_schema:
+        additionalProperties: false
+        properties: {}
+        type: object
+      name: DateTime
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '1799'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 019ffb46-0618-7252-a144-4f144b4235d9
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_011Cdzp842P63QGgViXg5TLe","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":925,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"not_available"}}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}   }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Result:**\n\nThe
+    current date and time is **2026-08-03T04:25:45.279896+00:00** (ISO 8601 format),
+    which is a"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    **Monday** in UTC."}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0         }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":925,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":51}            }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"    }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-13T13:18:18.136237+00:00'
