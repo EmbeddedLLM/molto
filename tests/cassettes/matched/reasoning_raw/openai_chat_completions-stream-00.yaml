@@ -1,6 +1,7 @@
 filename: 2026-08-06-019fd60b-b34a-77f2-9dcd-a84f69c6e1a6
 request:
   body:
+    max_completion_tokens: 2048
     messages:
     - content: What is 2+2?
       role: user

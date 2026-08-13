@@ -2,6 +2,7 @@ filename: 2026-08-06-019fd608-3a23-7c21-854f-c54ee90d8b87
 request:
   body:
     input: What is 2+2?
+    max_output_tokens: 2048
     model: deepseek-v4-flash
     reasoning:
       effort: high
@@ -30,7 +31,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -39,7 +40,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '
@@ -285,7 +286,7 @@ response:
   - 'event: response.completed
 
     '
-  - 'data: {"type":"response.completed","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"completed","background":false,"completed_at":1786002292,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[{"type":"reasoning","id":"21bc613b-7f19-4b70-a424-a87ac884b29a","status":"completed","content":[{"type":"reasoning_text","text":"We
+  - 'data: {"type":"response.completed","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"completed","background":false,"completed_at":1786002292,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[{"type":"reasoning","id":"21bc613b-7f19-4b70-a424-a87ac884b29a","status":"completed","content":[{"type":"reasoning_text","text":"We
     need answer simple. Need comply. 2+2=4."}],"summary":[]},{"type":"message","id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"4"}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":90,"input_tokens_details":{"cached_tokens":0},"output_tokens":17,"output_tokens_details":{"reasoning_tokens":15},"total_tokens":107},"user":null,"metadata":{}},"sequence_number":28}
 
     '

@@ -679,7 +679,7 @@ def test_matches_real_two_turn_request_body() -> None:
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {
-        "max_tokens": 20_000,
+        "max_tokens": 2048,
         "messages": [
             {"content": "What is 2+2?", "role": "user"},
             {

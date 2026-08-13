@@ -21,6 +21,7 @@ request:
       type: message
     - content: What about 2*2?
       role: user
+    max_output_tokens: 2048
     model: deepseek-v4-flash
     stream: true
     stream_options:
@@ -46,7 +47,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -55,7 +56,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '
@@ -2173,7 +2174,7 @@ response:
   - 'event: response.completed
 
     '
-  - 'data: {"type":"response.completed","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"completed","background":false,"completed_at":1786002457,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[{"type":"reasoning","id":"1aadad68-49c5-479d-96b4-6ad4e0404fd1","status":"completed","content":[{"type":"reasoning_text","text":"1.  **Analyze
+  - 'data: {"type":"response.completed","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"completed","background":false,"completed_at":1786002457,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[{"type":"reasoning","id":"1aadad68-49c5-479d-96b4-6ad4e0404fd1","status":"completed","content":[{"type":"reasoning_text","text":"1.  **Analyze
     the User''s Query**:\n    *   The user first asked \"What is 2+2?\" and I (the
     assistant) answered \"4\".\n    *   The user then asks \"What about 2*2?\".\n    *   This
     is a straightforward arithmetic question. 2*2 = 4.\n\n2.  **Determine the appropriate
