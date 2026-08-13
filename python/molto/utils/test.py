@@ -18,7 +18,7 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
-    validate_openai_responses_stream_event,
+    OpenAIResponsesStreamEventAdapter,
 )
 from molto.utils.io import json_loads, load_sse, read_yaml
 
@@ -121,7 +121,7 @@ def reconstructable_responses_event(
 ) -> dict[str, Any]:
     """Validate a Responses SSE event and retain its reconstructible fields."""
     request = OpenAIResponsesCreateRequest.model_validate(body)
-    event = validate_openai_responses_stream_event(load_sse(sse)).model_dump(
+    event = OpenAIResponsesStreamEventAdapter.validate_python(load_sse(sse)).model_dump(
         mode="json",
         exclude_unset=True,
     )

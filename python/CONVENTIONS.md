@@ -5,7 +5,7 @@
 `Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and future `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
-- Upstream clients construct provider requests, own transport and SSE parsing, and normalize provider output. They must not format downstream responses.
+- Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
 - Type modules define schemas and wire helpers. They must not select routes or instantiate clients.
 
 A future `chat()` method is a dispatcher over those coordinators. It should select and delegate to a protocol method rather than duplicate that method's validation, normalization, composition, or projection logic.
@@ -25,7 +25,7 @@ assert OpenAIChatCompletionsStreamChunk is ChatCompletionChunk
 
 For the Responses event union, compare the wrapped union members with the SDK union rather than asserting that the event classes are Molto-owned.
 
-Do not recreate SDK infrastructure objects such as `AsyncStream`. Molto owns its async iterator and yields SDK-native data models.
+Do not recreate or expose SDK infrastructure objects such as `AsyncStream`. Context-manage returned SDK streams for cleanup and yield SDK-native models through Molto's iterator.
 
 The exact OpenAI SDK pin in `pyproject.toml` is the schema source of truth. When it changes, recheck request-signature parity, response aliases, event union members, field mappings, and cassette-backed parity.
 
@@ -78,18 +78,20 @@ Map usage semantically and construct the public usage payload explicitly. This p
 When downstream and upstream use the same protocol, preserve the native protocol instead of round-tripping through the normalized IR.
 
 - Validate the request with that protocol's request model.
-- Parse every SSE record into that protocol's SDK event model.
+- Yield the SDK's native event or chunk models directly.
 - Do not route a native event through the normalized IR.
 
 The bypass belongs in the relevant coordinator; transport remains in the matching upstream client.
 
-## SSE clients
+## OpenAI SDK transport
 
-Reuse `BaseClient` for endpoint construction, authorization headers, SSE record splitting, and `data:` extraction. Each concrete client must define `DEFAULT_BASE_URL` unless it requires a caller-supplied URL.
+Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.
 
-An upstream client must raise on an unsuccessful HTTP response before yielding events. It must ignore protocol terminal markers such as Chat Completions `data: [DONE]` rather than trying to validate them as event models.
+Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.close()` closes that client.
 
-If a compatible provider omits a newly required SDK field, default only that field for typed access. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
+Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception types. Do not add compatibility wrappers for the previous `httpx` errors.
+
+Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid duplicate serialization and validation on every event or delta. Before yielding a Responses completion event, normalize the documented compatible-provider omission where `cache_write_tokens` is `None` to `0`. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
 
 ## Unsupported semantics
 
