@@ -12,6 +12,17 @@ A future `chat()` method is a dispatcher over those coordinators. It should sele
 
 Keep same-protocol optimizations visible in the relevant protocol coordinator. Do not hide pair-specific routing inside an adapter or client.
 
+## Adapter and client base classes
+
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
+
+Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement both streaming paths:
+
+- `native_events()` accepts the validated upstream-native request and yields native SDK events;
+- `events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`.
+
+Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
+
 ## OpenAI SDK schemas
 
 Use local Pydantic request wrappers when Molto needs a validated request model. Their field set must match the pinned SDK method signature, excluding transport arguments such as `timeout`, `extra_headers`, `extra_query`, and `extra_body`.
