@@ -1,6 +1,7 @@
 filename: 2026-08-04-019fcab6-aa6d-7952-9640-a1c0397d453f
 request:
   body:
+    max_completion_tokens: 1024
     messages:
     - content: Write one short sentence about the ocean.
       role: user

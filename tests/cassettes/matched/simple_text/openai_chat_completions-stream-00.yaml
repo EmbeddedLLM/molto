@@ -4,6 +4,7 @@ request:
     messages:
     - content: Write one short sentence about the ocean.
       role: user
+    max_completion_tokens: 1024
     model: gpt-4.1-nano
     stream: true
     stream_options:
