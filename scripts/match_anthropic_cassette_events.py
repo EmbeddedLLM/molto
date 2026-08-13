@@ -2,19 +2,18 @@
 """Prepare a Messages cassette for Messages-to-Responses stream parity tests.
 
 The Responses cassette is the canonical expected output. This script rewrites the
-Anthropic Messages SSE stream so a converter receives one corresponding thinking
-or text delta for every ``response.reasoning_text.delta`` or
-``response.output_text.delta`` event, in the same order and with the same content.
-It also synchronizes fields that can pass through the conversion, including the
-request model, response ID and model, encrypted reasoning content, service tier,
-and terminal usage.
+Anthropic Messages SSE stream so a converter receives one corresponding thinking,
+text, or tool-input delta for every equivalent Responses delta, in the same order
+and with the same content. It also synchronizes fields that can pass through the
+conversion, including request history, the request model, response ID and model,
+tool call IDs and names, encrypted reasoning content, service tier, and terminal
+usage.
 
 The result remains an Anthropic Messages wire-format cassette. Responses-only
 envelope fields such as item IDs, sequence numbers, and timestamps cannot be
 encoded in Messages events; the converter must generate those fields
 deterministically for parity. Messages-only lifecycle and transport events remain
-native, and request fields other than the model and all transport metadata are
-intentionally left unchanged.
+native, and all transport metadata is intentionally left unchanged.
 """
 
 from __future__ import annotations
@@ -33,6 +32,13 @@ class _SSEEventUnit:
     entries: list[str]
     data_entry_index: int
     event: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _ResponseToolCall:
+    call_id: str
+    name: str
+    argument_deltas: list[str]
 
 
 def _parse_data_event(sse_entry: str) -> dict[str, Any] | None:
@@ -152,6 +158,67 @@ def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
     return thinking
 
 
+def _function_call_content(item: dict[str, Any]) -> dict[str, Any]:
+    call_id = item.get("call_id")
+    name = item.get("name")
+    arguments = item.get("arguments")
+    if not isinstance(call_id, str) or not isinstance(name, str):
+        raise ValueError("Responses function calls must contain string call_id and name fields.")
+    if not isinstance(arguments, str):
+        raise ValueError("Responses function call arguments must be a string.")
+    try:
+        input_object = json_loads(arguments)
+    except ValueError as exc:
+        raise ValueError("Responses function call arguments must contain valid JSON.") from exc
+    if not isinstance(input_object, dict):
+        raise ValueError("Responses function call arguments must contain a JSON object.")
+    return {
+        "type": "tool_use",
+        "id": call_id,
+        "name": name,
+        "input": input_object,
+    }
+
+
+def _function_call_output_content(item: dict[str, Any]) -> dict[str, Any]:
+    call_id = item.get("call_id")
+    if not isinstance(call_id, str):
+        raise ValueError("Responses function call outputs must contain a string call_id field.")
+    return {
+        "type": "tool_result",
+        "tool_use_id": call_id,
+        "content": _message_content(item.get("output")),
+    }
+
+
+def _append_assistant_content(
+    messages: list[dict[str, Any]], content: list[dict[str, Any]]
+) -> None:
+    if messages and messages[-1].get("role") == "assistant":
+        existing_content = messages[-1].get("content")
+        if not isinstance(existing_content, list):
+            raise ValueError("Messages assistant content must be a list.")
+        existing_content.extend(content)
+    else:
+        messages.append({"content": content, "role": "assistant"})
+
+
+def _append_tool_result(messages: list[dict[str, Any]], tool_result: dict[str, Any]) -> None:
+    if messages and messages[-1].get("role") == "user":
+        existing_content = messages[-1].get("content")
+        if (
+            isinstance(existing_content, list)
+            and existing_content
+            and all(
+                isinstance(block, dict) and block.get("type") == "tool_result"
+                for block in existing_content
+            )
+        ):
+            existing_content.append(tool_result)
+            return
+    messages.append({"content": [tool_result], "role": "user"})
+
+
 def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
@@ -164,8 +231,23 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     for item in response_input:
         if not isinstance(item, dict):
             raise ValueError("Responses input items must be objects.")
-        if item.get("type") == "reasoning":
+        item_type = item.get("type")
+        if item_type == "reasoning":
             pending_assistant_content.append(_reasoning_content(item))
+            continue
+        if item_type == "function_call":
+            _append_assistant_content(
+                messages,
+                [*pending_assistant_content, _function_call_content(item)],
+            )
+            pending_assistant_content = []
+            continue
+        if item_type == "function_call_output":
+            if pending_assistant_content:
+                raise ValueError(
+                    "Responses reasoning input must precede an assistant output item."
+                )
+            _append_tool_result(messages, _function_call_output_content(item))
             continue
 
         role = item.get("role")
@@ -315,7 +397,91 @@ def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str |
     return encrypted_content
 
 
-def _content_block(units: list[_SSEEventUnit], block_type: str) -> tuple[int, int, int] | None:
+def _response_tool_calls(events: list[dict[str, Any]]) -> list[_ResponseToolCall]:
+    completed_calls: list[tuple[int, dict[str, Any]]] = []
+    for event in events:
+        item = event.get("item")
+        if (
+            event.get("type") != "response.output_item.done"
+            or not isinstance(item, dict)
+            or item.get("type") != "function_call"
+        ):
+            continue
+        output_index = event.get("output_index")
+        if not isinstance(output_index, int):
+            raise ValueError(
+                "Completed Responses function calls must have an integer output_index."
+            )
+        completed_calls.append((output_index, item))
+
+    output_indices = [output_index for output_index, _ in completed_calls]
+    if len(output_indices) != len(set(output_indices)):
+        raise ValueError("Completed Responses function call output indices must be unique.")
+    completed_calls.sort(key=lambda value: value[0])
+
+    calls: list[_ResponseToolCall] = []
+    item_ids: set[str] = set()
+    for _, item in completed_calls:
+        item_id = item.get("id")
+        call_id = item.get("call_id")
+        name = item.get("name")
+        arguments = item.get("arguments")
+        if not all(isinstance(value, str) for value in (item_id, call_id, name, arguments)):
+            raise ValueError(
+                "Completed Responses function calls must contain string id, call_id, name, "
+                "and arguments fields."
+            )
+        if item_id in item_ids:
+            raise ValueError(f"Responses function call item ID {item_id!r} is duplicated.")
+        item_ids.add(item_id)
+
+        argument_deltas = [
+            event.get("delta")
+            for event in events
+            if event.get("type") == "response.function_call_arguments.delta"
+            and event.get("item_id") == item_id
+        ]
+        if not all(isinstance(delta, str) for delta in argument_deltas):
+            raise ValueError("Responses function call argument deltas must be strings.")
+        done_events = [
+            event
+            for event in events
+            if event.get("type") == "response.function_call_arguments.done"
+            and event.get("item_id") == item_id
+        ]
+        if len(done_events) != 1:
+            raise ValueError(
+                "Expected exactly one Responses function call arguments done event for "
+                f"item {item_id!r}, found {len(done_events)}."
+            )
+        done_arguments = done_events[0].get("arguments")
+        if "".join(argument_deltas) != done_arguments or done_arguments != arguments:
+            raise ValueError("Responses function call argument deltas do not match arguments.")
+        calls.append(
+            _ResponseToolCall(
+                call_id=call_id,
+                name=name,
+                argument_deltas=argument_deltas,
+            )
+        )
+
+    argument_item_ids = {
+        event.get("item_id")
+        for event in events
+        if event.get("type")
+        in {
+            "response.function_call_arguments.delta",
+            "response.function_call_arguments.done",
+        }
+    }
+    if argument_item_ids != item_ids:
+        raise ValueError(
+            "Responses function call argument events do not match completed function calls."
+        )
+    return calls
+
+
+def _content_blocks(units: list[_SSEEventUnit], block_type: str) -> list[tuple[int, int, int]]:
     starts = [
         (position, unit.event)
         for position, unit in enumerate(units)
@@ -323,31 +489,85 @@ def _content_block(units: list[_SSEEventUnit], block_type: str) -> tuple[int, in
         and isinstance(unit.event.get("content_block"), dict)
         and unit.event["content_block"].get("type") == block_type
     ]
-    if not starts:
-        return None
-    if len(starts) != 1:
+    blocks: list[tuple[int, int, int]] = []
+    for start_position, start_event in starts:
+        block_index = start_event.get("index")
+        if not isinstance(block_index, int):
+            raise ValueError(f"Messages {block_type!r} content block index must be an integer.")
+
+        stop_positions = [
+            position
+            for position, unit in enumerate(units)
+            if position > start_position
+            and unit.event.get("type") == "content_block_stop"
+            and unit.event.get("index") == block_index
+        ]
+        if len(stop_positions) != 1:
+            raise ValueError(
+                f"Expected exactly one stop for Messages {block_type!r} content block, "
+                f"found {len(stop_positions)}."
+            )
+        blocks.append((start_position, stop_positions[0], block_index))
+    return blocks
+
+
+def _content_block(units: list[_SSEEventUnit], block_type: str) -> tuple[int, int, int] | None:
+    blocks = _content_blocks(units, block_type)
+    if len(blocks) > 1:
         raise ValueError(
-            f"Expected at most one Messages {block_type!r} content block, found {len(starts)}."
+            f"Expected at most one Messages {block_type!r} content block, found {len(blocks)}."
         )
+    return blocks[0] if blocks else None
 
-    start_position, start_event = starts[0]
-    block_index = start_event.get("index")
-    if not isinstance(block_index, int):
-        raise ValueError(f"Messages {block_type!r} content block index must be an integer.")
 
-    stop_positions = [
-        position
-        for position, unit in enumerate(units)
-        if position > start_position
-        and unit.event.get("type") == "content_block_stop"
+def _replace_block_deltas(
+    units: list[_SSEEventUnit],
+    block: tuple[int, int, int],
+    response_deltas: list[str],
+    *,
+    delta_type: str,
+    delta_field: str,
+) -> None:
+    block_start, block_stop, block_index = block
+    block_units = units[block_start + 1 : block_stop]
+    delta_units = [
+        (position, unit)
+        for position, unit in enumerate(block_units)
+        if unit.event.get("type") == "content_block_delta"
         and unit.event.get("index") == block_index
+        and isinstance(unit.event.get("delta"), dict)
+        and unit.event["delta"].get("type") == delta_type
+        and isinstance(unit.event["delta"].get(delta_field), str)
     ]
-    if len(stop_positions) != 1:
-        raise ValueError(
-            f"Expected exactly one stop for Messages {block_type!r} content block, "
-            f"found {len(stop_positions)}."
-        )
-    return start_position, stop_positions[0], block_index
+    if not delta_units and response_deltas:
+        raise ValueError(f"Cannot insert {delta_type} events without a Messages template.")
+
+    delta_positions = {position for position, _ in delta_units}
+    replacement_units: list[_SSEEventUnit] = []
+    next_delta = 0
+    for position, unit in enumerate(block_units):
+        if position not in delta_positions:
+            replacement_units.append(unit)
+            continue
+        if next_delta < len(response_deltas):
+            replacement = deepcopy(unit)
+            replacement.event["delta"] = {
+                "type": delta_type,
+                delta_field: response_deltas[next_delta],
+            }
+            replacement_units.append(replacement)
+            next_delta += 1
+        if position == delta_units[-1][0]:
+            while next_delta < len(response_deltas):
+                template = deepcopy(delta_units[-1][1])
+                template.event["delta"] = {
+                    "type": delta_type,
+                    delta_field: response_deltas[next_delta],
+                }
+                replacement_units.append(template)
+                next_delta += 1
+
+    units[block_start + 1 : block_stop] = replacement_units
 
 
 def _replace_content_deltas(
@@ -366,50 +586,40 @@ def _replace_content_deltas(
     if block is None or response_deltas is None:
         return
 
-    block_start, block_stop, block_index = block
-    delta_units = [
-        (position, unit)
-        for position, unit in enumerate(units)
-        if block_start < position < block_stop
-        and unit.event.get("type") == "content_block_delta"
-        and unit.event.get("index") == block_index
-        and isinstance(unit.event.get("delta"), dict)
-        and unit.event["delta"].get("type") == delta_type
-        and isinstance(unit.event["delta"].get(delta_field), str)
-    ]
-    if not delta_units and response_deltas:
-        raise ValueError(f"Cannot insert {delta_type} events without a Messages template.")
+    _replace_block_deltas(
+        units,
+        block,
+        response_deltas,
+        delta_type=delta_type,
+        delta_field=delta_field,
+    )
 
-    delta_positions = {position for position, _ in delta_units}
-    last_delta_position = delta_units[-1][0] if delta_units else None
-    next_delta = 0
-    replacement_units: list[_SSEEventUnit] = []
 
-    for position, unit in enumerate(units):
-        if position not in delta_positions:
-            replacement_units.append(unit)
-            continue
+def _replace_tool_calls(
+    units: list[_SSEEventUnit], response_tool_calls: list[_ResponseToolCall]
+) -> None:
+    blocks = _content_blocks(units, "tool_use")
+    if len(blocks) != len(response_tool_calls):
+        raise ValueError(
+            "Responses and Messages streams disagree on the number of tool calls: "
+            f"{len(response_tool_calls)} Responses calls and {len(blocks)} Messages blocks."
+        )
 
-        if next_delta < len(response_deltas):
-            replacement = deepcopy(unit)
-            replacement.event["delta"] = {
-                "type": delta_type,
-                delta_field: response_deltas[next_delta],
-            }
-            replacement_units.append(replacement)
-            next_delta += 1
-
-        if position == last_delta_position:
-            while next_delta < len(response_deltas):
-                template = deepcopy(delta_units[-1][1])
-                template.event["delta"] = {
-                    "type": delta_type,
-                    delta_field: response_deltas[next_delta],
-                }
-                replacement_units.append(template)
-                next_delta += 1
-
-    units[:] = replacement_units
+    for block, response_tool_call in reversed(list(zip(blocks, response_tool_calls, strict=True))):
+        block_start, _, _ = block
+        content_block = units[block_start].event.get("content_block")
+        if not isinstance(content_block, dict):
+            raise ValueError("Messages tool_use content block must be an object.")
+        content_block["id"] = response_tool_call.call_id
+        content_block["name"] = response_tool_call.name
+        content_block["input"] = {}
+        _replace_block_deltas(
+            units,
+            block,
+            response_tool_call.argument_deltas,
+            delta_type="input_json_delta",
+            delta_field="partial_json",
+        )
 
 
 def _message_event(units: list[_SSEEventUnit], event_type: str) -> dict[str, Any]:
@@ -510,8 +720,11 @@ def match_messages_events(
     if not isinstance(response_usage, dict):
         raise ValueError("response.completed must contain usage for stream matching.")
 
-    response_text_deltas = _response_text_deltas(response_events, "response.output_text")
+    response_text_deltas = _response_text_deltas(
+        response_events, "response.output_text", optional=True
+    )
     response_reasoning_deltas = _response_reasoning_deltas(response_events)
+    response_tool_calls = _response_tool_calls(response_events)
     _replace_content_deltas(
         message_units,
         response_reasoning_deltas,
@@ -544,6 +757,7 @@ def match_messages_events(
         delta_type="text_delta",
         delta_field="text",
     )
+    _replace_tool_calls(message_units, response_tool_calls)
 
     message_start = _message_event(message_units, "message_start").get("message")
     if not isinstance(message_start, dict):

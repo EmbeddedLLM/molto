@@ -1,9 +1,11 @@
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 from openai.types.chat import ChatCompletionChunk
 
-from molto.utils.io import json_loads, read_yaml
+from molto.utils.io import json_dumps, json_loads, read_yaml
 from scripts.match_openai_cassette_events import main, match_chat_completions_events
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
@@ -15,6 +17,14 @@ REASONING_CASSETTES = [
         CASSETTES / "reasoning_raw" / f"openai_responses-stream-{index:02d}.yaml",
     )
     for index in range(2)
+]
+TOOL_CALL_CASSETTES = [
+    (
+        index,
+        CASSETTES / "tool_call" / f"openai_chat_completions-stream-{index:02d}.yaml",
+        CASSETTES / "tool_call" / f"openai_responses-stream-{index:02d}.yaml",
+    )
+    for index in range(3)
 ]
 
 
@@ -34,6 +44,61 @@ def _chat_content(event: dict) -> str | None:
     if "role" in delta:
         return None
     return delta.get("content")
+
+
+def _response_tool_call_chunks(events: list[dict]) -> list[dict[str, Any]]:
+    calls_by_item_id: dict[str, int] = {}
+    chunks: list[dict[str, Any]] = []
+    for event in events:
+        if event.get("type") == "response.output_item.added":
+            item = event.get("item")
+            if isinstance(item, dict) and item.get("type") == "function_call":
+                call_index = len(calls_by_item_id)
+                calls_by_item_id[item["id"]] = call_index
+                chunks.append(
+                    {
+                        "arguments": item["arguments"],
+                        "id": item["call_id"],
+                        "index": call_index,
+                        "name": item["name"],
+                        "type": "function",
+                    }
+                )
+        elif event.get("type") == "response.function_call_arguments.delta":
+            chunks.append(
+                {
+                    "arguments": event["delta"],
+                    "index": calls_by_item_id[event["item_id"]],
+                }
+            )
+    return chunks
+
+
+def _chat_tool_call_chunks(events: list[dict]) -> list[dict[str, Any]]:
+    chunks: list[dict[str, Any]] = []
+    for event in events:
+        if not event.get("choices"):
+            continue
+        for tool_call in event["choices"][0]["delta"].get("tool_calls") or []:
+            function = tool_call["function"]
+            chunk = {
+                "arguments": function["arguments"],
+                "index": tool_call["index"],
+            }
+            for source, target in (("id", "id"), ("type", "type")):
+                if source in tool_call:
+                    chunk[target] = tool_call[source]
+            if "name" in function:
+                chunk["name"] = function["name"]
+            chunks.append(chunk)
+    return chunks
+
+
+def _response_message_text(item: dict[str, Any]) -> str:
+    content = item["content"]
+    if isinstance(content, str):
+        return content
+    return "".join(part["text"] for part in content)
 
 
 def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
@@ -142,6 +207,74 @@ def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path
     assert sum(entry.strip() == "data: [DONE]" for entry in chat_cassette["response"]["sse"]) == 1
 
 
+@pytest.mark.parametrize(("turn", "chat_path", "responses_path"), TOOL_CALL_CASSETTES)
+def test_matches_tool_call_stream_cassettes(
+    turn: int, chat_path: Path, responses_path: Path
+) -> None:
+    chat_cassette = read_yaml(str(chat_path))
+    responses_cassette = read_yaml(str(responses_path))
+    original_chat_request = deepcopy(chat_cassette["request"]["body"])
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    chat_events = _data_events(chat_cassette)
+    response_events = _data_events(responses_cassette)
+    for event in chat_events:
+        ChatCompletionChunk.model_validate(event)
+
+    assert [content for event in chat_events if (content := _chat_content(event)) is not None] == [
+        event["delta"]
+        for event in response_events
+        if event["type"] == "response.output_text.delta"
+    ]
+    expected_tool_chunks = _response_tool_call_chunks(response_events)
+    assert _chat_tool_call_chunks(chat_events) == expected_tool_chunks
+    finish_reasons = [
+        event["choices"][0]["finish_reason"]
+        for event in chat_events
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None
+    ]
+    assert finish_reasons == (["tool_calls"] if expected_tool_chunks else ["stop"])
+
+    chat_request = chat_cassette["request"]["body"]
+    assert {key: value for key, value in chat_request.items() if key != "messages"} == {
+        key: value for key, value in original_chat_request.items() if key != "messages"
+    }
+    response_input = responses_cassette["request"]["body"]["input"]
+    assert isinstance(response_input, list)
+    expected_history_calls = [
+        {
+            "function": {"arguments": item["arguments"], "name": item["name"]},
+            "id": item["call_id"],
+            "type": "function",
+        }
+        for item in response_input
+        if item.get("type") == "function_call"
+    ]
+    actual_history_calls = [
+        tool_call
+        for message in chat_request["messages"]
+        for tool_call in message.get("tool_calls", [])
+    ]
+    assert actual_history_calls == expected_history_calls
+    assert [
+        {"content": item["output"], "role": "tool", "tool_call_id": item["call_id"]}
+        for item in response_input
+        if item.get("type") == "function_call_output"
+    ] == [message for message in chat_request["messages"] if message["role"] == "tool"]
+    assert [
+        _response_message_text(item)
+        for item in response_input
+        if item.get("type", "message") == "message" and item.get("role") == "assistant"
+    ] == [
+        message["content"]
+        for message in chat_request["messages"]
+        if message["role"] == "assistant"
+    ]
+    assert len(chat_request["messages"]) == 1 + 2 * turn
+    assert sum(entry.strip() == "data: [DONE]" for entry in chat_cassette["response"]["sse"]) == 1
+
+
 @pytest.mark.parametrize("adjustment", ["extra", "missing"])
 def test_rebuilds_unequal_chat_content_delta_stream(adjustment: str) -> None:
     chat_cassette = read_yaml(str(CHAT_CASSETTE))
@@ -201,3 +334,131 @@ def test_rebuilds_unequal_chat_content_delta_stream(adjustment: str) -> None:
             expected_suffix = "\n" if entry.strip() == "data: [DONE]" else "\n\n"
             assert entry.endswith(expected_suffix)
             assert sse_entries[index + 1] == "\n"
+
+
+@pytest.mark.parametrize("adjustment", ["extra", "missing"])
+def test_rebuilds_unequal_chat_tool_argument_delta_stream(adjustment: str) -> None:
+    _, chat_path, responses_path = TOOL_CALL_CASSETTES[0]
+    chat_cassette = read_yaml(str(chat_path))
+    responses_cassette = read_yaml(str(responses_path))
+    sse_entries = chat_cassette["response"]["sse"]
+    tool_indices = []
+    for index, entry in enumerate(sse_entries):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices") and event["choices"][0]["delta"].get("tool_calls"):
+            tool_indices.append(index)
+
+    first_argument_index = tool_indices[1]
+    second_argument_index = tool_indices[2]
+    first_argument_unit = sse_entries[first_argument_index:second_argument_index]
+    if adjustment == "extra":
+        sse_entries[first_argument_index:first_argument_index] = first_argument_unit
+    else:
+        del sse_entries[first_argument_index:second_argument_index]
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    chat_events = _data_events(chat_cassette)
+    response_events = _data_events(responses_cassette)
+    assert _chat_tool_call_chunks(chat_events) == _response_tool_call_chunks(response_events)
+    for event in chat_events:
+        ChatCompletionChunk.model_validate(event)
+    assert sum(entry.strip() == "data: [DONE]" for entry in sse_entries) == 1
+
+
+def test_rejects_tool_call_presence_mismatch() -> None:
+    _, chat_path, _ = TOOL_CALL_CASSETTES[0]
+    _, _, responses_path = TOOL_CALL_CASSETTES[2]
+    chat_cassette = read_yaml(str(chat_path))
+    responses_cassette = read_yaml(str(responses_path))
+
+    with pytest.raises(ValueError, match="disagree on the presence of a tool call"):
+        match_chat_completions_events(chat_cassette, responses_cassette)
+
+
+def test_rejects_incomplete_response_tool_call_lifecycle() -> None:
+    _, chat_path, responses_path = TOOL_CALL_CASSETTES[0]
+    chat_cassette = read_yaml(str(chat_path))
+    responses_cassette = read_yaml(str(responses_path))
+    responses_cassette["response"]["sse"] = [
+        entry
+        for entry in responses_cassette["response"]["sse"]
+        if not (
+            entry.strip().startswith("data:")
+            and entry.strip() != "data: [DONE]"
+            and json_loads(entry.strip().removeprefix("data:").lstrip()).get("type")
+            == "response.function_call_arguments.done"
+        )
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="Expected exactly one 'response.function_call_arguments.done' event",
+    ):
+        match_chat_completions_events(chat_cassette, responses_cassette)
+
+
+def test_matches_multiple_ordered_tool_calls() -> None:
+    _, chat_path, responses_path = TOOL_CALL_CASSETTES[0]
+    chat_cassette = read_yaml(str(chat_path))
+    responses_cassette = read_yaml(str(responses_path))
+    second_call_events = [
+        {
+            "type": "response.output_item.added",
+            "item": {
+                "id": "fc_second",
+                "type": "function_call",
+                "status": "in_progress",
+                "arguments": "",
+                "call_id": "call_second",
+                "name": "DateTime",
+            },
+            "output_index": 2,
+        },
+        {
+            "type": "response.function_call_arguments.delta",
+            "delta": "{}",
+            "item_id": "fc_second",
+            "output_index": 2,
+        },
+        {
+            "type": "response.function_call_arguments.done",
+            "arguments": "{}",
+            "item_id": "fc_second",
+            "output_index": 2,
+        },
+        {
+            "type": "response.output_item.done",
+            "item": {
+                "id": "fc_second",
+                "type": "function_call",
+                "status": "completed",
+                "arguments": "{}",
+                "call_id": "call_second",
+                "name": "DateTime",
+            },
+            "output_index": 2,
+        },
+    ]
+    sse_entries = responses_cassette["response"]["sse"]
+    completed_index = next(
+        index
+        for index, entry in enumerate(sse_entries)
+        if entry.strip().startswith("data:")
+        and json_loads(entry.strip().removeprefix("data:").lstrip()).get("type")
+        == "response.completed"
+    )
+    sse_entries[completed_index:completed_index] = [
+        entry for event in second_call_events for entry in (f"data: {json_dumps(event)}\n\n", "\n")
+    ]
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    chat_events = _data_events(chat_cassette)
+    response_events = _data_events(responses_cassette)
+    assert _chat_tool_call_chunks(chat_events) == _response_tool_call_chunks(response_events)
+    assert {chunk["index"] for chunk in _chat_tool_call_chunks(chat_events)} == {0, 1}
+    for event in chat_events:
+        ChatCompletionChunk.model_validate(event)

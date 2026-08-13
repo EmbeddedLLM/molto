@@ -10,7 +10,9 @@ from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
 from scripts.match_anthropic_cassette_events import main, match_messages_events
 
 MESSAGE_EVENT_ADAPTER = TypeAdapter(RawMessageStreamEvent)
-MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "reasoning_raw"
+MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched"
+REASONING_RAW_CASSETTES = MATCHED_CASSETTES / "reasoning_raw"
+TOOL_CALL_CASSETTES = MATCHED_CASSETTES / "tool_call"
 
 
 def _sse_unit(event: dict[str, Any], *, event_name: str | None = None) -> list[str]:
@@ -24,7 +26,8 @@ def _sse_unit(event: dict[str, Any], *, event_name: str | None = None) -> list[s
 def _messages_cassette(
     *,
     thinking_deltas: list[str] | None,
-    text_deltas: list[str],
+    text_deltas: list[str] | None,
+    tool_calls: list[dict[str, Any]] | None = None,
     request_messages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     events: list[tuple[dict[str, Any], str | None]] = [
@@ -52,7 +55,7 @@ def _messages_cassette(
         )
     ]
 
-    text_index = 0
+    next_block_index = 0
     if thinking_deltas is not None:
         events.extend(
             [
@@ -97,39 +100,80 @@ def _messages_cassette(
                 ({"type": "content_block_stop", "index": 0}, None),
             ]
         )
-        text_index = 1
+        next_block_index = 1
 
-    events.append(
-        (
-            {
-                "type": "content_block_start",
-                "index": text_index,
-                "content_block": {"type": "text", "text": ""},
-            },
-            None,
+    if text_deltas is not None:
+        events.append(
+            (
+                {
+                    "type": "content_block_start",
+                    "index": next_block_index,
+                    "content_block": {"type": "text", "text": ""},
+                },
+                None,
+            )
         )
-    )
-    events.extend(
-        (
-            {
-                "type": "content_block_delta",
-                "index": text_index,
-                "delta": {"type": "text_delta", "text": delta},
-            },
-            None,
+        events.extend(
+            (
+                {
+                    "type": "content_block_delta",
+                    "index": next_block_index,
+                    "delta": {"type": "text_delta", "text": delta},
+                },
+                None,
+            )
+            for delta in text_deltas
         )
-        for delta in text_deltas
-    )
+        events.append(
+            (
+                {"type": "content_block_stop", "index": next_block_index},
+                "content_block_delta",
+            )
+        )
+        next_block_index += 1
+
+    for tool_call in tool_calls or []:
+        events.append(
+            (
+                {
+                    "type": "content_block_start",
+                    "index": next_block_index,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": tool_call["id"],
+                        "name": tool_call["name"],
+                        "input": {},
+                    },
+                },
+                None,
+            )
+        )
+        events.extend(
+            (
+                {
+                    "type": "content_block_delta",
+                    "index": next_block_index,
+                    "delta": {
+                        "type": "input_json_delta",
+                        "partial_json": delta,
+                    },
+                },
+                None,
+            )
+            for delta in tool_call["argument_deltas"]
+        )
+        events.append(({"type": "content_block_stop", "index": next_block_index}, None))
+        next_block_index += 1
+
     events.extend(
         [
             (
-                {"type": "content_block_stop", "index": text_index},
-                "content_block_delta",
-            ),
-            (
                 {
                     "type": "message_delta",
-                    "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                    "delta": {
+                        "stop_reason": "tool_use" if tool_calls else "end_turn",
+                        "stop_sequence": None,
+                    },
                     "usage": {
                         "input_tokens": 5,
                         "cache_creation_input_tokens": 1,
@@ -171,7 +215,8 @@ def _responses_cassette(
     *,
     reasoning_deltas: list[str] | None,
     reasoning_summary_deltas: list[str] | None = None,
-    text_deltas: list[str],
+    text_deltas: list[str] | None,
+    tool_calls: list[dict[str, Any]] | None = None,
     request_input: Any = "canonical prompt",
     reasoning_encrypted_content: str | None = None,
 ) -> dict[str, Any]:
@@ -244,32 +289,66 @@ def _responses_cassette(
         if reasoning_encrypted_content is not None:
             reasoning_item["encrypted_content"] = reasoning_encrypted_content
         events.append({"type": "response.output_item.done", "item": reasoning_item})
-    events.extend({"type": "response.output_text.delta", "delta": delta} for delta in text_deltas)
-    events.extend(
-        [
-            {"type": "response.output_text.done", "text": "".join(text_deltas)},
+    if text_deltas is not None:
+        events.extend(
+            {"type": "response.output_text.delta", "delta": delta} for delta in text_deltas
+        )
+        events.append({"type": "response.output_text.done", "text": "".join(text_deltas)})
+    for output_index, tool_call in enumerate(
+        tool_calls or [], start=1 if text_deltas is not None else 0
+    ):
+        events.extend(
             {
-                "type": "response.completed",
-                "response": {
-                    **response,
-                    "service_tier": "default",
-                    "usage": {
-                        "input_tokens": 90,
-                        "input_tokens_details": {
-                            "cache_write_tokens": 7,
-                            "cached_tokens": 11,
-                        },
-                        "output_tokens": 17,
-                        "output_tokens_details": {
-                            "reasoning_tokens": 13
-                            if reasoning_deltas is not None or reasoning_summary_deltas is not None
-                            else 0
-                        },
-                        "total_tokens": 107,
+                "type": "response.function_call_arguments.delta",
+                "item_id": tool_call["item_id"],
+                "delta": delta,
+            }
+            for delta in tool_call["argument_deltas"]
+        )
+        arguments = "".join(tool_call["argument_deltas"])
+        events.extend(
+            [
+                {
+                    "type": "response.function_call_arguments.done",
+                    "item_id": tool_call["item_id"],
+                    "arguments": arguments,
+                },
+                {
+                    "type": "response.output_item.done",
+                    "output_index": output_index,
+                    "item": {
+                        "type": "function_call",
+                        "status": "completed",
+                        "id": tool_call["item_id"],
+                        "call_id": tool_call["call_id"],
+                        "name": tool_call["name"],
+                        "arguments": arguments,
                     },
                 },
+            ]
+        )
+    events.append(
+        {
+            "type": "response.completed",
+            "response": {
+                **response,
+                "service_tier": "default",
+                "usage": {
+                    "input_tokens": 90,
+                    "input_tokens_details": {
+                        "cache_write_tokens": 7,
+                        "cached_tokens": 11,
+                    },
+                    "output_tokens": 17,
+                    "output_tokens_details": {
+                        "reasoning_tokens": 13
+                        if reasoning_deltas is not None or reasoning_summary_deltas is not None
+                        else 0
+                    },
+                    "total_tokens": 107,
+                },
             },
-        ]
+        }
     )
     return {
         "request": {
@@ -516,6 +595,212 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
     ]
 
 
+def test_matches_tool_call_history_and_argument_deltas() -> None:
+    response_tool_calls = [
+        {
+            "item_id": "fc_weather",
+            "call_id": "call_weather",
+            "name": "Weather",
+            "argument_deltas": ['{"city"', ':"Paris"}'],
+        },
+        {
+            "item_id": "fc_time",
+            "call_id": "call_time",
+            "name": "DateTime",
+            "argument_deltas": ["{}"],
+        },
+    ]
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["template text"],
+        tool_calls=[
+            {
+                "id": "toolu_template_weather",
+                "name": "TemplateWeather",
+                "argument_deltas": ["", "template"],
+            },
+            {
+                "id": "toolu_template_time",
+                "name": "TemplateTime",
+                "argument_deltas": [""],
+            },
+        ],
+    )
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["I will call both tools."],
+        tool_calls=response_tool_calls,
+        request_input=[
+            {"content": "Check Paris.", "role": "user"},
+            {"content": "I will call both tools.", "role": "assistant"},
+            {
+                "arguments": '{"city":"Paris"}',
+                "call_id": "call_weather",
+                "id": "fc_weather_history",
+                "name": "Weather",
+                "type": "function_call",
+            },
+            {
+                "arguments": "{}",
+                "call_id": "call_time",
+                "id": "fc_time_history",
+                "name": "DateTime",
+                "type": "function_call",
+            },
+            {
+                "call_id": "call_weather",
+                "output": "Sunny",
+                "type": "function_call_output",
+            },
+            {
+                "call_id": "call_time",
+                "output": "12:00Z",
+                "type": "function_call_output",
+            },
+        ],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    events = _data_events(messages_cassette)
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    tool_starts = [
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "tool_use"
+    ]
+    assert [
+        (
+            event["content_block"]["id"],
+            event["content_block"]["name"],
+            event["content_block"]["input"],
+        )
+        for event in tool_starts
+    ] == [
+        ("call_weather", "Weather", {}),
+        ("call_time", "DateTime", {}),
+    ]
+    assert [
+        [
+            event["delta"]["partial_json"]
+            for event in events
+            if event["type"] == "content_block_delta"
+            and event["index"] == tool_start["index"]
+            and event["delta"]["type"] == "input_json_delta"
+        ]
+        for tool_start in tool_starts
+    ] == [
+        ['{"city"', ':"Paris"}'],
+        ["{}"],
+    ]
+    assert messages_cassette["request"]["body"]["messages"] == [
+        {"content": "Check Paris.", "role": "user"},
+        {
+            "content": [
+                {"text": "I will call both tools.", "type": "text"},
+                {
+                    "id": "call_weather",
+                    "input": {"city": "Paris"},
+                    "name": "Weather",
+                    "type": "tool_use",
+                },
+                {
+                    "id": "call_time",
+                    "input": {},
+                    "name": "DateTime",
+                    "type": "tool_use",
+                },
+            ],
+            "role": "assistant",
+        },
+        {
+            "content": [
+                {
+                    "content": "Sunny",
+                    "tool_use_id": "call_weather",
+                    "type": "tool_result",
+                },
+                {
+                    "content": "12:00Z",
+                    "tool_use_id": "call_time",
+                    "type": "tool_result",
+                },
+            ],
+            "role": "user",
+        },
+    ]
+
+
+def test_matches_tool_only_stream_without_text_block() -> None:
+    tool_call = {
+        "item_id": "fc_tool_only",
+        "call_id": "call_tool_only",
+        "name": "DateTime",
+        "argument_deltas": ["{}"],
+    }
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=None,
+        tool_calls=[
+            {
+                "id": "toolu_template",
+                "name": "Template",
+                "argument_deltas": [""],
+            }
+        ],
+    )
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=None,
+        tool_calls=[tool_call],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    events = _data_events(messages_cassette)
+    for event in events:
+        MESSAGE_EVENT_ADAPTER.validate_python(event)
+    assert not any(
+        event["type"] == "content_block_start" and event["content_block"]["type"] == "text"
+        for event in events
+    )
+    tool_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "tool_use"
+    )
+    assert tool_start["content_block"]["id"] == "call_tool_only"
+    assert [
+        event["delta"]["partial_json"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "input_json_delta"
+    ] == ["{}"]
+
+
+def test_rejects_tool_call_shape_mismatch() -> None:
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["text"],
+    )
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["text"],
+        tool_calls=[
+            {
+                "item_id": "fc_missing",
+                "call_id": "call_missing",
+                "name": "Missing",
+                "argument_deltas": ["{}"],
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="disagree on the number of tool calls"):
+        match_messages_events(messages_cassette, responses_cassette)
+
+
 def test_maps_responses_image_urls_to_messages_sources() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=None,
@@ -673,9 +958,87 @@ def test_rejects_unrepresentable_service_tier() -> None:
         match_messages_events(messages_cassette, responses_cassette)
 
 
+@pytest.mark.parametrize("turn", range(3))
+def test_matches_real_tool_call_cassettes(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(TOOL_CALL_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(TOOL_CALL_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message_events = _data_events(messages_cassette)
+    response_events = _data_events(responses_cassette)
+    for event in message_events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+
+    response_calls = [
+        event["item"]
+        for event in response_events
+        if event["type"] == "response.output_item.done"
+        and event["item"]["type"] == "function_call"
+    ]
+    message_tool_starts = [
+        event
+        for event in message_events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "tool_use"
+    ]
+    assert [
+        (event["content_block"]["id"], event["content_block"]["name"])
+        for event in message_tool_starts
+    ] == [(item["call_id"], item["name"]) for item in response_calls]
+    for message_start, response_call in zip(message_tool_starts, response_calls, strict=True):
+        assert [
+            event["delta"]["partial_json"]
+            for event in message_events
+            if event["type"] == "content_block_delta"
+            and event["index"] == message_start["index"]
+            and event["delta"]["type"] == "input_json_delta"
+        ] == [
+            event["delta"]
+            for event in response_events
+            if event["type"] == "response.function_call_arguments.delta"
+            and event["item_id"] == response_call["id"]
+        ]
+
+    response_input = responses_cassette["request"]["body"]["input"]
+    request_function_calls = [
+        item for item in response_input if item.get("type") == "function_call"
+    ]
+    request_function_outputs = [
+        item for item in response_input if item.get("type") == "function_call_output"
+    ]
+    message_request_blocks = [
+        block
+        for message in messages_cassette["request"]["body"]["messages"]
+        if isinstance(message["content"], list)
+        for block in message["content"]
+    ]
+    assert [
+        (block["id"], block["name"], block["input"])
+        for block in message_request_blocks
+        if block["type"] == "tool_use"
+    ] == [
+        (item["call_id"], item["name"], json_loads(item["arguments"]))
+        for item in request_function_calls
+    ]
+    assert [
+        (block["tool_use_id"], block["content"])
+        for block in message_request_blocks
+        if block["type"] == "tool_result"
+    ] == [(item["call_id"], item["output"]) for item in request_function_outputs]
+
+
 def test_matches_real_two_turn_request_body() -> None:
-    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "anthropic_messages-stream-01.yaml"))
-    responses_cassette = read_yaml(str(MATCHED_CASSETTES / "openai_responses-stream-01.yaml"))
+    messages_cassette = read_yaml(
+        str(REASONING_RAW_CASSETTES / "anthropic_messages-stream-01.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(REASONING_RAW_CASSETTES / "openai_responses-stream-01.yaml")
+    )
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {

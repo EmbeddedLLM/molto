@@ -4,15 +4,17 @@
 The Responses cassette is the canonical expected output. This script rewrites the
 Chat Completions SSE stream so a converter receives one corresponding CC delta for
 every ``response.output_text.delta`` and ``response.reasoning_text.delta`` event,
-in the same order and with the same content. It also synchronizes fields that can
-pass through the conversion, including the response ID, creation time, model,
-service tier, and usage.
+and one corresponding tool-call argument delta for every
+``response.function_call_arguments.delta`` event, in the same order and with the
+same content. It also synchronizes fields that can pass through the conversion,
+including the response ID, creation time, model, service tier, tool call, and usage.
 
 The result remains a Chat Completions wire-format cassette. Responses-only envelope
 fields such as message item IDs, sequence numbers, and a distinct completion time
 cannot be encoded in CC chunks; the converter must generate those fields
-deterministically for exact output parity. Request and transport metadata are
-intentionally left unchanged.
+deterministically for exact output parity. Canonical Responses tool-call history is
+translated into Chat Completions messages. Other request fields and transport
+metadata are intentionally left unchanged.
 """
 
 from __future__ import annotations
@@ -23,6 +25,112 @@ from pathlib import Path
 from typing import Any
 
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
+
+
+def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
+    try:
+        request_body = cassette["request"]["body"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError("Cassette must contain request.body.") from exc
+    if not isinstance(request_body, dict):
+        raise ValueError("Cassette request.body must be an object.")
+    return request_body
+
+
+def _response_message_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        raise ValueError("Responses message content must be text or a list of text parts.")
+
+    text: list[str] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") not in {
+            "input_text",
+            "output_text",
+            "text",
+        }:
+            raise ValueError("Only Responses text message content can map to Chat Completions.")
+        part_text = part.get("text")
+        if not isinstance(part_text, str):
+            raise ValueError("Responses text content must contain a string text field.")
+        text.append(part_text)
+    return "".join(text)
+
+
+def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
+    if isinstance(response_input, str):
+        return [{"content": response_input, "role": "user"}]
+    if not isinstance(response_input, list):
+        raise ValueError("Responses input must be a string or an input-item list.")
+
+    messages: list[dict[str, Any]] = []
+    tool_call_ids: set[str] = set()
+    returned_tool_call_ids: set[str] = set()
+    for item in response_input:
+        if not isinstance(item, dict):
+            raise ValueError("Responses input items must be objects.")
+
+        item_type = item.get("type", "message")
+        if item_type == "function_call":
+            call_id = item.get("call_id")
+            name = item.get("name")
+            arguments = item.get("arguments")
+            if not all(isinstance(value, str) for value in (call_id, name, arguments)):
+                raise ValueError(
+                    "Responses function calls require string call_id, name, and arguments."
+                )
+            if call_id in tool_call_ids:
+                raise ValueError(f"Duplicate Responses function call ID: {call_id!r}.")
+            if not messages or messages[-1].get("role") != "assistant":
+                messages.append({"content": None, "role": "assistant"})
+            messages[-1].setdefault("tool_calls", []).append(
+                {
+                    "function": {"arguments": arguments, "name": name},
+                    "id": call_id,
+                    "type": "function",
+                }
+            )
+            tool_call_ids.add(call_id)
+            continue
+
+        if item_type == "function_call_output":
+            call_id = item.get("call_id")
+            output = item.get("output")
+            if not isinstance(call_id, str) or not isinstance(output, str):
+                raise ValueError(
+                    "Responses function call outputs require string call_id and output."
+                )
+            if call_id not in tool_call_ids:
+                raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
+            if call_id in returned_tool_call_ids:
+                raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
+            messages.append({"content": output, "role": "tool", "tool_call_id": call_id})
+            returned_tool_call_ids.add(call_id)
+            continue
+
+        if item_type != "message":
+            raise ValueError(f"Responses input type {item_type!r} cannot map to Chat Completions.")
+        role = item.get("role")
+        if role not in {"system", "developer", "user", "assistant"}:
+            raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
+        messages.append({"content": _response_message_content(item.get("content")), "role": role})
+    return messages
+
+
+def _match_request_history(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> None:
+    chat_request = _request_body(chat_cassette)
+    responses_request = _request_body(responses_cassette)
+    response_input = responses_request.get("input")
+    if not isinstance(response_input, list) or not any(
+        isinstance(item, dict) and item.get("type") in {"function_call", "function_call_output"}
+        for item in response_input
+    ):
+        return
+
+    chat_request["messages"] = _chat_messages_from_response_input(response_input)
 
 
 def _parse_data_event(sse_entry: str) -> dict[str, Any] | None:
@@ -91,6 +199,112 @@ def _response_text_deltas(
     return deltas
 
 
+def _response_tool_calls(events: list[dict[str, Any]]) -> dict[str, Any]:
+    calls: list[dict[str, Any]] = []
+    calls_by_item_id: dict[str, dict[str, Any]] = {}
+    chunks: list[dict[str, Any]] = []
+
+    for event in events:
+        event_type = event.get("type")
+        item = event.get("item")
+        if (
+            event_type == "response.output_item.added"
+            and isinstance(item, dict)
+            and item.get("type") == "function_call"
+        ):
+            for field in ("id", "call_id", "name", "arguments"):
+                if not isinstance(item.get(field), str):
+                    raise ValueError(f"Responses function call {field!r} must be a string.")
+            output_index = event.get("output_index")
+            if not isinstance(output_index, int):
+                raise ValueError("Responses function call output_index must be an integer.")
+            item_id = item["id"]
+            if item_id in calls_by_item_id:
+                raise ValueError(f"Duplicate Responses function call item ID: {item_id!r}.")
+            call = {
+                "arguments": item["arguments"],
+                "argument_deltas": [],
+                "arguments_done": [],
+                "call_id": item["call_id"],
+                "done_items": [],
+                "index": len(calls),
+                "item_id": item_id,
+                "name": item["name"],
+                "output_index": output_index,
+            }
+            calls.append(call)
+            calls_by_item_id[item_id] = call
+            chunks.append({"arguments": item["arguments"], "call": call, "initial": True})
+            continue
+
+        if event_type == "response.function_call_arguments.delta":
+            item_id = event.get("item_id")
+            call = calls_by_item_id.get(item_id) if isinstance(item_id, str) else None
+            if call is None:
+                raise ValueError("Responses function call argument delta targets an unknown item.")
+            if event.get("output_index") != call["output_index"]:
+                raise ValueError("Responses function call argument delta targets the wrong item.")
+            delta = event.get("delta")
+            if not isinstance(delta, str):
+                raise ValueError("Responses function call argument deltas must be strings.")
+            call["argument_deltas"].append(delta)
+            chunks.append({"arguments": delta, "call": call, "initial": False})
+            continue
+
+        if event_type == "response.function_call_arguments.done":
+            item_id = event.get("item_id")
+            call = calls_by_item_id.get(item_id) if isinstance(item_id, str) else None
+            if call is None:
+                raise ValueError(
+                    "Completed Responses function call arguments target an unknown item."
+                )
+            if event.get("output_index") != call["output_index"]:
+                raise ValueError(
+                    "Completed Responses function call arguments target the wrong item."
+                )
+            call["arguments_done"].append(event)
+            continue
+
+        if (
+            event_type == "response.output_item.done"
+            and isinstance(item, dict)
+            and item.get("type") == "function_call"
+        ):
+            item_id = item.get("id")
+            call = calls_by_item_id.get(item_id) if isinstance(item_id, str) else None
+            if call is None:
+                raise ValueError("Completed Responses function call targets an unknown item.")
+            call["done_items"].append(event)
+
+    for call in calls:
+        if len(call["arguments_done"]) != 1:
+            raise ValueError(
+                "Expected exactly one 'response.function_call_arguments.done' event for "
+                f"function call {call['item_id']!r}, found {len(call['arguments_done'])}."
+            )
+        if len(call["done_items"]) != 1:
+            raise ValueError(
+                "Expected exactly one completed Responses output item for function call "
+                f"{call['item_id']!r}, found {len(call['done_items'])}."
+            )
+        done_event = call["done_items"][0]
+        done_item = done_event["item"]
+        if done_event.get("output_index") != call["output_index"]:
+            raise ValueError("Responses function call lifecycle disagrees on 'output_index'.")
+        for field in ("id", "call_id", "name"):
+            if done_item.get(field) != call[field if field != "id" else "item_id"]:
+                raise ValueError(f"Responses function call lifecycle disagrees on {field!r}.")
+
+        arguments = call["arguments"] + "".join(call["argument_deltas"])
+        arguments_done = call["arguments_done"][0]
+        if arguments_done.get("arguments") != arguments or done_item.get("arguments") != arguments:
+            raise ValueError(
+                "Responses function call argument deltas do not match completed arguments."
+            )
+
+    return {"calls": calls, "chunks": chunks}
+
+
 def _chat_delta_events(
     indexed_events: list[tuple[int, dict[str, Any]]], delta_field: str
 ) -> list[tuple[int, int, dict[str, Any]]]:
@@ -109,6 +323,30 @@ def _chat_delta_events(
             and isinstance(delta.get(delta_field), str)
         ):
             matches.append((event_position, sse_index, event))
+    return matches
+
+
+def _chat_tool_call_events(
+    indexed_events: list[tuple[int, dict[str, Any]]],
+) -> list[tuple[int, int, dict[str, Any]]]:
+    matches: list[tuple[int, int, dict[str, Any]]] = []
+    for event_position, (sse_index, event) in enumerate(indexed_events):
+        choices = event.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            continue
+        delta = choices[0].get("delta")
+        if not isinstance(delta, dict) or "tool_calls" not in delta:
+            continue
+        tool_calls = delta["tool_calls"]
+        if not isinstance(tool_calls, list) or not tool_calls:
+            raise ValueError("Chat Completions tool_calls must be a non-empty list.")
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict) or not isinstance(tool_call.get("index"), int):
+                raise ValueError("Chat Completions tool call indices must be integers.")
+            function = tool_call.get("function")
+            if not isinstance(function, dict) or not isinstance(function.get("arguments"), str):
+                raise ValueError("Chat Completions tool call arguments must be strings.")
+        matches.append((event_position, sse_index, event))
     return matches
 
 
@@ -178,6 +416,90 @@ def _replace_delta_events(
     sse_entries[segment_start:segment_end] = replacement_entries
 
 
+def _replace_tool_call_events(
+    chat_cassette: dict[str, Any],
+    indexed_chat_events: list[tuple[int, dict[str, Any]]],
+    response_tool_calls: dict[str, Any],
+) -> None:
+    tool_call_events = _chat_tool_call_events(indexed_chat_events)
+    tool_finish_events = [
+        event
+        for _, event in indexed_chat_events
+        if isinstance(event.get("choices"), list)
+        and event["choices"]
+        and isinstance(event["choices"][0], dict)
+        and event["choices"][0].get("finish_reason") == "tool_calls"
+    ]
+    if not response_tool_calls["calls"]:
+        if tool_call_events or tool_finish_events:
+            raise ValueError(
+                "Responses and Chat Completions streams disagree on the presence of a tool call."
+            )
+        return
+    if not tool_call_events:
+        raise ValueError(
+            "Responses and Chat Completions streams disagree on the presence of a tool call."
+        )
+    if len(tool_finish_events) != 1:
+        raise ValueError(
+            "Expected exactly one Chat Completions tool_calls finish event, "
+            f"found {len(tool_finish_events)}."
+        )
+
+    event_positions = [position for position, _, _ in tool_call_events]
+    if event_positions != list(range(event_positions[0], event_positions[-1] + 1)):
+        raise ValueError("Chat Completions tool call delta events must be contiguous.")
+
+    sse_entries = chat_cassette["response"]["sse"]
+    first_event_position, segment_start, _ = tool_call_events[0]
+    last_event_position = tool_call_events[-1][0]
+    segment_end = (
+        indexed_chat_events[last_event_position + 1][0]
+        if last_event_position + 1 < len(indexed_chat_events)
+        else len(sse_entries)
+    )
+    next_event_index = (
+        indexed_chat_events[first_event_position + 1][0]
+        if first_event_position + 1 < len(indexed_chat_events)
+        else len(sse_entries)
+    )
+    separator_entries = sse_entries[segment_start + 1 : next_event_index]
+    templates = [(sse_index, event) for _, sse_index, event in tool_call_events]
+
+    replacement_entries: list[str] = []
+    for index, response_chunk in enumerate(response_tool_calls["chunks"]):
+        call = response_chunk["call"]
+        template_index, template_event = templates[min(index, len(templates) - 1)]
+        event = deepcopy(template_event)
+        choice = event["choices"][0]
+        if response_chunk["initial"]:
+            tool_call = {
+                "index": call["index"],
+                "id": call["call_id"],
+                "type": "function",
+                "function": {
+                    "name": call["name"],
+                    "arguments": response_chunk["arguments"],
+                },
+            }
+            choice["delta"] = {"content": None, "tool_calls": [tool_call]}
+        else:
+            choice["delta"] = {
+                "tool_calls": [
+                    {
+                        "index": call["index"],
+                        "function": {"arguments": response_chunk["arguments"]},
+                    }
+                ]
+            }
+        choice["finish_reason"] = None
+        event["usage"] = None
+        replacement_entries.append(_serialize_data_event(event, sse_entries[template_index]))
+        replacement_entries.extend(separator_entries)
+
+    sse_entries[segment_start:segment_end] = replacement_entries
+
+
 def match_chat_completions_events(
     chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
 ) -> None:
@@ -203,10 +525,13 @@ def match_chat_completions_events(
     if not isinstance(response_usage, dict):
         raise ValueError("response.completed must contain usage for stream matching.")
 
-    response_content_deltas = _response_text_deltas(response_events, "response.output_text")
+    response_content_deltas = _response_text_deltas(
+        response_events, "response.output_text", optional=True
+    )
     response_reasoning_deltas = _response_text_deltas(
         response_events, "response.reasoning_text", optional=True
     )
+    response_tool_calls = _response_tool_calls(response_events)
 
     usage_events = [
         usage
@@ -235,6 +560,8 @@ def match_chat_completions_events(
         "content",
     )
     indexed_chat_events = _data_events(chat_cassette)
+    _replace_tool_call_events(chat_cassette, indexed_chat_events, response_tool_calls)
+    indexed_chat_events = _data_events(chat_cassette)
     usage_events = [
         usage
         for _, event in indexed_chat_events
@@ -251,6 +578,7 @@ def match_chat_completions_events(
     sse_entries = chat_cassette["response"]["sse"]
     for index, event in indexed_chat_events:
         sse_entries[index] = _serialize_data_event(event, sse_entries[index])
+    _match_request_history(chat_cassette, responses_cassette)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
