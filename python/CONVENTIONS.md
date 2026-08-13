@@ -114,6 +114,8 @@ tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
 tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
 ```
 
+Matched cassettes represent semantically equivalent requests expressed in each protocol's native schema, not identical request bodies. When a behavior-changing setting has protocol-specific field names, include its equivalent in every matched request, even if some protocols make it optional. Retain fields required by a protocol; do not remove them merely because a counterpart protocol makes the equivalent optional. For example, match Anthropic `max_tokens` with Responses `max_output_tokens` and Chat Completions `max_completion_tokens`.
+
 Treat each cassette as authoritative native wire data for its own downstream protocol. For cross-protocol matching, the Responses cassette is the canonical behavioral reference. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
