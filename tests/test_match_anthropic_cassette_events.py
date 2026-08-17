@@ -6,7 +6,12 @@ import pytest
 
 from molto.types.anthropic_messages import AnthropicMessagesStreamEventAdapter
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
-from scripts.match_anthropic_cassette_events import main, match_messages_events
+from scripts.match_anthropic_cassette_events import (
+    _message_event_units,
+    _write_message_event_units,
+    main,
+    match_messages_events,
+)
 
 MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "reasoning_raw"
@@ -15,9 +20,9 @@ OPAQUE_STATE_CASSETTES = (
 )
 
 
-def _sse_unit(event: dict[str, Any], *, event_name: str | None = None) -> list[str]:
+def _sse_unit(event: dict[str, Any]) -> list[str]:
     return [
-        f"event: {event_name or event['type']}\n\n",
+        f"event: {event['type']}\n\n",
         f"data: {json_dumps(event)}\n\n",
         "\n",
     ]
@@ -29,125 +34,99 @@ def _messages_cassette(
     text_deltas: list[str],
     request_messages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    events: list[tuple[dict[str, Any], str | None]] = [
-        (
-            {
-                "type": "message_start",
-                "message": {
-                    "id": "msg_original",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [],
-                    "model": "claude-original",
-                    "stop_reason": None,
-                    "stop_sequence": None,
-                    "usage": {
-                        "input_tokens": 3,
-                        "cache_creation_input_tokens": 1,
-                        "cache_read_input_tokens": 2,
-                        "output_tokens": 1,
-                        "service_tier": "priority",
-                    },
+    events: list[dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_original",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "claude-original",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {
+                    "input_tokens": 3,
+                    "cache_creation_input_tokens": 1,
+                    "cache_read_input_tokens": 2,
+                    "output_tokens": 1,
+                    "service_tier": "priority",
                 },
             },
-            None,
-        )
+        }
     ]
 
     text_index = 0
     if thinking_deltas is not None:
         events.extend(
             [
-                (
-                    {
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "thinking",
-                            "thinking": "",
-                            "signature": "",
-                        },
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "thinking",
+                        "thinking": "",
+                        "signature": "",
                     },
-                    None,
-                ),
-                ({"type": "ping"}, None),
+                },
+                {"type": "ping"},
                 *[
-                    (
-                        {
-                            "type": "content_block_delta",
-                            "index": 0,
-                            "delta": {
-                                "type": "thinking_delta",
-                                "thinking": delta,
-                            },
-                        },
-                        None,
-                    )
-                    for delta in thinking_deltas
-                ],
-                (
                     {
                         "type": "content_block_delta",
                         "index": 0,
                         "delta": {
-                            "type": "signature_delta",
-                            "signature": "signed-thinking",
+                            "type": "thinking_delta",
+                            "thinking": delta,
                         },
+                    }
+                    for delta in thinking_deltas
+                ],
+                {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {
+                        "type": "signature_delta",
+                        "signature": "signed-thinking",
                     },
-                    None,
-                ),
-                ({"type": "content_block_stop", "index": 0}, None),
+                },
+                {"type": "content_block_stop", "index": 0},
             ]
         )
         text_index = 1
 
     events.append(
-        (
-            {
-                "type": "content_block_start",
-                "index": text_index,
-                "content_block": {"type": "text", "text": ""},
-            },
-            None,
-        )
+        {
+            "type": "content_block_start",
+            "index": text_index,
+            "content_block": {"type": "text", "text": ""},
+        }
     )
     events.extend(
-        (
-            {
-                "type": "content_block_delta",
-                "index": text_index,
-                "delta": {"type": "text_delta", "text": delta},
-            },
-            None,
-        )
+        {
+            "type": "content_block_delta",
+            "index": text_index,
+            "delta": {"type": "text_delta", "text": delta},
+        }
         for delta in text_deltas
     )
     events.extend(
         [
-            (
-                {"type": "content_block_stop", "index": text_index},
-                "content_block_delta",
-            ),
-            (
-                {
-                    "type": "message_delta",
-                    "delta": {"stop_reason": "end_turn", "stop_sequence": None},
-                    "usage": {
-                        "input_tokens": 5,
-                        "cache_creation_input_tokens": 1,
-                        "cache_read_input_tokens": 2,
-                        "output_tokens": 4,
-                    },
+            {"type": "content_block_stop", "index": text_index},
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "usage": {
+                    "input_tokens": 5,
+                    "cache_creation_input_tokens": 1,
+                    "cache_read_input_tokens": 2,
+                    "output_tokens": 4,
                 },
-                None,
-            ),
-            ({"type": "message_stop"}, None),
+            },
+            {"type": "message_stop"},
         ]
     )
 
-    sse_entries = [
-        entry for event, event_name in events for entry in _sse_unit(event, event_name=event_name)
-    ]
+    sse_entries = [entry for event in events for entry in _sse_unit(event)]
     return {
         "request": {
             "method": "POST",
@@ -289,6 +268,22 @@ def _responses_cassette(
             "sse": [f"data: {json_dumps(event)}\n\n" for event in events],
         },
     }
+
+
+def test_updates_event_name_when_event_type_changes() -> None:
+    original_event = {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "answer"},
+    }
+    cassette = {"response": {"sse": _sse_unit(original_event)}}
+    prefix, units = _message_event_units(cassette)
+    replacement_event = {"type": "content_block_stop", "index": 0}
+    units[0].event = replacement_event
+
+    _write_message_event_units(cassette, prefix, units)
+
+    assert cassette["response"]["sse"] == _sse_unit(replacement_event)
 
 
 def _data_events(cassette: dict[str, Any]) -> list[dict[str, Any]]:
@@ -433,7 +428,7 @@ def test_matches_messages_reasoning_and_text_events() -> None:
     )
     assert (
         messages_cassette["response"]["sse"][stop_data_index - 1].strip()
-        == "event: content_block_delta"
+        == "event: content_block_stop"
     )
 
 

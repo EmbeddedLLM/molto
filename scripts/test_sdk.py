@@ -171,9 +171,9 @@ async def messages(turns: int = 1):
             model=ANTHROPIC_MODEL,
             max_tokens=2048,
             messages=message_history,
-            # thinking={"type": "adaptive", "display": "summarized"},
-            # output_config={"effort": "max"},
-            thinking={"type": "disabled"},
+            thinking={"type": "adaptive", "display": "summarized"},
+            output_config={"effort": "max"},
+            # thinking={"type": "disabled"},
             stream=True,
         )
         current_output = None

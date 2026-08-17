@@ -342,6 +342,11 @@ def _serialize_data_event(event: dict[str, Any], template: str) -> str:
     return f"data: {json_dumps(event)}{suffix}"
 
 
+def _serialize_event_name(event_type: str, template: str) -> str:
+    suffix = template[len(template.rstrip("\r\n")) :]
+    return f"event: {event_type}{suffix}"
+
+
 def _response_text_deltas(
     events: list[dict[str, Any]], event_prefix: str, *, optional: bool = False
 ) -> list[str] | None:
@@ -544,6 +549,20 @@ def _write_message_event_units(
 ) -> None:
     sse_entries = prefix.copy()
     for unit in units:
+        event_type = unit.event.get("type")
+        if not isinstance(event_type, str):
+            raise ValueError("Messages event type must be a string.")
+        event_name_index = next(
+            (
+                index
+                for index, entry in enumerate(unit.entries[: unit.data_entry_index])
+                if entry.strip().startswith("event:")
+            ),
+            None,
+        )
+        if event_name_index is not None:
+            event_name_template = unit.entries[event_name_index]
+            unit.entries[event_name_index] = _serialize_event_name(event_type, event_name_template)
         data_template = unit.entries[unit.data_entry_index]
         unit.entries[unit.data_entry_index] = _serialize_data_event(unit.event, data_template)
         sse_entries.extend(unit.entries)
