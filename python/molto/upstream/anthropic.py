@@ -14,7 +14,6 @@ from anthropic.types import (
 )
 from pydantic_ai.profiles.anthropic import (
     ANTHROPIC_THINKING_BUDGET_MAP,
-    AnthropicModelProfile,
     anthropic_model_profile,
     resolve_anthropic_effort,
 )
@@ -73,11 +72,18 @@ def _thinking_capabilities(model: str) -> tuple[bool, bool]:
     # profile, supplemented for newer families not yet present in the pinned table.
     if not model.startswith("claude-"):
         return True, True
-    profile = AnthropicModelProfile.from_profile(anthropic_model_profile(model))
+    profile = anthropic_model_profile(model)
     current_or_future = _is_current_or_future_adaptive_claude(model)
+    # Pydantic AI has exposed model profiles as both dataclasses and TypedDicts.
+    if isinstance(profile, dict):
+        supports_adaptive = profile.get("anthropic_supports_adaptive_thinking", False)
+        supports_xhigh = profile.get("anthropic_supports_xhigh_effort", False)
+    else:
+        supports_adaptive = profile.anthropic_supports_adaptive_thinking
+        supports_xhigh = profile.anthropic_supports_xhigh_effort
     return (
-        profile.anthropic_supports_adaptive_thinking or current_or_future,
-        profile.anthropic_supports_xhigh_effort or current_or_future,
+        supports_adaptive or current_or_future,
+        supports_xhigh or current_or_future,
     )
 
 

@@ -39,6 +39,14 @@ def _cassette_path(
     *,
     matched: bool = False,
 ) -> Path:
+    relative_path = Path(cassette_name)
+    if len(relative_path.parts) > 1:
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise ValueError(
+                f"Cassette path must be relative to the cassette directory: {cassette_name}"
+            )
+        return CASSETTE_DIR / relative_path
+
     protocol_dir = {
         "chat/completions": "chat_completions",
         "messages": "messages",
@@ -207,11 +215,19 @@ async def test_native_stream_matches_provider_sdk(protocol: Protocol):
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-def test_simple_text_request_body_matches_across_protocols(
+@pytest.mark.parametrize(
+    "cassette_name",
+    [
+        "simple_text-stream-00.yaml",
+        "reasoning_raw-stream-00.yaml",
+        "reasoning_raw-stream-01.yaml",
+    ],
+)
+def test_matched_request_body_matches_across_protocols(
     downstream: Protocol,
     upstream: Protocol,
+    cassette_name: str,
 ):
-    cassette_name = "simple_text-stream-00.yaml"
     downstream_body = deepcopy(
         _read_cassette(_cassette_path(downstream, cassette_name, matched=True))["request"]["body"]
     )
@@ -405,8 +421,8 @@ async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Prot
 
 async def test_reasoning_stream_encrypted_content():
     cassette_names = [
-        "reasoning-stream-00.yaml",
-        "reasoning-stream-01.yaml",
+        "matched/reasoning_encrypted/reasoning-stream-00.yaml",
+        "matched/reasoning_encrypted/reasoning-stream-01.yaml",
     ]
     await _assert_responses_events(cassette_names)
 
