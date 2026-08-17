@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from molto.adapters.base import BaseAdapter
 from molto.types.normalized import (
     ImageUrlInput,
     Input,
@@ -31,11 +32,14 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
+    OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
 
 
-class OpenAIResponsesAdapter:
+class OpenAIResponsesAdapter(
+    BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
+):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
 
     @staticmethod
@@ -133,11 +137,11 @@ class OpenAIResponsesAdapter:
         request_data["input"] = normalized_input
         return NormalizedRequest.model_validate(request_data)
 
-    async def project_events(
+    async def _project_events(
         self,
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
-    ) -> AsyncIterator[BaseModel]:
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
         sequence_number = 0
         response_start: ResponseStartEvent | None = None
         item_id: str | None = None
@@ -164,17 +168,16 @@ class OpenAIResponsesAdapter:
                 "model": metadata.model,
                 "output": output,
                 "max_output_tokens": request.max_output_tokens,
-                "usage": None,
+                "reasoning": self.native_request.reasoning,
                 "parallel_tool_calls": request.parallel_tool_calls
                 if request.parallel_tool_calls is not None
                 else True,
-                "tool_choice": request.tool_choice or "auto",
-                "tools": request.tools or [],
+                "tool_choice": self.native_request.tool_choice or "auto",
+                "tools": self.native_request.tools or [],
+                "usage": None,
             }
             if metadata.service_tier is not None:
                 data["service_tier"] = metadata.service_tier
-            if request.reasoning is not None:
-                data["reasoning"] = request.reasoning.model_dump(exclude={"extra_fields"})
             if isinstance(metadata, ResponseEndEvent) and metadata.usage is not None:
                 usage = metadata.usage
                 data["usage"] = {
@@ -357,7 +360,9 @@ class OpenAIResponsesAdapter:
                 )
 
 
-class OpenAIChatCompletionsAdapter:
+class OpenAIChatCompletionsAdapter(
+    BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
+):
     """Translate Chat Completions requests and normalized response events."""
 
     @staticmethod
@@ -439,11 +444,11 @@ class OpenAIChatCompletionsAdapter:
             data["top_p"] = request.top_p
         return NormalizedRequest.model_validate(data)
 
-    async def project_events(
+    async def _project_events(
         self,
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
-    ) -> AsyncIterator[BaseModel]:
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
         del request
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False

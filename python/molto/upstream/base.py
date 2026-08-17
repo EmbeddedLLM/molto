@@ -1,8 +1,14 @@
+from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+
 from httpx import AsyncClient
 from openai import AsyncOpenAI, omit
+from pydantic import BaseModel
+
+from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
 
 
-class BaseClient:
+class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
     DEFAULT_BASE_URL: str
 
     def __init__(
@@ -29,3 +35,13 @@ class BaseClient:
             },
             http_client=self._http_client,
         )
+
+    @abstractmethod
+    def native_events(self, request: NativeRequestT) -> AsyncIterator[NativeEventT]:
+        """Stream events using the provider's native protocol."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream provider events translated to normalized events."""
+        raise NotImplementedError

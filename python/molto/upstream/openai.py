@@ -35,7 +35,7 @@ from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
 
 
-class OpenAIResponsesClient(BaseClient):
+class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent]):
     """OpenAI Responses transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -226,7 +226,9 @@ class OpenAIResponsesClient(BaseClient):
                 raise ValueError(f"Unsupported Responses stream event: {event_type}")
 
 
-class OpenAIChatCompletionsClient(BaseClient):
+class OpenAIChatCompletionsClient(
+    BaseClient[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
+):
     """OpenAI Chat Completions transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"

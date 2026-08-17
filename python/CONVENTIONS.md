@@ -12,6 +12,17 @@ A future `chat()` method is a dispatcher over those coordinators. It should sele
 
 Keep same-protocol optimizations visible in the relevant protocol coordinator. Do not hide pair-specific routing inside an adapter or client.
 
+## Adapter and client base classes
+
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
+
+Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement both streaming paths:
+
+- `native_events()` accepts the validated upstream-native request and yields native SDK events;
+- `events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`.
+
+Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
+
 ## OpenAI SDK schemas
 
 Use local Pydantic request wrappers when Molto needs a validated request model. Their field set must match the pinned SDK method signature, excluding transport arguments such as `timeout`, `extra_headers`, `extra_query`, and `extra_body`.
@@ -113,6 +124,8 @@ Examples:
 tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
 tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
 ```
+
+Matched cassettes represent semantically equivalent requests expressed in each protocol's native schema, not identical request bodies. When a behavior-changing setting has protocol-specific field names, include its equivalent in every matched request, even if some protocols make it optional. Retain fields required by a protocol; do not remove them merely because a counterpart protocol makes the equivalent optional. For example, match Anthropic `max_tokens` with Responses `max_output_tokens` and Chat Completions `max_completion_tokens`.
 
 Treat each cassette as authoritative native wire data for its own downstream protocol. For cross-protocol matching, the Responses cassette is the canonical behavioral reference. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
 
