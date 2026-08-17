@@ -107,8 +107,8 @@ class OpenAIResponsesAdapter(
             raise ValueError(f"Unsupported Responses message role: {role}")
         return [item_type(content=text) for text in text_parts]
 
-    def normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: str | Input | None
+    def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
+        normalized_input: str | list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput] | None
         if isinstance(request.input, str) or request.input is None:
             normalized_input = request.input
         else:
@@ -402,7 +402,7 @@ class OpenAIChatCompletionsAdapter(
             return items
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
-    def normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
+    def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
         normalized_input: list[
             SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput
         ] = []
