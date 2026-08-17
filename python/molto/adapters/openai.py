@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from molto.adapters.base import BaseAdapter
 from molto.types.normalized import (
     ImageUrlInput,
-    Input,
     ModelResponseStreamEvent,
     MultimodalInput,
     NormalizedRequest,
