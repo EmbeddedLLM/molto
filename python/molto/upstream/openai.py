@@ -19,12 +19,12 @@ from molto.types.normalized import (
     SystemPrompt,
     TerminationReason,
     TextDelta,
-    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
     ToolReturn,
     Usage,
+    UserInput,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -65,17 +65,30 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 yield event
 
     @staticmethod
-    def _process_input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:
-        if isinstance(request.input, str) or request.input is None:
-            return request.input
+    def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
+        if isinstance(request.input, str):
+            return [
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": request.input}],
+                }
+            ]
+        if request.input is None:
+            return None
 
         items: list[dict[str, Any]] = []
-        previous_was_thinking = False
         for item in request.input:
             if isinstance(item, SystemPrompt):
                 items.append({"role": "developer", "content": item.content})
-            elif isinstance(item, TextInput):
-                items.append({"role": "user", "content": item.content})
+            elif isinstance(item, UserInput):
+                items.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": part.content} for part in item.content
+                        ],
+                    }
+                )
             elif isinstance(item, Thinking):
                 reasoning_item = {
                     "type": "reasoning",
@@ -87,28 +100,23 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     reasoning_item["encrypted_content"] = item.signature
                 items.append(reasoning_item)
             elif isinstance(item, TextOutput):
-                if previous_was_thinking:
-                    items.append(
-                        {
-                            "type": "message",
-                            "role": "assistant",
-                            "status": "completed",
-                            "phase": "final_answer",
-                            "content": [
-                                {
-                                    "type": "output_text",
-                                    "text": item.content,
-                                    "annotations": [],
-                                    "logprobs": [],
-                                }
-                            ],
-                        }
-                    )
-                else:
-                    items.append({"role": "assistant", "content": item.content})
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": item.content,
+                                "annotations": [],
+                                "logprobs": [],
+                            }
+                        ],
+                    }
+                )
             else:
                 raise ValueError(f"Unsupported Responses input item: {type(item)}")
-            previous_was_thinking = isinstance(item, Thinking)
         return items
 
     @classmethod
@@ -265,15 +273,27 @@ class OpenAIChatCompletionsClient(
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         if isinstance(request.input, str):
-            return [{"role": "user", "content": request.input}]
+            return [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": request.input}],
+                }
+            ]
 
         messages: list[dict[str, Any]] = []
         reasoning_content: str | None = None
         for item in request.input or []:
             if isinstance(item, SystemPrompt):
                 messages.append({"role": "developer", "content": item.content})
-            elif isinstance(item, TextInput):
-                messages.append({"role": "user", "content": item.content})
+            elif isinstance(item, UserInput):
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": part.content} for part in item.content
+                        ],
+                    }
+                )
             elif isinstance(item, Thinking):
                 reasoning_content = item.content
             elif isinstance(item, TextOutput):

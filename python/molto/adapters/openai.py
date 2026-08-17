@@ -23,6 +23,7 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    UserInput,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -51,7 +52,7 @@ class OpenAIResponsesAdapter(
     @staticmethod
     def _normalize_message(
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -86,21 +87,20 @@ class OpenAIResponsesAdapter(
         else:
             raise ValueError("Responses message content must be text.")
 
-        item_type: type[SystemPrompt] | type[TextInput] | type[TextOutput]
         if role in {"system", "developer"}:
-            item_type = SystemPrompt
-        elif role == "user":
-            item_type = TextInput
-        elif role == "assistant":
-            item_type = TextOutput
-        else:
-            raise ValueError(f"Unsupported Responses message role: {role}")
-        return [item_type(content=text) for text in text_parts]
+            return [SystemPrompt(content=text) for text in text_parts]
+        if role == "user":
+            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+        if role == "assistant":
+            return [TextOutput(content=text) for text in text_parts]
+        raise ValueError(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput] | None
-        if isinstance(request.input, str) or request.input is None:
-            normalized_input = request.input
+        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] | None
+        if isinstance(request.input, str):
+            normalized_input = [UserInput(content=[TextInput(content=request.input)])]
+        elif request.input is None:
+            normalized_input = None
         else:
             normalized_input = []
             for item in request.input:
@@ -111,16 +111,10 @@ class OpenAIResponsesAdapter(
                 normalized_input.extend(self._normalize_message(item))
 
         if request.instructions is not None:
-            if isinstance(normalized_input, str):
-                normalized_input = [
-                    SystemPrompt(content=request.instructions),
-                    TextInput(content=normalized_input),
-                ]
-            else:
-                normalized_input = [
-                    SystemPrompt(content=request.instructions),
-                    *(normalized_input or []),
-                ]
+            normalized_input = [
+                SystemPrompt(content=request.instructions),
+                *(normalized_input or []),
+            ]
 
         request_data = request.model_dump()
         request_data.pop("instructions", None)
@@ -136,7 +130,6 @@ class OpenAIResponsesAdapter(
         response_start: ResponseStartEvent | None = None
         item_id: str | None = None
         output_items: list[dict[str, Any]] = []
-        had_thinking = False
 
         def event(data: dict[str, Any]) -> BaseModel:
             nonlocal sequence_number
@@ -199,7 +192,6 @@ class OpenAIResponsesAdapter(
                 if not isinstance(normalized_event.part, (TextOutput, Thinking)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 is_thinking = isinstance(normalized_event.part, Thinking)
-                had_thinking = had_thinking or is_thinking
                 item_id = f"{'' if is_thinking else 'msg_'}{uuid4().hex}"
                 output_index = normalized_event.index
                 item = (
@@ -217,7 +209,6 @@ class OpenAIResponsesAdapter(
                         "status": "in_progress",
                         "content": [],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
                     }
                 )
                 part = (
@@ -308,7 +299,6 @@ class OpenAIResponsesAdapter(
                         "status": "completed",
                         "content": [completed_part],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
                     }
                 )
                 output_items.append(completed_item)
@@ -376,16 +366,29 @@ class OpenAIChatCompletionsAdapter(
     @staticmethod
     def _normalize_message(
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
         role = message.get("role")
         content = message.get("content")
+
+        if role == "user" and isinstance(content, list):
+            text_parts = [
+                part.get("text")
+                for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            ]
+            if len(text_parts) != len(content) or not all(
+                isinstance(text, str) for text in text_parts
+            ):
+                raise ValueError("Only text Chat Completions user content is supported.")
+            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+
         if not isinstance(content, str):
-            raise ValueError("Only string Chat Completions message content is supported.")
+            raise ValueError("Only string non-user Chat Completions content is supported.")
 
         if role in {"system", "developer"}:
             return [SystemPrompt(content=content)]
         if role == "user":
-            return [TextInput(content=content)]
+            return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             items: list[Thinking | TextOutput] = []
             reasoning_content = message.get("reasoning_content")
@@ -398,20 +401,14 @@ class OpenAIChatCompletionsAdapter(
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | TextInput | Thinking | TextOutput] = []
+        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
         for message in request.messages:
             normalized_input.extend(self._normalize_message(dict(message)))
-
-        request_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput]
-        if len(normalized_input) == 1 and isinstance(normalized_input[0], TextInput):
-            request_input = normalized_input[0].content
-        else:
-            request_input = normalized_input
 
         stream_options = request.stream_options or {}
         include_obfuscation = stream_options.get("include_obfuscation")
         data: dict[str, Any] = {
-            "input": request_input,
+            "input": normalized_input,
             "model": request.model,
             "stream": request.stream,
         }

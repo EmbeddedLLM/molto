@@ -66,6 +66,15 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Run the applicable checks defined in the Linting Workflow.
 - Keep verification proportional to the scope and risk of the change. For behavior changes, run focused relevant tests; run `pytest` for broad changes or when the full offline replay suite is required.
 
+#### Stalled Command Cleanup
+
+- Do not launch verification commands with shell backgrounding such as `&`. Keep each command attached to a tracked terminal or execution session.
+- Use bounded waits and provide a progress update at least every 60 seconds while a long-running command is active.
+- If a command stops making progress, interrupt or terminate its exact tracked session. Do not use a broad process kill that could stop unrelated user work.
+- Confirm that the command exited, then check for orphaned test processes with narrowly scoped process queries. For Python tests, check both `pgrep -ax pytest` and `pgrep -af '^/absolute/workspace/path/.venv/bin/python'`, substituting the current workspace path. An empty result from both confirms that no repository pytest or virtual-environment Python process remains.
+- If either query finds a process started by the interrupted command, terminate that exact PID or tracked session and repeat both checks. Never leave a verification process running after handing control back to the user.
+- Report the exact interrupted command, where it stalled or timed out, how it was stopped, and the cleanup result. An interrupted, timed-out, or incomplete command is not a passing check.
+
 Before reporting completion, review the final diff and ask:
 
 - Does every change relate to a requirement?

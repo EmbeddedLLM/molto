@@ -12,6 +12,13 @@ from openai import AsyncOpenAI, AsyncStream
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
+from molto.adapters.anthropic import AnthropicMessagesAdapter
+from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
+from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
+from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
@@ -197,6 +204,44 @@ async def test_native_stream_matches_provider_sdk(protocol: Protocol):
     assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
         event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
     ]
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+def test_simple_text_request_body_matches_across_protocols(
+    downstream: Protocol,
+    upstream: Protocol,
+):
+    cassette_name = "simple_text-stream-00.yaml"
+    downstream_body = deepcopy(
+        _read_cassette(_cassette_path(downstream, cassette_name, matched=True))["request"]["body"]
+    )
+    request_type = {
+        "responses": OpenAIResponsesCreateRequest,
+        "chat/completions": OpenAIChatCompletionsCreateRequest,
+        "messages": AnthropicMessagesCreateRequest,
+    }[downstream]
+    request = request_type.model_validate(downstream_body)
+
+    if downstream == upstream:
+        actual_body = request.model_dump()
+    else:
+        adapter = {
+            "responses": OpenAIResponsesAdapter(),
+            "chat/completions": OpenAIChatCompletionsAdapter(),
+            "messages": AnthropicMessagesAdapter(),
+        }[downstream]
+        normalized_request = adapter.normalize_request(request)
+        project_request = {
+            "responses": OpenAIResponsesClient._request_body,
+            "chat/completions": OpenAIChatCompletionsClient._request_body,
+            "messages": AnthropicMessagesClient._request_body,
+        }[upstream]
+        actual_body = project_request(normalized_request)
+
+    expected_body = _read_cassette(_cassette_path(upstream, cassette_name, matched=True))[
+        "request"
+    ]["body"]
+    assert actual_body == expected_body
 
 
 async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():

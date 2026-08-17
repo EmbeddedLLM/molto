@@ -23,11 +23,12 @@ request:
         text: That’s the **GitHub Octocat logo**.
         type: output_text
       id: msg_0fb0971199289293006a7c314b12a8819a9bee964d3cef2fb1
-      phase: final_answer
       role: assistant
       status: completed
       type: message
-    - content: Think, what is the animal?
+    - content:
+      - text: Think, what is the animal?
+        type: input_text
       role: user
     max_output_tokens: 2048
     model: gpt-5.6-luna

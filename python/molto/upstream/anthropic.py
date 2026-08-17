@@ -37,11 +37,11 @@ from molto.types.normalized import (
     SystemPrompt,
     TerminationReason,
     TextDelta,
-    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
     Usage,
+    UserInput,
 )
 from molto.upstream.base import BaseClient
 
@@ -123,7 +123,16 @@ class AnthropicMessagesClient(
         request: NormalizedRequest,
     ) -> tuple[str | None, list[dict[str, Any]], bool]:
         if isinstance(request.input, str):
-            return None, [{"role": "user", "content": request.input}], False
+            return (
+                None,
+                [
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": request.input}],
+                    }
+                ],
+                False,
+            )
 
         system_parts: list[str] = []
         messages: list[dict[str, Any]] = []
@@ -139,9 +148,16 @@ class AnthropicMessagesClient(
             if isinstance(item, SystemPrompt):
                 flush_assistant()
                 system_parts.append(item.content)
-            elif isinstance(item, TextInput):
+            elif isinstance(item, UserInput):
                 flush_assistant()
-                messages.append({"role": "user", "content": item.content})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": part.content} for part in item.content
+                        ],
+                    }
+                )
             elif isinstance(item, Thinking):
                 has_thinking = True
                 block = {"type": "thinking", "thinking": item.content}

@@ -2,11 +2,21 @@ filename: 2026-08-04-019fcaa7-64e4-7773-88d0-959c5b7036f4
 request:
   body:
     input:
-    - content: Write one short sentence about the ocean.
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: input_text
       role: user
-    - content: The ocean is a vast and mysterious blue world.
+    - content:
+      - annotations: []
+        logprobs: []
+        text: The ocean is a vast and mysterious blue world.
+        type: output_text
       role: assistant
-    - content: Write another about the sky.
+      status: completed
+      type: message
+    - content:
+      - text: Write another about the sky.
+        type: input_text
       role: user
     max_output_tokens: 1024
     model: gpt-4.1-nano

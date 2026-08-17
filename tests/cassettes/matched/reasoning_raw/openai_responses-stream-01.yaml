@@ -2,7 +2,9 @@ filename: 2026-08-06-019fd60a-bb6c-70f0-901c-eb2055eca676
 request:
   body:
     input:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: input_text
       role: user
     - content:
       - text: We need answer simple. Need comply. 2+2=4.
@@ -15,11 +17,12 @@ request:
         logprobs: []
         text: '4'
         type: output_text
-      phase: final_answer
       role: assistant
       status: completed
       type: message
-    - content: What about 2*2?
+    - content:
+      - text: What about 2*2?
+        type: input_text
       role: user
     max_output_tokens: 2048
     model: deepseek-v4-flash

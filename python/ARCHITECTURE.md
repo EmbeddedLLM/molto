@@ -227,6 +227,10 @@ Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto
 
 Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
 
+Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
+
+Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
+
 Normalized models inherit from `ExtraModel`. Unknown provider fields are retained in `extra_fields` as an escape hatch. Vendor request construction must still map supported fields explicitly; preserving a field does not imply that another protocol supports it.
 
 The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields; genuinely provider-specific capabilities remain in `extra_fields` until a portable semantic model exists.

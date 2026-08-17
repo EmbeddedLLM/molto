@@ -33,6 +33,19 @@ class TextInput(ExtraModel):
     ] = "text-input"
 
 
+class UserInput(ExtraModel):
+    """One user message containing its ordered input content parts."""
+
+    content: Annotated[
+        list[TextInput],
+        Field(description="The ordered content parts in the user message."),
+    ]
+    content_type: Annotated[
+        Literal["user-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "user-input"
+
+
 # class _FileUrlInput(ExtraModel):
 #     """Common fields for URL-based user content."""
 
@@ -274,7 +287,7 @@ OutputItem = Annotated[
 
 
 InputItem = Annotated[
-    SystemPrompt | TextInput | Thinking | TextOutput | ToolReturn,
+    SystemPrompt | UserInput | Thinking | TextOutput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart

@@ -16,9 +16,11 @@ from molto.types.normalized import (
     ResponseStartEvent,
     TerminationReason,
     TextDelta,
+    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
+    UserInput,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -112,6 +114,167 @@ async def test_responses_adapter_uses_target_default_service_tier():
     assert events[-1].type == "response.completed"
     assert events[-1].response.status == "completed"
     assert events[-1].response.incomplete_details is None
+
+
+async def test_responses_adapter_does_not_synthesize_output_phase():
+    request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+    adapter = OpenAIResponsesAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", model="m")
+        yield PartStartEvent(index=0, part=Thinking(content="", summary=""))
+        yield PartEndEvent(index=0, part=Thinking(content="Thought", summary=""))
+        yield PartStartEvent(index=1, part=TextOutput(content=""))
+        yield PartEndEvent(index=1, part=TextOutput(content="Answer"))
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason="stop",
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    message_items = [
+        event.item.model_dump(exclude_unset=True)
+        for event in events
+        if event.type in {"response.output_item.added", "response.output_item.done"}
+        and event.item.type == "message"
+    ]
+    message_items.extend(
+        item.model_dump(exclude_unset=True)
+        for item in events[-1].response.output
+        if item.type == "message"
+    )
+    assert message_items
+    assert all("phase" not in item for item in message_items)
+
+
+def test_chat_completions_adapter_preserves_user_message_and_part_boundaries():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
+            {"role": "assistant", "content": "Answer"},
+        ],
+        model="m",
+        stream=True,
+    )
+
+    normalized = OpenAIChatCompletionsAdapter().normalize_request(request)
+
+    assert normalized.input == [
+        UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
+        UserInput(content=[TextInput(content="Follow-up")]),
+        TextOutput(content="Answer"),
+    ]
+
+
+def test_responses_adapter_preserves_user_message_and_part_boundaries():
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "Part one"},
+                    {"type": "input_text", "text": "Part two"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "Follow-up"}],
+            },
+            {"role": "assistant", "content": "Answer"},
+        ],
+        model="m",
+        stream=True,
+    )
+
+    normalized = OpenAIResponsesAdapter().normalize_request(request)
+
+    assert normalized.input == [
+        UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
+        UserInput(content=[TextInput(content="Follow-up")]),
+        TextOutput(content="Answer"),
+    ]
+
+
+def test_responses_client_projects_typed_text_history_without_phase():
+    body = OpenAIResponsesClient._request_body(
+        NormalizedRequest(
+            input=[
+                UserInput(
+                    content=[
+                        TextInput(content="Question part one"),
+                        TextInput(content="Question part two"),
+                    ]
+                ),
+                UserInput(content=[TextInput(content="Follow-up")]),
+                TextOutput(content="Answer"),
+            ],
+            model="m",
+        )
+    )
+
+    assert body["input"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "Question part one"},
+                {"type": "input_text", "text": "Question part two"},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Follow-up"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "Answer",
+                    "annotations": [],
+                    "logprobs": [],
+                }
+            ],
+        },
+    ]
+
+
+def test_chat_completions_client_preserves_user_message_and_part_boundaries():
+    messages = OpenAIChatCompletionsClient._messages(
+        NormalizedRequest(
+            input=[
+                UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
+                UserInput(content=[TextInput(content="Follow-up")]),
+                TextOutput(content="Answer"),
+            ]
+        )
+    )
+
+    assert messages == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Part one"},
+                {"type": "text", "text": "Part two"},
+            ],
+        },
+        {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
+        {"role": "assistant", "content": "Answer"},
+    ]
 
 
 @pytest.mark.parametrize("termination_reason", ["content_filter", "max_output_tokens"])
@@ -394,7 +557,15 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
 
     assert len(captured_requests) == 1
     assert isinstance(captured_requests[0], OpenAIResponsesCreateRequest)
-    assert captured_requests[0].model_dump() == {"input": "Hi", "model": "m"}
+    assert captured_requests[0].model_dump() == {
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "Hi"}],
+            }
+        ],
+        "model": "m",
+    }
     assert events == [
         ResponseStartEvent(
             id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
@@ -645,7 +816,12 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
     assert len(captured_requests) == 1
     assert isinstance(captured_requests[0], OpenAIChatCompletionsCreateRequest)
     assert captured_requests[0].model_dump() == {
-        "messages": [{"role": "user", "content": "Hi"}],
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Hi"}],
+            }
+        ],
         "model": "m",
         "stream": True,
         "stream_options": {"include_usage": True},

@@ -4,7 +4,9 @@ request:
     include:
     - reasoning.encrypted_content
     input:
-    - content: How much wood would a woodchuck chuck?
+    - content:
+      - text: How much wood would a woodchuck chuck?
+        type: input_text
       role: user
     - encrypted_content: gAAAAABqcLQJTmRuYd14oE7uc99dRk8XQEdJb5VZRDS5o40tcUs7xG2rLDyWJk6430tEO299IemdfRngidKjN4vM42PtfnpVAXlM6e8cfR3MTGr-F7UY1BT8bjucPDKR3VsamiPVoXTfma1s5fDnLRoVvjEvUh22dw2FWEfkDOowKNU-l2BRkZ534tUSKs4qJQ6Da7c561VvaUKjbKCV3_yJSQMwR0-zj3VC5WvjKKIX12rYnT0ktj6l9s_G4Ip0c29VwAvAxTlTTvKVLOLQDdPlMkQDx3VkxDXOruVmReQeKjRtNVaeTZvftUoWYqZMy8OYFfRC2iu7bn8CNIeapLdiD9l-3Mnx6j27VDxDeYnGlDOMPPywm2BfkmJs354VBGt6tta3x8xDaNTKwIGc-d9KmHc6BiSLamIy27GvW8ECY6Ixo2xluD1HdvK75VCG-JrnG15nzlxH4AycQvNFee1GzyZiqbhvHwyRc221Rcb3lkSwwocC8dfve-oFohix0iV0C4hEXPHPXpTilrwbFRAn76IbRTxnGAsMl2sWiJufv2Y5yDayJAQaUVzA5Mf5mH15THPRh21sTNZEqaFnHwZx0iCtALCYFS16zJmqmUqJ5NaslgGsra9EbiZtMv8H_CCXchQEKu67JA_QKADnppIued2Ny1XNwgOuCldJTgV_If4OkJ-G4WEcjfzS0H-2TBbRsEXZanrn-wSj5J3nPYw5TSu0bpQJ87sd-WFTRwZtR9bOkzlcim0CyNOARPZdywPhfyqRtYHSqvP-Qktj5FaxyiLRq0LELNxY4OUan8DmqBbXmrZDz_tN3m_uI2g_TWOoExnFDY772PPgsIxUx3RSKkhA9VrDrr7lHdH8xRu0jY6OmxTlbw4Wj_p54bj0qCYubDShuRw3vatLAk_lllj8iMi66vPRlA==
       id: rs_02b0fed16e071f1d006a70b409e68c81999122d39d8585ffa1
@@ -23,7 +25,9 @@ request:
         \ a woodchuck could chuck wood. \n\nOne estimate, based on the tongue twister,\
         \ is about **700 pounds (318 kg)** of wood."
       role: assistant
-    - content: What's your reasoning?
+    - content:
+      - text: What's your reasoning?
+        type: input_text
       role: user
     model: gpt-5.6-luna
     reasoning:

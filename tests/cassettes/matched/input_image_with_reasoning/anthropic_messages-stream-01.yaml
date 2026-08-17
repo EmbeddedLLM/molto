@@ -19,7 +19,9 @@ request:
       - type: text
         text: That’s the **GitHub Octocat logo**.
       role: assistant
-    - content: Think, what is the animal?
+    - content:
+      - text: Think, what is the animal?
+        type: text
       role: user
     model: gpt-5.6-luna
     output_config:

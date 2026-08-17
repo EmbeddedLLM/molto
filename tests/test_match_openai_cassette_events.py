@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,29 @@ def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
         usage["completion_tokens_details"]["reasoning_tokens"]
         == completed["usage"]["output_tokens_details"]["reasoning_tokens"]
     )
+
+
+def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Part one"},
+                {"type": "text", "text": "Part two"},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Follow-up"}],
+        },
+    ]
+    chat_cassette["request"]["body"]["messages"] = deepcopy(messages)
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    assert chat_cassette["request"]["body"]["messages"] == messages
 
 
 @pytest.mark.parametrize(("chat_path", "responses_path"), REASONING_CASSETTES)

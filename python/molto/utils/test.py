@@ -133,6 +133,7 @@ def reconstructable_responses_event(
     item = event.get("item")
     if isinstance(item, dict):
         item.pop("id", None)
+        item.pop("phase", None)
 
     response = event.get("response")
     if isinstance(response, dict):
@@ -143,6 +144,7 @@ def reconstructable_responses_event(
         }
         for output_item in response.get("output") or []:
             output_item.pop("id", None)
+            output_item.pop("phase", None)
         event["response"] = response
 
     return event

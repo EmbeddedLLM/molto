@@ -3,7 +3,11 @@ request:
   body:
     include:
     - reasoning.encrypted_content
-    input: How much wood would a woodchuck chuck?
+    input:
+    - content:
+      - text: How much wood would a woodchuck chuck?
+        type: input_text
+      role: user
     model: gpt-5.6-luna
     reasoning:
       effort: medium

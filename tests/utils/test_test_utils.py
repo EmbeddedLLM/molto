@@ -238,7 +238,11 @@ def _reconstructable(events: list[dict[str, Any]], body: dict[str, Any]) -> list
 
 def test_reconstructable_responses_event_preserves_reconstructable_fields():
     expected_events = _responses_events()
+    expected_events[0]["item"]["phase"] = "final_answer"
+    expected_events[1]["response"]["output"][0]["phase"] = "final_answer"
     actual_events = deepcopy(expected_events)
+    actual_events[0]["item"].pop("phase")
+    actual_events[1]["response"]["output"][0].pop("phase")
     actual_events[0]["item"]["id"] = "msg_generated"
     actual_events[1]["response"].pop("background")
     actual_events[1]["response"]["completed_at"] = 456

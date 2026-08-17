@@ -13,7 +13,9 @@ request:
     - content: That’s the **GitHub Octocat** logo—the stylized cat silhouette associated
         with GitHub. This particular version appears as a simplified white silhouette.
       role: assistant
-    - content: What is the animal?
+    - content:
+      - text: What is the animal?
+        type: text
       role: user
     model: gpt-5.6-luna
     reasoning_effort: none

@@ -399,7 +399,10 @@ def test_matches_messages_reasoning_and_text_events() -> None:
         "body": {
             "max_tokens": 20_000,
             "messages": [
-                {"content": "canonical question", "role": "user"},
+                {
+                    "content": [{"text": "canonical question", "type": "text"}],
+                    "role": "user",
+                },
                 {
                     "content": [
                         {"thinking": "canonical reasoning", "type": "thinking"},
@@ -407,7 +410,10 @@ def test_matches_messages_reasoning_and_text_events() -> None:
                     ],
                     "role": "assistant",
                 },
-                {"content": "canonical follow-up", "role": "user"},
+                {
+                    "content": [{"text": "canonical follow-up", "type": "text"}],
+                    "role": "user",
+                },
             ],
             "model": "model-request-reference",
             "output_config": {"effort": "high"},
@@ -580,7 +586,50 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
         for event in events
     )
     assert read_yaml(str(output_path))["request"]["body"]["messages"] == [
-        {"content": "canonical prompt", "role": "user"}
+        {
+            "content": [{"type": "text", "text": "canonical prompt"}],
+            "role": "user",
+        }
+    ]
+
+
+def test_matches_user_message_and_part_boundaries() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["answer"],
+        request_input=[
+            {
+                "content": [
+                    {"text": "Part one", "type": "input_text"},
+                    {"text": "Part two", "type": "input_text"},
+                ],
+                "role": "user",
+            },
+            {
+                "content": [{"text": "Follow-up", "type": "input_text"}],
+                "role": "user",
+            },
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["template"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette["request"]["body"]["messages"] == [
+        {
+            "content": [
+                {"text": "Part one", "type": "text"},
+                {"text": "Part two", "type": "text"},
+            ],
+            "role": "user",
+        },
+        {
+            "content": [{"text": "Follow-up", "type": "text"}],
+            "role": "user",
+        },
     ]
 
 
@@ -755,7 +804,10 @@ def test_matches_real_two_turn_request_body() -> None:
     assert messages_cassette["request"]["body"] == {
         "max_tokens": 2048,
         "messages": [
-            {"content": "What is 2+2?", "role": "user"},
+            {
+                "content": [{"text": "What is 2+2?", "type": "text"}],
+                "role": "user",
+            },
             {
                 "content": [
                     {
@@ -766,7 +818,10 @@ def test_matches_real_two_turn_request_body() -> None:
                 ],
                 "role": "assistant",
             },
-            {"content": "What about 2*2?", "role": "user"},
+            {
+                "content": [{"text": "What about 2*2?", "type": "text"}],
+                "role": "user",
+            },
         ],
         "model": "deepseek-v4-flash",
         "output_config": {"effort": "high"},

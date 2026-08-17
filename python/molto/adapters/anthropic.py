@@ -14,6 +14,9 @@ scope expands:
   normalized effort preset. On projection, the client uses model capabilities to
   choose adaptive thinking with explicit effort or manual thinking with a preset
   budget. These are compatibility mappings, not exact semantic identities.
+- Each native user message is normalized as one ``UserInput`` containing ordered
+  ``TextInput`` parts. This preserves both message and part boundaries while
+  keeping provider-specific part discriminators out of the IR.
 - Official Anthropic thinking history requires the original signature. Some
   compatible providers and the matched raw-reasoning cassettes omit it, so the
   local request schema narrowly accepts an absent signature. Such history is not
@@ -33,6 +36,9 @@ scope expands:
   ``end_turn`` so translated streams remain consumable; currently
   ``content_filter`` is the only such reason. This deliberately loses the source
   distinction and must remain documented as a compatibility fallback.
+- Responses ``phase`` cannot be derived from a Messages stream or the normalized
+  text/reasoning sequence. Cross-protocol Responses projections omit it rather
+  than guessing; same-protocol Responses passthrough still preserves it.
 - Anthropic's response service-tier vocabulary has no faithful mapping from
   OpenAI tier labels. Every translated Messages stream therefore reports the
   target default ``standard``. Native Messages passthrough remains untouched.
@@ -86,6 +92,7 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    UserInput,
 )
 
 _STOP_REASONS: dict[TerminationReason, str] = {
@@ -120,7 +127,7 @@ class AnthropicMessagesAdapter(
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
 
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | TextInput | Thinking | TextOutput] = []
+        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
         if isinstance(request.system, str):
             normalized_input.append(SystemPrompt(content=request.system))
         elif request.system is not None:
@@ -133,11 +140,29 @@ class AnthropicMessagesAdapter(
             else:
                 content_blocks = [dict(block) for block in message.content]
 
+            if message.role in {"system", "user"}:
+                unsupported = [
+                    block.get("type") for block in content_blocks if block.get("type") != "text"
+                ]
+                if unsupported:
+                    raise ValueError(
+                        f"Unsupported Anthropic {message.role} content blocks: {unsupported}"
+                    )
+                if message.role == "system":
+                    normalized_input.extend(
+                        SystemPrompt(content=block["text"]) for block in content_blocks
+                    )
+                else:
+                    normalized_input.append(
+                        UserInput(
+                            content=[TextInput(content=block["text"]) for block in content_blocks]
+                        )
+                    )
+                continue
+
             for block in content_blocks:
                 block_type = block.get("type")
-                if block_type == "text" and message.role == "system":
-                    normalized_input.append(SystemPrompt(content=block["text"]))
-                elif block_type == "thinking" and message.role == "assistant":
+                if block_type == "thinking":
                     normalized_input.append(
                         Thinking(
                             content=block["thinking"],
@@ -146,19 +171,14 @@ class AnthropicMessagesAdapter(
                         )
                     )
                 elif block_type == "text":
-                    item_type = TextOutput if message.role == "assistant" else TextInput
-                    normalized_input.append(item_type(content=block["text"]))
+                    normalized_input.append(TextOutput(content=block["text"]))
                 else:
                     raise ValueError(
                         f"Unsupported Anthropic {message.role} content block: {block_type}"
                     )
 
         data: dict[str, Any] = {
-            "input": (
-                normalized_input[0].content
-                if len(normalized_input) == 1 and isinstance(normalized_input[0], TextInput)
-                else normalized_input
-            ),
+            "input": normalized_input,
             "max_output_tokens": request.max_tokens,
             "model": request.model,
             "stream": request.stream,

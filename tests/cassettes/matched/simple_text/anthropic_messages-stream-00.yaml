@@ -3,7 +3,11 @@ request:
   body:
     max_tokens: 1024
     messages:
-    - content: Write one short sentence about the ocean.
+    - content:
+      - text: 'Write one short sentence '
+        type: text
+      - text: about the ocean.
+        type: text
       role: user
     model: gpt-4.1-nano
     stream: true

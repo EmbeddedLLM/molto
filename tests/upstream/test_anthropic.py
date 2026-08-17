@@ -19,9 +19,11 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     TerminationReason,
+    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
+    UserInput,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
 
@@ -299,6 +301,60 @@ def test_client_selects_model_supported_thinking_configuration(
 
     assert body["thinking"] == thinking
     assert body.get("output_config") == output_config
+
+
+def test_client_projects_user_text_as_content_block_list():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            input=[
+                UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
+                UserInput(content=[TextInput(content="Follow-up")]),
+                TextOutput(content="Answer"),
+            ],
+            max_output_tokens=2048,
+            model="compatible-model",
+            stream=True,
+        )
+    )
+
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Part one"},
+                {"type": "text", "text": "Part two"},
+            ],
+        },
+        {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "Answer"}]},
+    ]
+
+
+def test_adapter_preserves_user_message_and_part_boundaries():
+    request = AnthropicMessagesCreateRequest(
+        max_tokens=2048,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
+            {"role": "assistant", "content": [{"type": "text", "text": "Answer"}]},
+        ],
+        model="compatible-model",
+        stream=True,
+    )
+
+    normalized = AnthropicMessagesAdapter().normalize_request(request)
+
+    assert normalized.input == [
+        UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
+        UserInput(content=[TextInput(content="Follow-up")]),
+        TextOutput(content="Answer"),
+    ]
 
 
 @pytest.mark.parametrize(

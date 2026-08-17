@@ -36,6 +36,44 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
+def test_request_dump_preserves_user_content_part_lists():
+    body = OpenAIChatCompletionsCreateRequest(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
+        ],
+        model="gpt-4o-mini",
+    )
+
+    expected = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
+        ],
+        "model": "gpt-4o-mini",
+    }
+    assert body.model_dump() == expected
+    assert body.model_dump() == expected
+
+
 def test_non_streaming_chat_completion_uses_sdk_model():
     assert OpenAIChatCompletionsResponse is ChatCompletion
     assert set(OpenAIChatCompletionsResponse.model_fields) == {

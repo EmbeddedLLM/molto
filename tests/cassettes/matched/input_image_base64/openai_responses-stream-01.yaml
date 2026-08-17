@@ -15,11 +15,12 @@ request:
           mascot.
         type: output_text
       id: msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63
-      phase: final_answer
       role: assistant
       status: completed
       type: message
-    - content: What is the animal?
+    - content:
+      - text: What is the animal?
+        type: input_text
       role: user
     max_output_tokens: 2048
     model: gpt-5.6-luna

@@ -1,7 +1,13 @@
 filename: 2026-08-04-019fcaa4-df5c-7232-b1d7-bc32cd7b9e95
 request:
   body:
-    input: Write one short sentence about the ocean.
+    input:
+    - content:
+      - text: 'Write one short sentence '
+        type: input_text
+      - text: about the ocean.
+        type: input_text
+      role: user
     max_output_tokens: 1024
     model: gpt-4.1-nano
     stream: true

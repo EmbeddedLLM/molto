@@ -17,7 +17,9 @@ request:
         text: That is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s
           mascot.
       role: assistant
-    - content: What is the animal?
+    - content:
+      - text: What is the animal?
+        type: text
       role: user
     model: gpt-5.6-luna
     stream: true
