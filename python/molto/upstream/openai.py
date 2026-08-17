@@ -93,8 +93,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 reasoning_item = {
                     "type": "reasoning",
                     "status": "completed",
-                    "summary": [],
-                    "content": [{"type": "reasoning_text", "text": item.content}],
+                    "summary": (
+                        [{"type": "summary_text", "text": item.summary}] if item.summary else []
+                    ),
+                    "content": (
+                        [{"type": "reasoning_text", "text": item.content}] if item.content else []
+                    ),
                 }
                 if item.signature is not None:
                     reasoning_item["encrypted_content"] = item.signature
@@ -171,6 +175,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     index=event.output_index,
                     delta=ThinkingDelta(content_delta=event.delta),
                 )
+            elif event_type == "response.reasoning_summary_text.delta":
+                yield PartDeltaEvent(
+                    index=event.output_index,
+                    delta=ThinkingDelta(summary_delta=event.delta),
+                )
             elif event_type == "response.output_text.delta":
                 yield PartDeltaEvent(
                     index=event.output_index,
@@ -243,6 +252,9 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 "response.content_part.added",
                 "response.content_part.done",
                 "response.reasoning_text.done",
+                "response.reasoning_summary_part.added",
+                "response.reasoning_summary_part.done",
+                "response.reasoning_summary_text.done",
                 "response.output_text.done",
             }:
                 continue
@@ -295,7 +307,7 @@ class OpenAIChatCompletionsClient(
                     }
                 )
             elif isinstance(item, Thinking):
-                reasoning_content = item.content
+                reasoning_content = item.content or item.summary
             elif isinstance(item, TextOutput):
                 message = {"role": "assistant", "content": item.content}
                 if reasoning_content is not None:
@@ -346,7 +358,7 @@ class OpenAIChatCompletionsClient(
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
-        thinking_content = ""
+        thinking_text = ""
         text_content = ""
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
@@ -356,7 +368,10 @@ class OpenAIChatCompletionsClient(
         def end_active_part() -> PartEndEvent | None:
             nonlocal active_part
             if active_part == "thinking":
-                part = Thinking(content=thinking_content, summary="")
+                part = Thinking(
+                    content=thinking_text if self._capabilities.thinking == "raw" else "",
+                    summary=thinking_text if self._capabilities.thinking == "summary" else "",
+                )
             elif active_part == "text":
                 part = TextOutput(content=text_content)
             else:
@@ -391,10 +406,21 @@ class OpenAIChatCompletionsClient(
                     elif active_part != "thinking":
                         raise ValueError("Received reasoning after text output started.")
                     if reasoning_delta:
-                        thinking_content += reasoning_delta
+                        thinking_text += reasoning_delta
                         yield PartDeltaEvent(
                             index=next_part_index - 1,
-                            delta=ThinkingDelta(content_delta=reasoning_delta),
+                            delta=ThinkingDelta(
+                                content_delta=(
+                                    reasoning_delta
+                                    if self._capabilities.thinking == "raw"
+                                    else None
+                                ),
+                                summary_delta=(
+                                    reasoning_delta
+                                    if self._capabilities.thinking == "summary"
+                                    else None
+                                ),
+                            ),
                         )
 
                 if choice.delta.content is not None:

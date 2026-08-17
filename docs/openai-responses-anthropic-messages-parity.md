@@ -2,7 +2,11 @@
 
 ## Overview
 
-OpenAI Responses and Anthropic Messages overlap on conversation text, raw reasoning, streaming lifecycle, termination, and token usage, but they are not wire-equivalent. Molto preserves shared semantics through its normalized representation and keeps provider-owned values provider-specific.
+OpenAI Responses and Anthropic Messages overlap on conversation text, reasoning, streaming lifecycle, termination, and token usage, but they are not wire-equivalent. Molto preserves shared semantics through its normalized representation and keeps provider-owned values provider-specific.
+
+`endpoint`, `provider`, and `base_url` are independent. The endpoint selects Responses or Messages wire format. The provider identifies the implementation serving that protocol and selects its capability profile. The base URL only selects the HTTP destination; Molto never infers provider behavior from its hostname.
+
+Messages `thinking_delta` does not identify its text as raw reasoning or a summary. Anthropic and OpenAI profiles classify it as a summary; vLLM classifies it as raw reasoning. Responses labels these representations explicitly, so `response.reasoning_text.*` and `response.reasoning_summary_*` remain authoritative regardless of provider profile.
 
 For this guide, parity means:
 
@@ -20,14 +24,18 @@ The translated path currently supports:
 - streaming requests;
 - string and text-message input;
 - system prompts;
-- assistant text and raw reasoning history;
+- assistant text, raw reasoning history, and reasoning-summary history;
 - model, output-token limit, temperature, and `top_p`;
 - Anthropic adaptive and manual extended thinking with summarized display;
-- response IDs, model names, text and raw-reasoning delta boundaries;
+- response IDs, model names, text and reasoning delta boundaries;
 - shared termination reasons and Anthropic stop sequences; and
 - semantic input, cache-read, cache-write, output, and thinking-token usage.
 
 Images, tools, tool results, citations, refusals as content blocks, redacted thinking, server tools, structured output, multiple candidates, and non-streaming collection are not implemented across this normalized path. Fields accepted by a request wrapper are not supported cross-protocol unless an adapter and client map them explicitly.
+
+Only text and thinking content blocks are accepted by the current Messages adapter. Other content-block variants are rejected explicitly rather than silently discarded.
+
+Official Anthropic thinking history requires its original signature. Molto's local Messages request schema also accepts a missing signature for compatible providers such as vLLM, whose raw-reasoning fixtures do not provide one. That permissive schema does not establish support for unsigned history against the official Anthropic API; official continuation support requires cassette coverage with Anthropic-issued signatures.
 
 ## Formats at a Glance
 
@@ -111,6 +119,8 @@ The Messages wrapper also accepts `cache_control`, `container`, `inference_geo`,
 
 Reasoning effort is the provider-neutral control. For known Claude model IDs, Molto uses the installed Anthropic model profile to select adaptive versus manual extended thinking. Non-Claude model IDs on Anthropic-compatible endpoints default to adaptive thinking, matching the cross-protocol fixtures.
 
+This outbound model-support policy is separate from `ProviderCapabilities.thinking`, which classifies the inbound meaning of the protocol's ambiguous thinking text.
+
 | Normalized effort | Adaptive `output_config.effort`         | Manual `budget_tokens`        |
 | ----------------- | --------------------------------------- | ----------------------------- |
 | `none`            | thinking disabled                       | thinking disabled             |
@@ -125,16 +135,16 @@ Manual `budget_tokens` must remain below `max_tokens`; Molto rejects an invalid 
 
 ## Result Translation: Messages to Responses
 
-| Responses concept | Messages source           | Rule                                                                             |
-| ----------------- | ------------------------- | -------------------------------------------------------------------------------- |
-| Response ID       | message `id`              | Preserve exactly.                                                                |
-| Model             | message `model`           | Preserve exactly.                                                                |
-| Creation time     | unavailable               | Capture local wall-clock time when normalization observes `message_start`.       |
-| Service tier      | Messages usage tier       | Emit target default `default`.                                                   |
-| Reasoning         | thinking deltas and block | Preserve raw thinking text and delta boundaries.                                 |
-| Assistant text    | text deltas and block     | Preserve text and delta boundaries.                                              |
-| Usage             | start and terminal usage  | Map semantically as described below.                                             |
-| Outcome           | `stop_reason`             | Normalize the reason and project exact Responses completed or incomplete states. |
+| Responses concept | Messages source | Rule |
+| --- | --- | --- |
+| Response ID | message `id` | Preserve exactly. |
+| Model | message `model` | Preserve exactly. |
+| Creation time | unavailable | Capture local wall-clock time when normalization observes `message_start`. |
+| Service tier | Messages usage tier | Emit target default `default`. |
+| Reasoning | thinking deltas and block | Emit a Responses reasoning summary for `summary` providers or reasoning text for `raw` providers, preserving delta boundaries. |
+| Assistant text | text deltas and block | Preserve text and delta boundaries. |
+| Usage | start and terminal usage | Map semantically as described below. |
+| Outcome | `stop_reason` | Normalize the reason and project exact Responses completed or incomplete states. |
 
 The generated `created_at` is a valid downstream timestamp, not the creation time of an independently recorded OpenAI response. Responses output-item IDs and sequence numbers are also translator-generated.
 
@@ -144,16 +154,16 @@ Under the OpenAI Messages fixture contract, Messages signature deltas become Res
 
 ## Result Translation: Responses to Messages
 
-| Messages concept | Responses source               | Rule                                              |
-| ---------------- | ------------------------------ | ------------------------------------------------- |
-| Message ID       | response `id`                  | Preserve exactly.                                 |
-| Model            | response `model`               | Preserve exactly.                                 |
-| Start usage      | unavailable at Responses start | Emit zero counts so streaming remains live.       |
-| Service tier     | Responses tier                 | Emit target default `standard`.                   |
-| Thinking         | raw reasoning text             | Preserve the supported text and delta boundaries. |
-| Assistant text   | output text                    | Preserve text and delta boundaries.               |
-| Terminal usage   | completed response usage       | Map semantically.                                 |
-| `stop_reason`    | normalized termination reason  | Apply the explicit mapping below.                 |
+| Messages concept | Responses source               | Rule                                                                                     |
+| ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| Message ID       | response `id`                  | Preserve exactly.                                                                        |
+| Model            | response `model`               | Preserve exactly.                                                                        |
+| Start usage      | unavailable at Responses start | Emit zero counts so streaming remains live.                                              |
+| Service tier     | Responses tier                 | Emit target default `standard`.                                                          |
+| Thinking         | reasoning text or summary      | Collapse either representation into Messages thinking while preserving delta boundaries. |
+| Assistant text   | output text                    | Preserve text and delta boundaries.                                                      |
+| Terminal usage   | completed response usage       | Map semantically.                                                                        |
+| `stop_reason`    | normalized termination reason  | Apply the explicit mapping below.                                                        |
 
 Terminal usage is authoritative for translated Messages streams. Backfilling `message_start` with terminal counts would require buffering the whole upstream response.
 
@@ -177,6 +187,8 @@ Anthropic's matched `stop_sequence` is retained separately. A downstream adapter
 ## Usage Mapping
 
 Anthropic reports uncached input, cache creation, and cache reads separately. Normalized total input includes all three categories.
+
+These mappings are semantic interpretations backed by matched fixtures, not assertions that the provider schemas are structurally identical.
 
 | Normalized usage                          | Anthropic source or target                                             |
 | ----------------------------------------- | ---------------------------------------------------------------------- |
@@ -204,7 +216,7 @@ Cross-protocol tests require:
 
 - one normalized response start and one response end;
 - stable content indices;
-- one target delta for every matched source text or reasoning delta;
+- one target delta for every matched source text, raw-reasoning, or reasoning-summary delta;
 - concatenated deltas equal completed content;
 - content blocks and output items close before the response ends;
 - target termination fields agree with the normalized reason;
@@ -217,7 +229,11 @@ Same-protocol passthrough validates SDK-native events but does not cross the nor
 
 Responses is the canonical behavioral reference for matched cross-protocol fixtures. Matching scripts may align source-backed IDs, models, usage, text boundaries, reasoning effort, and termination semantics. A continuation with reasoning history defaults to high effort when its canonical request omits the current reasoning configuration. Matchers also set translated target defaults: `standard` for Messages and `default` for Chat Completions.
 
+When a matcher changes an SSE payload discriminator, it must update the corresponding `event:` header. Matched cassettes must retain valid native wire structure; JSON key order and whitespace should otherwise remain stable unless the modified value requires reserialization.
+
 The matcher copies Responses `encrypted_content` into a Messages `signature` under the explicit assumption that OpenAI owns both endpoints and the opaque token. These fixtures prove same-provider cross-protocol compatibility; they do not prove OpenAI-to-Anthropic continuation compatibility.
+
+The `reasoning_raw` fixtures use `vllm_*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
 
 Committed cassettes remain native wire-format fixtures. Tests always replay them and never record during normal verification.
 

@@ -46,7 +46,7 @@ from molto.types.base import ExcludeNoneModel
 
 
 class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMessageParam):
-    """Provider-compatible assistant history containing raw reasoning text."""
+    """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
 

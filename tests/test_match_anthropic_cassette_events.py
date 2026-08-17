@@ -4,7 +4,10 @@ from typing import Any
 
 import pytest
 
-from molto.types.anthropic_messages import AnthropicMessagesStreamEventAdapter
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesStreamEventAdapter,
+)
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
 from scripts.match_anthropic_cassette_events import (
     _message_event_units,
@@ -17,6 +20,9 @@ MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "reasoning_raw"
 OPAQUE_STATE_CASSETTES = (
     Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning"
+)
+ENCRYPTED_REASONING_CASSETTES = (
+    Path(__file__).parent / "cassettes" / "matched" / "reasoning_encrypted"
 )
 
 
@@ -752,6 +758,36 @@ def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     }
 
 
+def test_maps_encrypted_reasoning_history_without_raw_content() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=["canonical reasoning"],
+        reasoning_encrypted_content="canonical-signature",
+        text_deltas=["canonical answer"],
+        request_input=[
+            {"content": "question", "role": "user"},
+            {
+                "encrypted_content": "canonical-history-signature",
+                "summary": [{"text": "prior summary", "type": "summary_text"}],
+                "type": "reasoning",
+            },
+            {"content": "prior answer", "role": "assistant"},
+            {"content": "follow-up", "role": "user"},
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=["template reasoning"],
+        text_deltas=["template answer"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette["request"]["body"]["messages"][1]["content"][0] == {
+        "signature": "canonical-history-signature",
+        "thinking": "prior summary",
+        "type": "thinking",
+    }
+
+
 @pytest.mark.parametrize(
     ("message_reasoning", "response_reasoning"),
     [(None, ["reasoning"]), (["thinking"], None)],
@@ -792,8 +828,8 @@ def test_uses_standard_service_tier_for_translated_messages() -> None:
 
 
 def test_matches_real_two_turn_request_body() -> None:
-    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "anthropic_messages-stream-01.yaml"))
-    responses_cassette = read_yaml(str(MATCHED_CASSETTES / "openai_responses-stream-01.yaml"))
+    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm_messages-stream-01.yaml"))
+    responses_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm_responses-stream-01.yaml"))
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {
@@ -844,3 +880,22 @@ def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette == original_messages_cassette
+
+
+@pytest.mark.parametrize("turn", range(2))
+def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(ENCRYPTED_REASONING_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(ENCRYPTED_REASONING_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+    )
+    original_messages_cassette = deepcopy(messages_cassette)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette == original_messages_cassette
+    AnthropicMessagesCreateRequest.model_validate(messages_cassette["request"]["body"])
+    for event in _data_events(messages_cassette):
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)

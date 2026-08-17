@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from molto import Molto
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
+from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, PROVIDER_CAPABILITIES, Provider
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
@@ -31,6 +32,25 @@ CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
+ENCRYPTED_REASONING_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
+ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
+    product(ENCRYPTED_REASONING_PROTOCOLS, repeat=2)
+)
+MATCHED_PROVIDERS: dict[tuple[str, Protocol], Provider] = {
+    ("simple_text", "responses"): "openai",
+    ("simple_text", "chat/completions"): "openai",
+    ("simple_text", "messages"): "anthropic",
+    ("reasoning_raw", "responses"): "vllm",
+    ("reasoning_raw", "chat/completions"): "vllm",
+    ("reasoning_raw", "messages"): "vllm",
+    ("reasoning_encrypted", "responses"): "openai",
+    ("reasoning_encrypted", "messages"): "anthropic",
+}
+
+
+def _matched_provider(protocol: Protocol, cassette_name: str) -> Provider:
+    scenario = Path(cassette_name).name.partition("-")[0]
+    return MATCHED_PROVIDERS[(scenario, protocol)]
 
 
 def _cassette_path(
@@ -58,8 +78,8 @@ def _cassette_path(
     scenario, separator, variant = cassette_name.partition("-")
     if not separator:
         raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    prefix = "anthropic" if protocol == "messages" else "openai"
-    return CASSETTE_DIR / "matched" / scenario / f"{prefix}_{protocol_dir}-{variant}"
+    provider = _matched_provider(protocol, cassette_name)
+    return CASSETTE_DIR / "matched" / scenario / f"{provider}_{protocol_dir}-{variant}"
 
 
 @lru_cache(maxsize=5)
@@ -77,7 +97,8 @@ def _get_http_client(
     cassette_names = cassette_names.copy()
 
     def cassette_handler(request: Request) -> Response:
-        cassette = _read_cassette(_cassette_path(upstream, cassette_names.pop(0), matched=matched))
+        cassette_name = cassette_names.pop(0)
+        cassette = _read_cassette(_cassette_path(upstream, cassette_name, matched=matched))
         request_body = json_loads(request.content)
         try:
             assert request.method == cassette["request"]["method"]
@@ -86,7 +107,18 @@ def _get_http_client(
             )
             assert str(request.url) == f"{origin}{cassette['request']['path']}"
             assert request.url.path == cassette["request"]["path"]
-            assert request_body == cassette["request"]["body"]
+            expected_body = cassette["request"]["body"]
+            if (
+                matched
+                and upstream == "responses"
+                and Path(cassette_name).name.startswith("reasoning_encrypted-")
+            ):
+                _assert_reconstructable_encrypted_responses_request(
+                    request_body,
+                    expected_body,
+                )
+            else:
+                assert request_body == expected_body
         except AssertionError as e:
             return Response(
                 400,
@@ -100,6 +132,46 @@ def _get_http_client(
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
+
+
+def _assert_reconstructable_encrypted_responses_request(
+    actual_body: dict[str, Any],
+    expected_body: dict[str, Any],
+) -> None:
+    adapter = OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["openai"])
+
+    def normalize(body: dict[str, Any]) -> dict[str, Any]:
+        request = OpenAIResponsesCreateRequest.model_validate(body)
+        normalized = adapter.normalize_request(request).model_dump(
+            exclude={"extra_fields", "stream_options"}
+        )
+        for item in normalized.get("input") or []:
+            if isinstance(item, dict):
+                item.pop("id", None)
+        return normalized
+
+    # Messages has no equivalents for Responses include/stream options or item IDs.
+    assert normalize(actual_body) == normalize(expected_body)
+
+
+def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[str, Any]:
+    event.pop("obfuscation", None)
+
+    item = event.get("item")
+    if isinstance(item, dict):
+        item.pop("status", None)
+        if event.get("type") == "response.output_item.added":
+            item.pop("encrypted_content", None)
+
+    response = event.get("response")
+    if isinstance(response, dict):
+        response.pop("max_output_tokens", None)
+        response.pop("reasoning", None)
+        for output_item in response.get("output") or []:
+            output_item.pop("status", None)
+            output_item.pop("encrypted_content", None)
+
+    return event
 
 
 def _assert_sse_events_contain(
@@ -241,10 +313,11 @@ def test_matched_request_body_matches_across_protocols(
     if downstream == upstream:
         actual_body = request.model_dump()
     else:
+        capabilities = PROVIDER_CAPABILITIES[_matched_provider(upstream, cassette_name)]
         adapter = {
-            "responses": OpenAIResponsesAdapter(),
-            "chat/completions": OpenAIChatCompletionsAdapter(),
-            "messages": AnthropicMessagesAdapter(),
+            "responses": OpenAIResponsesAdapter(capabilities),
+            "chat/completions": OpenAIChatCompletionsAdapter(capabilities),
+            "messages": AnthropicMessagesAdapter(capabilities),
         }[downstream]
         normalized_request = adapter.normalize_request(request)
         project_request = {
@@ -270,6 +343,7 @@ async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
         stream = await client.responses(
             body=request_body,
             endpoint="responses",
+            provider="vllm",
             api_key="test-api-key",
         )
         events = [event async for event in stream]
@@ -287,6 +361,12 @@ async def _assert_stream_events(
     matched: bool = False,
 ) -> None:
     num_turns = len(cassette_names)
+    scenario = Path(cassette_names[0]).name.partition("-")[0]
+    provider = (
+        _matched_provider(upstream, cassette_names[0])
+        if matched
+        else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
+    )
     async with _get_http_client(cassette_names, upstream, matched=matched) as http_client:
         client = Molto(http_client=http_client)
         for _ in range(num_turns):
@@ -301,7 +381,7 @@ async def _assert_stream_events(
             response = await coordinator(
                 body=deepcopy(cassette["request"]["body"]),
                 endpoint=upstream,
-                provider="anthropic" if upstream == "messages" else "openai",
+                provider=provider,
             )
             events = [event async for event in response]
             expected_sse_events = _sse_records(cassette, downstream)
@@ -347,6 +427,8 @@ async def _assert_stream_events(
                         response_data = event.get("response")
                         if isinstance(response_data, dict):
                             response_data.pop("created_at", None)
+                        if scenario == "reasoning_encrypted":
+                            _reconstructable_encrypted_responses_event(event)
                     assert actual_events == expected_events
             elif downstream == "chat/completions":
                 if upstream == "chat/completions":
@@ -419,12 +501,16 @@ async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Prot
     await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
 
 
-async def test_reasoning_stream_encrypted_content():
+@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+async def test_reasoning_stream_encrypted_content(
+    downstream: Protocol,
+    upstream: Protocol,
+):
     cassette_names = [
-        "matched/reasoning_encrypted/reasoning-stream-00.yaml",
-        "matched/reasoning_encrypted/reasoning-stream-01.yaml",
+        "reasoning_encrypted-stream-00.yaml",
+        "reasoning_encrypted-stream-01.yaml",
     ]
-    await _assert_responses_events(cassette_names)
+    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
 
 
 async def test_instructions_stream():

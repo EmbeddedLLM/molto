@@ -10,7 +10,19 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning content, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, conversation history, lifecycle metadata, and token usage.
+
+## Route configuration
+
+`endpoint`, `provider`, and `base_url` are independent:
+
+| Concept    | Purpose                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
+| `base_url` | Selects only the HTTP destination.                                                                                            |
+
+Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
 ## Architectural goal
 
@@ -77,6 +89,7 @@ The layers have distinct ownership:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
+| `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream native events | HTTP transport |
 | `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
@@ -108,9 +121,10 @@ Each implemented coordinator performs the following work:
 
 1. Validate the public body as its protocol request model.
 2. Reject non-streaming requests until collection is implemented.
-3. Resolve the API key and injected or default HTTP client.
-4. Select the upstream path from `endpoint`.
-5. Return an async iterator of the same protocol's OpenAI SDK event models.
+3. Resolve `provider` and its capability profile independently of `base_url`.
+4. Resolve the API key and injected or default HTTP client.
+5. Select the upstream path from `endpoint`.
+6. Return an async iterator of the same downstream protocol's SDK event models.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
@@ -212,7 +226,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto models that extension only on assistant messages, maps it to `Thinking`, and reconstructs Responses reasoning history. A Chat reasoning request maps to detailed Responses reasoning so the upstream returns the raw reasoning needed by the downstream contract.
+`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative.
 
 ## Normalized request model
 
@@ -220,7 +234,7 @@ Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto
 
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
-- raw reasoning content in requests and assistant history;
+- raw reasoning and reasoning summaries in requests and assistant history;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
@@ -259,7 +273,7 @@ ResponseEndEvent
 
 `FinalResultEvent` is also part of the union for future result handling.
 
-For the text and raw-reasoning paths:
+For the text and reasoning paths:
 
 - `ResponseStartEvent` carries the upstream response ID, creation time, model, and service tier;
 - `PartStartEvent` establishes an empty `Thinking` or `TextOutput` at a stable output index;
@@ -268,6 +282,8 @@ For the text and raw-reasoning paths:
 - `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+
+The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Their downstream adapters collapse either normalized representation into the protocol's single reasoning field. Responses projection retains the distinction with its separate reasoning-text and reasoning-summary lifecycles.
 
 Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. When the target protocol cannot represent a normalized reason, its adapter deliberately coerces it to normal completion (`end_turn`, `stop`, or `response.completed`) so the translated stream remains consumable.
 
@@ -372,9 +388,9 @@ tests/cassettes/matched/
     openai_chat_completions-stream-00.yaml
     openai_responses-stream-00.yaml
   reasoning_raw/
-    anthropic_messages-stream-00.yaml
-    openai_chat_completions-stream-00.yaml
-    openai_responses-stream-00.yaml
+    vllm_messages-stream-00.yaml
+    vllm_chat_completions-stream-00.yaml
+    vllm_responses-stream-00.yaml
 ```
 
 The naming pattern is:
@@ -395,7 +411,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text and raw reasoning across OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages. The matched Responses/Messages fixtures also map opaque reasoning state under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers. Non-streaming collection, reasoning summaries, tool calls, multimodal content, and other providers are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, and reasoning summaries across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map opaque reasoning state under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers. Non-streaming collection, tool calls, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 

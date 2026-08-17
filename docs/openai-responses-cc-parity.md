@@ -14,6 +14,8 @@ For this guide, parity means:
 
 This distinction matters most when a Responses request is sent to an upstream Chat Completions endpoint and its result is translated back into Responses.
 
+`endpoint`, `provider`, and `base_url` are separate route settings. The endpoint selects Responses or Chat Completions wire format. The provider identifies the implementation serving that protocol and selects its capability profile. The base URL only selects the HTTP destination. Molto never infers provider behavior from a URL hostname.
+
 ## Document Scope and Current Support
 
 The mapping tables in this guide describe target parity requirements unless a section explicitly says it documents current behavior. They are not a claim that every SDK field is implemented merely because both request wrappers accept it.
@@ -22,9 +24,9 @@ The current cross-protocol implementation supports:
 
 - streaming requests only;
 - string input and text messages with system, developer, user, and assistant roles;
-- raw assistant reasoning through Responses reasoning items and the Chat `reasoning_content` extension;
+- raw assistant reasoning and reasoning summaries through Responses reasoning items and the ambiguous Chat `reasoning_content` extension;
 - request translation for `instructions`, model, streaming mode, output-token limits, parallel-tool-call configuration, reasoning effort, temperature, `top_p`, and `include_obfuscation` where the counterpart protocol represents them;
-- response IDs, creation times, model names, text and raw-reasoning delta boundaries, lifecycle structure, and semantic token usage; and
+- response IDs, creation times, model names, text and reasoning delta boundaries, lifecycle structure, and semantic token usage; and
 - same-protocol paths that validate and yield SDK-native events without crossing the normalized representation.
 
 Refusals, tool calls and tool results, hosted tools, multiple choices, moderation, annotations, log probabilities, and non-streaming collection are not implemented across the normalized path. The current Chat client reads only `choices[0]`. Normalized streams retain source termination reasons; target projections use exact mappings when available and coerce unrepresentable reasons to normal completion. Responses still maps output-token and content-filter limits exactly to `response.incomplete`. Those limitations are implementation gaps, not evidence that the source values are unavailable in principle.
@@ -103,7 +105,20 @@ Responses `phase` is not reconstructible from Chat output or the normalized text
 
 ## Result Translation: Chat Completions to Responses
 
-The implemented result path currently covers response metadata, text, raw reasoning, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusal, tools, finish-reason-specific status, log probabilities, moderation, annotations, and multiple choices remain unsupported.
+The implemented result path currently covers response metadata, text, raw reasoning, reasoning summaries, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusal, tools, finish-reason-specific status, log probabilities, moderation, annotations, and multiple choices remain unsupported.
+
+### Reasoning representation
+
+Responses distinguishes raw reasoning (`response.reasoning_text.*`) from summaries (`response.reasoning_summary_*`). Chat Completions `reasoning_content` does not. The upstream Chat client therefore classifies that field with `ProviderCapabilities.thinking`:
+
+| Source                      | Provider capability | Normalized representation            | Responses projection           |
+| --------------------------- | ------------------- | ------------------------------------ | ------------------------------ |
+| Chat `reasoning_content`    | `raw`               | `Thinking.content` / `content_delta` | `response.reasoning_text.*`    |
+| Chat `reasoning_content`    | `summary`           | `Thinking.summary` / `summary_delta` | `response.reasoning_summary_*` |
+| Responses reasoning text    | any                 | `Thinking.content` / `content_delta` | Chat `reasoning_content`       |
+| Responses reasoning summary | any                 | `Thinking.summary` / `summary_delta` | Chat `reasoning_content`       |
+
+OpenAI uses `summary`; vLLM uses `raw`. Explicit Responses event types remain authoritative and ignore this capability. Projecting to Chat collapses either normalized form into its one reasoning field.
 
 ### Direct result mappings
 
@@ -182,7 +197,7 @@ Chat stream options expose both `include_usage` and `include_obfuscation`. The g
 
 ## Result Translation: Responses to Chat Completions
 
-The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning deltas, semantic termination reason, and token usage into SDK-native Chat chunks. It emits one initial assistant-role chunk and preserves every matched text and reasoning delta boundary.
+The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning or summary deltas, semantic termination reason, and token usage into SDK-native Chat chunks. It emits one initial assistant-role chunk and preserves every matched text and reasoning delta boundary.
 
 Every projected Chat chunk reports the target default `service_tier="default"`, regardless of the source Responses tier. Responses has no Chat `system_fingerprint`, so that field does not participate in exact cross-protocol comparison.
 
@@ -215,7 +230,7 @@ An independently recorded Responses result may contain data unavailable from the
 - other Responses-only opaque IDs or server timestamps;
 - server-resolved conversation or previous-response state;
 - prompt-cache decisions not represented in Chat usage;
-- Responses reasoning items, summaries, or encrypted reasoning absent from Chat;
+- typed Responses reasoning structure or encrypted reasoning state absent from Chat;
 - hosted-tool output and per-tool usage absent from Chat;
 - Responses annotations or citations absent from the Chat message; and
 - Responses-specific error and incomplete details beyond a defined finish-reason mapping.
@@ -289,7 +304,7 @@ Matched source cassettes must carry all source fields under test. Canonicalizati
 Repository fixtures and helpers relevant to this contract are:
 
 - `tests/cassettes/matched/simple_text/`;
-- `tests/cassettes/matched/reasoning_raw/`;
+- `tests/cassettes/matched/reasoning_raw/`, whose `vllm_*` fixtures run with `provider="vllm"`;
 - `scripts/match_openai_cassette_events.py`;
 - `python/molto/utils/test.py`;
 - `tests/core/test_interface.py`; and
@@ -310,6 +325,8 @@ When the SDK changes:
 5. run cassette-backed parity tests.
 
 A permissive event fallback may tolerate a newer raw SSE event, but it cannot make an incompatible request schema or missing result mapping correct.
+
+Do not use a base URL hostname to choose raw-versus-summary behavior. Add or update the explicit provider capability profile and its cassette-backed coverage instead.
 
 ## Summary Checklist
 

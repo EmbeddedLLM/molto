@@ -4,6 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
+from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
 
 
@@ -30,7 +31,7 @@ class EmptyEvents(AsyncIterator[ModelResponseStreamEvent]):
 
 
 def test_adapter_remembers_native_request_before_projecting_events():
-    adapter = Adapter()
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
     native_request = NativeRequest(value="hello")
     normalized_request = adapter.normalize_request(native_request)
     events = EmptyEvents()
@@ -41,7 +42,7 @@ def test_adapter_remembers_native_request_before_projecting_events():
 
 
 def test_adapter_rejects_event_projection_before_request_normalization():
-    adapter = Adapter()
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
 
     with pytest.raises(RuntimeError, match=r"normalize_request\(\).+project_events\(\)"):
         adapter.project_events(EmptyEvents(), NormalizedRequest())

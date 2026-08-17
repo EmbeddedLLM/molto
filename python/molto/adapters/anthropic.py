@@ -1,66 +1,7 @@
 """Translate Anthropic Messages at Molto's downstream protocol boundary.
 
-The current implementation targets streaming text and raw reasoning. Several
-cross-protocol differences are intentional and should remain visible when this
-scope expands:
-
-- Anthropic does not provide a response creation timestamp, while the normalized
-  response lifecycle requires one. The normalized start event therefore captures
-  the local wall-clock time. This is suitable for a synthesized downstream
-  timestamp but cannot be compared with a provider-backed OpenAI timestamp.
-- The IR records reasoning effort, not Anthropic's thinking mode or token budget.
-  ``output_config.effort`` is preserved when provided; adaptive thinking defaults
-  to high effort, and manual extended-thinking budgets are reduced to the nearest
-  normalized effort preset. On projection, the client uses model capabilities to
-  choose adaptive thinking with explicit effort or manual thinking with a preset
-  budget. These are compatibility mappings, not exact semantic identities.
-- Each native user message is normalized as one ``UserInput`` containing ordered
-  ``TextInput`` parts. This preserves both message and part boundaries while
-  keeping provider-specific part discriminators out of the IR.
-- Official Anthropic thinking history requires the original signature. Some
-  compatible providers and the matched raw-reasoning cassettes omit it, so the
-  local request schema narrowly accepts an absent signature. Such history is not
-  guaranteed to work against the official Anthropic API; add official Claude
-  cassette coverage with real signatures before claiming that support. The
-  matched cross-protocol fixtures instead assume OpenAI serves a Messages API and
-  uses the same opaque state for Responses ``encrypted_content`` and Messages
-  ``signature``. That mapping is valid only within the same provider; an
-  OpenAI-issued value must not be sent to Anthropic as though Anthropic signed it.
-- A translated Messages stream reports zero usage in ``message_start`` when the
-  upstream protocol exposes usage only at completion. Buffering to backfill it
-  would violate Molto's live-streaming contract, so terminal usage is the
-  authoritative cross-protocol value.
-- Normalized termination reasons preserve the distinctions shared by these
-  protocols. Anthropic's ``stop_sequence`` also retains its matched sequence.
-  A source reason with no faithful Anthropic equivalent is coerced to
-  ``end_turn`` so translated streams remain consumable; currently
-  ``content_filter`` is the only such reason. This deliberately loses the source
-  distinction and must remain documented as a compatibility fallback.
-- Responses ``phase`` cannot be derived from a Messages stream or the normalized
-  text/reasoning sequence. Cross-protocol Responses projections omit it rather
-  than guessing; same-protocol Responses passthrough still preserves it.
-- Anthropic's response service-tier vocabulary has no faithful mapping from
-  OpenAI tier labels. Every translated Messages stream therefore reports the
-  target default ``standard``. Native Messages passthrough remains untouched.
-- Cache-token mappings are semantic interpretations backed by the matched
-  fixtures rather than identical provider schemas.
-- Cache-creation TTL breakdowns, ``inference_geo``, ``server_tool_use``,
-  ``stop_details``, and ``container`` do not have normalized equivalents and are
-  not synthesized across protocols. A Messages ``ping`` is transport keepalive,
-  not model output.
-- The request wrapper accepts additional native fields, including service tier,
-  stop sequences, tools, tool choice, metadata, cache control, container,
-  inference geography, ``top_k``, and user profile ID. They are not forwarded by
-  the current normalized path. ``output_config.effort`` is the supported
-  exception. Only text and thinking content blocks are implemented; other block
-  variants are rejected explicitly.
-
-Matched-cassette policy follows from those constraints: keep
-``include_obfuscation: false`` on OpenAI requests because Anthropic has no
-obfuscation equivalent; retain recorded provider quirks such as an SSE event name
-that disagrees with its payload discriminator; and remove or regenerate stale
-transport-computed headers such as ``content-length`` through cassette tooling
-rather than editing recorded response data by hand.
+See ``docs/openai-responses-anthropic-messages-parity.md`` for supported
+semantics, compatibility mappings, and matched-cassette policy.
 """
 
 from __future__ import annotations
@@ -165,8 +106,14 @@ class AnthropicMessagesAdapter(
                 if block_type == "thinking":
                     normalized_input.append(
                         Thinking(
-                            content=block["thinking"],
-                            summary="",
+                            content=(
+                                block["thinking"] if self._capabilities.thinking == "raw" else ""
+                            ),
+                            summary=(
+                                block["thinking"]
+                                if self._capabilities.thinking == "summary"
+                                else ""
+                            ),
                             signature=block.get("signature"),
                         )
                     )
@@ -265,14 +212,19 @@ class AnthropicMessagesAdapter(
                 )
             elif isinstance(normalized_event, PartDeltaEvent):
                 if isinstance(normalized_event.delta, ThinkingDelta):
-                    if normalized_event.delta.content_delta is not None:
+                    reasoning_delta = (
+                        normalized_event.delta.content_delta
+                        if normalized_event.delta.content_delta is not None
+                        else normalized_event.delta.summary_delta
+                    )
+                    if reasoning_delta is not None:
                         yield event(
                             {
                                 "type": "content_block_delta",
                                 "index": normalized_event.index,
                                 "delta": {
                                     "type": "thinking_delta",
-                                    "thinking": normalized_event.delta.content_delta,
+                                    "thinking": reasoning_delta,
                                 },
                             }
                         )

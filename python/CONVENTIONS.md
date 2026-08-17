@@ -12,6 +12,16 @@ A future `chat()` method is a dispatcher over those coordinators. It should sele
 
 Keep same-protocol optimizations visible in the relevant protocol coordinator. Do not hide pair-specific routing inside an adapter or client.
 
+## Endpoint, provider, and transport
+
+Keep these three concepts separate:
+
+- `endpoint` selects the wire protocol and upstream client;
+- `provider` identifies the serving implementation and selects its capability profile; and
+- `base_url` selects only the HTTP destination.
+
+Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
+
 ## Adapter and client base classes
 
 Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
@@ -82,6 +92,8 @@ When non-streaming support is added, derive it with a generic collector over the
 
 Preserve chunk boundaries when they are observable and covered by parity tests. Do not turn an empty role-establishment chunk into a text delta.
 
+Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly and must not be reclassified by a provider profile. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous; classify them with `ProviderCapabilities.thinking`. When projecting to Chat Completions or Messages, collapse either normalized representation into that protocol's single reasoning field.
+
 Map usage semantically and construct the public usage payload explicitly. This prevents internal `extra_fields` containers and source-only usage details from leaking into the target protocol.
 
 ## Same-protocol passthrough
@@ -115,7 +127,7 @@ Prefer semantic normalized types over SDK parameter types. Any SDK type retained
 Matched cross-protocol cassettes use:
 
 ```text
-tests/cassettes/matched/{scenario}/openai_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}_{endpoint}-{mode}-{turn}.yaml
 ```
 
 Examples:
@@ -123,6 +135,7 @@ Examples:
 ```text
 tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
 tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
+tests/cassettes/matched/reasoning_raw/vllm_messages-stream-00.yaml
 ```
 
 Matched cassettes represent semantically equivalent requests expressed in each protocol's native schema, not identical request bodies. When a behavior-changing setting has protocol-specific field names, include its equivalent in every matched request, even if some protocols make it optional. Retain fields required by a protocol; do not remove them merely because a counterpart protocol makes the equivalent optional. For example, match Anthropic `max_tokens` with Responses `max_output_tokens` and Chat Completions `max_completion_tokens`.

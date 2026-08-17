@@ -128,6 +128,8 @@ def _message_content(content: Any) -> list[dict[str, Any]]:
 
 def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
     content = item.get("content")
+    if content is None:
+        content = []
     if not isinstance(content, list):
         raise ValueError("Responses reasoning input must contain a content list.")
     summary = item.get("summary", [])
@@ -154,7 +156,7 @@ def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
 
     thinking = {
         "type": "thinking",
-        "thinking": "".join(summary_text or reasoning_text),
+        "thinking": "".join(reasoning_text or summary_text),
     }
     encrypted_content = item.get("encrypted_content")
     if encrypted_content is not None:

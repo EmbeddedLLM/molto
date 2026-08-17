@@ -66,7 +66,7 @@ def _is_current_or_future_adaptive_claude(model: str) -> bool:
     return False
 
 
-def _thinking_capabilities(model: str) -> tuple[bool, bool]:
+def _model_thinking_capabilities(model: str) -> tuple[bool, bool]:
     # Anthropic-compatible endpoints in the matched fixtures use non-Claude model
     # IDs and expose adaptive thinking. Known Claude IDs use the installed model
     # profile, supplemented for newer families not yet present in the pinned table.
@@ -166,7 +166,7 @@ class AnthropicMessagesClient(
                 )
             elif isinstance(item, Thinking):
                 has_thinking = True
-                block = {"type": "thinking", "thinking": item.content}
+                block = {"type": "thinking", "thinking": item.content or item.summary}
                 if item.signature is not None:
                     block["signature"] = item.signature
                 assistant_blocks.append(block)
@@ -192,7 +192,7 @@ class AnthropicMessagesClient(
         if effort == "none":
             body["thinking"] = {"type": "disabled"}
         elif has_thinking or request.reasoning is not None:
-            adaptive, supports_xhigh = _thinking_capabilities(request.model or "")
+            adaptive, supports_xhigh = _model_thinking_capabilities(request.model or "")
             if adaptive:
                 body["thinking"] = {"type": "adaptive", "display": "summarized"}
                 body["output_config"] = {
@@ -244,8 +244,10 @@ class AnthropicMessagesClient(
                 block = event.content_block
                 if block.type == "thinking":
                     part = Thinking(
-                        content=block.thinking,
-                        summary="",
+                        content=(block.thinking if self._capabilities.thinking == "raw" else ""),
+                        summary=(
+                            block.thinking if self._capabilities.thinking == "summary" else ""
+                        ),
                         signature=block.signature,
                     )
                 elif block.type == "text":
@@ -253,7 +255,12 @@ class AnthropicMessagesClient(
                 else:
                     raise ValueError(f"Unsupported Anthropic output block: {block.type}")
                 signature = (part.signature or "") if isinstance(part, Thinking) else ""
-                parts[event.index] = (part, part.content, signature)
+                content = (
+                    part.content
+                    if not isinstance(part, Thinking) or self._capabilities.thinking == "raw"
+                    else part.summary
+                )
+                parts[event.index] = (part, content, signature)
                 yield PartStartEvent(index=event.index, part=part)
             elif isinstance(event, RawContentBlockDeltaEvent):
                 delta = event.delta
@@ -267,7 +274,16 @@ class AnthropicMessagesClient(
                     )
                     yield PartDeltaEvent(
                         index=event.index,
-                        delta=ThinkingDelta(content_delta=delta.thinking),
+                        delta=ThinkingDelta(
+                            content_delta=(
+                                delta.thinking if self._capabilities.thinking == "raw" else None
+                            ),
+                            summary_delta=(
+                                delta.thinking
+                                if self._capabilities.thinking == "summary"
+                                else None
+                            ),
+                        ),
                     )
                 elif delta.type == "signature_delta" and isinstance(part, Thinking):
                     parts[event.index] = (
@@ -297,7 +313,11 @@ class AnthropicMessagesClient(
                     raise ValueError("Received an Anthropic block stop before its start.")
                 part, content, signature = part_state
                 completed_part = (
-                    Thinking(content=content, summary="", signature=signature)
+                    Thinking(
+                        content=content if self._capabilities.thinking == "raw" else "",
+                        summary=content if self._capabilities.thinking == "summary" else "",
+                        signature=signature,
+                    )
                     if isinstance(part, Thinking)
                     else TextOutput(content=content)
                 )

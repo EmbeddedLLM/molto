@@ -66,6 +66,10 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Run the applicable checks defined in the Linting Workflow.
 - Keep verification proportional to the scope and risk of the change. For behavior changes, run focused relevant tests; run `pytest` for broad changes or when the full offline replay suite is required.
 
+#### Python Tests
+
+- Run tests (especially async tests that invoke the OpenAI or Anthropic SDK) with escalated permissions on the first attempt. Their first-request platform detection uses `asyncio.to_thread()`, while the sandbox blocks the Unix socketpair wakeup that asyncio uses to deliver the worker result. Inside the sandbox these tests can therefore stall before reaching `MockTransport`; this is an environment limitation, not a cassette or SDK parsing failure.
+
 #### Stalled Command Cleanup
 
 - Do not launch verification commands with shell backgrounding such as `&`. Keep each command attached to a tracked terminal or execution session.

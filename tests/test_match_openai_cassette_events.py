@@ -12,8 +12,8 @@ CHAT_CASSETTE = CASSETTES / "simple_text" / "openai_chat_completions-stream-00.y
 RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai_responses-stream-00.yaml"
 REASONING_CASSETTES = [
     (
-        CASSETTES / "reasoning_raw" / f"openai_chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "reasoning_raw" / f"openai_responses-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm_chat_completions-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm_responses-stream-{index:02d}.yaml",
     )
     for index in range(2)
 ]
