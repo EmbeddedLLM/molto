@@ -107,7 +107,9 @@ class OpenAIResponsesAdapter(
         return [item_type(content=text) for text in text_parts]
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: str | list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput] | None
+        normalized_input: (
+            str | list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput] | None
+        )
         if isinstance(request.input, str) or request.input is None:
             normalized_input = request.input
         else:
