@@ -384,19 +384,19 @@ Matched cross-protocol fixtures use a scenario-first layout:
 ```text
 tests/cassettes/matched/
   simple_text/
-    anthropic_messages-stream-00.yaml
-    openai_chat_completions-stream-00.yaml
-    openai_responses-stream-00.yaml
+    anthropic-messages-stream-00.yaml
+    openai-chat_completions-stream-00.yaml
+    openai-responses-stream-00.yaml
   reasoning_raw/
-    vllm_messages-stream-00.yaml
-    vllm_chat_completions-stream-00.yaml
-    vllm_responses-stream-00.yaml
+    vllm-messages-stream-00.yaml
+    vllm-chat_completions-stream-00.yaml
+    vllm-responses-stream-00.yaml
 ```
 
 The naming pattern is:
 
 ```text
-tests/cassettes/matched/{scenario}/{provider}_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
 Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically.

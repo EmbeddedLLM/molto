@@ -8,12 +8,12 @@ from molto.utils.io import json_dumps, json_loads, read_yaml
 from scripts.match_openai_cassette_events import main, match_chat_completions_events
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
-CHAT_CASSETTE = CASSETTES / "simple_text" / "openai_chat_completions-stream-00.yaml"
-RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai_responses-stream-00.yaml"
+CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
+RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai-responses-stream-00.yaml"
 REASONING_CASSETTES = [
     (
-        CASSETTES / "reasoning_raw" / f"vllm_chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "reasoning_raw" / f"vllm_responses-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm-chat_completions-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm-responses-stream-{index:02d}.yaml",
     )
     for index in range(2)
 ]

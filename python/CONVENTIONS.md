@@ -127,15 +127,15 @@ Prefer semantic normalized types over SDK parameter types. Any SDK type retained
 Matched cross-protocol cassettes use:
 
 ```text
-tests/cassettes/matched/{scenario}/{provider}_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
 Examples:
 
 ```text
-tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
-tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
-tests/cassettes/matched/reasoning_raw/vllm_messages-stream-00.yaml
+tests/cassettes/matched/simple_text/openai-responses-stream-00.yaml
+tests/cassettes/matched/simple_text/openai-chat_completions-stream-00.yaml
+tests/cassettes/matched/reasoning_raw/vllm-messages-stream-00.yaml
 ```
 
 Matched cassettes represent semantically equivalent requests expressed in each protocol's native schema, not identical request bodies. When a behavior-changing setting has protocol-specific field names, include its equivalent in every matched request, even if some protocols make it optional. Retain fields required by a protocol; do not remove them merely because a counterpart protocol makes the equivalent optional. For example, match Anthropic `max_tokens` with Responses `max_output_tokens` and Chat Completions `max_completion_tokens`.

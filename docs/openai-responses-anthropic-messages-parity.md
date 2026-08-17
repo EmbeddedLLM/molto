@@ -233,7 +233,7 @@ When a matcher changes an SSE payload discriminator, it must update the correspo
 
 The matcher copies Responses `encrypted_content` into a Messages `signature` under the explicit assumption that OpenAI owns both endpoints and the opaque token. These fixtures prove same-provider cross-protocol compatibility; they do not prove OpenAI-to-Anthropic continuation compatibility.
 
-The `reasoning_raw` fixtures use `vllm_*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
+The `reasoning_raw` fixtures use `vllm-*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
 
 Committed cassettes remain native wire-format fixtures. Tests always replay them and never record during normal verification.
 

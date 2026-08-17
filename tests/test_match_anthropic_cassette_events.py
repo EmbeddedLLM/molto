@@ -828,8 +828,8 @@ def test_uses_standard_service_tier_for_translated_messages() -> None:
 
 
 def test_matches_real_two_turn_request_body() -> None:
-    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm_messages-stream-01.yaml"))
-    responses_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm_responses-stream-01.yaml"))
+    messages_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm-messages-stream-01.yaml"))
+    responses_cassette = read_yaml(str(MATCHED_CASSETTES / "vllm-responses-stream-01.yaml"))
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {
@@ -870,10 +870,10 @@ def test_matches_real_two_turn_request_body() -> None:
 @pytest.mark.parametrize("turn", range(2))
 def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
     messages_cassette = read_yaml(
-        str(OPAQUE_STATE_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+        str(OPAQUE_STATE_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
     )
     responses_cassette = read_yaml(
-        str(OPAQUE_STATE_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+        str(OPAQUE_STATE_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
     )
     original_messages_cassette = deepcopy(messages_cassette)
 
@@ -885,10 +885,10 @@ def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
 @pytest.mark.parametrize("turn", range(2))
 def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
     messages_cassette = read_yaml(
-        str(ENCRYPTED_REASONING_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+        str(ENCRYPTED_REASONING_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
     )
     responses_cassette = read_yaml(
-        str(ENCRYPTED_REASONING_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+        str(ENCRYPTED_REASONING_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
     )
     original_messages_cassette = deepcopy(messages_cassette)
 

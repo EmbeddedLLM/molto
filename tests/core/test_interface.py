@@ -2,7 +2,7 @@ from copy import deepcopy
 from functools import lru_cache
 from itertools import pairwise, product
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -36,21 +36,21 @@ ENCRYPTED_REASONING_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
 ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
     product(ENCRYPTED_REASONING_PROTOCOLS, repeat=2)
 )
-MATCHED_PROVIDERS: dict[tuple[str, Protocol], Provider] = {
-    ("simple_text", "responses"): "openai",
-    ("simple_text", "chat/completions"): "openai",
-    ("simple_text", "messages"): "anthropic",
-    ("reasoning_raw", "responses"): "vllm",
-    ("reasoning_raw", "chat/completions"): "vllm",
-    ("reasoning_raw", "messages"): "vllm",
-    ("reasoning_encrypted", "responses"): "openai",
-    ("reasoning_encrypted", "messages"): "anthropic",
-}
 
 
-def _matched_provider(protocol: Protocol, cassette_name: str) -> Provider:
-    scenario = Path(cassette_name).name.partition("-")[0]
-    return MATCHED_PROVIDERS[(scenario, protocol)]
+def _protocol_name(protocol: Protocol) -> str:
+    return {
+        "chat/completions": "chat_completions",
+        "messages": "messages",
+        "responses": "responses",
+    }[protocol]
+
+
+def _provider_from_cassette_path(path: Path) -> Provider:
+    provider, separator, _ = path.name.partition("-")
+    if not separator or provider not in PROVIDER_CAPABILITIES:
+        raise ValueError(f"Cannot determine provider from matched cassette: {path}")
+    return cast(Provider, provider)
 
 
 def _cassette_path(
@@ -67,19 +67,20 @@ def _cassette_path(
             )
         return CASSETTE_DIR / relative_path
 
-    protocol_dir = {
-        "chat/completions": "chat_completions",
-        "messages": "messages",
-        "responses": "responses",
-    }[protocol]
+    protocol_name = _protocol_name(protocol)
     if not matched:
-        return CASSETTE_DIR / "openai" / protocol_dir / "test_interface" / cassette_name
+        return CASSETTE_DIR / "openai" / protocol_name / "test_interface" / cassette_name
 
     scenario, separator, variant = cassette_name.partition("-")
     if not separator:
         raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    provider = _matched_provider(protocol, cassette_name)
-    return CASSETTE_DIR / "matched" / scenario / f"{provider}_{protocol_dir}-{variant}"
+    matches = list((CASSETTE_DIR / "matched" / scenario).glob(f"*-{protocol_name}-{variant}"))
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected one matched {protocol!r} cassette for {cassette_name!r}, "
+            f"found {len(matches)}"
+        )
+    return matches[0]
 
 
 @lru_cache(maxsize=5)
@@ -313,7 +314,8 @@ def test_matched_request_body_matches_across_protocols(
     if downstream == upstream:
         actual_body = request.model_dump()
     else:
-        capabilities = PROVIDER_CAPABILITIES[_matched_provider(upstream, cassette_name)]
+        upstream_path = _cassette_path(upstream, cassette_name, matched=True)
+        capabilities = PROVIDER_CAPABILITIES[_provider_from_cassette_path(upstream_path)]
         adapter = {
             "responses": OpenAIResponsesAdapter(capabilities),
             "chat/completions": OpenAIChatCompletionsAdapter(capabilities),
@@ -363,7 +365,7 @@ async def _assert_stream_events(
     num_turns = len(cassette_names)
     scenario = Path(cassette_names[0]).name.partition("-")[0]
     provider = (
-        _matched_provider(upstream, cassette_names[0])
+        _provider_from_cassette_path(_cassette_path(upstream, cassette_names[0], matched=True))
         if matched
         else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
     )
@@ -483,22 +485,31 @@ async def _assert_responses_events(
     )
 
 
+async def _assert_matched_stream_events(
+    cassette_dir: str,
+    downstream: Protocol,
+    upstream: Protocol,
+) -> None:
+    protocol_name = _protocol_name(downstream)
+    filename_marker = f"-{protocol_name}-"
+    cassette_names = [
+        f"{cassette_dir}-{path.name.partition(filename_marker)[2]}"
+        for path in sorted(
+            (CASSETTE_DIR / "matched" / cassette_dir).glob(f"*{filename_marker}stream-*.yaml")
+        )
+    ]
+    assert cassette_names, f"No matched cassettes found in {cassette_dir!r}"
+    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
-    cassette_names = [
-        "simple_text-stream-00.yaml",
-        "simple_text-stream-01.yaml",
-    ]
-    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+    await _assert_matched_stream_events("simple_text", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Protocol):
-    cassette_names = [
-        "reasoning_raw-stream-00.yaml",
-        "reasoning_raw-stream-01.yaml",
-    ]
-    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+    await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
@@ -506,11 +517,7 @@ async def test_reasoning_stream_encrypted_content(
     downstream: Protocol,
     upstream: Protocol,
 ):
-    cassette_names = [
-        "reasoning_encrypted-stream-00.yaml",
-        "reasoning_encrypted-stream-01.yaml",
-    ]
-    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+    await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
 
 
 async def test_instructions_stream():
