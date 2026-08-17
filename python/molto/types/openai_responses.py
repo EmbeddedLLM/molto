@@ -11,6 +11,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai.types.responses import Response, ResponseCompletedEvent, ResponseStreamEvent
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_create_params import (
     ContextManagement,
     Conversation,
@@ -20,6 +21,7 @@ from openai.types.responses.response_create_params import (
     ToolChoice,
 )
 from openai.types.responses.response_includable import ResponseIncludable
+from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
 from openai.types.responses.response_output_message_param import (
     Content as ResponseOutputMessageContentParam,
@@ -80,27 +82,99 @@ class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
         list[ResponseOutputMessageContentParam],
         Field(description="The assistant message content."),
     ]
-    role: Annotated[
-        Literal["assistant"],
-        Field(description="The output message role."),
-    ]
+    role: Annotated[Literal["assistant"], Field(description="The output message role.")]
     status: Annotated[
         Literal["in_progress", "completed", "incomplete"],
         Field(description="The output message status."),
     ]
-    type: Annotated[
-        Literal["message"],
-        Field(description="The output message discriminator."),
-    ]
+    type: Annotated[Literal["message"], Field(description="The output message discriminator.")]
     phase: Annotated[
         Literal["commentary", "final_answer"] | None,
         Field(description="The assistant message phase."),
     ] = None
 
 
-# Compatible providers omit IDs from response history, so replace only the two
-# overly strict SDK members while inheriting every other current SDK input type.
+class ResponseInputImageCompatibilityParam(ExcludeNoneModel):
+    """A URL-based image part accepted by Molto's Responses boundary."""
+
+    type: Annotated[
+        Literal["input_image"],
+        Field(description="The image content part type."),
+    ]
+    image_url: Annotated[
+        str,
+        Field(description="The image URL or data URL."),
+    ]
+    detail: Annotated[
+        Literal["low", "high", "auto", "original"] | None,
+        Field(description="The requested image fidelity, when specified."),
+    ] = None
+
+
+class ResponseInputTextCompatibilityParam(ExcludeNoneModel):
+    """A text part accepted by Molto's Responses boundary."""
+
+    text: Annotated[str, Field(description="The text content.")]
+    type: Annotated[
+        Literal["input_text"],
+        Field(description="The text content part type."),
+    ]
+
+
+ResponseInputContentCompatibilityParam: TypeAlias = Annotated[
+    ResponseInputTextCompatibilityParam | ResponseInputImageCompatibilityParam,
+    Discriminator("type"),
+]
+
+
+class ResponseEasyInputMessageCompatibilityParam(ExcludeNoneModel):
+    """An easy input message restricted to Molto-supported content parts."""
+
+    content: Annotated[
+        str | list[ResponseInputContentCompatibilityParam],
+        Field(description="The message content."),
+    ]
+    role: Annotated[
+        Literal["user", "assistant", "system", "developer"],
+        Field(description="The message role."),
+    ]
+    phase: Annotated[
+        Literal["commentary", "final_answer"] | None,
+        Field(description="The assistant message phase."),
+    ] = None
+    type: Annotated[
+        Literal["message"] | None,
+        Field(description="The message item type."),
+    ] = None
+
+
+class ResponseInputMessageCompatibilityParam(ExcludeNoneModel):
+    """A typed input message restricted to Molto-supported content parts."""
+
+    content: Annotated[
+        list[ResponseInputContentCompatibilityParam],
+        Field(description="The message content."),
+    ]
+    role: Annotated[
+        Literal["user", "system", "developer"],
+        Field(description="The message role."),
+    ]
+    status: Annotated[
+        Literal["in_progress", "completed", "incomplete"] | None,
+        Field(description="The message status."),
+    ] = None
+    type: Annotated[
+        Literal["message"] | None,
+        Field(description="The message item type."),
+    ] = None
+
+
+# The SDK requires `detail` and permits `file_id` for input images. Molto accepts only
+# URL-based images and must preserve omitted detail; compatible providers also omit IDs
+# from reasoning and output-history items.
 _REPLACED_SDK_INPUT_ITEMS = {
+    EasyInputMessageParam,
+    SDKResponseInputMessageParam,
     ResponseReasoningItemParam,
     ResponseOutputMessageParam,
 }
@@ -110,6 +184,8 @@ _RETAINED_SDK_INPUT_ITEMS = tuple(
 OpenAIResponsesInputItemParam: TypeAlias = Union[
     ResponseReasoningItemOptionalIDParam,
     ResponseOutputMessageOptionalIDParam,
+    ResponseEasyInputMessageCompatibilityParam,
+    ResponseInputMessageCompatibilityParam,
     *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
@@ -141,11 +217,10 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     input: Annotated[
         str | OpenAIResponsesInputParam | None,
         Field(
-            description=(
-                "Text, image, file, or provider response-history items sent to the model."
-            ),
+            description=("Text, image, or provider response-history items sent to the model."),
         ),
     ] = None
+
     instructions: Annotated[
         str | None,
         Field(description="A system or developer message for the model."),

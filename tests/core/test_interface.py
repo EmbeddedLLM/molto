@@ -219,7 +219,7 @@ async def _assert_stream_events(
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "chat/completions":
                     # Chat does not expose Responses output-item IDs or the exact terminal
-                    # timestamp. Every other translated field must still match exactly.
+                    # timestamp or phase. Every other translated field must still match exactly.
                     actual_events = [
                         reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
@@ -289,6 +289,15 @@ async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Prot
     cassette_names = [
         "reasoning_raw-stream-00.yaml",
         "reasoning_raw-stream-01.yaml",
+    ]
+    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_input_image_base64_stream(downstream: Protocol, upstream: Protocol):
+    cassette_names = [
+        "input_image_base64-stream-00.yaml",
+        "input_image_base64-stream-01.yaml",
     ]
     await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
 

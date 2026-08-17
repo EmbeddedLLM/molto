@@ -7,8 +7,10 @@ from openai import AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
+    ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
+    MultimodalInput,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -61,12 +63,22 @@ class OpenAIResponsesClient(BaseClient):
             return request.input
 
         items: list[dict[str, Any]] = []
-        previous_was_thinking = False
         for item in request.input:
             if isinstance(item, SystemPrompt):
                 items.append({"role": "developer", "content": item.content})
             elif isinstance(item, TextInput):
                 items.append({"role": "user", "content": item.content})
+            elif isinstance(item, MultimodalInput):
+                content = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "input_text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        image = {"type": "input_image", "image_url": part.url}
+                        if part.detail is not None:
+                            image["detail"] = part.detail
+                        content.append(image)
+                items.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 items.append(
                     {
@@ -77,28 +89,24 @@ class OpenAIResponsesClient(BaseClient):
                     }
                 )
             elif isinstance(item, TextOutput):
-                if previous_was_thinking:
-                    items.append(
-                        {
-                            "type": "message",
-                            "role": "assistant",
-                            "status": "completed",
-                            "phase": "final_answer",
-                            "content": [
-                                {
-                                    "type": "output_text",
-                                    "text": item.content,
-                                    "annotations": [],
-                                    "logprobs": [],
-                                }
-                            ],
-                        }
-                    )
-                else:
-                    items.append({"role": "assistant", "content": item.content})
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": item.content,
+                                "annotations": [],
+                                "logprobs": [],
+                            }
+                        ],
+                    }
+                )
+
             else:
                 raise ValueError(f"Unsupported Responses input item: {type(item)}")
-            previous_was_thinking = isinstance(item, Thinking)
         return items
 
     @classmethod
@@ -248,6 +256,21 @@ class OpenAIChatCompletionsClient(BaseClient):
                 messages.append({"role": "developer", "content": item.content})
             elif isinstance(item, TextInput):
                 messages.append({"role": "user", "content": item.content})
+            elif isinstance(item, MultimodalInput):
+                content = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        if part.detail == "original":
+                            raise ValueError(
+                                "Chat Completions cannot represent image detail 'original'."
+                            )
+                        image_url = {"url": part.url}
+                        if part.detail is not None:
+                            image_url["detail"] = part.detail
+                        content.append({"type": "image_url", "image_url": image_url})
+                messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 reasoning_content = item.content
             elif isinstance(item, TextOutput):
@@ -264,6 +287,8 @@ class OpenAIChatCompletionsClient(BaseClient):
                         "tool_call_id": item.tool_call_id,
                     }
                 )
+            else:
+                raise ValueError(f"Unsupported Chat Completions input item: {type(item)}")
         if reasoning_content is not None:
             raise ValueError("Chat Completions requires reasoning history with assistant text.")
         return messages

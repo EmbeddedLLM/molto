@@ -4,8 +4,14 @@ request:
     input:
     - content: Write one short sentence about the ocean.
       role: user
-    - content: The ocean is a vast and mysterious blue world.
+    - content:
+      - annotations: []
+        logprobs: []
+        text: The ocean is a vast and mysterious blue world.
+        type: output_text
       role: assistant
+      status: completed
+      type: message
     - content: Write another about the sky.
       role: user
     max_output_tokens: 1024

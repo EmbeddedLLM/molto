@@ -186,6 +186,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             }
         ),
     ]
+
     captured_requests: list[OpenAIResponsesCreateRequest] = []
 
     async def stub_native_events(

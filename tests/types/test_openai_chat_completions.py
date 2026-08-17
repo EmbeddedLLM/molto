@@ -1,7 +1,9 @@
 import inspect
 
+import pytest
 from openai.resources.chat.completions.completions import AsyncCompletions
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from pydantic import ValidationError
 
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -34,6 +36,42 @@ def test_request_dump_is_ready_for_chat_completions_create():
         "model": "gpt-4o-mini",
         "temperature": 0.2,
     }
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "image_url", "image_url": {}}],
+        [
+            {
+                "type": "image_url",
+                "image_url": {"url": "https://example.test/image.png", "detail": "original"},
+            }
+        ],
+        [{"type": "input_audio", "input_audio": {"data": "AA==", "format": "wav"}}],
+        [{"type": "file", "file": {"file_id": "file_123"}}],
+        [
+            {
+                "type": "text",
+                "text": "hello",
+                "prompt_cache_breakpoint": {"mode": "explicit"},
+            }
+        ],
+    ],
+    ids=[
+        "malformed-image",
+        "unsupported-image-detail",
+        "audio",
+        "file",
+        "prompt-cache-breakpoint",
+    ],
+)
+def test_request_rejects_unsupported_user_content(content):
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": content}],
+            model="gpt-4o-mini",
+        )
 
 
 def test_non_streaming_chat_completion_uses_sdk_model():

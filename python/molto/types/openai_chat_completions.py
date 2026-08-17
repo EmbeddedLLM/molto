@@ -8,7 +8,7 @@ requests and typed result aliases for both response modes.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 from openai import AsyncStream
 from openai._types import SequenceNotStr
@@ -17,14 +17,23 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ChatCompletionAssistantMessageParam,
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_developer_message_param import (
+    ChatCompletionDeveloperMessageParam,
+)
+from openai.types.chat.chat_completion_function_message_param import (
+    ChatCompletionFunctionMessageParam,
+)
 from openai.types.chat.chat_completion_prediction_content_param import (
     ChatCompletionPredictionContentParam,
 )
 from openai.types.chat.chat_completion_stream_options_param import ChatCompletionStreamOptionsParam
+from openai.types.chat.chat_completion_system_message_param import (
+    ChatCompletionSystemMessageParam,
+)
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
+from openai.types.chat.chat_completion_tool_message_param import ChatCompletionToolMessageParam
 from openai.types.chat.chat_completion_tool_union_param import ChatCompletionToolUnionParam
 from openai.types.chat.completion_create_params import (
     Function,
@@ -37,7 +46,7 @@ from openai.types.chat.completion_create_params import (
 from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import Field
+from pydantic import Discriminator, Field
 from typing_extensions import NotRequired
 
 from molto.types.base import ExcludeNoneModel
@@ -49,11 +58,65 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     reasoning_content: NotRequired[str]
 
 
+class ChatCompletionTextContentCompatibilityParam(ExcludeNoneModel):
+    """A text part in a Chat Completions user message."""
+
+    text: Annotated[str, Field(description="The text content.")]
+    type: Annotated[Literal["text"], Field(description="The content part type.")]
+
+
+class ChatCompletionImageURLCompatibilityParam(ExcludeNoneModel):
+    """The URL details for a Chat Completions image part."""
+
+    url: Annotated[str, Field(description="The image URL or data URL.")]
+    detail: Annotated[
+        Literal["auto", "low", "high"] | None,
+        Field(description="The requested image fidelity, when specified."),
+    ] = None
+
+
+class ChatCompletionImageContentCompatibilityParam(ExcludeNoneModel):
+    """An image part in a Chat Completions user message."""
+
+    image_url: Annotated[
+        ChatCompletionImageURLCompatibilityParam,
+        Field(description="The image URL details."),
+    ]
+    type: Annotated[Literal["image_url"], Field(description="The content part type.")]
+
+
+ChatCompletionUserContentCompatibilityParam: TypeAlias = Annotated[
+    ChatCompletionTextContentCompatibilityParam | ChatCompletionImageContentCompatibilityParam,
+    Discriminator("type"),
+]
+
+
+class ChatCompletionUserMessageCompatibilityParam(ExcludeNoneModel):
+    """A user message that preserves ordered text and image content parts."""
+
+    content: Annotated[
+        str | list[ChatCompletionUserContentCompatibilityParam],
+        Field(description="The user message content."),
+    ]
+    role: Annotated[Literal["user"], Field(description="The message role.")]
+    name: Annotated[str | None, Field(description="An optional participant name.")] = None
+
+
+ChatCompletionMessageCompatibilityParam: TypeAlias = (
+    ChatCompletionDeveloperMessageParam
+    | ChatCompletionSystemMessageParam
+    | ChatCompletionUserMessageCompatibilityParam
+    | ChatCompletionAssistantMessageWithReasoningParam
+    | ChatCompletionToolMessageParam
+    | ChatCompletionFunctionMessageParam
+)
+
+
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 
     messages: Annotated[
-        list[ChatCompletionMessageParam | ChatCompletionAssistantMessageWithReasoningParam],
+        list[ChatCompletionMessageCompatibilityParam],
         Field(description="A list of messages comprising the conversation."),
     ]
     model: Annotated[

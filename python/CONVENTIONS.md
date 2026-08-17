@@ -118,6 +118,8 @@ Treat each cassette as authoritative native wire data for its own downstream pro
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
 
+Responses assistant-message `phase` is source-backed native metadata, not a default that can be recovered from a Chat Completions result. Preserve it on native Responses paths. For Chat-to-Responses event parity, remove it from both sides of the reconstructible comparison; never infer `commentary` or `final_answer` from reasoning presence, message order, or text content.
+
 Never record cassettes during a normal test run. New cassettes must come from an approved recorded source. Moving or renaming a cassette must not alter its bytes.
 
 ## Implementing protocol features

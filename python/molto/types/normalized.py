@@ -32,6 +32,36 @@ class TextInput(ExtraModel):
     ] = "text-input"
 
 
+class ImageUrlInput(ExtraModel):
+    """An image supplied by URL or data URL."""
+
+    url: Annotated[str, Field(description="The URL or data URL of the image.")]
+    detail: Annotated[
+        Literal["auto", "low", "high", "original"] | None,
+        Field(description="The requested image fidelity, when specified."),
+    ] = None
+    content_type: Annotated[
+        Literal["image-url-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "image-url-input"
+
+
+MultimodalContent = Annotated[
+    TextInput | ImageUrlInput,
+    Discriminator("content_type"),
+]
+
+
+class MultimodalInput(ExtraModel):
+    """Ordered text and media input parts that must remain grouped."""
+
+    content: Annotated[list[MultimodalContent], Field(description="Ordered input content.")]
+    content_type: Annotated[
+        Literal["multimodal-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "multimodal-input"
+
+
 # class _FileUrlInput(ExtraModel):
 #     """Common fields for URL-based user content."""
 
@@ -273,7 +303,7 @@ OutputItem = Annotated[
 
 
 InputItem = Annotated[
-    SystemPrompt | TextInput | Thinking | TextOutput | ToolReturn,
+    SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart

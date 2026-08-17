@@ -7,7 +7,10 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from molto.types.normalized import (
+    ImageUrlInput,
+    Input,
     ModelResponseStreamEvent,
+    MultimodalInput,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -38,7 +41,7 @@ class OpenAIResponsesAdapter:
     @staticmethod
     def _normalize_message(
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput]:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -62,13 +65,30 @@ class OpenAIResponsesAdapter:
         if isinstance(content, str):
             text_parts = [content]
         elif isinstance(content, list):
-            text_parts = [
-                part["text"]
+            if role == "user":
+                parts = []
+                for part in content:
+                    part_type = part.get("type") if isinstance(part, dict) else None
+                    if part_type == "input_text":
+                        parts.append(TextInput(content=part["text"]))
+                    elif part_type == "input_image":
+                        image_url = part.get("image_url")
+                        if image_url is None:
+                            raise ValueError("Responses input_image requires image_url.")
+                        parts.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
+                    else:
+                        raise ValueError(f"Unsupported Responses user content type: {part_type}")
+                return [MultimodalInput(content=parts)]
+            if role not in {"system", "developer", "assistant"}:
+                raise ValueError(f"Unsupported Responses message role: {role}")
+
+            expected_part_type = "output_text" if role == "assistant" else "input_text"
+            if any(
+                not isinstance(part, dict) or part.get("type") != expected_part_type
                 for part in content
-                if isinstance(part, dict) and part.get("type") in {"input_text", "output_text"}
-            ]
-            if len(text_parts) != len(content):
-                raise ValueError("Only text message content is currently supported.")
+            ):
+                raise ValueError(f"Responses {role} message content cannot be translated.")
+            text_parts = [part["text"] for part in content]
         else:
             raise ValueError("Responses message content must be text.")
 
@@ -84,7 +104,7 @@ class OpenAIResponsesAdapter:
         return [item_type(content=text) for text in text_parts]
 
     def normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput] | None
+        normalized_input: str | Input | None
         if isinstance(request.input, str) or request.input is None:
             normalized_input = request.input
         else:
@@ -122,7 +142,6 @@ class OpenAIResponsesAdapter:
         response_start: ResponseStartEvent | None = None
         item_id: str | None = None
         output_items: list[dict[str, Any]] = []
-        had_thinking = False
 
         def event(data: dict[str, Any]) -> BaseModel:
             nonlocal sequence_number
@@ -187,7 +206,6 @@ class OpenAIResponsesAdapter:
                 if not isinstance(normalized_event.part, (TextOutput, Thinking)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 is_thinking = isinstance(normalized_event.part, Thinking)
-                had_thinking = had_thinking or is_thinking
                 item_id = f"{'' if is_thinking else 'msg_'}{uuid4().hex}"
                 output_index = normalized_event.index
                 item = (
@@ -205,7 +223,6 @@ class OpenAIResponsesAdapter:
                         "status": "in_progress",
                         "content": [],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
                     }
                 )
                 part = (
@@ -291,7 +308,6 @@ class OpenAIResponsesAdapter:
                         "status": "completed",
                         "content": [completed_part],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
                     }
                 )
                 output_items.append(completed_item)
@@ -347,11 +363,24 @@ class OpenAIChatCompletionsAdapter:
     @staticmethod
     def _normalize_message(
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput]:
         role = message.get("role")
         content = message.get("content")
+        if role == "user" and isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, BaseModel):
+                    part = part.model_dump()
+                if part.get("type") == "text":
+                    parts.append(TextInput(content=part["text"]))
+                elif part.get("type") == "image_url":
+                    image = part["image_url"]
+                    parts.append(ImageUrlInput(url=image["url"], detail=image.get("detail")))
+                else:
+                    raise ValueError(f"Unsupported Chat user content type: {part.get('type')}")
+            return [MultimodalInput(content=parts)]
         if not isinstance(content, str):
-            raise ValueError("Only string Chat Completions message content is supported.")
+            raise ValueError(f"Chat Completions {role} content cannot be translated.")
 
         if role in {"system", "developer"}:
             return [SystemPrompt(content=content)]
@@ -369,11 +398,15 @@ class OpenAIChatCompletionsAdapter:
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
     def normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | TextInput | Thinking | TextOutput] = []
+        normalized_input: list[
+            SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput
+        ] = []
         for message in request.messages:
             normalized_input.extend(self._normalize_message(dict(message)))
 
-        request_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput]
+        request_input: (
+            str | list[SystemPrompt | TextInput | MultimodalInput | Thinking | TextOutput]
+        )
         if len(normalized_input) == 1 and isinstance(normalized_input[0], TextInput):
             request_input = normalized_input[0].content
         else:
@@ -397,7 +430,8 @@ class OpenAIChatCompletionsAdapter:
             # explicit detailed summary request to provide the equivalent stream.
             data["reasoning"] = Reasoning(
                 effort=request.reasoning_effort,
-                summary="detailed",
+                # in case of effort is "none" summary "detailed" does not make sense.
+                summary="detailed" if request.reasoning_effort != "none" else None,
             )
         if request.temperature is not None:
             data["temperature"] = request.temperature

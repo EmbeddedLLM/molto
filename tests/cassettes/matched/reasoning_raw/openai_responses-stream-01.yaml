@@ -15,7 +15,6 @@ request:
         logprobs: []
         text: '4'
         type: output_text
-      phase: final_answer
       role: assistant
       status: completed
       type: message

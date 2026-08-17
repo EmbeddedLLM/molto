@@ -215,6 +215,7 @@ Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
 - raw reasoning content in requests and assistant history;
+- ordered mixed text/image user messages, including URL and data-URL;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
@@ -367,7 +368,7 @@ The naming pattern is:
 tests/cassettes/matched/{scenario}/openai_{endpoint}-{mode}-{turn}.yaml
 ```
 
-Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically.
+Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
 
 Parity differs by path:
 
@@ -377,7 +378,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text and raw reasoning. Non-streaming collection, encrypted reasoning translation, reasoning summaries, tool calls, multimodal content, and additional providers are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, and portable image input. Non-streaming collection, encrypted reasoning translation, reasoning summaries, tool calls, image-generation output, other multimodal content, and additional providers are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 
