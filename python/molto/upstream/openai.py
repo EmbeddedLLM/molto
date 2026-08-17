@@ -17,6 +17,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
+    TerminationReason,
     TextDelta,
     TextInput,
     TextOutput,
@@ -31,6 +32,14 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
+
+_CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
+    "content_filter": "content_filter",
+    "function_call": "tool_call",
+    "length": "max_output_tokens",
+    "stop": "stop",
+    "tool_calls": "tool_call",
+}
 
 
 class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent]):
@@ -68,14 +77,15 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             elif isinstance(item, TextInput):
                 items.append({"role": "user", "content": item.content})
             elif isinstance(item, Thinking):
-                items.append(
-                    {
-                        "type": "reasoning",
-                        "status": "completed",
-                        "summary": [],
-                        "content": [{"type": "reasoning_text", "text": item.content}],
-                    }
-                )
+                reasoning_item = {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "summary": [],
+                    "content": [{"type": "reasoning_text", "text": item.content}],
+                }
+                if item.signature is not None:
+                    reasoning_item["encrypted_content"] = item.signature
+                items.append(reasoning_item)
             elif isinstance(item, TextOutput):
                 if previous_was_thinking:
                     items.append(
@@ -167,10 +177,16 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     summary = "".join(
                         part.text for part in item.summary if part.type == "summary_text"
                     )
+                    if item.encrypted_content is not None:
+                        yield PartDeltaEvent(
+                            index=event.output_index,
+                            delta=ThinkingDelta(signature_delta=item.encrypted_content),
+                        )
                     part = Thinking(
                         content=content,
                         summary=summary,
                         id=item.id,
+                        signature=item.encrypted_content,
                     )
                 elif item.type == "message":
                     content = "".join(
@@ -180,8 +196,15 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 else:
                     raise ValueError(f"Unsupported Responses output item: {item.type}")
                 yield PartEndEvent(index=event.output_index, part=part)
-            elif event_type == "response.completed":
+            elif event_type in {"response.completed", "response.incomplete"}:
                 metadata = event.response
+                if event_type == "response.completed":
+                    termination_reason: TerminationReason = "stop"
+                else:
+                    incomplete_details = metadata.incomplete_details
+                    if incomplete_details is None or incomplete_details.reason is None:
+                        raise ValueError("Incomplete Responses stream omitted its reason.")
+                    termination_reason = incomplete_details.reason
                 raw_usage = metadata.usage
                 usage = None
                 if raw_usage is not None:
@@ -204,6 +227,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     created_at=int(metadata.created_at),
                     model=metadata.model,
                     service_tier=metadata.service_tier,
+                    termination_reason=termination_reason,
                     usage=usage,
                 )
             elif event_type in {
@@ -305,6 +329,7 @@ class OpenAIChatCompletionsClient(
         thinking_content = ""
         text_content = ""
         usage: Usage | None = None
+        termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
         next_part_index = 0
 
@@ -372,6 +397,12 @@ class OpenAIChatCompletionsClient(
                         )
 
                 if choice.finish_reason is not None:
+                    try:
+                        termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
+                    except KeyError as exc:
+                        raise ValueError(
+                            f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
+                        ) from exc
                     ended_part = end_active_part()
                     if ended_part is not None:
                         yield ended_part
@@ -400,6 +431,8 @@ class OpenAIChatCompletionsClient(
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
+        if termination_reason is None:
+            raise ValueError("Chat Completions stream ended without a finish reason.")
         ended_part = end_active_part()
         if ended_part is not None:
             yield ended_part
@@ -408,5 +441,6 @@ class OpenAIChatCompletionsClient(
             created_at=response_metadata.created_at,
             model=response_metadata.model,
             service_tier=response_metadata.service_tier,
+            termination_reason=termination_reason,
             usage=usage,
         )

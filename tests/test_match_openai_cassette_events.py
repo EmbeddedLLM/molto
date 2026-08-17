@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from openai.types.chat import ChatCompletionChunk
 
-from molto.utils.io import json_loads, read_yaml
+from molto.utils.io import json_dumps, json_loads, read_yaml
 from scripts.match_openai_cassette_events import main, match_chat_completions_events
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
@@ -59,7 +59,7 @@ def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
     assert {event["id"] for event in chat_events} == {response_id}
     assert {event["created"] for event in chat_events} == {created_at}
     assert {event["model"] for event in chat_events} == {completed["model"]}
-    assert {event["service_tier"] for event in chat_events} == {completed["service_tier"]}
+    assert {event["service_tier"] for event in chat_events} == {"default"}
     assert [
         event["choices"][0]["delta"]["content"]
         for event in chat_events
@@ -93,6 +93,7 @@ def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path
 
     match_chat_completions_events(chat_cassette, responses_cassette)
 
+    assert chat_cassette["request"]["body"]["reasoning_effort"] == "high"
     chat_events = _data_events(chat_cassette)
     response_events = _data_events(responses_cassette)
     for event in chat_events:
@@ -201,3 +202,78 @@ def test_rebuilds_unequal_chat_content_delta_stream(adjustment: str) -> None:
             expected_suffix = "\n" if entry.strip() == "data: [DONE]" else "\n\n"
             assert entry.endswith(expected_suffix)
             assert sse_entries[index + 1] == "\n"
+
+
+def test_rewrites_chat_finish_reason_from_completed_response() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(chat_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None:
+            event["choices"][0]["finish_reason"] = "length"
+            chat_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+            break
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    finish_reasons = [
+        event["choices"][0]["finish_reason"]
+        for event in _data_events(chat_cassette)
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None
+    ]
+    assert finish_reasons == ["stop"]
+
+
+@pytest.mark.parametrize(
+    ("incomplete_reason", "finish_reason"),
+    [
+        ("content_filter", "content_filter"),
+        ("max_output_tokens", "length"),
+        ("future_reason", "stop"),
+    ],
+)
+def test_maps_incomplete_response_to_chat_finish_reason(
+    incomplete_reason: str,
+    finish_reason: str,
+) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") != "response.completed":
+            continue
+        event["type"] = "response.incomplete"
+        event["response"]["status"] = "incomplete"
+        event["response"]["incomplete_details"] = {"reason": incomplete_reason}
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+        break
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    finish_reasons = [
+        event["choices"][0]["finish_reason"]
+        for event in _data_events(chat_cassette)
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None
+    ]
+    assert finish_reasons == [finish_reason]
+
+
+def test_uses_default_service_tier_for_translated_chat_completions() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") not in {"response.created", "response.completed"}:
+            continue
+        event["response"]["service_tier"] = "priority"
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    assert {event["service_tier"] for event in _data_events(chat_cassette)} == {"default"}

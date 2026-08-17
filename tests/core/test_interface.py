@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
+from anthropic import AsyncAnthropic
+from anthropic import AsyncStream as AnthropicAsyncStream
 from httpx import AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI, AsyncStream
 from pydantic import BaseModel, ValidationError
@@ -13,13 +15,14 @@ from molto import Molto
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
+    reconstructable_anthropic_event,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
 )
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
-Protocol = Literal["responses", "chat/completions"]
-PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions")
+Protocol = Literal["responses", "chat/completions", "messages"]
+PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
 
 
@@ -29,14 +32,19 @@ def _cassette_path(
     *,
     matched: bool = False,
 ) -> Path:
-    protocol_dir = "chat_completions" if protocol == "chat/completions" else protocol
+    protocol_dir = {
+        "chat/completions": "chat_completions",
+        "messages": "messages",
+        "responses": "responses",
+    }[protocol]
     if not matched:
         return CASSETTE_DIR / "openai" / protocol_dir / "test_interface" / cassette_name
 
     scenario, separator, variant = cassette_name.partition("-")
     if not separator:
         raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    return CASSETTE_DIR / "matched" / scenario / f"openai_{protocol_dir}-{variant}"
+    prefix = "anthropic" if protocol == "messages" else "openai"
+    return CASSETTE_DIR / "matched" / scenario / f"{prefix}_{protocol_dir}-{variant}"
 
 
 @lru_cache(maxsize=5)
@@ -56,12 +64,20 @@ def _get_http_client(
     def cassette_handler(request: Request) -> Response:
         cassette = _read_cassette(_cassette_path(upstream, cassette_names.pop(0), matched=matched))
         request_body = json_loads(request.content)
-
-        assert request.method == cassette["request"]["method"]
-        assert str(request.url) == f"https://api.openai.com{cassette['request']['path']}"
-        assert request.url.path == cassette["request"]["path"]
-        assert request_body == cassette["request"]["body"]
-
+        try:
+            assert request.method == cassette["request"]["method"]
+            origin = (
+                "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com"
+            )
+            assert str(request.url) == f"{origin}{cassette['request']['path']}"
+            assert request.url.path == cassette["request"]["path"]
+            assert request_body == cassette["request"]["body"]
+        except AssertionError as e:
+            return Response(
+                400,
+                content=f"Bad request: {repr(e)}".encode(),
+                headers={"content-type": "text/plain; charset=utf-8"},
+            )
         return Response(
             cassette["response"]["status_code"],
             content="".join(cassette["response"]["sse"]).encode(),
@@ -85,11 +101,15 @@ def _assert_sse_events_contain(
         )
 
 
-def _sse_records(cassette: dict[str, Any]) -> list[str]:
+def _sse_records(cassette: dict[str, Any], protocol: Protocol) -> list[str]:
     records = []
     for event in "".join(cassette["response"]["sse"]).split("\n\n"):
         event = event.strip()
-        if event and event != "data: [DONE]":
+        if (
+            event
+            and event != "data: [DONE]"
+            and not (protocol == "messages" and load_sse(event).get("type") == "ping")
+        ):
             records.append(f"{event}\n\n")
     return records
 
@@ -133,28 +153,41 @@ async def test_extra_inputs():
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
-async def test_native_stream_matches_openai_sdk(protocol: Protocol):
+async def test_native_stream_matches_provider_sdk(protocol: Protocol):
     cassette_name = "simple_text-stream-00.yaml"
     cassette = _read_cassette(_cassette_path(protocol, cassette_name, matched=True))
     request_body = deepcopy(cassette["request"]["body"])
 
     async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
-        sdk_client = AsyncOpenAI(
-            api_key="test-api-key",
-            base_url="https://api.openai.com/v1",
-            http_client=http_client,
-        )
-        if protocol == "responses":
-            sdk_stream = await sdk_client.responses.create(**request_body)
+        if protocol == "messages":
+            sdk_client = AsyncAnthropic(
+                api_key="test-api-key",
+                base_url="https://api.anthropic.com",
+                http_client=http_client,
+            )
+            sdk_stream = await sdk_client.messages.create(**request_body)
+            assert isinstance(sdk_stream, AnthropicAsyncStream)
         else:
-            sdk_stream = await sdk_client.chat.completions.create(**request_body)
-        assert isinstance(sdk_stream, AsyncStream)
+            sdk_client = AsyncOpenAI(
+                api_key="test-api-key",
+                base_url="https://api.openai.com/v1",
+                http_client=http_client,
+            )
+            if protocol == "responses":
+                sdk_stream = await sdk_client.responses.create(**request_body)
+            else:
+                sdk_stream = await sdk_client.chat.completions.create(**request_body)
+            assert isinstance(sdk_stream, AsyncStream)
         async with sdk_stream:
             sdk_events = [event async for event in sdk_stream]
 
     async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
         client = Molto(http_client=http_client)
-        coordinator = client.responses if protocol == "responses" else client.chat_completions
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[protocol]
         molto_stream = await coordinator(
             body=request_body, endpoint=protocol, api_key="test-api-key"
         )
@@ -199,15 +232,18 @@ async def _assert_stream_events(
             cassette = _read_cassette(
                 _cassette_path(downstream, cassette_names.pop(0), matched=matched)
             )
-            coordinator = (
-                client.responses if downstream == "responses" else client.chat_completions
-            )
+            coordinator = {
+                "responses": client.responses,
+                "chat/completions": client.chat_completions,
+                "messages": client.messages,
+            }[downstream]
             response = await coordinator(
                 body=deepcopy(cassette["request"]["body"]),
                 endpoint=upstream,
+                provider="anthropic" if upstream == "messages" else "openai",
             )
             events = [event async for event in response]
-            expected_sse_events = _sse_records(cassette)
+            expected_sse_events = _sse_records(cassette, downstream)
             actual_sse_events = []
             for event in events:
                 assert isinstance(event, BaseModel)
@@ -233,13 +269,29 @@ async def _assert_stream_events(
                         for sse in expected_sse_events
                     ]
                     assert actual_events == expected_events
-                else:
-                    raise ValueError(f"Unsupported upstream protocol: {upstream}")
+                elif upstream == "messages":
+                    actual_events = [
+                        reconstructable_responses_event(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                        for sse in actual_sse_events
+                    ]
+                    expected_events = [
+                        reconstructable_responses_event(
+                            sse, body=deepcopy(cassette["request"]["body"])
+                        )
+                        for sse in expected_sse_events
+                    ]
+                    for event in actual_events + expected_events:
+                        response_data = event.get("response")
+                        if isinstance(response_data, dict):
+                            response_data.pop("created_at", None)
+                    assert actual_events == expected_events
             elif downstream == "chat/completions":
                 if upstream == "chat/completions":
                     assert len(events) == len(expected_sse_events)
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
-                elif upstream == "responses":
+                elif upstream in {"responses", "messages"}:
                     actual_events = [
                         chunk
                         for sse in actual_sse_events
@@ -254,9 +306,22 @@ async def _assert_stream_events(
                             sse, body=deepcopy(cassette["request"]["body"])
                         )
                     ]
+                    if upstream == "messages":
+                        for chunk in actual_events + expected_events:
+                            chunk.pop("created", None)
                     assert actual_events == expected_events
+            elif downstream == "messages":
+                if upstream == "messages":
+                    assert len(events) == len(expected_sse_events)
+                    _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 else:
-                    raise ValueError(f"Unsupported upstream protocol: {upstream}")
+                    actual_events = [
+                        reconstructable_anthropic_event(sse) for sse in actual_sse_events
+                    ]
+                    expected_events = [
+                        reconstructable_anthropic_event(sse) for sse in expected_sse_events
+                    ]
+                    assert actual_events == expected_events
             else:
                 raise ValueError(f"Unsupported downstream protocol: {downstream}")
 

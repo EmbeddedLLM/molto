@@ -5,6 +5,7 @@ import pytest
 from openai import AuthenticationError
 
 from molto import Molto
+from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.types.normalized import (
     NormalizedRequest,
@@ -13,6 +14,7 @@ from molto.types.normalized import (
     PartStartEvent,
     ResponseEndEvent,
     ResponseStartEvent,
+    TerminationReason,
     TextDelta,
     TextOutput,
     Thinking,
@@ -87,6 +89,194 @@ def _chat_chunk(
     )
 
 
+async def test_responses_adapter_uses_target_default_service_tier():
+    request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+    adapter = OpenAIResponsesAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", model="m", service_tier="priority")
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            service_tier="priority",
+            termination_reason="stop",
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    assert {event.response.service_tier for event in events} == {"default"}
+    assert events[-1].type == "response.completed"
+    assert events[-1].response.status == "completed"
+    assert events[-1].response.incomplete_details is None
+
+
+@pytest.mark.parametrize("termination_reason", ["content_filter", "max_output_tokens"])
+async def test_responses_adapter_projects_incomplete_termination(
+    termination_reason: TerminationReason,
+):
+    request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+    adapter = OpenAIResponsesAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", model="m")
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason=termination_reason,
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    terminal = events[-1]
+    assert terminal.type == "response.incomplete"
+    assert terminal.response.status == "incomplete"
+    assert terminal.response.incomplete_details is not None
+    assert terminal.response.incomplete_details.reason == termination_reason
+    assert terminal.response.service_tier == "default"
+
+
+@pytest.mark.parametrize(
+    "termination_reason",
+    [
+        "model_context_window_exceeded",
+        "pause",
+        "refusal",
+        "stop_sequence",
+        "tool_call",
+    ],
+)
+async def test_responses_adapter_coerces_unrepresentable_termination_to_completed(
+    termination_reason: TerminationReason,
+):
+    request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+    adapter = OpenAIResponsesAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", model="m")
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason=termination_reason,
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    terminal = events[-1]
+    assert terminal.type == "response.completed"
+    assert terminal.response.status == "completed"
+    assert terminal.response.incomplete_details is None
+
+
+@pytest.mark.parametrize(
+    "termination_reason",
+    ["model_context_window_exceeded", "pause", "refusal"],
+)
+async def test_chat_completions_adapter_coerces_unrepresentable_termination_to_stop(
+    termination_reason: TerminationReason,
+):
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
+    )
+    adapter = OpenAIChatCompletionsAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="chatcmpl_123", model="m")
+        yield ResponseEndEvent(
+            id="chatcmpl_123",
+            created_at=1,
+            model="m",
+            termination_reason=termination_reason,
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    assert events[-1].choices[0].finish_reason == "stop"
+
+
+async def test_chat_completions_adapter_uses_target_default_service_tier():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
+    )
+    adapter = OpenAIChatCompletionsAdapter()
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="chatcmpl_123", model="m", service_tier="priority")
+        yield ResponseEndEvent(
+            id="chatcmpl_123",
+            created_at=1,
+            model="m",
+            service_tier="priority",
+            termination_reason="stop",
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    assert {event.service_tier for event in events} == {"default"}
+
+
+async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "type": "reasoning",
+                "content": [{"type": "reasoning_text", "text": "Prior thought"}],
+                "encrypted_content": "request-state",
+                "summary": [],
+            },
+            {"role": "assistant", "content": "Prior answer"},
+        ],
+        model="m",
+        stream=True,
+    )
+    adapter = OpenAIResponsesAdapter()
+    normalized_request = adapter.normalize_request(request)
+    assert isinstance(normalized_request.input, list)
+    assert isinstance(normalized_request.input[0], Thinking)
+    assert normalized_request.input[0].signature == "request-state"
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", model="m")
+        yield PartStartEvent(index=0, part=Thinking(content="", summary=""))
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="New thought"))
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state"))
+        yield PartEndEvent(
+            index=0,
+            part=Thinking(content="New thought", summary="", signature="response-state"),
+        )
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason="stop",
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+    done = next(event for event in events if event.type == "response.output_item.done")
+    completed = next(event for event in events if event.type == "response.completed")
+    assert done.item.encrypted_content == "response-state"
+    assert completed.response.output[0].encrypted_content == "response-state"
+
+
 async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.MonkeyPatch):
     native_events = [
         _response_event(
@@ -127,6 +317,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
                     "type": "reasoning",
                     "summary": [{"type": "summary_text", "text": "Summary"}],
                     "content": [{"type": "reasoning_text", "text": "Think"}],
+                    "encrypted_content": "response-state",
                 },
                 "output_index": 0,
                 "sequence_number": 3,
@@ -210,9 +401,15 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
         ),
         PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
         PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="Think")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state")),
         PartEndEvent(
             index=0,
-            part=Thinking(content="Think", summary="Summary", id="rs_123"),
+            part=Thinking(
+                content="Think",
+                summary="Summary",
+                id="rs_123",
+                signature="response-state",
+            ),
         ),
         PartStartEvent(index=1, part=TextOutput(content="", id="msg_123")),
         PartDeltaEvent(index=1, delta=TextDelta(content_delta="Answer")),
@@ -222,6 +419,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             created_at=1,
             model="reasoning-model",
             service_tier="default",
+            termination_reason="stop",
             usage={
                 "input_tokens": 11,
                 "input_tokens_details": {"cached_tokens": 3, "cache_write_tokens": 2},
@@ -231,6 +429,42 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             },
         ),
     ]
+
+
+async def test_responses_events_forward_same_provider_opaque_reasoning_state(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured_requests: list[OpenAIResponsesCreateRequest] = []
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        captured_requests.append(native_request)
+        if False:
+            yield
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [
+            event
+            async for event in client.events(
+                NormalizedRequest(
+                    input=[
+                        Thinking(
+                            content="Prior thought",
+                            summary="",
+                            signature="request-state",
+                        ),
+                        TextOutput(content="Prior answer"),
+                    ],
+                    model="m",
+                )
+            )
+        ]
+
+    assert events == []
+    assert captured_requests[0].model_dump()["input"][0]["encrypted_content"] == "request-state"
 
 
 @pytest.mark.parametrize(
@@ -300,6 +534,46 @@ async def test_responses_events_ignore_native_sdk_events(
         monkeypatch.setattr(client, "native_events", stub_native_events)
 
         assert [event async for event in client.events(NormalizedRequest())] == []
+
+
+async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.MonkeyPatch):
+    incomplete_response = _response()
+    incomplete_response.update(
+        {
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "status": "incomplete",
+        }
+    )
+    native_events = [
+        _response_event(
+            {
+                "type": "response.created",
+                "response": _response(),
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.incomplete",
+                "response": incomplete_response,
+                "sequence_number": 1,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
+    assert response_end.termination_reason == "max_output_tokens"
 
 
 async def test_responses_events_reject_unsupported_native_sdk_event(
@@ -391,6 +665,7 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
             created_at=2,
             model="reasoning-model",
             service_tier="default",
+            termination_reason="stop",
             usage={
                 "input_tokens": 11,
                 "input_tokens_details": {"cached_tokens": 3, "cache_write_tokens": 2},
@@ -420,6 +695,29 @@ async def test_chat_completions_events_reject_empty_native_stream(
             match="Chat Completions stream did not contain a response chunk",
         ):
             [event async for event in client.events(NormalizedRequest(model="m"))]
+
+
+async def test_chat_completions_events_retain_finish_reason(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    native_chunks = [
+        _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "length"}]),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for chunk in native_chunks:
+            yield chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
+    assert response_end.termination_reason == "max_output_tokens"
 
 
 async def test_vllm_uses_explicit_url_and_dummy_credential(

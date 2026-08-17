@@ -3,14 +3,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from anthropic.types import RawMessageStreamEvent
-from pydantic import TypeAdapter
 
+from molto.types.anthropic_messages import AnthropicMessagesStreamEventAdapter
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
 from scripts.match_anthropic_cassette_events import main, match_messages_events
 
-MESSAGE_EVENT_ADAPTER = TypeAdapter(RawMessageStreamEvent)
+MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "reasoning_raw"
+OPAQUE_STATE_CASSETTES = (
+    Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning"
+)
 
 
 def _sse_unit(event: dict[str, Any], *, event_name: str | None = None) -> list[str]:
@@ -408,6 +410,7 @@ def test_matches_messages_reasoning_and_text_events() -> None:
                 {"content": "canonical follow-up", "role": "user"},
             ],
             "model": "model-request-reference",
+            "output_config": {"effort": "high"},
             "stream": True,
             "thinking": {"display": "summarized", "type": "adaptive"},
         },
@@ -469,6 +472,71 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
         "thinking": "history summary",
         "type": "thinking",
     }
+
+
+def test_rewrites_messages_stop_reason_from_completed_response() -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+    responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    for index, entry in enumerate(messages_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") == "message_start":
+            event["message"]["stop_reason"] = "max_tokens"
+            event["message"]["stop_sequence"] = "stale"
+        elif event.get("type") == "message_delta":
+            event["delta"] = {"stop_reason": "max_tokens", "stop_sequence": "stale"}
+        else:
+            continue
+        messages_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message_delta = next(
+        event for event in _data_events(messages_cassette) if event["type"] == "message_delta"
+    )
+    message_start = next(
+        event["message"]
+        for event in _data_events(messages_cassette)
+        if event["type"] == "message_start"
+    )
+    assert message_start["stop_reason"] is None
+    assert message_start["stop_sequence"] is None
+    assert message_delta["delta"] == {"stop_reason": "end_turn", "stop_sequence": None}
+
+
+@pytest.mark.parametrize(
+    ("incomplete_reason", "stop_reason"),
+    [
+        ("max_output_tokens", "max_tokens"),
+        ("content_filter", "end_turn"),
+        ("future_reason", "end_turn"),
+    ],
+)
+def test_maps_incomplete_response_to_messages_stop_reason(
+    incomplete_reason: str,
+    stop_reason: str,
+) -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+    responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") != "response.completed":
+            continue
+        event["type"] = "response.incomplete"
+        event["response"]["status"] = "incomplete"
+        event["response"]["incomplete_details"] = {"reason": incomplete_reason}
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+        break
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message_delta = next(
+        event for event in _data_events(messages_cassette) if event["type"] == "message_delta"
+    )
+    assert message_delta["delta"] == {"stop_reason": stop_reason, "stop_sequence": None}
 
 
 def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
@@ -590,7 +658,7 @@ def test_rejects_invalid_responses_image_urls(image_url: str | None) -> None:
         match_messages_events(messages_cassette, responses_cassette)
 
 
-def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
+def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=["canonical reasoning"],
         reasoning_encrypted_content="canonical-signature",
@@ -656,7 +724,7 @@ def test_rejects_reasoning_shape_mismatch(
         match_messages_events(messages_cassette, responses_cassette)
 
 
-def test_rejects_unrepresentable_service_tier() -> None:
+def test_uses_standard_service_tier_for_translated_messages() -> None:
     messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["text"])
     responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["text"])
     completed = next(
@@ -669,8 +737,14 @@ def test_rejects_unrepresentable_service_tier() -> None:
         f"data: {json_dumps({'type': 'response.completed', 'response': completed})}\n\n"
     )
 
-    with pytest.raises(ValueError, match="cannot be represented by Anthropic Messages"):
-        match_messages_events(messages_cassette, responses_cassette)
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message = next(
+        event["message"]
+        for event in _data_events(messages_cassette)
+        if event["type"] == "message_start"
+    )
+    assert message["usage"]["service_tier"] == "standard"
 
 
 def test_matches_real_two_turn_request_body() -> None:
@@ -695,6 +769,7 @@ def test_matches_real_two_turn_request_body() -> None:
             {"content": "What about 2*2?", "role": "user"},
         ],
         "model": "deepseek-v4-flash",
+        "output_config": {"effort": "high"},
         "stream": True,
         "thinking": {"display": "summarized", "type": "adaptive"},
     }
@@ -704,3 +779,18 @@ def test_matches_real_two_turn_request_body() -> None:
         if event["type"] == "message_start"
     )
     assert message_start["usage"]["output_tokens"] == 0
+
+
+@pytest.mark.parametrize("turn", range(2))
+def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(OPAQUE_STATE_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(OPAQUE_STATE_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+    )
+    original_messages_cassette = deepcopy(messages_cassette)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette == original_messages_cassette

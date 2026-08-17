@@ -14,6 +14,8 @@ request:
     - content: What about 2*2?
       role: user
     model: deepseek-v4-flash
+    output_config:
+      effort": high
     stream: true
     thinking:
       display: summarized

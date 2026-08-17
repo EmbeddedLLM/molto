@@ -2,12 +2,13 @@
 
 ## Current scope
 
-Molto is an LLM protocol translation library and the facade for its public coordinators. Its implemented `Molto.responses()` and `Molto.chat_completions()` methods each accept one OpenAI protocol and stream that same protocol back to the caller.
+Molto is an LLM protocol translation library and the facade for its public coordinators. Its implemented `Molto.responses()`, `Molto.chat_completions()`, and `Molto.messages()` methods each accept one native protocol and stream that same protocol back to the caller.
 
-Two upstream OpenAI-compatible endpoints are implemented:
+Three upstream endpoints are implemented:
 
-- `responses`: native Responses passthrough or Chat Completions translated through Responses;
-- `chat/completions`: native Chat Completions passthrough or Responses translated through Chat Completions.
+- `responses`: native Responses passthrough or cross-protocol translation through Responses;
+- `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
+- `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
 Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning content, conversation history, lifecycle metadata, and token usage.
 
@@ -95,7 +96,7 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 Molto
   |-- responses()         implemented
   |-- chat_completions()  implemented
-  |-- messages()          future Anthropic Messages boundary
+  |-- messages()          implemented
   `-- chat()              future dispatcher
 ```
 
@@ -177,6 +178,7 @@ OpenAIResponsesAdapter.project_events()
       +-- synthesize Responses lifecycle events
       +-- preserve source-backed metadata and usage
       +-- generate required Responses-only item IDs
+      +-- project exact completed and incomplete terminal states
       |
       v
 Responses SDK event stream
@@ -229,6 +231,8 @@ Normalized models inherit from `ExtraModel`. Unknown provider fields are retaine
 
 The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields; genuinely provider-specific capabilities remain in `extra_fields` until a portable semantic model exists.
 
+Reasoning effort is the normalized control for Anthropic thinking. The Messages adapter records `output_config.effort` in `NormalizedRequest.reasoning`; the Anthropic client then selects adaptive thinking with explicit effort or manual extended thinking with a preset token budget according to the target model's capabilities. Thinking mode and `budget_tokens` remain provider projections rather than new IR fields.
+
 ## Normalized event protocol
 
 The upstream client exposes streaming as its primitive:
@@ -257,9 +261,11 @@ For the text and raw-reasoning paths:
 - `PartStartEvent` establishes an empty `Thinking` or `TextOutput` at a stable output index;
 - each source reasoning or text chunk becomes one matching `PartDeltaEvent`;
 - `PartEndEvent` carries the complete reasoning or text accumulated from the deltas;
-- `ResponseEndEvent` carries terminal metadata and normalized usage.
+- `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+
+Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. When the target protocol cannot represent a normalized reason, its adapter deliberately coerces it to normal completion (`end_turn`, `stop`, or `response.completed`) so the translated stream remains consumable.
 
 ## Response collection
 
@@ -281,7 +287,7 @@ NormalizedResponse
 XAdapter.project_response()
 ```
 
-Clients should not gain a separate completion implementation. A generic collector keeps streaming and non-streaming normalization consistent. Until that collector and normalized response model exist, both implemented coordinators reject non-streaming requests explicitly.
+Clients should not gain a separate completion implementation. A generic collector keeps streaming and non-streaming normalization consistent. Until that collector and normalized response model exist, all implemented coordinators reject non-streaming requests explicitly.
 
 ## Responses event projection
 
@@ -297,7 +303,7 @@ A normalized event may project to more than one native event. The simple text pr
 8. `response.output_item.done`;
 9. `response.completed`.
 
-The adapter owns Responses sequence numbers, output/content indices, item state, and generated message item IDs. It preserves the Chat response ID, creation time, model, service tier, delta boundaries, and mapped usage.
+The adapter owns Responses sequence numbers, output/content indices, item state, and generated message item IDs. It preserves the Chat response ID, creation time, model, delta boundaries, and mapped usage. It emits the Responses target-default service tier rather than relabeling the Chat source tier.
 
 Chat Completions cannot provide a Responses output-item ID or exact Responses completion timestamp. These are generated or omitted according to the target contract and are not treated as independently recorded server state.
 
@@ -358,9 +364,11 @@ Matched cross-protocol fixtures use a scenario-first layout:
 ```text
 tests/cassettes/matched/
   simple_text/
+    anthropic_messages-stream-00.yaml
     openai_chat_completions-stream-00.yaml
     openai_responses-stream-00.yaml
   reasoning_raw/
+    anthropic_messages-stream-00.yaml
     openai_chat_completions-stream-00.yaml
     openai_responses-stream-00.yaml
 ```
@@ -368,10 +376,12 @@ tests/cassettes/matched/
 The naming pattern is:
 
 ```text
-tests/cassettes/matched/{scenario}/openai_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}_{endpoint}-{mode}-{turn}.yaml
 ```
 
 Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically.
+
+Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
 
 Parity differs by path:
 
@@ -381,7 +391,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text and raw reasoning. Non-streaming collection, encrypted reasoning translation, reasoning summaries, tool calls, multimodal content, and additional providers are not complete cross-protocol implementations yet.
+The current public paths support streaming text and raw reasoning across OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages. The matched Responses/Messages fixtures also map opaque reasoning state under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers. Non-streaming collection, reasoning summaries, tool calls, multimodal content, and other providers are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 

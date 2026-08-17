@@ -17,6 +17,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
+    TerminationReason,
     TextDelta,
     TextInput,
     TextOutput,
@@ -32,6 +33,14 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
+
+_CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
+    "content_filter": "content_filter",
+    "max_output_tokens": "length",
+    "stop": "stop",
+    "stop_sequence": "stop",
+    "tool_call": "tool_calls",
+}
 
 
 class OpenAIResponsesAdapter(
@@ -56,6 +65,7 @@ class OpenAIResponsesAdapter(
                     content="".join(part["text"] for part in content),
                     summary="".join(part["text"] for part in summary),
                     id=message.get("id"),
+                    signature=message.get("encrypted_content"),
                 )
             ]
         if message_type != "message":
@@ -153,12 +163,11 @@ class OpenAIResponsesAdapter(
                 "parallel_tool_calls": request.parallel_tool_calls
                 if request.parallel_tool_calls is not None
                 else True,
+                "service_tier": "default",
                 "tool_choice": self.native_request.tool_choice or "auto",
                 "tools": self.native_request.tools or [],
                 "usage": None,
             }
-            if metadata.service_tier is not None:
-                data["service_tier"] = metadata.service_tier
             if isinstance(metadata, ResponseEndEvent) and metadata.usage is not None:
                 usage = metadata.usage
                 data["usage"] = {
@@ -286,6 +295,11 @@ class OpenAIResponsesAdapter(
                         "status": "completed",
                         "content": [completed_part],
                         "summary": [],
+                        **(
+                            {"encrypted_content": normalized_event.part.signature}
+                            if normalized_event.part.signature
+                            else {}
+                        ),
                     }
                     if is_thinking
                     else {
@@ -332,14 +346,24 @@ class OpenAIResponsesAdapter(
             elif isinstance(normalized_event, ResponseEndEvent):
                 if response_start is None:
                     raise ValueError("Received a response end before its response start.")
+                termination_reason = normalized_event.termination_reason
+                if termination_reason in {"content_filter", "max_output_tokens"}:
+                    event_type = "response.incomplete"
+                    status = "incomplete"
+                else:
+                    event_type = "response.completed"
+                    status = "completed"
+                final_response = response_data(
+                    normalized_event,
+                    status=status,
+                    output=output_items,
+                )
+                if status == "incomplete":
+                    final_response["incomplete_details"] = {"reason": termination_reason}
                 yield event(
                     {
-                        "type": "response.completed",
-                        "response": response_data(
-                            normalized_event,
-                            status="completed",
-                            output=output_items,
-                        ),
+                        "type": event_type,
+                        "response": final_response,
                     }
                 )
 
@@ -431,7 +455,7 @@ class OpenAIChatCompletionsAdapter(
                     "object": "chat.completion.chunk",
                     "created": metadata.created_at,
                     "model": metadata.model,
-                    "service_tier": metadata.service_tier,
+                    "service_tier": "default",
                     "choices": choices,
                     "usage": usage,
                 }
@@ -494,6 +518,9 @@ class OpenAIChatCompletionsAdapter(
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
 
             elif isinstance(normalized_event, ResponseEndEvent):
+                finish_reason = _CHAT_FINISH_REASONS.get(
+                    normalized_event.termination_reason, "stop"
+                )
                 usage = None
                 if normalized_event.usage is not None:
                     normalized_usage = normalized_event.usage
@@ -520,7 +547,7 @@ class OpenAIChatCompletionsAdapter(
                             "index": 0,
                             "delta": {},
                             "logprobs": None,
-                            "finish_reason": "stop",
+                            "finish_reason": finish_reason,
                         }
                     ],
                     usage=usage,
