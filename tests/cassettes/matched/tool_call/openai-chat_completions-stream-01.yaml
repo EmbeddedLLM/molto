@@ -1,10 +1,12 @@
 filename: 2026-08-13-019ffb46-880b-74d1-b7ef-fcb22a66206f
 request:
   body:
-    max_completion_tokens: 2048
+    max_completion_tokens: 4096
     messages:
-    - content: Call Bash with command `sleep 5`, then call DateTime and respond with
-        its result. Describe your action before calling each tool.
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
       role: user
     - content: I’ll run the requested five-second sleep first.
       role: assistant

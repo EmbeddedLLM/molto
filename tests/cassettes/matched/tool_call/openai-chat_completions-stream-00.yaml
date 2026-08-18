@@ -1,10 +1,12 @@
 filename: 2026-08-13-019ffb46-80c7-79a1-8a77-ce48acf3a534
 request:
   body:
-    max_completion_tokens: 2048
+    max_completion_tokens: 4096
     messages:
-    - content: Call Bash with command `sleep 5`, then call DateTime and respond with
-        its result. Describe your action before calling each tool.
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
       role: user
     model: gpt-5.6-luna
     parallel_tool_calls: false
