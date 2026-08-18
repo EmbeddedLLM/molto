@@ -84,7 +84,12 @@ ANTHROPIC_MODEL = "claude-haiku-4-5"
 
 
 async def responses():
-    input_items = [{"role": "user", "content": PROMPT}]
+    input_items = [
+        {
+            "role": "user",
+            "content": [{"type": "input_text", "text": PROMPT}],
+        }
+    ]
     for _ in range(len(FUNCTIONS) + 1):
         response = await openai_client.responses.create(
             model=OPENAI_MODEL,
@@ -94,7 +99,7 @@ async def responses():
             stream=True,
             stream_options=dict(include_obfuscation=False),
             reasoning=dict(effort="none"),
-            max_output_tokens=2048,
+            max_output_tokens=4096,
         )
         current_output = output_type = None
         completed_output = []
@@ -138,7 +143,7 @@ async def responses():
 
 
 async def chat_completions():
-    messages = [{"role": "user", "content": PROMPT}]
+    messages = [{"role": "user", "content": [{"type": "text", "text": PROMPT}]}]
     for _ in range(len(FUNCTIONS) + 1):
         response = await openai_client.chat.completions.create(
             model=OPENAI_MODEL,
@@ -148,7 +153,7 @@ async def chat_completions():
             stream=True,
             stream_options=dict(include_obfuscation=False, include_usage=True),
             reasoning_effort="none",
-            max_completion_tokens=2048,
+            max_completion_tokens=4096,
         )
         current_output = output_type = None
         reasoning_content = ""
@@ -214,11 +219,11 @@ async def chat_completions():
 
 
 async def messages():
-    message_history = [{"role": "user", "content": PROMPT}]
+    message_history = [{"role": "user", "content": [{"type": "text", "text": PROMPT}]}]
     for _ in range(len(FUNCTIONS) + 1):
         async with anthropic_client.messages.stream(
             model=ANTHROPIC_MODEL,
-            max_tokens=2048,
+            max_tokens=4096,
             messages=message_history,
             tools=ANTHROPIC_TOOLS,
             thinking={"type": "disabled"},
@@ -271,9 +276,9 @@ async def messages():
 
 
 async def main():
-    await responses()
-    await chat_completions()
-    # await messages()
+    # await responses()
+    # await chat_completions()
+    await messages()
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from openai.types.chat import ChatCompletionChunk
 
-from molto.utils.io import json_dumps, json_loads, read_yaml
+from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
 from scripts.match_openai_cassette_events import main, match_chat_completions_events
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
@@ -21,8 +21,8 @@ REASONING_CASSETTES = [
 TOOL_CALL_CASSETTES = [
     (
         index,
-        CASSETTES / "tool_call" / f"openai_chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "tool_call" / f"openai_responses-stream-{index:02d}.yaml",
+        CASSETTES / "tool_call" / f"openai-chat_completions-stream-{index:02d}.yaml",
+        CASSETTES / "tool_call" / f"openai-responses-stream-{index:02d}.yaml",
     )
     for index in range(3)
 ]
@@ -154,7 +154,7 @@ def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
 def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> None:
     chat_cassette = read_yaml(str(CHAT_CASSETTE))
     responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
-    messages = [
+    user_messages = [
         {
             "role": "user",
             "content": [
@@ -167,11 +167,52 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
             "content": [{"type": "text", "text": "Follow-up"}],
         },
     ]
-    chat_cassette["request"]["body"]["messages"] = deepcopy(messages)
+    responses_cassette["request"]["body"]["input"] = [
+        {
+            "content": [
+                {"type": "input_text", "text": "Part one"},
+                {"type": "input_text", "text": "Part two"},
+            ],
+            "role": "user",
+        },
+        {
+            "arguments": "{}",
+            "call_id": "call_test",
+            "name": "TestTool",
+            "type": "function_call",
+        },
+        {
+            "call_id": "call_test",
+            "output": "done",
+            "type": "function_call_output",
+        },
+        {
+            "content": [{"type": "input_text", "text": "Follow-up"}],
+            "role": "user",
+        },
+    ]
 
     match_chat_completions_events(chat_cassette, responses_cassette)
 
-    assert chat_cassette["request"]["body"]["messages"] == messages
+    assert [
+        message
+        for message in chat_cassette["request"]["body"]["messages"]
+        if message["role"] == "user"
+    ] == user_messages
+
+
+def test_cli_sorts_yaml_mapping_keys(tmp_path: Path) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    content_part = {"type": "text", "text": "ordering sentinel"}
+    chat_cassette["request"]["body"]["messages"][0]["content"] = [content_part]
+    chat_path = tmp_path / "chat.yaml"
+    output_path = tmp_path / "matched.yaml"
+    dump_yaml(chat_cassette, str(chat_path), sort_keys=False)
+
+    assert main([str(chat_path), str(RESPONSES_CASSETTE), "--output", str(output_path)]) == 0
+
+    output = output_path.read_text()
+    assert output.index("      - text: ordering sentinel") < output.index("        type: text")
 
 
 @pytest.mark.parametrize(("chat_path", "responses_path"), REASONING_CASSETTES)

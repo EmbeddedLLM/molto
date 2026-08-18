@@ -9,9 +9,10 @@ conversion, including request history, the request model, response ID and model,
 tool call IDs and names, same-provider opaque reasoning state, and terminal usage.
 Translated Messages responses use the target default service tier
 ``standard`` because OpenAI tier labels have no faithful Anthropic equivalent.
-Responses normal completion maps to Messages ``end_turn``; an incomplete
-output-token limit maps to ``max_tokens``. A Responses content-filter limit is
-coerced to ``end_turn`` because Messages has no corresponding stop reason.
+Responses normal completion maps to Messages ``end_turn``, or ``tool_use`` when
+the response contains tool calls. An incomplete output-token limit maps to
+``max_tokens``. A Responses content-filter limit is coerced to ``end_turn``
+because Messages has no corresponding stop reason.
 Matched reasoning requests use adaptive summarized thinking and carry normalized
 reasoning effort in ``output_config.effort``; reasoning history defaults that
 effort to ``high`` when the canonical request omits it.
@@ -829,6 +830,10 @@ def match_messages_events(
     )
     response_reasoning_deltas = _response_reasoning_deltas(response_events)
     response_tool_calls = _response_tool_calls(response_events)
+    if response_tool_calls and any(
+        event.get("type") == "response.completed" for event in response_events
+    ):
+        stop_reason = "tool_use"
     _replace_content_deltas(
         message_units,
         response_reasoning_deltas,
@@ -922,7 +927,7 @@ def main(argv: list[str] | None = None) -> int:
 
     match_messages_events(messages_cassette, responses_cassette)
     output_path = args.output or args.messages_cassette
-    dump_yaml(messages_cassette, str(output_path), sort_keys=False)
+    dump_yaml(messages_cassette, str(output_path), sort_keys=True)
     print(f"Matched Anthropic Messages events and wrote {output_path}.")
     return 0
 

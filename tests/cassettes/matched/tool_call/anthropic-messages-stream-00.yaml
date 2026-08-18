@@ -8,7 +8,7 @@ request:
           its result. Describe your action before calling each tool.
         type: text
       role: user
-    model: claude-haiku-4-5
+    model: gpt-5.6-luna
     stream: true
     thinking:
       type: disabled
@@ -52,7 +52,7 @@ response:
   - 'event: message_start
 
     '
-  - 'data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_011Cdzp7skkPBiURMxjJyM7X","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":666,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":3,"service_tier":"standard","inference_geo":"not_available"}}               }
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":186,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"not_available"}}}
 
     '
   - '
@@ -61,7 +61,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}        }
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
 
     '
   - '
@@ -70,7 +70,7 @@ response:
   - 'event: ping
 
     '
-  - 'data: {"type": "ping"}
+  - 'data: {"type":"ping"}
 
     '
   - '
@@ -79,8 +79,16 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I''ll
-    help"}  }
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"’ll"}}
 
     '
   - '
@@ -90,8 +98,7 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    you with that. Let me break this down into two steps:\n\n**Step 1: Call Bash with
-    sleep command**\n\nI''ll execute the sleep"}}
+    first"}}
 
     '
   - '
@@ -101,7 +108,65 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    command to pause for 5 seconds."}               }
+    run"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    requested"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    five"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-second"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    sleep"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
 
     '
   - '
@@ -110,7 +175,7 @@ response:
   - 'event: content_block_stop
 
     '
-  - 'data: {"type":"content_block_stop","index":0   }
+  - 'data: {"type":"content_block_stop","index":0}
 
     '
   - '
@@ -119,7 +184,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01PX61ytAEVZ2ghNJ4Xi3EUP","name":"Bash","input":{},"caller":{"type":"direct"}}     }
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_MdFqoCBvXRzjO16kvaXaSLGU","name":"Bash","input":{},"caller":{"type":"direct"}}}
 
     '
   - '
@@ -128,7 +193,7 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}              }
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\""}}
 
     '
   - '
@@ -137,7 +202,7 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command"}               }
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"command"}}
 
     '
   - '
@@ -146,7 +211,16 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\":"}              }
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\":\""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"sleep"}}
 
     '
   - '
@@ -156,7 +230,7 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"
-    \"sleep 5"}           }
+    "}}
 
     '
   - '
@@ -165,7 +239,16 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"}"}          }
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"5"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
 
     '
   - '
@@ -174,7 +257,7 @@ response:
   - 'event: content_block_stop
 
     '
-  - 'data: {"type":"content_block_stop","index":1   }
+  - 'data: {"type":"content_block_stop","index":1}
 
     '
   - '
@@ -183,7 +266,7 @@ response:
   - 'event: message_delta
 
     '
-  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":666,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":99}               }
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":186,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":37,"output_tokens_details":{"thinking_tokens":0}}}
 
     '
   - '
@@ -192,7 +275,7 @@ response:
   - 'event: message_stop
 
     '
-  - 'data: {"type":"message_stop"      }
+  - 'data: {"type":"message_stop"}
 
     '
   - '

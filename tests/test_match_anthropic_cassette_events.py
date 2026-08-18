@@ -678,6 +678,8 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
         event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
         for event in events
     )
+    output = output_path.read_text()
+    assert output.index("      - text: canonical prompt") < output.index("        type: text")
     assert read_yaml(str(output_path))["request"]["body"]["messages"] == [
         {
             "content": [{"type": "text", "text": "canonical prompt"}],
@@ -826,6 +828,8 @@ def test_matches_tool_call_history_and_argument_deltas() -> None:
         ['{"city"', ':"Paris"}'],
         ["{}"],
     ]
+    message_delta = next(event for event in events if event["type"] == "message_delta")
+    assert message_delta["delta"]["stop_reason"] == "tool_use"
     assert messages_cassette["request"]["body"]["messages"] == [
         {
             "content": [{"text": "Check Paris.", "type": "text"}],
@@ -1138,10 +1142,10 @@ def test_uses_standard_service_tier_for_translated_messages() -> None:
 @pytest.mark.parametrize("turn", range(3))
 def test_matches_real_tool_call_cassettes(turn: int) -> None:
     messages_cassette = read_yaml(
-        str(TOOL_CALL_CASSETTES / f"anthropic_messages-stream-{turn:02d}.yaml")
+        str(TOOL_CALL_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
     )
     responses_cassette = read_yaml(
-        str(TOOL_CALL_CASSETTES / f"openai_responses-stream-{turn:02d}.yaml")
+        str(TOOL_CALL_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
     )
 
     match_messages_events(messages_cassette, responses_cassette)
@@ -1180,6 +1184,9 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
             if event["type"] == "response.function_call_arguments.delta"
             and event["item_id"] == response_call["id"]
         ]
+
+    message_delta = next(event for event in message_events if event["type"] == "message_delta")
+    assert message_delta["delta"]["stop_reason"] == ("tool_use" if response_calls else "end_turn")
 
     response_input = responses_cassette["request"]["body"]["input"]
     request_function_calls = [

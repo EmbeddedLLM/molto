@@ -47,8 +47,12 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
-def _response_message_content(content: Any) -> str:
+def _response_message_content(
+    content: Any, *, preserve_parts: bool = False
+) -> str | list[dict[str, str]]:
     if isinstance(content, str):
+        if preserve_parts:
+            return [{"text": content, "type": "text"}]
         return content
     if not isinstance(content, list):
         raise ValueError("Responses message content must be text or a list of text parts.")
@@ -65,6 +69,8 @@ def _response_message_content(content: Any) -> str:
         if not isinstance(part_text, str):
             raise ValueError("Responses text content must contain a string text field.")
         text.append(part_text)
+    if preserve_parts:
+        return [{"text": part, "type": "text"} for part in text]
     return "".join(text)
 
 
@@ -124,7 +130,14 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
         role = item.get("role")
         if role not in {"system", "developer", "user", "assistant"}:
             raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
-        messages.append({"content": _response_message_content(item.get("content")), "role": role})
+        messages.append(
+            {
+                "content": _response_message_content(
+                    item.get("content"), preserve_parts=role == "user"
+                ),
+                "role": role,
+            }
+        )
     return messages
 
 
@@ -678,7 +691,7 @@ def main(argv: list[str] | None = None) -> int:
 
     match_chat_completions_events(chat_cassette, responses_cassette)
     output_path = args.output or args.chat_completions_cassette
-    dump_yaml(chat_cassette, str(output_path), sort_keys=False)
+    dump_yaml(chat_cassette, str(output_path), sort_keys=True)
     print(f"Matched Chat Completions events and wrote {output_path}.")
     return 0
 
