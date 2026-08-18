@@ -21,8 +21,11 @@ from openai.types.responses.response_create_params import (
     ToolChoice,
 )
 from openai.types.responses.response_includable import ResponseIncludable
+from openai.types.responses.response_input_file_param import ResponseInputFileParam
+from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
+from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.responses.response_output_message_param import (
     Content as ResponseOutputMessageContentParam,
 )
@@ -41,6 +44,7 @@ from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
 from pydantic import Discriminator, Field, TypeAdapter, model_validator
+from typing_extensions import Required
 
 from molto.types.base import ExcludeNoneModel
 
@@ -94,84 +98,41 @@ class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
     ] = None
 
 
-class ResponseInputImageCompatibilityParam(ExcludeNoneModel):
-    """A URL-based image part accepted by Molto's Responses boundary."""
+class ResponseInputImageOptionalDetailParam(ResponseInputImageParam, total=False):
+    """An input image whose SDK-required `detail` may be omitted.
 
-    type: Annotated[
-        Literal["input_image"],
-        Field(description="The image content part type."),
-    ]
-    image_url: Annotated[
-        str,
-        Field(description="The image URL or data URL."),
-    ]
-    detail: Annotated[
-        Literal["low", "high", "auto", "original"] | None,
-        Field(description="The requested image fidelity, when specified."),
-    ] = None
+    The SDK marks `detail` as required, but the API defaults it to `auto` and
+    compatible providers omit it, so the passthrough boundary preserves the omission.
+    """
+
+    detail: Literal["low", "high", "auto", "original"]
 
 
-class ResponseInputTextCompatibilityParam(ExcludeNoneModel):
-    """A text part accepted by Molto's Responses boundary."""
-
-    text: Annotated[str, Field(description="The text content.")]
-    type: Annotated[
-        Literal["input_text"],
-        Field(description="The text content part type."),
-    ]
-
-
-ResponseInputContentCompatibilityParam: TypeAlias = Annotated[
-    ResponseInputTextCompatibilityParam | ResponseInputImageCompatibilityParam,
-    Discriminator("type"),
+OpenAIResponsesInputContentParam: TypeAlias = Union[
+    ResponseInputTextParam,
+    ResponseInputImageOptionalDetailParam,
+    ResponseInputFileParam,
 ]
 
 
-class ResponseEasyInputMessageCompatibilityParam(ExcludeNoneModel):
-    """An easy input message restricted to Molto-supported content parts."""
+class ResponseEasyInputMessageParam(EasyInputMessageParam):
+    """The SDK easy input message with the detail-optional image content part."""
 
-    content: Annotated[
-        str | list[ResponseInputContentCompatibilityParam],
-        Field(description="The message content."),
-    ]
-    role: Annotated[
-        Literal["user", "assistant", "system", "developer"],
-        Field(description="The message role."),
-    ]
-    phase: Annotated[
-        Literal["commentary", "final_answer"] | None,
-        Field(description="The assistant message phase."),
-    ] = None
-    type: Annotated[
-        Literal["message"] | None,
-        Field(description="The message item type."),
-    ] = None
+    content: Required[str | list[OpenAIResponsesInputContentParam]]
 
 
-class ResponseInputMessageCompatibilityParam(ExcludeNoneModel):
-    """A typed input message restricted to Molto-supported content parts."""
+class ResponseInputMessageParam(SDKResponseInputMessageParam):
+    """The SDK typed input message with the detail-optional image content part."""
 
-    content: Annotated[
-        list[ResponseInputContentCompatibilityParam],
-        Field(description="The message content."),
-    ]
-    role: Annotated[
-        Literal["user", "system", "developer"],
-        Field(description="The message role."),
-    ]
-    status: Annotated[
-        Literal["in_progress", "completed", "incomplete"] | None,
-        Field(description="The message status."),
-    ] = None
-    type: Annotated[
-        Literal["message"] | None,
-        Field(description="The message item type."),
-    ] = None
+    content: Required[list[OpenAIResponsesInputContentParam]]
 
 
-# The SDK requires `detail` and permits `file_id` for input images. Molto accepts only
-# URL-based images and must preserve omitted detail; compatible providers also omit IDs
-# from reasoning and output-history items.
+# The SDK input items are retained as-is so native passthrough accepts every
+# variant the SDK models, including `file_id` images and `input_file` parts.
+# Only four items are replaced: the two message wrappers re-point their content
+# lists at the detail-optional image, and compatible providers also omit IDs
+# from reasoning and output-history items. Translatability is enforced by the
+# adapter, not here.
 _REPLACED_SDK_INPUT_ITEMS = {
     EasyInputMessageParam,
     SDKResponseInputMessageParam,
@@ -184,8 +145,8 @@ _RETAINED_SDK_INPUT_ITEMS = tuple(
 OpenAIResponsesInputItemParam: TypeAlias = Union[
     ResponseReasoningItemOptionalIDParam,
     ResponseOutputMessageOptionalIDParam,
-    ResponseEasyInputMessageCompatibilityParam,
-    ResponseInputMessageCompatibilityParam,
+    ResponseEasyInputMessageParam,
+    ResponseInputMessageParam,
     *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
@@ -371,6 +332,7 @@ OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 __all__ = [
     "OpenAIResponsesCreateRequest",
     "OpenAIResponsesCreateResult",
+    "OpenAIResponsesInputContentParam",
     "OpenAIResponsesInputItemParam",
     "OpenAIResponsesInputParam",
     "ResponseOutputMessageOptionalIDParam",

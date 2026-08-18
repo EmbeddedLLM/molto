@@ -17,8 +17,8 @@ from molto.types.openai_responses import (
     OpenAIResponsesInputItemParam,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
-    ResponseEasyInputMessageCompatibilityParam,
-    ResponseInputMessageCompatibilityParam,
+    ResponseEasyInputMessageParam,
+    ResponseInputMessageParam,
     ResponseOutputMessageOptionalIDParam,
     ResponseReasoningItemOptionalIDParam,
 )
@@ -46,8 +46,8 @@ def test_request_input_replaces_only_sdk_history_types():
         ResponseReasoningItemParam,
         ResponseOutputMessageParam,
     } | {
-        ResponseEasyInputMessageCompatibilityParam,
-        ResponseInputMessageCompatibilityParam,
+        ResponseEasyInputMessageParam,
+        ResponseInputMessageParam,
         ResponseReasoningItemOptionalIDParam,
         ResponseOutputMessageOptionalIDParam,
     }
@@ -82,16 +82,57 @@ def test_request_input_replaces_only_sdk_history_types():
     ],
 )
 @pytest.mark.parametrize("message_fields", [{}, {"type": "message", "status": "completed"}])
-def test_request_rejects_unsupported_message_content(content, message_fields):
+def test_request_accepts_sdk_input_variants_for_native_passthrough(content, message_fields):
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "role": "user",
+                "content": content,
+                **message_fields,
+            }
+        ],
+        model="m",
+        stream=True,
+    )
+
+    assert request.model_dump()["input"] == [
+        {"role": "user", "content": content, **message_fields}
+    ]
+
+
+def test_request_accepts_image_without_detail():
+    # The SDK marks input_image `detail` as required, but the API defaults it to
+    # "auto"; native passthrough must preserve the omission rather than invent it.
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "role": "user",
+                "content": [{"type": "input_image", "image_url": "https://example.com/a.png"}],
+            }
+        ],
+        model="m",
+        stream=True,
+    )
+
+    assert request.model_dump()["input"] == [
+        {
+            "role": "user",
+            "content": [{"type": "input_image", "image_url": "https://example.com/a.png"}],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "input_image", "image_url": "https://example.com/a.png", "detail": "ultra"}],
+        [{"type": "input_unknown"}],
+    ],
+)
+def test_request_rejects_invalid_message_content(content):
     with pytest.raises(ValidationError):
         OpenAIResponsesCreateRequest(
-            input=[
-                {
-                    "role": "user",
-                    "content": content,
-                    **message_fields,
-                }
-            ],
+            input=[{"role": "user", "content": content}],
             model="m",
             stream=True,
         )

@@ -91,6 +91,11 @@ class OpenAIResponsesAdapter(
                     if isinstance(part, BaseModel):
                         part = part.model_dump()
                     part_type = part.get("type") if isinstance(part, dict) else None
+                    if isinstance(part, dict) and "prompt_cache_breakpoint" in part:
+                        raise ValueError(
+                            f"Responses {part_type} prompt_cache_breakpoint is not "
+                            "supported for translation."
+                        )
                     if part_type == "input_text":
                         parts.append(TextInput(content=part["text"]))
                     elif part_type == "input_image":

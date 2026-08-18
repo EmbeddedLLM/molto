@@ -81,6 +81,35 @@ def test_responses_adapter_rejects_image_file_id():
         )
 
 
+def test_responses_adapter_rejects_input_file():
+    with pytest.raises(ValueError, match="Unsupported Responses user content type: input_file"):
+        OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
+            {
+                "role": "user",
+                "content": [{"type": "input_file", "file_id": "file_123"}],
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        {"type": "input_text", "text": "hello", "prompt_cache_breakpoint": {"mode": "explicit"}},
+        {
+            "type": "input_image",
+            "image_url": "https://example.com/a.png",
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        },
+    ],
+    ids=["text", "image"],
+)
+def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
+    with pytest.raises(ValueError, match="not supported for translation"):
+        OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
+            {"role": "user", "content": [part]}
+        )
+
+
 @pytest.mark.parametrize(
     "content",
     [
