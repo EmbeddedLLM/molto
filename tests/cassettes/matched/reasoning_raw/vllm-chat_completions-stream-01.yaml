@@ -3,14 +3,19 @@ request:
   body:
     max_completion_tokens: 2048
     messages:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: text
       role: user
     - content: '4'
       reasoning_content: We need answer simple. Need comply. 2+2=4.
       role: assistant
-    - content: What about 2*2?
+    - content:
+      - text: What about 2*2?
+        type: text
       role: user
     model: deepseek-v4-flash
+    reasoning_effort: high
     stream: true
     stream_options:
       include_obfuscation: false

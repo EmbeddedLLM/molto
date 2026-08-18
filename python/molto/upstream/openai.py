@@ -10,7 +10,6 @@ from molto.types.normalized import (
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
-    MultimodalInput,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -19,6 +18,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
+    TerminationReason,
     TextDelta,
     TextInput,
     TextOutput,
@@ -26,6 +26,7 @@ from molto.types.normalized import (
     ThinkingDelta,
     ToolReturn,
     Usage,
+    UserInput,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -33,6 +34,14 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
+
+_CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
+    "content_filter": "content_filter",
+    "function_call": "tool_call",
+    "length": "max_output_tokens",
+    "stop": "stop",
+    "tool_calls": "tool_call",
+}
 
 
 class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent]):
@@ -58,18 +67,23 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 yield event
 
     @staticmethod
-    def _process_input(request: NormalizedRequest) -> str | list[dict[str, Any]] | None:
-        if isinstance(request.input, str) or request.input is None:
-            return request.input
+    def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
+        if isinstance(request.input, str):
+            return [
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": request.input}],
+                }
+            ]
+        if request.input is None:
+            return None
 
         items: list[dict[str, Any]] = []
         for item in request.input:
             if isinstance(item, SystemPrompt):
                 items.append({"role": "developer", "content": item.content})
-            elif isinstance(item, TextInput):
-                items.append({"role": "user", "content": item.content})
-            elif isinstance(item, MultimodalInput):
-                content = []
+            elif isinstance(item, UserInput):
+                content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
                         content.append({"type": "input_text", "text": part.content})
@@ -80,14 +94,19 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
-                items.append(
-                    {
-                        "type": "reasoning",
-                        "status": "completed",
-                        "summary": [],
-                        "content": [{"type": "reasoning_text", "text": item.content}],
-                    }
-                )
+                reasoning_item = {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "summary": (
+                        [{"type": "summary_text", "text": item.summary}] if item.summary else []
+                    ),
+                    "content": (
+                        [{"type": "reasoning_text", "text": item.content}] if item.content else []
+                    ),
+                }
+                if item.signature is not None:
+                    reasoning_item["encrypted_content"] = item.signature
+                items.append(reasoning_item)
             elif isinstance(item, TextOutput):
                 items.append(
                     {
@@ -104,7 +123,6 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                         ],
                     }
                 )
-
             else:
                 raise ValueError(f"Unsupported Responses input item: {type(item)}")
         return items
@@ -150,7 +168,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             elif event_type == "response.output_item.added":
                 item = event.item
                 if item.type == "reasoning":
-                    part = Thinking(content="", summary="", id=item.id)
+                    part = Thinking(
+                        content="",
+                        summary="",
+                        id=item.id,
+                        signature=item.encrypted_content,
+                    )
                 elif item.type == "message":
                     part = TextOutput(content="", id=item.id)
                 else:
@@ -160,6 +183,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 yield PartDeltaEvent(
                     index=event.output_index,
                     delta=ThinkingDelta(content_delta=event.delta),
+                )
+            elif event_type == "response.reasoning_summary_text.delta":
+                yield PartDeltaEvent(
+                    index=event.output_index,
+                    delta=ThinkingDelta(summary_delta=event.delta),
                 )
             elif event_type == "response.output_text.delta":
                 yield PartDeltaEvent(
@@ -175,10 +203,16 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     summary = "".join(
                         part.text for part in item.summary if part.type == "summary_text"
                     )
+                    if item.encrypted_content is not None:
+                        yield PartDeltaEvent(
+                            index=event.output_index,
+                            delta=ThinkingDelta(signature_delta=item.encrypted_content),
+                        )
                     part = Thinking(
                         content=content,
                         summary=summary,
                         id=item.id,
+                        signature=item.encrypted_content,
                     )
                 elif item.type == "message":
                     content = "".join(
@@ -188,8 +222,15 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 else:
                     raise ValueError(f"Unsupported Responses output item: {item.type}")
                 yield PartEndEvent(index=event.output_index, part=part)
-            elif event_type == "response.completed":
+            elif event_type in {"response.completed", "response.incomplete"}:
                 metadata = event.response
+                if event_type == "response.completed":
+                    termination_reason: TerminationReason = "stop"
+                else:
+                    incomplete_details = metadata.incomplete_details
+                    if incomplete_details is None or incomplete_details.reason is None:
+                        raise ValueError("Incomplete Responses stream omitted its reason.")
+                    termination_reason = incomplete_details.reason
                 raw_usage = metadata.usage
                 usage = None
                 if raw_usage is not None:
@@ -212,6 +253,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     created_at=int(metadata.created_at),
                     model=metadata.model,
                     service_tier=metadata.service_tier,
+                    termination_reason=termination_reason,
                     usage=usage,
                 )
             elif event_type in {
@@ -219,6 +261,9 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 "response.content_part.added",
                 "response.content_part.done",
                 "response.reasoning_text.done",
+                "response.reasoning_summary_part.added",
+                "response.reasoning_summary_part.done",
+                "response.reasoning_summary_text.done",
                 "response.output_text.done",
             }:
                 continue
@@ -249,17 +294,20 @@ class OpenAIChatCompletionsClient(
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         if isinstance(request.input, str):
-            return [{"role": "user", "content": request.input}]
+            return [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": request.input}],
+                }
+            ]
 
         messages: list[dict[str, Any]] = []
         reasoning_content: str | None = None
         for item in request.input or []:
             if isinstance(item, SystemPrompt):
                 messages.append({"role": "developer", "content": item.content})
-            elif isinstance(item, TextInput):
-                messages.append({"role": "user", "content": item.content})
-            elif isinstance(item, MultimodalInput):
-                content = []
+            elif isinstance(item, UserInput):
+                content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
                         content.append({"type": "text", "text": part.content})
@@ -274,7 +322,7 @@ class OpenAIChatCompletionsClient(
                         content.append({"type": "image_url", "image_url": image_url})
                 messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
-                reasoning_content = item.content
+                reasoning_content = item.content or item.summary
             elif isinstance(item, TextOutput):
                 message = {"role": "assistant", "content": item.content}
                 if reasoning_content is not None:
@@ -327,16 +375,20 @@ class OpenAIChatCompletionsClient(
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
-        thinking_content = ""
+        thinking_text = ""
         text_content = ""
         usage: Usage | None = None
+        termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
         next_part_index = 0
 
         def end_active_part() -> PartEndEvent | None:
             nonlocal active_part
             if active_part == "thinking":
-                part = Thinking(content=thinking_content, summary="")
+                part = Thinking(
+                    content=thinking_text if self._capabilities.thinking == "raw" else "",
+                    summary=thinking_text if self._capabilities.thinking == "summary" else "",
+                )
             elif active_part == "text":
                 part = TextOutput(content=text_content)
             else:
@@ -371,10 +423,21 @@ class OpenAIChatCompletionsClient(
                     elif active_part != "thinking":
                         raise ValueError("Received reasoning after text output started.")
                     if reasoning_delta:
-                        thinking_content += reasoning_delta
+                        thinking_text += reasoning_delta
                         yield PartDeltaEvent(
                             index=next_part_index - 1,
-                            delta=ThinkingDelta(content_delta=reasoning_delta),
+                            delta=ThinkingDelta(
+                                content_delta=(
+                                    reasoning_delta
+                                    if self._capabilities.thinking == "raw"
+                                    else None
+                                ),
+                                summary_delta=(
+                                    reasoning_delta
+                                    if self._capabilities.thinking == "summary"
+                                    else None
+                                ),
+                            ),
                         )
 
                 if choice.delta.content is not None:
@@ -397,6 +460,12 @@ class OpenAIChatCompletionsClient(
                         )
 
                 if choice.finish_reason is not None:
+                    try:
+                        termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
+                    except KeyError as exc:
+                        raise ValueError(
+                            f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
+                        ) from exc
                     ended_part = end_active_part()
                     if ended_part is not None:
                         yield ended_part
@@ -425,6 +494,8 @@ class OpenAIChatCompletionsClient(
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
+        if termination_reason is None:
+            raise ValueError("Chat Completions stream ended without a finish reason.")
         ended_part = end_active_part()
         if ended_part is not None:
             yield ended_part
@@ -433,5 +504,6 @@ class OpenAIChatCompletionsClient(
             created_at=response_metadata.created_at,
             model=response_metadata.model,
             service_tier=response_metadata.service_tier,
+            termination_reason=termination_reason,
             usage=usage,
         )

@@ -2,7 +2,9 @@ filename: 2026-08-06-019fd60a-bb6c-70f0-901c-eb2055eca676
 request:
   body:
     input:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: input_text
       role: user
     - content:
       - text: We need answer simple. Need comply. 2+2=4.
@@ -18,10 +20,15 @@ request:
       role: assistant
       status: completed
       type: message
-    - content: What about 2*2?
+    - content:
+      - text: What about 2*2?
+        type: input_text
       role: user
     max_output_tokens: 2048
     model: deepseek-v4-flash
+    reasoning:
+      effort: high
+      summary: detailed
     stream: true
     stream_options:
       include_obfuscation: false
@@ -46,7 +53,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -55,7 +62,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"5ef831b2-2b98-47a1-947b-ea27bbb4b8e1","object":"response","created_at":1786002455,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '
@@ -2183,7 +2190,7 @@ response:
     \"That''s also 4.\"\n    *   Add a bit of context: \"Multiplication is repeated
     addition, so 2*2 is the same as 2+2, which equals 4.\""}],"summary":[]},{"type":"message","id":"bc2504ff-2834-40d7-af48-7c9222f4f90c","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"That''s
     also 4. \n\nSince multiplication is just repeated addition, **2 × 2** is the same
-    as **2 + 2**, so both give you the same result: **4**."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":102,"input_tokens_details":{"cached_tokens":0},"output_tokens":222,"output_tokens_details":{"reasoning_tokens":180},"total_tokens":324},"user":null,"metadata":{}},"sequence_number":233}
+    as **2 + 2**, so both give you the same result: **4**."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":102,"input_tokens_details":{"cached_tokens":0},"output_tokens":222,"output_tokens_details":{"reasoning_tokens":180},"total_tokens":324},"user":null,"metadata":{}},"sequence_number":233}
 
     '
   - '

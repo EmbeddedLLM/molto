@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from molto.utils.io import dumps_sse
 from molto.utils.test import (
     assert_contains_expected,
+    reconstructable_anthropic_event,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
 )
@@ -133,6 +134,26 @@ def test_reconstructable_chat_completions_chunks_normalize_terminal_usage():
         CHAT_BODY,
     )
 
+    different_finish_choice = {**finish_choice, "finish_reason": "length"}
+    assert combined != reconstructable_chat_completions_chunks(
+        dumps_sse(_chat_chunk(choices=[different_finish_choice], usage=usage)),
+        CHAT_BODY,
+    )
+
+
+def test_reconstructable_anthropic_event_preserves_stop_reason():
+    event = {
+        "type": "message_delta",
+        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+        "usage": {"output_tokens": 1},
+    }
+    different_reason = deepcopy(event)
+    different_reason["delta"]["stop_reason"] = "max_tokens"
+
+    assert reconstructable_anthropic_event(dumps_sse(event)) != (
+        reconstructable_anthropic_event(dumps_sse(different_reason))
+    )
+
 
 def test_reconstructable_chat_completions_chunks_preserve_each_delta():
     chunk = _chat_chunk(
@@ -147,7 +168,6 @@ def test_reconstructable_chat_completions_chunks_preserve_each_delta():
         usage=None,
     )
     provider_variant = deepcopy(chunk)
-    provider_variant["service_tier"] = "auto"
     provider_variant["system_fingerprint"] = "different"
 
     expected = reconstructable_chat_completions_chunks(dumps_sse(chunk), CHAT_BODY)
@@ -155,6 +175,12 @@ def test_reconstructable_chat_completions_chunks_preserve_each_delta():
         dumps_sse(provider_variant), CHAT_BODY
     )
 
+    provider_variant["service_tier"] = "auto"
+    assert expected != reconstructable_chat_completions_chunks(
+        dumps_sse(provider_variant), CHAT_BODY
+    )
+
+    provider_variant["service_tier"] = chunk["service_tier"]
     provider_variant["choices"][0]["delta"]["content"] = "Different"
     assert expected != reconstructable_chat_completions_chunks(
         dumps_sse(provider_variant), CHAT_BODY
@@ -212,7 +238,11 @@ def _reconstructable(events: list[dict[str, Any]], body: dict[str, Any]) -> list
 
 def test_reconstructable_responses_event_preserves_reconstructable_fields():
     expected_events = _responses_events()
+    expected_events[0]["item"]["phase"] = "final_answer"
+    expected_events[1]["response"]["output"][0]["phase"] = "final_answer"
     actual_events = deepcopy(expected_events)
+    actual_events[0]["item"].pop("phase")
+    actual_events[1]["response"]["output"][0].pop("phase")
     actual_events[0]["item"]["id"] = "msg_generated"
     actual_events[1]["response"].pop("background")
     actual_events[1]["response"]["completed_at"] = 456

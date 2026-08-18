@@ -14,6 +14,8 @@ For this guide, parity means:
 
 This distinction matters most when a Responses request is sent to an upstream Chat Completions endpoint and its result is translated back into Responses.
 
+`endpoint`, `provider`, and `base_url` are separate route settings. The endpoint selects Responses or Chat Completions wire format. The provider identifies the implementation serving that protocol and selects its capability profile. The base URL only selects the HTTP destination. Molto never infers provider behavior from a URL hostname.
+
 ## Document Scope and Current Support
 
 The mapping tables in this guide describe target parity requirements unless a section explicitly says it documents current behavior. They are not a claim that every SDK field is implemented merely because both request wrappers accept it.
@@ -22,12 +24,12 @@ The current cross-protocol implementation supports:
 
 - streaming requests only;
 - string input and text messages with system, developer, user, and assistant roles;
-- raw assistant reasoning through Responses reasoning items and the Chat `reasoning_content` extension;
+- raw assistant reasoning and reasoning summaries through Responses reasoning items and the ambiguous Chat `reasoning_content` extension;
 - request translation for `instructions`, model, streaming mode, output-token limits, parallel-tool-call configuration, reasoning effort, temperature, `top_p`, and `include_obfuscation` where the counterpart protocol represents them;
-- response IDs, creation times, model names, text and raw-reasoning delta boundaries, lifecycle structure, and semantic token usage; and
+- response IDs, creation times, model names, text and reasoning delta boundaries, lifecycle structure, and semantic token usage; and
 - same-protocol paths that validate and yield SDK-native events without crossing the normalized representation.
 
-Refusals, tool calls and tool results, hosted tools, multiple choices, moderation, annotations, log probabilities, non-streaming collection, and finish-reason-specific terminal states are not implemented across the normalized path. The current Chat client reads only `choices[0]`, and both translated projections produce a successful terminal response (`response.completed` or Chat `finish_reason="stop"`). Those limitations are implementation gaps, not evidence that the source values are unavailable in principle.
+Refusals, tool calls and tool results, hosted tools, multiple choices, moderation, annotations, log probabilities, and non-streaming collection are not implemented across the normalized path. The current Chat client reads only `choices[0]`. Normalized streams retain source termination reasons; target projections use exact mappings when available and coerce unrepresentable reasons to normal completion. Responses still maps output-token and content-filter limits exactly to `response.incomplete`. Those limitations are implementation gaps, not evidence that the source values are unavailable in principle.
 
 Fields accepted by the SDK-compatible request wrappers but absent from the supported list above may currently be retained only as extra data or omitted by an upstream request constructor. Treat them as unsupported until they have an explicit mapping or rejection and cassette-backed parity coverage.
 
@@ -57,7 +59,9 @@ Every field should be assigned to one of these classes before implementing or te
 | Translator-generated | Required target structure with no source value | Generate according to a documented policy and validate internal consistency. |
 | Unavailable | Independent server state or a source field with no target representation | Reject, omit, or expose through a documented extension. Do not compare it as reconstructable. |
 
-A field is not unavailable merely because the current translator has not mapped it yet. Chat Completions exposes service tier, cache-write token usage, and output token log probabilities, but their reconstructability depends on direction and lifecycle. The current implementation maps cache-write usage. It does not map log probabilities. It also omits `service_tier` from per-chunk Chat cross-protocol comparison because Responses can report a different tier at creation and completion without exposing the final value early enough to reproduce every Chat chunk without buffering.
+A field is not unavailable merely because the current translator has not mapped it yet. Chat Completions exposes cache-write token usage and output token log probabilities, but their reconstructability depends on direction and lifecycle. The current implementation maps cache-write usage and does not map log probabilities.
+
+Service tier is deliberately target-default rather than source-backed. OpenAI's request and response tier labels do not form a stable cross-provider contract, and even Responses and Chat Completions can expose them at different lifecycle points. Every translated Responses response and every translated Chat Completions chunk therefore reports `service_tier="default"`; the source tier may remain in normalized metadata for diagnostics but is not relabeled as an equivalent target tier. Native same-protocol passthrough remains untouched.
 
 ## Request Translation: Responses to Chat Completions
 
@@ -71,7 +75,7 @@ The current OpenAI SDK request surfaces share these top-level concepts, but most
 - `parallel_tool_calls`;
 - `prompt_cache_key`, `prompt_cache_options`, and `prompt_cache_retention`;
 - `safety_identifier`;
-- `service_tier`;
+- `service_tier` (accepted by both wrappers but not forwarded by the translated path);
 - `store`;
 - `stream`;
 - `temperature`, `top_p`, and `top_logprobs`;
@@ -85,7 +89,7 @@ Shared names do not guarantee identical nested schemas. Validate each nested uni
 | Responses request                   | Chat Completions request            | Notes                                                   |
 | ----------------------------------- | ----------------------------------- | ------------------------------------------------------- |
 | `instructions`                      | leading developer or system message | Preserve ordering relative to the input conversation.   |
-| string or message `input`           | `messages`                          | Convert every supported content part explicitly.        |
+| string or message `input`           | `messages`                          | Emit user text as explicit `text` content parts.        |
 | `max_output_tokens`                 | `max_completion_tokens`             | Direct scalar rename.                                   |
 | `reasoning.effort`                  | `reasoning_effort`                  | Preserve only values accepted by both schemas.          |
 | `text.format`                       | `response_format`                   | Transform nested text or JSON schema configuration.     |
@@ -95,9 +99,26 @@ Shared names do not guarantee identical nested schemas. Validate each nested uni
 
 Conversation references, previous-response state, hosted tools, background execution, and other Responses-only request features require a separate emulation strategy or an explicit rejection. Silently dropping them changes request meaning.
 
+User text is projected as an explicit content-part list in both protocols (`input_text` for Responses and `text` for Chat Completions), even when the normalized input originated as a single string. Each normalized `UserInput` maps to exactly one native user message and each ordered `TextInput` maps to one native text part; neither boundary is merged or split. Assistant Responses history is reconstructed as a completed typed message with `output_text` content.
+
+Responses `phase` is not reconstructible from Chat output or the normalized text/reasoning sequence. Translated Responses events and reconstructed request history therefore omit it. Native Responses passthrough retains any phase supplied by the provider.
+
 ## Result Translation: Chat Completions to Responses
 
-The implemented result path currently covers response metadata, text, raw reasoning, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusal, tools, finish-reason-specific status, log probabilities, moderation, annotations, and multiple choices remain unsupported.
+The implemented result path currently covers response metadata, text, raw reasoning, reasoning summaries, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusal, tools, finish-reason-specific status, log probabilities, moderation, annotations, and multiple choices remain unsupported.
+
+### Reasoning representation
+
+Responses distinguishes raw reasoning (`response.reasoning_text.*`) from summaries (`response.reasoning_summary_*`). Chat Completions `reasoning_content` does not. The upstream Chat client therefore classifies that field with `ProviderCapabilities.thinking`:
+
+| Source                      | Provider capability | Normalized representation            | Responses projection           |
+| --------------------------- | ------------------- | ------------------------------------ | ------------------------------ |
+| Chat `reasoning_content`    | `raw`               | `Thinking.content` / `content_delta` | `response.reasoning_text.*`    |
+| Chat `reasoning_content`    | `summary`           | `Thinking.summary` / `summary_delta` | `response.reasoning_summary_*` |
+| Responses reasoning text    | any                 | `Thinking.content` / `content_delta` | Chat `reasoning_content`       |
+| Responses reasoning summary | any                 | `Thinking.summary` / `summary_delta` | Chat `reasoning_content`       |
+
+OpenAI uses `summary`; vLLM uses `raw`. Explicit Responses event types remain authoritative and ignore this capability. Projecting to Chat collapses either normalized form into its one reasoning field.
 
 ### Direct result mappings
 
@@ -106,7 +127,7 @@ The implemented result path currently covers response metadata, text, raw reason
 | Response ID | `id` | Preserve as the translated response ID. It will not equal an independently generated Responses ID unless fixtures deliberately synchronize it. |
 | Creation time | `created` | Map to `created_at`. |
 | Model | `model` | Preserve exactly. |
-| Final service tier | `service_tier` | Use the returned value, not only the requested tier. |
+| Service tier | `service_tier` | Emit the Responses target default `default`; do not relabel the source tier. |
 | Assistant text | `choices[].message.content` or `choices[].delta.content` | Preserve text and stream boundaries when the source chunks are part of the parity contract. |
 | Assistant phase | No standard Chat result field | Treat as unavailable. Do not infer `commentary` or `final_answer` from reasoning presence, message order, or text content. |
 | Refusal text | message or delta `refusal` | Map to the corresponding Responses refusal content or events. |
@@ -120,9 +141,9 @@ The implemented result path currently covers response metadata, text, raw reason
 
 Choice indices and multiple-choice structure need an explicit policy. A translator may reject `n > 1`, select one choice, emit a documented extension, or define a stable mapping into multiple Responses output items. It must not silently merge choices.
 
-The current implementation selects `choices[0]` without rejecting additional choices. It treats any non-null finish reason as the end of the active part and emits `response.completed`; it does not yet implement the target outcome policy in the table.
+The current implementation selects `choices[0]` without rejecting additional choices. The Chat client normalizes supported finish reasons and ends the active part. The Responses adapter emits `response.incomplete` with the corresponding `incomplete_details.reason` for `max_output_tokens` and `content_filter`, the two incomplete reasons represented by the pinned Responses schema. It emits `response.completed` for normal completion and for other normalized outcomes that Responses cannot represent.
 
-It captures `service_tier` from the first Chat chunk and carries that value through the normalized response. It does not update the tier from a later finish or usage chunk.
+It captures `service_tier` from the first Chat chunk as upstream metadata. The Responses adapter intentionally ignores that value and emits the target default `default`.
 
 ### Usage mapping
 
@@ -171,17 +192,17 @@ The exact sequence depends on content and tool types, but the translation policy
 - concatenated deltas equal the final content;
 - item and response status transitions are valid;
 - the terminal event agrees with the mapped finish reason;
-- final usage retains source values; service tier, moderation, and logprobs must do so when their mappings are implemented and available at the corresponding lifecycle point.
+- final usage retains source values; target service tier follows the documented default policy; and moderation and logprobs retain source values when their mappings are implemented and available at the corresponding lifecycle point.
 
 Chat stream options expose both `include_usage` and `include_obfuscation`. The generated `ChatCompletionChunk` model may not declare every wire extension as a named field, so a translator that promises obfuscation parity must preserve the raw chunk data rather than discard unknown-but-supported SSE fields.
 
 ## Result Translation: Responses to Chat Completions
 
-The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning deltas, and semantic usage into SDK-native Chat chunks. It emits one initial assistant-role chunk, preserves every matched text and reasoning delta boundary, and emits `finish_reason="stop"` with terminal usage.
+The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning or summary deltas, semantic termination reason, and token usage into SDK-native Chat chunks. It emits one initial assistant-role chunk and preserves every matched text and reasoning delta boundary.
 
-Responses can report different `service_tier` values in `response.created` and `response.completed`. The projection uses start metadata for early Chat chunks and terminal metadata for the final chunk. It does not buffer the stream to repeat the final tier retroactively. Responses also has no Chat `system_fingerprint`, so neither field participates in exact per-chunk cross-protocol comparison.
+Every projected Chat chunk reports the target default `service_tier="default"`, regardless of the source Responses tier. Responses has no Chat `system_fingerprint`, so that field does not participate in exact cross-protocol comparison.
 
-Refusals, tool calls, log probabilities, moderation, annotations, non-success terminal states, and multiple choices are not implemented in this direction.
+Refusals, tool calls, log probabilities, moderation, annotations, and multiple choices are not implemented in this direction. Terminal reasons without an explicit Chat mapping are coerced to `finish_reason="stop"`.
 
 ## Values That Must Be Generated
 
@@ -211,7 +232,7 @@ An independently recorded Responses result may contain data unavailable from the
 - other Responses-only opaque IDs or server timestamps;
 - server-resolved conversation or previous-response state;
 - prompt-cache decisions not represented in Chat usage;
-- Responses reasoning items, summaries, or encrypted reasoning absent from Chat;
+- typed Responses reasoning structure or encrypted reasoning state absent from Chat;
 - hosted-tool output and per-tool usage absent from Chat;
 - Responses annotations or citations absent from the Chat message; and
 - Responses-specific error and incomplete details beyond a defined finish-reason mapping.
@@ -274,8 +295,8 @@ For Responses downstream with Chat Completions upstream:
 For Chat Completions downstream with Responses upstream:
 
 1. Assert the translated Responses request path and body exactly.
-2. Use `reconstructable_chat_completions_chunks` to retain `id`, `object`, `created`, `model`, choices, deltas, finish reasons, and semantic usage.
-3. Omit `system_fingerprint` and per-chunk `service_tier`, which Responses cannot reproduce at every Chat lifecycle point without buffering.
+2. Use `reconstructable_chat_completions_chunks` to retain `id`, `object`, `created`, `model`, target-default service tier, choices, deltas, finish reasons, and semantic usage.
+3. Omit `system_fingerprint`, which Responses cannot reproduce.
 4. Normalize cached, cache-write, and reasoning token details while dropping source-only audio, prediction, and cache-alias fields.
 5. Treat a combined finish-and-usage chunk as equivalent to separate finish and usage chunks, then flatten the canonical chunks.
 6. Compare the canonical chunk lists exactly. All matched text and reasoning delta boundaries remain observable and must match.
@@ -285,7 +306,7 @@ Matched source cassettes must carry all source fields under test. Canonicalizati
 Repository fixtures and helpers relevant to this contract are:
 
 - `tests/cassettes/matched/simple_text/`;
-- `tests/cassettes/matched/reasoning_raw/`;
+- `tests/cassettes/matched/reasoning_raw/`, whose `vllm-*` fixtures run with `provider="vllm"`;
 - `scripts/match_openai_cassette_events.py`;
 - `python/molto/utils/test.py`;
 - `tests/core/test_interface.py`; and
@@ -307,11 +328,14 @@ When the SDK changes:
 
 A permissive event fallback may tolerate a newer raw SSE event, but it cannot make an incompatible request schema or missing result mapping correct.
 
+Do not use a base URL hostname to choose raw-versus-summary behavior. Add or update the explicit provider capability profile and its cassette-backed coverage instead.
+
 ## Summary Checklist
 
 - Preserve source-backed fields exactly.
 - Retain original request values needed by the target response.
-- Treat service tier, cache-write usage, and logprobs as source data, but compare them only where the target lifecycle can reproduce them; the current implementation maps only the supported subset described above.
+- Emit and compare the target-default `service_tier="default"` on every translated Responses or Chat Completions result; preserve native values only on same-protocol passthrough.
+- Treat cache-write usage and logprobs as source data, but compare them only where the target lifecycle can reproduce them; the current implementation maps only the supported subset described above.
 - Generate Responses lifecycle structure according to a documented policy.
 - Never equate Chat tool-call IDs with Responses output-item IDs.
 - Never infer a Responses assistant phase from Chat reasoning or text; omit it only from cross-protocol reconstructed-event comparison.

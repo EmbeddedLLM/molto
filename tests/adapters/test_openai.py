@@ -1,14 +1,17 @@
 import pytest
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
-from molto.types.normalized import MultimodalInput, NormalizedRequest
+from molto.providers import PROVIDER_CAPABILITIES
+from molto.types.normalized import NormalizedRequest, UserInput
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
+_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
+
 
 def test_adapters_preserve_multimodal_input_boundaries_and_order():
-    responses = OpenAIResponsesAdapter().normalize_request(
+    responses = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
         OpenAIResponsesCreateRequest(
             input=[
                 {
@@ -23,7 +26,7 @@ def test_adapters_preserve_multimodal_input_boundaries_and_order():
             model="m",
         )
     )
-    chat = OpenAIChatCompletionsAdapter().normalize_request(
+    chat = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
         OpenAIChatCompletionsCreateRequest(
             messages=[
                 {
@@ -70,7 +73,7 @@ def test_adapters_preserve_multimodal_input_boundaries_and_order():
 
 def test_responses_adapter_rejects_image_file_id():
     with pytest.raises(ValueError, match="requires image_url"):
-        OpenAIResponsesAdapter._normalize_message(
+        OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {
                 "role": "user",
                 "content": [{"type": "input_image", "file_id": "file_123"}],
@@ -78,10 +81,24 @@ def test_responses_adapter_rejects_image_file_id():
         )
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "input_audio", "input_audio": {"data": "AA==", "format": "wav"}}],
+        [{"type": "file", "file": {"file_id": "file_123"}}],
+    ],
+    ids=["audio", "file"],
+)
+def test_chat_adapter_rejects_unsupported_user_content(content):
+    adapter = OpenAIChatCompletionsAdapter(_CAPABILITIES)
+    with pytest.raises(ValueError, match="Unsupported Chat user content type"):
+        adapter._normalize_message({"role": "user", "content": content})
+
+
 def test_chat_rejects_unrepresentable_image_detail():
     request = NormalizedRequest(
         input=[
-            MultimodalInput(
+            UserInput(
                 content=[
                     {
                         "content_type": "image-url-input",
@@ -106,7 +123,7 @@ def test_chat_rejects_unrepresentable_image_detail():
     ],
 )
 def test_responses_adapter_validates_content_parts_by_message_role(role, part_type, expected_type):
-    [item] = OpenAIResponsesAdapter._normalize_message(
+    [item] = OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
         {"type": "message", "role": role, "content": [{"type": part_type, "text": "x"}]}
     )
 
@@ -115,7 +132,7 @@ def test_responses_adapter_validates_content_parts_by_message_role(role, part_ty
 
 def test_responses_adapter_rejects_wrong_content_part_for_message_role():
     with pytest.raises(ValueError, match="assistant message content cannot be translated"):
-        OpenAIResponsesAdapter._normalize_message(
+        OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {
                 "type": "message",
                 "role": "assistant",

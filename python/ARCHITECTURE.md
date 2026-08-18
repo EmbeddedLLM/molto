@@ -2,14 +2,27 @@
 
 ## Current scope
 
-Molto is an LLM protocol translation library and the facade for its public coordinators. Its implemented `Molto.responses()` and `Molto.chat_completions()` methods each accept one OpenAI protocol and stream that same protocol back to the caller.
+Molto is an LLM protocol translation library and the facade for its public coordinators. Its implemented `Molto.responses()`, `Molto.chat_completions()`, and `Molto.messages()` methods each accept one native protocol and stream that same protocol back to the caller.
 
-Two upstream OpenAI-compatible endpoints are implemented:
+Three upstream endpoints are implemented:
 
-- `responses`: native Responses passthrough or Chat Completions translated through Responses;
-- `chat/completions`: native Chat Completions passthrough or Responses translated through Chat Completions.
+- `responses`: native Responses passthrough or cross-protocol translation through Responses;
+- `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
+- `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning content, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, conversation history, lifecycle metadata, and token usage.
+
+## Route configuration
+
+`endpoint`, `provider`, and `base_url` are independent:
+
+| Concept    | Purpose                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
+| `base_url` | Selects only the HTTP destination.                                                                                            |
+
+Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
 ## Architectural goal
 
@@ -76,6 +89,7 @@ The layers have distinct ownership:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
+| `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream native events | HTTP transport |
 | `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
@@ -95,7 +109,7 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 Molto
   |-- responses()         implemented
   |-- chat_completions()  implemented
-  |-- messages()          future Anthropic Messages boundary
+  |-- messages()          implemented
   `-- chat()              future dispatcher
 ```
 
@@ -107,9 +121,10 @@ Each implemented coordinator performs the following work:
 
 1. Validate the public body as its protocol request model.
 2. Reject non-streaming requests until collection is implemented.
-3. Resolve the API key and injected or default HTTP client.
-4. Select the upstream path from `endpoint`.
-5. Return an async iterator of the same protocol's OpenAI SDK event models.
+3. Resolve `provider` and its capability profile independently of `base_url`.
+4. Resolve the API key and injected or default HTTP client.
+5. Select the upstream path from `endpoint`.
+6. Return an async iterator of the same downstream protocol's SDK event models.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
@@ -177,6 +192,7 @@ OpenAIResponsesAdapter.project_events()
       +-- synthesize Responses lifecycle events
       +-- preserve source-backed metadata and usage
       +-- generate required Responses-only item IDs
+      +-- project exact completed and incomplete terminal states
       |
       v
 Responses SDK event stream
@@ -210,7 +226,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto models that extension only on assistant messages, maps it to `Thinking`, and reconstructs Responses reasoning history. A Chat reasoning request maps to detailed Responses reasoning so the upstream returns the raw reasoning needed by the downstream contract.
+`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative.
 
 ## Normalized request model
 
@@ -218,7 +234,7 @@ Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto
 
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
-- raw reasoning content in requests and assistant history;
+- raw reasoning and reasoning summaries in requests and assistant history;
 - ordered mixed text/image user messages, including URL and data-URL;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
@@ -226,9 +242,15 @@ Raw `reasoning_content` is a provider extension to the OpenAI Chat schema. Molto
 
 Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
 
+Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
+
+Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
+
 Normalized models inherit from `ExtraModel`. Unknown provider fields are retained in `extra_fields` as an escape hatch. Vendor request construction must still map supported fields explicitly; preserving a field does not imply that another protocol supports it.
 
 The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields; genuinely provider-specific capabilities remain in `extra_fields` until a portable semantic model exists.
+
+Reasoning effort is the normalized control for Anthropic thinking. The Messages adapter records `output_config.effort` in `NormalizedRequest.reasoning`; the Anthropic client then selects adaptive thinking with explicit effort or manual extended thinking with a preset token budget according to the target model's capabilities. Thinking mode and `budget_tokens` remain provider projections rather than new IR fields.
 
 ## Normalized event protocol
 
@@ -252,15 +274,21 @@ ResponseEndEvent
 
 `FinalResultEvent` is also part of the union for future result handling.
 
-For the text and raw-reasoning paths:
+For the text and reasoning paths:
 
 - `ResponseStartEvent` carries the upstream response ID, creation time, model, and service tier;
 - `PartStartEvent` establishes an empty `Thinking` or `TextOutput` at a stable output index;
 - each source reasoning or text chunk becomes one matching `PartDeltaEvent`;
 - `PartEndEvent` carries the complete reasoning or text accumulated from the deltas;
-- `ResponseEndEvent` carries terminal metadata and normalized usage.
+- `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+
+The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Their downstream adapters collapse either normalized representation into the protocol's single reasoning field. Responses projection retains the distinction with its separate reasoning-text and reasoning-summary lifecycles.
+
+Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
+
+Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. When the target protocol cannot represent a normalized reason, its adapter deliberately coerces it to normal completion (`end_turn`, `stop`, or `response.completed`) so the translated stream remains consumable.
 
 ## Response collection
 
@@ -282,7 +310,7 @@ NormalizedResponse
 XAdapter.project_response()
 ```
 
-Clients should not gain a separate completion implementation. A generic collector keeps streaming and non-streaming normalization consistent. Until that collector and normalized response model exist, both implemented coordinators reject non-streaming requests explicitly.
+Clients should not gain a separate completion implementation. A generic collector keeps streaming and non-streaming normalization consistent. Until that collector and normalized response model exist, all implemented coordinators reject non-streaming requests explicitly.
 
 ## Responses event projection
 
@@ -298,7 +326,7 @@ A normalized event may project to more than one native event. The simple text pr
 8. `response.output_item.done`;
 9. `response.completed`.
 
-The adapter owns Responses sequence numbers, output/content indices, item state, and generated message item IDs. It preserves the Chat response ID, creation time, model, service tier, delta boundaries, and mapped usage.
+The adapter owns Responses sequence numbers, output/content indices, item state, and generated message item IDs. It preserves the Chat response ID, creation time, model, delta boundaries, and mapped usage. It emits the Responses target-default service tier rather than relabeling the Chat source tier.
 
 Chat Completions cannot provide a Responses output-item ID or exact Responses completion timestamp. These are generated or omitted according to the target contract and are not treated as independently recorded server state.
 
@@ -359,20 +387,24 @@ Matched cross-protocol fixtures use a scenario-first layout:
 ```text
 tests/cassettes/matched/
   simple_text/
-    openai_chat_completions-stream-00.yaml
-    openai_responses-stream-00.yaml
+    anthropic-messages-stream-00.yaml
+    openai-chat_completions-stream-00.yaml
+    openai-responses-stream-00.yaml
   reasoning_raw/
-    openai_chat_completions-stream-00.yaml
-    openai_responses-stream-00.yaml
+    vllm-messages-stream-00.yaml
+    vllm-chat_completions-stream-00.yaml
+    vllm-responses-stream-00.yaml
 ```
 
 The naming pattern is:
 
 ```text
-tests/cassettes/matched/{scenario}/openai_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
 Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
+
+Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
 
 Parity differs by path:
 
@@ -382,7 +414,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, and portable image input. Non-streaming collection, encrypted reasoning translation, reasoning summaries, tool calls, image-generation output, other multimodal content, and additional providers are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, reasoning summaries, and portable image input across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 

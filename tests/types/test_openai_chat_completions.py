@@ -38,6 +38,44 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
+def test_request_dump_preserves_user_content_part_lists():
+    body = OpenAIChatCompletionsCreateRequest(
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
+        ],
+        model="gpt-4o-mini",
+    )
+
+    expected = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
+        ],
+        "model": "gpt-4o-mini",
+    }
+    assert body.model_dump() == expected
+    assert body.model_dump() == expected
+
+
 @pytest.mark.parametrize(
     "content",
     [
@@ -48,23 +86,8 @@ def test_request_dump_is_ready_for_chat_completions_create():
                 "image_url": {"url": "https://example.test/image.png", "detail": "original"},
             }
         ],
-        [{"type": "input_audio", "input_audio": {"data": "AA==", "format": "wav"}}],
-        [{"type": "file", "file": {"file_id": "file_123"}}],
-        [
-            {
-                "type": "text",
-                "text": "hello",
-                "prompt_cache_breakpoint": {"mode": "explicit"},
-            }
-        ],
     ],
-    ids=[
-        "malformed-image",
-        "unsupported-image-detail",
-        "audio",
-        "file",
-        "prompt-cache-breakpoint",
-    ],
+    ids=["malformed-image", "unsupported-image-detail"],
 )
 def test_request_rejects_unsupported_user_content(content):
     with pytest.raises(ValidationError):

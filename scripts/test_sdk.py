@@ -24,8 +24,8 @@ anthropic_client = AsyncAnthropic(
 )
 
 PROMPTS = [
-    "What logo is this?",
-    "What is the animal?",
+    "How much wood would a woodchuck chuck?",
+    "What's your reasoning?",
 ]
 
 
@@ -84,7 +84,12 @@ async def responses(turns: int = 1):
         print("\n" + "---" * 6, flush=True)
         if current_turn < turns - 1:
             input_items.extend(item.model_dump(exclude_none=True) for item in completed_output)
-            input_items.append({"role": "user", "content": PROMPTS[current_turn + 1]})
+            input_items.append(
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": PROMPTS[current_turn + 1]}],
+                }
+            )
 
 
 async def chat_completions(turns: int = 1):
@@ -141,7 +146,10 @@ async def chat_completions(turns: int = 1):
                         "content": content,
                         **({"reasoning_content": reasoning_content} if reasoning_content else {}),
                     },
-                    {"role": "user", "content": PROMPTS[current_turn + 1]},
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": PROMPTS[current_turn + 1]}],
+                    },
                 ]
             )
 
@@ -154,10 +162,6 @@ async def messages(turns: int = 1):
         {
             "role": "user",
             "content": [
-                {
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": "image/png", "data": IMAGE_DATA},
-                },
                 {"type": "text", "text": PROMPTS[0]},
             ],
         }
@@ -167,9 +171,9 @@ async def messages(turns: int = 1):
             model=ANTHROPIC_MODEL,
             max_tokens=2048,
             messages=message_history,
-            # thinking={"type": "adaptive", "display": "summarized"},
-            # output_config={"effort": "max"},
-            thinking={"type": "disabled"},
+            thinking={"type": "adaptive", "display": "summarized"},
+            output_config={"effort": "max"},
+            # thinking={"type": "disabled"},
             stream=True,
         )
         current_output = None
@@ -212,15 +216,18 @@ async def messages(turns: int = 1):
                         )
                         + [{"type": "text", "text": text}],
                     },
-                    {"role": "user", "content": PROMPTS[current_turn + 1]},
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": PROMPTS[current_turn + 1]}],
+                    },
                 ]
             )
 
 
 async def main():
-    await responses(2)
-    await chat_completions(2)
-    # await messages(2)
+    # await responses(2)
+    # await chat_completions(2)
+    await messages(2)
 
 
 if __name__ == "__main__":
