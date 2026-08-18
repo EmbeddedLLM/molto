@@ -63,25 +63,25 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     )
 
 
-def _normalize_user_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
-    block_type = block.get("type")
-    if block_type == "text":
-        return TextInput(content=block["text"])
-    if block_type == "image":
-        source = block.get("source") or {}
-        source_type = source.get("type")
-        if source_type == "base64":
-            return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
-        if source_type == "url":
-            return ImageUrlInput(url=source["url"])
-        raise ValueError(f"Unsupported Anthropic image source: {source_type}")
-    raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
-
-
 class AnthropicMessagesAdapter(
     BaseAdapter[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    @staticmethod
+    def _normalize_user_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
+        block_type = block.get("type")
+        if block_type == "text":
+            return TextInput(content=block["text"])
+        if block_type == "image":
+            source = block.get("source") or {}
+            source_type = source.get("type")
+            if source_type == "base64":
+                return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
+            if source_type == "url":
+                return ImageUrlInput(url=source["url"])
+            raise ValueError(f"Unsupported Anthropic image source: {source_type}")
+        raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
 
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
         normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
@@ -110,7 +110,9 @@ class AnthropicMessagesAdapter(
 
             if message.role == "user":
                 normalized_input.append(
-                    UserInput(content=[_normalize_user_block(block) for block in content_blocks])
+                    UserInput(
+                        content=[self._normalize_user_block(block) for block in content_blocks]
+                    )
                 )
                 continue
 
