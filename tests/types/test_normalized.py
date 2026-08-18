@@ -1,7 +1,15 @@
 import pytest
 from pydantic import ValidationError
 
-from molto.types.normalized import NormalizedRequest, TextInput, UserInput
+from molto.types.normalized import (
+    FunctionTool,
+    FunctionToolChoice,
+    NormalizedRequest,
+    TextInput,
+    ToolCall,
+    ToolReturn,
+    UserInput,
+)
 
 
 def test_user_input_preserves_message_boundary_around_text_parts():
@@ -16,3 +24,33 @@ def test_user_input_preserves_message_boundary_around_text_parts():
 def test_text_input_is_not_a_top_level_input_item():
     with pytest.raises(ValidationError, match="union_tag_invalid"):
         NormalizedRequest(input=[TextInput(content="Unwrapped")])
+
+
+def test_tool_call_and_return_are_valid_conversation_input():
+    tool_call = ToolCall(
+        tool_name="get_weather",
+        args='{"city":"Paris"}',
+        tool_call_id="call_1",
+    )
+    tool_return = ToolReturn(content="sunny", tool_call_id="call_1")
+
+    request = NormalizedRequest(input=[tool_call, tool_return])
+
+    assert request.input == [tool_call, tool_return]
+    assert tool_return.tool_name is None
+    assert tool_return.outcome == "success"
+
+
+def test_request_uses_provider_neutral_function_tools():
+    tool = FunctionTool(
+        name="get_weather",
+        description="Get the weather",
+        parameters={"type": "object", "properties": {}},
+    )
+    choice = FunctionToolChoice(name="get_weather")
+
+    request = NormalizedRequest(tools=[tool], tool_choice=choice)
+
+    assert request.tools == [tool]
+    assert request.tool_choice == choice
+    assert tool.strict is False

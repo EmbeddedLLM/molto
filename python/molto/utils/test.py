@@ -85,6 +85,8 @@ def reconstructable_chat_completions_chunks(
 
     choices = chunk["choices"]
     for choice in choices:
+        if choice.get("logprobs") is None:
+            choice.pop("logprobs", None)
         if choice["finish_reason"] is not None:
             delta = choice["delta"]
             for field_name in ("content", "reasoning_content"):

@@ -12,6 +12,8 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEventAdapter,
 )
 from molto.types.normalized import (
+    FunctionTool,
+    FunctionToolChoice,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -24,6 +26,9 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    ToolCall,
+    ToolCallDelta,
+    ToolReturn,
     UserInput,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
@@ -710,3 +715,358 @@ async def test_adapter_coerces_unrepresentable_content_filter_termination_to_end
 
     message_delta = next(event for event in events if event.type == "message_delta")
     assert message_delta.delta.stop_reason == "end_turn"
+
+
+def test_adapter_normalizes_function_tools_and_tool_history():
+    request = AnthropicMessagesCreateRequest(
+        max_tokens=2048,
+        messages=[
+            {"role": "user", "content": "Run both tools."},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Running them."},
+                    {
+                        "type": "tool_use",
+                        "id": "call_one",
+                        "name": "First",
+                        "input": {"value": 1},
+                        "caller": {"type": "direct"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "call_two",
+                        "name": "Second",
+                        "input": {},
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_one",
+                        "content": "one",
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_two",
+                        "content": [{"type": "text", "text": "two"}],
+                        "is_error": True,
+                    },
+                ],
+            },
+        ],
+        model="model",
+        stream=True,
+        tool_choice={"type": "any", "disable_parallel_tool_use": True},
+        tools=[
+            {
+                "name": "First",
+                "description": "First tool",
+                "input_schema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "Second",
+                "input_schema": {"type": "object", "properties": {}},
+                "strict": True,
+            },
+        ],
+    )
+
+    normalized = AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
+
+    assert normalized.input == [
+        UserInput(content=[TextInput(content="Run both tools.")]),
+        TextOutput(content="Running them."),
+        ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+        ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+        ToolReturn(
+            content="one",
+            tool_call_id="call_one",
+        ),
+        ToolReturn(
+            content=[TextInput(content="two")],
+            tool_call_id="call_two",
+            outcome="failed",
+        ),
+    ]
+    assert normalized.tools == [
+        FunctionTool(
+            name="First",
+            description="First tool",
+            parameters={"type": "object", "properties": {}},
+        ),
+        FunctionTool(
+            name="Second",
+            parameters={"type": "object", "properties": {}},
+            strict=True,
+        ),
+    ]
+    assert normalized.tool_choice == "required"
+    assert normalized.parallel_tool_calls is False
+
+
+def test_adapter_rejects_server_generated_tool_history():
+    request = AnthropicMessagesCreateRequest(
+        max_tokens=2048,
+        messages=[
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_one",
+                        "name": "First",
+                        "input": {},
+                        "caller": {
+                            "type": "code_execution_20250825",
+                            "tool_id": "server_tool",
+                        },
+                    }
+                ],
+            }
+        ],
+        model="model",
+        stream=True,
+    )
+
+    with pytest.raises(ValueError, match="directly invoked"):
+        AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
+
+
+def test_client_projects_function_tools_and_tool_history_without_caller():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            input=[
+                UserInput(content=[TextInput(content="Run both tools.")]),
+                TextOutput(content="Running them."),
+                ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+                ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+                ToolReturn(content="one", tool_call_id="call_one"),
+                ToolReturn(content="two", tool_call_id="call_two", outcome="failed"),
+            ],
+            max_output_tokens=2048,
+            model="model",
+            parallel_tool_calls=False,
+            stream=True,
+            tool_choice=FunctionToolChoice(name="First"),
+            tools=[
+                FunctionTool(
+                    name="First",
+                    description="First tool",
+                    parameters={"type": "object", "properties": {}},
+                )
+            ],
+        )
+    )
+
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Run both tools."}],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Running them."},
+                {
+                    "type": "tool_use",
+                    "id": "call_one",
+                    "name": "First",
+                    "input": {"value": 1},
+                },
+                {
+                    "type": "tool_use",
+                    "id": "call_two",
+                    "name": "Second",
+                    "input": {},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "call_one", "content": "one"},
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_two",
+                    "content": "two",
+                    "is_error": True,
+                },
+            ],
+        },
+    ]
+    assert body["tools"] == [
+        {
+            "name": "First",
+            "description": "First tool",
+            "input_schema": {"type": "object", "properties": {}},
+        }
+    ]
+    assert body["tool_choice"] == {
+        "type": "tool",
+        "name": "First",
+        "disable_parallel_tool_use": True,
+    }
+
+
+@pytest.mark.parametrize("tool_choice", ["required", FunctionToolChoice(name="First")])
+def test_client_rejects_required_tool_choice_without_tools(tool_choice):
+    with pytest.raises(ValueError, match="needs at least one tool"):
+        AnthropicMessagesClient._request_body(
+            NormalizedRequest(model="model", tool_choice=tool_choice)
+        )
+
+
+def test_client_omits_parallel_tool_choice_without_tools():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            max_output_tokens=10,
+            model="model",
+            parallel_tool_calls=False,
+        )
+    )
+
+    assert "tool_choice" not in body
+
+
+@pytest.mark.parametrize("outcome", ["denied", "interrupted"])
+def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
+    request = NormalizedRequest(
+        input=[ToolReturn(content="result", tool_call_id="call_one", outcome=outcome)],
+        model="model",
+    )
+
+    with pytest.raises(ValueError, match="cannot preserve denied or interrupted"):
+        AnthropicMessagesClient._request_body(request)
+
+
+async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPatch):
+    native_events = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_123",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "model",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 0},
+            },
+        },
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+                "type": "tool_use",
+                "id": "call_one",
+                "name": "First",
+                "input": {},
+                "caller": {"type": "direct"},
+            },
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "input_json_delta", "partial_json": '{"value"'},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "input_json_delta", "partial_json": ":1}"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+            "usage": {"output_tokens": 2},
+        },
+        {"type": "message_stop"},
+    ]
+
+    async def stub_native_events(
+        native_request: AnthropicMessagesCreateRequest,
+    ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
+        for event in native_events:
+            yield AnthropicMessagesStreamEventAdapter.validate_python(event)
+
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [
+            event
+            async for event in client.events(
+                NormalizedRequest(
+                    input="Run it.",
+                    max_output_tokens=10,
+                    model="model",
+                    stream=True,
+                )
+            )
+        ]
+
+    assert events[1] == PartStartEvent(
+        index=0,
+        part=ToolCall(tool_name="First", args="", tool_call_id="call_one"),
+    )
+    assert events[2:4] == [
+        PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta='{"value"')),
+        PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta=":1}")),
+    ]
+    assert events[4] == PartEndEvent(
+        index=0,
+        part=ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+    )
+    assert isinstance(events[-1], ResponseEndEvent)
+    assert events[-1].termination_reason == "tool_call"
+
+
+async def test_adapter_projects_tool_call_with_direct_caller():
+    request = AnthropicMessagesCreateRequest(
+        max_tokens=10,
+        messages=[{"role": "user", "content": "Run it."}],
+        model="model",
+        stream=True,
+    )
+    adapter = AnthropicMessagesAdapter(VLLM_CAPABILITIES)
+    normalized_request = adapter.normalize_request(request)
+
+    async def normalized_events():
+        yield ResponseStartEvent(id="msg_123", model="model")
+        yield PartStartEvent(
+            index=0,
+            part=ToolCall(tool_name="First", args='{"value"', tool_call_id="call_one"),
+        )
+        yield PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta=":1}"))
+        yield PartEndEvent(
+            index=0,
+            part=ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+        )
+        yield ResponseEndEvent(
+            id="msg_123",
+            created_at=1,
+            model="model",
+            termination_reason="tool_call",
+        )
+
+    events = [
+        event async for event in adapter.project_events(normalized_events(), normalized_request)
+    ]
+
+    tool_start = next(event for event in events if event.type == "content_block_start")
+    assert tool_start.content_block.model_dump(exclude_unset=True) == {
+        "type": "tool_use",
+        "id": "call_one",
+        "name": "First",
+        "input": {},
+        "caller": {"type": "direct"},
+    }
+    assert [
+        event.delta.partial_json for event in events if event.type == "content_block_delta"
+    ] == ['{"value"', ":1}"]
+    message_delta = next(event for event in events if event.type == "message_delta")
+    assert message_delta.delta.stop_reason == "tool_use"

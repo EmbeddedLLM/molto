@@ -19,6 +19,9 @@ from openai.types.responses.response_create_params import (
     StreamOptions,
     ToolChoice,
 )
+from openai.types.responses.response_function_call_arguments_done_event import (
+    ResponseFunctionCallArgumentsDoneEvent,
+)
 from openai.types.responses.response_includable import ResponseIncludable
 from openai.types.responses.response_input_param import ResponseInputItemParam
 from openai.types.responses.response_output_message_param import (
@@ -267,9 +270,16 @@ class OpenAIResponseCompletedEvent(ResponseCompletedEvent):
         return data
 
 
+class OpenAIResponseFunctionCallArgumentsDoneEvent(ResponseFunctionCallArgumentsDoneEvent):
+    """Accept Responses-compatible streams that omit the redundant function name."""
+
+    name: str | None = None
+
+
 # Some compatible providers omit `cache_write_tokens`
 _REPLACED_SDK_STREAM_ITEMS = {
     ResponseCompletedEvent,
+    ResponseFunctionCallArgumentsDoneEvent,
 }
 _RETAINED_SDK_STREAM_ITEMS = tuple(
     item
@@ -279,6 +289,7 @@ _RETAINED_SDK_STREAM_ITEMS = tuple(
 OpenAIResponsesStreamEvent: TypeAlias = Annotated[
     Union[
         OpenAIResponseCompletedEvent,
+        OpenAIResponseFunctionCallArgumentsDoneEvent,
         *_RETAINED_SDK_STREAM_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
     ],
     Discriminator("type"),

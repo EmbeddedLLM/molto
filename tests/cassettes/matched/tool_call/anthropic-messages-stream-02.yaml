@@ -63,6 +63,9 @@ request:
     stream: true
     thinking:
       type: disabled
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
     tools:
     - description: Execute bash commands.
       input_schema:

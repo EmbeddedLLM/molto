@@ -11,6 +11,7 @@ from molto.types.anthropic_messages import (
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
 from scripts.match_anthropic_cassette_events import (
     _message_event_units,
+    _messages_tool_choice,
     _write_message_event_units,
     main,
     match_messages_events,
@@ -132,6 +133,7 @@ def _messages_cassette(
                     "id": tool_call["id"],
                     "name": tool_call["name"],
                     "input": {},
+                    "caller": {"type": "direct"},
                 },
             }
         )
@@ -815,6 +817,7 @@ def test_matches_tool_call_history_and_argument_deltas() -> None:
         ("call_weather", "Weather", {}),
         ("call_time", "DateTime", {}),
     ]
+    assert all(event["content_block"]["caller"] == {"type": "direct"} for event in tool_starts)
     assert [
         [
             event["delta"]["partial_json"]
@@ -869,6 +872,81 @@ def test_matches_tool_call_history_and_argument_deltas() -> None:
             "role": "user",
         },
     ]
+
+
+def test_matches_function_tools_and_parallel_tool_choice() -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["text"])
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["text"],
+    )
+    responses_cassette["request"]["body"].update(
+        {
+            "parallel_tool_calls": False,
+            "tools": [
+                {
+                    "description": "Get the weather.",
+                    "name": "Weather",
+                    "parameters": {
+                        "additionalProperties": False,
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                        "type": "object",
+                    },
+                    "strict": False,
+                    "type": "function",
+                },
+                {
+                    "name": "DateTime",
+                    "parameters": {"properties": {}, "type": "object"},
+                    "strict": True,
+                    "type": "function",
+                },
+            ],
+        }
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    request = messages_cassette["request"]["body"]
+    AnthropicMessagesCreateRequest.model_validate(request)
+    assert request["tools"] == [
+        {
+            "description": "Get the weather.",
+            "input_schema": {
+                "additionalProperties": False,
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+                "type": "object",
+            },
+            "name": "Weather",
+        },
+        {
+            "input_schema": {"properties": {}, "type": "object"},
+            "name": "DateTime",
+            "strict": True,
+        },
+    ]
+    assert request["tool_choice"] == {
+        "disable_parallel_tool_use": True,
+        "type": "auto",
+    }
+
+
+@pytest.mark.parametrize(
+    ("response_choice", "expected_choice"),
+    [
+        ("auto", {"type": "auto"}),
+        ("none", {"type": "none"}),
+        ("required", {"type": "any"}),
+        (
+            {"name": "Weather", "type": "function"},
+            {"name": "Weather", "type": "tool"},
+        ),
+    ],
+)
+def test_maps_function_tool_choice(response_choice: Any, expected_choice: dict[str, Any]) -> None:
+    assert _messages_tool_choice({"tool_choice": response_choice}) == expected_choice
 
 
 def test_matches_tool_only_stream_without_text_block() -> None:
@@ -1149,6 +1227,21 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
     )
 
     match_messages_events(messages_cassette, responses_cassette)
+
+    messages_request = messages_cassette["request"]["body"]
+    AnthropicMessagesCreateRequest.model_validate(messages_request)
+    assert messages_request["tool_choice"] == {
+        "disable_parallel_tool_use": True,
+        "type": "auto",
+    }
+    assert messages_request["tools"] == [
+        {
+            "description": tool["description"],
+            "input_schema": tool["parameters"],
+            "name": tool["name"],
+        }
+        for tool in responses_cassette["request"]["body"]["tools"]
+    ]
 
     message_events = _data_events(messages_cassette)
     response_events = _data_events(responses_cassette)

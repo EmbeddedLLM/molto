@@ -15,6 +15,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesInputItemParam,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
+    OpenAIResponsesStreamEventAdapter,
     ResponseOutputMessageOptionalIDParam,
     ResponseReasoningItemOptionalIDParam,
 )
@@ -220,3 +221,17 @@ def test_streaming_event_union_validates_by_type():
 
     assert event.type == "response.output_text.delta"
     assert event.delta == "Hello"
+
+
+def test_function_arguments_done_accepts_omitted_redundant_name():
+    event = OpenAIResponsesStreamEventAdapter.validate_python(
+        {
+            "type": "response.function_call_arguments.done",
+            "arguments": '{"city":"Paris"}',
+            "item_id": "fc_123",
+            "output_index": 0,
+            "sequence_number": 1,
+        }
+    )
+
+    assert event.name is None

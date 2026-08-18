@@ -7,6 +7,9 @@ text, or tool-input delta for every equivalent Responses delta, in the same orde
 and with the same content. It also synchronizes fields that can pass through the
 conversion, including request history, the request model, response ID and model,
 tool call IDs and names, same-provider opaque reasoning state, and terminal usage.
+Compatible function definitions are mapped from Responses ``tools`` into Messages
+``tools``. Responses tool selection and ``parallel_tool_calls`` are represented by
+Messages ``tool_choice`` and its inverse ``disable_parallel_tool_use`` flag.
 Translated Messages responses use the target default service tier
 ``standard`` because OpenAI tier labels have no faithful Anthropic equivalent.
 Responses normal completion maps to Messages ``end_turn``, or ``tool_use`` when
@@ -295,6 +298,94 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     return messages
 
 
+def _messages_tools(response_tools: Any) -> list[dict[str, Any]] | None:
+    if response_tools is None:
+        return None
+    if not isinstance(response_tools, list):
+        raise ValueError("Responses tools must be a list.")
+
+    tools: list[dict[str, Any]] = []
+    for tool in response_tools:
+        if not isinstance(tool, dict) or tool.get("type") != "function":
+            raise ValueError("Only Responses function tools can map to Messages tools.")
+
+        name = tool.get("name")
+        parameters = tool.get("parameters")
+        if not isinstance(name, str):
+            raise ValueError("Responses function tools must contain a string name.")
+        if not isinstance(parameters, dict):
+            raise ValueError("Responses function tools must contain an object parameters schema.")
+
+        messages_tool: dict[str, Any] = {
+            "input_schema": deepcopy(parameters),
+            "name": name,
+        }
+        description = tool.get("description")
+        if description is not None:
+            if not isinstance(description, str):
+                raise ValueError("Responses function tool descriptions must be strings.")
+            messages_tool["description"] = description
+        strict = tool.get("strict")
+        if strict is not None:
+            if not isinstance(strict, bool):
+                raise ValueError("Responses function tool strict values must be booleans.")
+            if strict:
+                messages_tool["strict"] = True
+
+        unsupported = {
+            key
+            for key, value in tool.items()
+            if key
+            not in {
+                "description",
+                "name",
+                "parameters",
+                "strict",
+                "type",
+            }
+            and value not in (None, False)
+        }
+        if unsupported:
+            raise ValueError(
+                f"Unsupported Responses function tool fields for Messages: {sorted(unsupported)}"
+            )
+        tools.append(messages_tool)
+    return tools
+
+
+def _messages_tool_choice(responses_request: dict[str, Any]) -> dict[str, Any] | None:
+    response_choice = responses_request.get("tool_choice")
+    if response_choice is None:
+        messages_choice = None
+    elif isinstance(response_choice, str):
+        try:
+            choice_type = {
+                "auto": "auto",
+                "none": "none",
+                "required": "any",
+            }[response_choice]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported Responses tool choice: {response_choice!r}.") from exc
+        messages_choice = {"type": choice_type}
+    elif isinstance(response_choice, dict) and response_choice.get("type") == "function":
+        name = response_choice.get("name")
+        if not isinstance(name, str):
+            raise ValueError("A Responses function tool choice must contain a string name.")
+        messages_choice = {"name": name, "type": "tool"}
+    else:
+        raise ValueError("Only Responses function tool choices can map to Messages.")
+
+    parallel_tool_calls = responses_request.get("parallel_tool_calls")
+    if parallel_tool_calls is not None:
+        if not isinstance(parallel_tool_calls, bool):
+            raise ValueError("Responses parallel_tool_calls must be a boolean.")
+        if messages_choice is None:
+            messages_choice = {"type": "auto"}
+        if messages_choice["type"] != "none":
+            messages_choice["disable_parallel_tool_use"] = not parallel_tool_calls
+    return messages_choice
+
+
 def _matched_request_body(
     messages_request: dict[str, Any], responses_request: dict[str, Any]
 ) -> dict[str, Any]:
@@ -311,6 +402,17 @@ def _matched_request_body(
     matched_request["stream"] = stream
     if responses_request.get("max_output_tokens") is not None:
         matched_request["max_tokens"] = responses_request["max_output_tokens"]
+
+    matched_tools = _messages_tools(responses_request.get("tools"))
+    if matched_tools is None:
+        matched_request.pop("tools", None)
+    else:
+        matched_request["tools"] = matched_tools
+    matched_tool_choice = _messages_tool_choice(responses_request)
+    if matched_tool_choice is None:
+        matched_request.pop("tool_choice", None)
+    else:
+        matched_request["tool_choice"] = matched_tool_choice
 
     response_input = responses_request.get("input")
     has_thinking_history = isinstance(response_input, list) and any(

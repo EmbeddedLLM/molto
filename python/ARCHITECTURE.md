@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
 
 ## Route configuration
 
@@ -235,6 +235,7 @@ ChatCompletionChunk SDK stream
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
 - raw reasoning and reasoning summaries in requests and assistant history;
+- function tool definitions, tool selection, calls, and successful tool results;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
@@ -273,12 +274,12 @@ ResponseEndEvent
 
 `FinalResultEvent` is also part of the union for future result handling.
 
-For the text and reasoning paths:
+For the text, reasoning, and function-tool paths:
 
 - `ResponseStartEvent` carries the upstream response ID, creation time, model, and service tier;
-- `PartStartEvent` establishes an empty `Thinking` or `TextOutput` at a stable output index;
-- each source reasoning or text chunk becomes one matching `PartDeltaEvent`;
-- `PartEndEvent` carries the complete reasoning or text accumulated from the deltas;
+- `PartStartEvent` establishes a `Thinking`, `TextOutput`, or `ToolCall` snapshot at a stable output index; native protocols normally start empty, but an initial function-argument fragment is preserved when present;
+- each source reasoning, text, or function-argument chunk becomes one matching `PartDeltaEvent`;
+- `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
 - `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
@@ -393,6 +394,10 @@ tests/cassettes/matched/
     vllm-messages-stream-00.yaml
     vllm-chat_completions-stream-00.yaml
     vllm-responses-stream-00.yaml
+  tool_call/
+    anthropic-messages-stream-00.yaml
+    openai-chat_completions-stream-00.yaml
+    openai-responses-stream-00.yaml
 ```
 
 The naming pattern is:
@@ -408,14 +413,14 @@ Detailed parity policies live in the [Responses and Chat Completions guide](../d
 Parity differs by path:
 
 - same-protocol routes assert exact request bodies and parsed SDK stream events;
-- Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, and generated IDs;
-- Responses to Chat Completions compares ordered text and reasoning deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
+- Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, generated IDs, and function-call identity;
+- Responses to Chat Completions compares ordered text, reasoning, and function-argument deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, and reasoning summaries across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
-The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
+Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
 To add another upstream protocol:
 
