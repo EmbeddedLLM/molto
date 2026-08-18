@@ -1,6 +1,7 @@
 import inspect
 
 import pytest
+from anthropic.lib.streaming._messages import accumulate_event
 from anthropic.resources.messages.messages import AsyncMessages
 from anthropic.types import Message, RawMessageStreamEvent
 from pydantic import ValidationError
@@ -49,6 +50,58 @@ def test_request_dump_accepts_compatible_thinking_history_without_signature():
 def test_result_types_use_sdk_models():
     assert AnthropicMessagesResponse is Message
     assert AnthropicMessagesStreamEvent is RawMessageStreamEvent
+
+
+def test_sdk_signature_delta_replaces_initial_thinking_signature():
+    # Exercise the pinned SDK accumulator directly so Molto's own state handling
+    # cannot mask a change in this compatibility behavior.
+    message_start = AnthropicMessagesStreamEventAdapter.validate_python(
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_123",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "model",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 0},
+            },
+        }
+    )
+    content_block_start = AnthropicMessagesStreamEventAdapter.validate_python(
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+                "type": "thinking",
+                "thinking": "",
+                "signature": "initial-state",
+            },
+        }
+    )
+    signature_delta = AnthropicMessagesStreamEventAdapter.validate_python(
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "signature_delta",
+                "signature": "replacement-state",
+            },
+        }
+    )
+
+    snapshot = accumulate_event(event=message_start, current_snapshot=None)
+    snapshot = accumulate_event(event=content_block_start, current_snapshot=snapshot)
+    thinking = snapshot.content[0]
+    assert thinking.type == "thinking"
+    assert thinking.signature == "initial-state"
+
+    snapshot = accumulate_event(event=signature_delta, current_snapshot=snapshot)
+    thinking = snapshot.content[0]
+    assert thinking.type == "thinking"
+    assert thinking.signature == "replacement-state"
 
 
 def test_stream_adapter_uses_official_response_service_tiers():
