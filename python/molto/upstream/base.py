@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from openai import AsyncOpenAI, omit
 from pydantic import BaseModel
 
+from molto.providers import ProviderCapabilities
 from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
 
 
@@ -15,12 +16,14 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         self,
         http_client: AsyncClient,
         *,
+        capabilities: ProviderCapabilities,
         api_key: str | None = None,
         base_url: str | None = None,
     ) -> None:
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url
+        self._capabilities = capabilities
 
     def _make_sdk_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(

@@ -48,7 +48,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":"gAAAAABqfDFJI5NHTmAWAmC52QTruDHjF40-e3KpTgHFJaN16hQHRiVe9BTQj7niWYJbPQY6RHSeeYDxmmY9sFflMiHYnGzs_ojLuFefdJQW4Mc3ddXHbVsLcU6iAerAvRXh-nkFPqUgZEh4S5fuOefMBdRU6fprMhX6na6A-3--d9dqFFk1-O-ipU00yWPBW7DGgwSdAatU103w8f7gtSsIoBrkQdmRYgWSXM-VjSV8GWmNgeB3SzdwHgDA7p-u4Bff5QIngl1hv_HpggLP8BsXNJNP2f7LH9zov3qubJcHwEEQBLtUNUmmYUfxbgmpi6mcZQNI7gbG-yGopIhySfhHccca_a91Uv-ZXAmskwrCZo76PDzbDY6bW-qWNNFAw_bFxLseaAgR9FbuQeGqkuFzukVum4SUlh03Qpjh1g5WflU5Bf0REAfqr6t83HIj90mEa2DAemckVbfASS535Pn_IKOr_sPbAkP8STa0vZ_ofNeGeKomlEejEhY13iy3a0jXd_rJLWvnXw9XaYBYev2ozeC-GcOI2CAjwMJRX7jAbBXI9gZMYloHPioLn8j13R1JiYvfZwbXGheDg5zcBhbmZtDz_kzVbEZBsvdPdKtCf8SaVAhdnsTXxbPP4WtjqlhxyPzcV5whF944CY-7EJNo9jV8aTzQo70-LEHb_YJZdxw5vNliGi9TyDf3-H9p_HO7cKEEGPZQRCgG2iUTGMStON1Aiq204Ijb0JHXB5hcrePRmiuval6ewdqT7KmUAzxmffwyeQJHaW6QFL5ch9OhvYVnxiXDmsXqK2LCadZPBeJXBL3lp_gUylioT3zilL4X_anHp6EKGcaWLrv-xh_kyr4F9SzWhHcpPvbBQZwGXRT7PV1bF39YDmVF7NDcpT9W-EC6dhzgT3Hs27b_xcFbdS8UVBG9Cw=="}}
 
     '
   - '

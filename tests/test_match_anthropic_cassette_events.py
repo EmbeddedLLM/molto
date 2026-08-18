@@ -3,21 +3,34 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from anthropic.types import RawMessageStreamEvent
-from pydantic import TypeAdapter
 
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesStreamEventAdapter,
+)
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
-from scripts.match_anthropic_cassette_events import main, match_messages_events
+from scripts.match_anthropic_cassette_events import (
+    _message_event_units,
+    _write_message_event_units,
+    main,
+    match_messages_events,
+)
 
-MESSAGE_EVENT_ADAPTER = TypeAdapter(RawMessageStreamEvent)
 MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 REASONING_RAW_CASSETTES = MATCHED_CASSETTES / "reasoning_raw"
 TOOL_CALL_CASSETTES = MATCHED_CASSETTES / "tool_call"
+MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
+OPAQUE_STATE_CASSETTES = (
+    Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning"
+)
+ENCRYPTED_REASONING_CASSETTES = (
+    Path(__file__).parent / "cassettes" / "matched" / "reasoning_encrypted"
+)
 
 
-def _sse_unit(event: dict[str, Any], *, event_name: str | None = None) -> list[str]:
+def _sse_unit(event: dict[str, Any]) -> list[str]:
     return [
-        f"event: {event_name or event['type']}\n\n",
+        f"event: {event['type']}\n\n",
         f"data: {json_dumps(event)}\n\n",
         "\n",
     ]
@@ -30,166 +43,132 @@ def _messages_cassette(
     tool_calls: list[dict[str, Any]] | None = None,
     request_messages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    events: list[tuple[dict[str, Any], str | None]] = [
-        (
-            {
-                "type": "message_start",
-                "message": {
-                    "id": "msg_original",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [],
-                    "model": "claude-original",
-                    "stop_reason": None,
-                    "stop_sequence": None,
-                    "usage": {
-                        "input_tokens": 3,
-                        "cache_creation_input_tokens": 1,
-                        "cache_read_input_tokens": 2,
-                        "output_tokens": 1,
-                        "service_tier": "priority",
-                    },
+    events: list[dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_original",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "claude-original",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {
+                    "input_tokens": 3,
+                    "cache_creation_input_tokens": 1,
+                    "cache_read_input_tokens": 2,
+                    "output_tokens": 1,
+                    "service_tier": "priority",
                 },
             },
-            None,
-        )
+        }
     ]
 
     next_block_index = 0
     if thinking_deltas is not None:
         events.extend(
             [
-                (
-                    {
-                        "type": "content_block_start",
-                        "index": 0,
-                        "content_block": {
-                            "type": "thinking",
-                            "thinking": "",
-                            "signature": "",
-                        },
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "thinking",
+                        "thinking": "",
+                        "signature": "",
                     },
-                    None,
-                ),
-                ({"type": "ping"}, None),
+                },
+                {"type": "ping"},
                 *[
-                    (
-                        {
-                            "type": "content_block_delta",
-                            "index": 0,
-                            "delta": {
-                                "type": "thinking_delta",
-                                "thinking": delta,
-                            },
-                        },
-                        None,
-                    )
-                    for delta in thinking_deltas
-                ],
-                (
                     {
                         "type": "content_block_delta",
                         "index": 0,
                         "delta": {
-                            "type": "signature_delta",
-                            "signature": "signed-thinking",
+                            "type": "thinking_delta",
+                            "thinking": delta,
                         },
+                    }
+                    for delta in thinking_deltas
+                ],
+                {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {
+                        "type": "signature_delta",
+                        "signature": "signed-thinking",
                     },
-                    None,
-                ),
-                ({"type": "content_block_stop", "index": 0}, None),
+                },
+                {"type": "content_block_stop", "index": 0},
             ]
         )
         next_block_index = 1
 
     if text_deltas is not None:
         events.append(
-            (
-                {
-                    "type": "content_block_start",
-                    "index": next_block_index,
-                    "content_block": {"type": "text", "text": ""},
-                },
-                None,
-            )
+            {
+                "type": "content_block_start",
+                "index": next_block_index,
+                "content_block": {"type": "text", "text": ""},
+            }
         )
         events.extend(
-            (
-                {
-                    "type": "content_block_delta",
-                    "index": next_block_index,
-                    "delta": {"type": "text_delta", "text": delta},
-                },
-                None,
-            )
+            {
+                "type": "content_block_delta",
+                "index": next_block_index,
+                "delta": {"type": "text_delta", "text": delta},
+            }
             for delta in text_deltas
         )
-        events.append(
-            (
-                {"type": "content_block_stop", "index": next_block_index},
-                "content_block_delta",
-            )
-        )
+        events.append({"type": "content_block_stop", "index": next_block_index})
         next_block_index += 1
 
     for tool_call in tool_calls or []:
         events.append(
-            (
-                {
-                    "type": "content_block_start",
-                    "index": next_block_index,
-                    "content_block": {
-                        "type": "tool_use",
-                        "id": tool_call["id"],
-                        "name": tool_call["name"],
-                        "input": {},
-                    },
+            {
+                "type": "content_block_start",
+                "index": next_block_index,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": tool_call["id"],
+                    "name": tool_call["name"],
+                    "input": {},
                 },
-                None,
-            )
+            }
         )
         events.extend(
-            (
-                {
-                    "type": "content_block_delta",
-                    "index": next_block_index,
-                    "delta": {
-                        "type": "input_json_delta",
-                        "partial_json": delta,
-                    },
+            {
+                "type": "content_block_delta",
+                "index": next_block_index,
+                "delta": {
+                    "type": "input_json_delta",
+                    "partial_json": delta,
                 },
-                None,
-            )
+            }
             for delta in tool_call["argument_deltas"]
         )
-        events.append(({"type": "content_block_stop", "index": next_block_index}, None))
+        events.append({"type": "content_block_stop", "index": next_block_index})
         next_block_index += 1
 
     events.extend(
         [
-            (
-                {
-                    "type": "message_delta",
-                    "delta": {
-                        "stop_reason": "tool_use" if tool_calls else "end_turn",
-                        "stop_sequence": None,
-                    },
-                    "usage": {
-                        "input_tokens": 5,
-                        "cache_creation_input_tokens": 1,
-                        "cache_read_input_tokens": 2,
-                        "output_tokens": 4,
-                    },
+            {
+                "type": "message_delta",
+                "delta": {
+                    "stop_reason": "tool_use" if tool_calls else "end_turn",
+                    "stop_sequence": None,
                 },
-                None,
-            ),
-            ({"type": "message_stop"}, None),
+                "usage": {
+                    "input_tokens": 5,
+                    "cache_creation_input_tokens": 1,
+                    "cache_read_input_tokens": 2,
+                    "output_tokens": 4,
+                },
+            },
+            {"type": "message_stop"},
         ]
     )
 
-    sse_entries = [
-        entry for event, event_name in events for entry in _sse_unit(event, event_name=event_name)
-    ]
+    sse_entries = [entry for event in events for entry in _sse_unit(event)]
     return {
         "request": {
             "method": "POST",
@@ -218,7 +197,8 @@ def _responses_cassette(
     text_deltas: list[str] | None,
     tool_calls: list[dict[str, Any]] | None = None,
     request_input: Any = "canonical prompt",
-    reasoning_encrypted_content: str | None = None,
+    reasoning_added_encrypted_content: str | None = None,
+    reasoning_done_encrypted_content: str | None = None,
 ) -> dict[str, Any]:
     response = {
         "id": "resp_reference",
@@ -229,6 +209,19 @@ def _responses_cassette(
         {"type": "response.created", "response": response},
     ]
     if reasoning_deltas is not None or reasoning_summary_deltas is not None:
+        added_reasoning_item = {
+            "type": "reasoning",
+            "content": [],
+            "summary": [],
+        }
+        if reasoning_added_encrypted_content is not None:
+            added_reasoning_item["encrypted_content"] = reasoning_added_encrypted_content
+        events.append(
+            {
+                "type": "response.output_item.added",
+                "item": added_reasoning_item,
+            }
+        )
         if reasoning_summary_deltas is not None:
             events.extend(
                 [
@@ -286,8 +279,8 @@ def _responses_cassette(
             if reasoning_summary_deltas is not None
             else [],
         }
-        if reasoning_encrypted_content is not None:
-            reasoning_item["encrypted_content"] = reasoning_encrypted_content
+        if reasoning_done_encrypted_content is not None:
+            reasoning_item["encrypted_content"] = reasoning_done_encrypted_content
         events.append({"type": "response.output_item.done", "item": reasoning_item})
     if text_deltas is not None:
         events.extend(
@@ -366,6 +359,22 @@ def _responses_cassette(
             "sse": [f"data: {json_dumps(event)}\n\n" for event in events],
         },
     }
+
+
+def test_updates_event_name_when_event_type_changes() -> None:
+    original_event = {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "answer"},
+    }
+    cassette = {"response": {"sse": _sse_unit(original_event)}}
+    prefix, units = _message_event_units(cassette)
+    replacement_event = {"type": "content_block_stop", "index": 0}
+    units[0].event = replacement_event
+
+    _write_message_event_units(cassette, prefix, units)
+
+    assert cassette["response"]["sse"] == _sse_unit(replacement_event)
 
 
 def _data_events(cassette: dict[str, Any]) -> list[dict[str, Any]]:
@@ -476,7 +485,10 @@ def test_matches_messages_reasoning_and_text_events() -> None:
         "body": {
             "max_tokens": 20_000,
             "messages": [
-                {"content": "canonical question", "role": "user"},
+                {
+                    "content": [{"text": "canonical question", "type": "text"}],
+                    "role": "user",
+                },
                 {
                     "content": [
                         {"thinking": "canonical reasoning", "type": "thinking"},
@@ -484,9 +496,13 @@ def test_matches_messages_reasoning_and_text_events() -> None:
                     ],
                     "role": "assistant",
                 },
-                {"content": "canonical follow-up", "role": "user"},
+                {
+                    "content": [{"text": "canonical follow-up", "type": "text"}],
+                    "role": "user",
+                },
             ],
             "model": "model-request-reference",
+            "output_config": {"effort": "high"},
             "stream": True,
             "thinking": {"display": "summarized", "type": "adaptive"},
         },
@@ -503,7 +519,7 @@ def test_matches_messages_reasoning_and_text_events() -> None:
     )
     assert (
         messages_cassette["response"]["sse"][stop_data_index - 1].strip()
-        == "event: content_block_delta"
+        == "event: content_block_stop"
     )
 
 
@@ -511,7 +527,8 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=None,
         reasoning_summary_deltas=["summary", " text"],
-        reasoning_encrypted_content="canonical-signature",
+        reasoning_added_encrypted_content="initial-signature",
+        reasoning_done_encrypted_content="canonical-signature",
         text_deltas=["answer"],
         request_input=[
             {"content": "question", "role": "user"},
@@ -538,6 +555,12 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
         for event in events
         if event["type"] == "content_block_delta" and event["delta"]["type"] == "thinking_delta"
     ] == ["summary", " text"]
+    thinking_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
+    )
+    assert thinking_start["content_block"]["signature"] == "initial-signature"
     assert [
         event["delta"]["signature"]
         for event in events
@@ -548,6 +571,71 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
         "thinking": "history summary",
         "type": "thinking",
     }
+
+
+def test_rewrites_messages_stop_reason_from_completed_response() -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+    responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    for index, entry in enumerate(messages_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") == "message_start":
+            event["message"]["stop_reason"] = "max_tokens"
+            event["message"]["stop_sequence"] = "stale"
+        elif event.get("type") == "message_delta":
+            event["delta"] = {"stop_reason": "max_tokens", "stop_sequence": "stale"}
+        else:
+            continue
+        messages_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message_delta = next(
+        event for event in _data_events(messages_cassette) if event["type"] == "message_delta"
+    )
+    message_start = next(
+        event["message"]
+        for event in _data_events(messages_cassette)
+        if event["type"] == "message_start"
+    )
+    assert message_start["stop_reason"] is None
+    assert message_start["stop_sequence"] is None
+    assert message_delta["delta"] == {"stop_reason": "end_turn", "stop_sequence": None}
+
+
+@pytest.mark.parametrize(
+    ("incomplete_reason", "stop_reason"),
+    [
+        ("max_output_tokens", "max_tokens"),
+        ("content_filter", "end_turn"),
+        ("future_reason", "end_turn"),
+    ],
+)
+def test_maps_incomplete_response_to_messages_stop_reason(
+    incomplete_reason: str,
+    stop_reason: str,
+) -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+    responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") != "response.completed":
+            continue
+        event["type"] = "response.incomplete"
+        event["response"]["status"] = "incomplete"
+        event["response"]["incomplete_details"] = {"reason": incomplete_reason}
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+        break
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message_delta = next(
+        event for event in _data_events(messages_cassette) if event["type"] == "message_delta"
+    )
+    assert message_delta["delta"] == {"stop_reason": stop_reason, "stop_sequence": None}
 
 
 def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
@@ -591,7 +679,50 @@ def test_matches_messages_without_reasoning_via_cli(tmp_path: Path) -> None:
         for event in events
     )
     assert read_yaml(str(output_path))["request"]["body"]["messages"] == [
-        {"content": "canonical prompt", "role": "user"}
+        {
+            "content": [{"type": "text", "text": "canonical prompt"}],
+            "role": "user",
+        }
+    ]
+
+
+def test_matches_user_message_and_part_boundaries() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["answer"],
+        request_input=[
+            {
+                "content": [
+                    {"text": "Part one", "type": "input_text"},
+                    {"text": "Part two", "type": "input_text"},
+                ],
+                "role": "user",
+            },
+            {
+                "content": [{"text": "Follow-up", "type": "input_text"}],
+                "role": "user",
+            },
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=None,
+        text_deltas=["template"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette["request"]["body"]["messages"] == [
+        {
+            "content": [
+                {"text": "Part one", "type": "text"},
+                {"text": "Part two", "type": "text"},
+            ],
+            "role": "user",
+        },
+        {
+            "content": [{"text": "Follow-up", "type": "text"}],
+            "role": "user",
+        },
     ]
 
 
@@ -696,7 +827,10 @@ def test_matches_tool_call_history_and_argument_deltas() -> None:
         ["{}"],
     ]
     assert messages_cassette["request"]["body"]["messages"] == [
-        {"content": "Check Paris.", "role": "user"},
+        {
+            "content": [{"text": "Check Paris.", "type": "text"}],
+            "role": "user",
+        },
         {
             "content": [
                 {"text": "I will call both tools.", "type": "text"},
@@ -875,10 +1009,11 @@ def test_rejects_invalid_responses_image_urls(image_url: str | None) -> None:
         match_messages_events(messages_cassette, responses_cassette)
 
 
-def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
+def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=["canonical reasoning"],
-        reasoning_encrypted_content="canonical-signature",
+        reasoning_added_encrypted_content="initial-signature",
+        reasoning_done_encrypted_content="canonical-signature",
         text_deltas=["canonical answer"],
         request_input=[
             {"content": "question", "role": "user"},
@@ -913,6 +1048,12 @@ def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
     match_messages_events(messages_cassette, responses_cassette)
 
     events = _data_events(messages_cassette)
+    thinking_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
+    )
+    assert thinking_start["content_block"]["signature"] == "initial-signature"
     assert [
         event["delta"]["signature"]
         for event in events
@@ -921,6 +1062,36 @@ def test_maps_responses_encrypted_content_to_messages_signatures() -> None:
     assert messages_cassette["request"]["body"]["messages"][1]["content"][0] == {
         "signature": "canonical-history-signature",
         "thinking": "prior reasoning",
+        "type": "thinking",
+    }
+
+
+def test_maps_encrypted_reasoning_history_without_raw_content() -> None:
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=["canonical reasoning"],
+        reasoning_done_encrypted_content="canonical-signature",
+        text_deltas=["canonical answer"],
+        request_input=[
+            {"content": "question", "role": "user"},
+            {
+                "encrypted_content": "canonical-history-signature",
+                "summary": [{"text": "prior summary", "type": "summary_text"}],
+                "type": "reasoning",
+            },
+            {"content": "prior answer", "role": "assistant"},
+            {"content": "follow-up", "role": "user"},
+        ],
+    )
+    messages_cassette = _messages_cassette(
+        thinking_deltas=["template reasoning"],
+        text_deltas=["template answer"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette["request"]["body"]["messages"][1]["content"][0] == {
+        "signature": "canonical-history-signature",
+        "thinking": "prior summary",
         "type": "thinking",
     }
 
@@ -941,7 +1112,7 @@ def test_rejects_reasoning_shape_mismatch(
         match_messages_events(messages_cassette, responses_cassette)
 
 
-def test_rejects_unrepresentable_service_tier() -> None:
+def test_uses_standard_service_tier_for_translated_messages() -> None:
     messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["text"])
     responses_cassette = _responses_cassette(reasoning_deltas=None, text_deltas=["text"])
     completed = next(
@@ -954,8 +1125,14 @@ def test_rejects_unrepresentable_service_tier() -> None:
         f"data: {json_dumps({'type': 'response.completed', 'response': completed})}\n\n"
     )
 
-    with pytest.raises(ValueError, match="cannot be represented by Anthropic Messages"):
-        match_messages_events(messages_cassette, responses_cassette)
+    match_messages_events(messages_cassette, responses_cassette)
+
+    message = next(
+        event["message"]
+        for event in _data_events(messages_cassette)
+        if event["type"] == "message_start"
+    )
+    assert message["usage"]["service_tier"] == "standard"
 
 
 @pytest.mark.parametrize("turn", range(3))
@@ -1033,18 +1210,17 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
 
 
 def test_matches_real_two_turn_request_body() -> None:
-    messages_cassette = read_yaml(
-        str(REASONING_RAW_CASSETTES / "anthropic_messages-stream-01.yaml")
-    )
-    responses_cassette = read_yaml(
-        str(REASONING_RAW_CASSETTES / "openai_responses-stream-01.yaml")
-    )
+    messages_cassette = read_yaml(str(REASONING_RAW_CASSETTES / "vllm-messages-stream-01.yaml"))
+    responses_cassette = read_yaml(str(REASONING_RAW_CASSETTES / "vllm-responses-stream-01.yaml"))
     match_messages_events(messages_cassette, responses_cassette)
 
     assert messages_cassette["request"]["body"] == {
         "max_tokens": 2048,
         "messages": [
-            {"content": "What is 2+2?", "role": "user"},
+            {
+                "content": [{"text": "What is 2+2?", "type": "text"}],
+                "role": "user",
+            },
             {
                 "content": [
                     {
@@ -1055,9 +1231,13 @@ def test_matches_real_two_turn_request_body() -> None:
                 ],
                 "role": "assistant",
             },
-            {"content": "What about 2*2?", "role": "user"},
+            {
+                "content": [{"text": "What about 2*2?", "type": "text"}],
+                "role": "user",
+            },
         ],
         "model": "deepseek-v4-flash",
+        "output_config": {"effort": "high"},
         "stream": True,
         "thinking": {"display": "summarized", "type": "adaptive"},
     }
@@ -1067,3 +1247,77 @@ def test_matches_real_two_turn_request_body() -> None:
         if event["type"] == "message_start"
     )
     assert message_start["usage"]["output_tokens"] == 0
+
+
+@pytest.mark.parametrize("turn", range(2))
+def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(OPAQUE_STATE_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(OPAQUE_STATE_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
+    )
+    original_messages_cassette = deepcopy(messages_cassette)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette == original_messages_cassette
+
+
+@pytest.mark.parametrize("turn", range(2))
+def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(ENCRYPTED_REASONING_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(ENCRYPTED_REASONING_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
+    )
+    original_messages_cassette = deepcopy(messages_cassette)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette == original_messages_cassette
+    AnthropicMessagesCreateRequest.model_validate(messages_cassette["request"]["body"])
+    for event in _data_events(messages_cassette):
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+
+
+@pytest.mark.parametrize(
+    "cassette_dir",
+    [OPAQUE_STATE_CASSETTES, ENCRYPTED_REASONING_CASSETTES],
+    ids=["input-image", "reasoning"],
+)
+def test_opaque_reasoning_history_uses_prior_done_snapshot(cassette_dir: Path) -> None:
+    responses_turn_0 = read_yaml(str(cassette_dir / "openai-responses-stream-00.yaml"))
+    responses_turn_1 = read_yaml(str(cassette_dir / "openai-responses-stream-01.yaml"))
+    messages_turn_1 = read_yaml(str(cassette_dir / "anthropic-messages-stream-01.yaml"))
+
+    turn_0_events = _data_events(responses_turn_0)
+    done_signature = next(
+        event["item"]["encrypted_content"]
+        for event in turn_0_events
+        if event["type"] == "response.output_item.done" and event["item"]["type"] == "reasoning"
+    )
+    terminal_signature = next(
+        item["encrypted_content"]
+        for event in turn_0_events
+        if event["type"] in {"response.completed", "response.incomplete"}
+        for item in event["response"]["output"]
+        if item["type"] == "reasoning"
+    )
+    responses_history_signature = next(
+        item["encrypted_content"]
+        for item in responses_turn_1["request"]["body"]["input"]
+        if isinstance(item, dict) and item.get("type") == "reasoning"
+    )
+    messages_history_signature = next(
+        block["signature"]
+        for message in messages_turn_1["request"]["body"]["messages"]
+        for block in message["content"]
+        if isinstance(block, dict) and block.get("type") == "thinking"
+    )
+
+    assert responses_history_signature == done_signature
+    assert messages_history_signature == done_signature
+    assert terminal_signature != done_signature

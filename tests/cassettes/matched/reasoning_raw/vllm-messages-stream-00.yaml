@@ -3,9 +3,13 @@ request:
   body:
     max_tokens: 2048
     messages:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: text
       role: user
     model: deepseek-v4-flash
+    output_config:
+      effort: high
     stream: true
     thinking:
       display: summarized
@@ -224,7 +228,7 @@ response:
   - '
 
     '
-  - 'event: content_block_delta
+  - 'event: content_block_stop
 
     '
   - 'data: {"type":"content_block_stop","index":1}

@@ -9,12 +9,12 @@ from molto.utils.io import json_dumps, json_loads, read_yaml
 from scripts.match_openai_cassette_events import main, match_chat_completions_events
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
-CHAT_CASSETTE = CASSETTES / "simple_text" / "openai_chat_completions-stream-00.yaml"
-RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai_responses-stream-00.yaml"
+CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
+RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai-responses-stream-00.yaml"
 REASONING_CASSETTES = [
     (
-        CASSETTES / "reasoning_raw" / f"openai_chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "reasoning_raw" / f"openai_responses-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm-chat_completions-stream-{index:02d}.yaml",
+        CASSETTES / "reasoning_raw" / f"vllm-responses-stream-{index:02d}.yaml",
     )
     for index in range(2)
 ]
@@ -124,7 +124,7 @@ def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
     assert {event["id"] for event in chat_events} == {response_id}
     assert {event["created"] for event in chat_events} == {created_at}
     assert {event["model"] for event in chat_events} == {completed["model"]}
-    assert {event["service_tier"] for event in chat_events} == {completed["service_tier"]}
+    assert {event["service_tier"] for event in chat_events} == {"default"}
     assert [
         event["choices"][0]["delta"]["content"]
         for event in chat_events
@@ -151,6 +151,29 @@ def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:
     )
 
 
+def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Part one"},
+                {"type": "text", "text": "Part two"},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Follow-up"}],
+        },
+    ]
+    chat_cassette["request"]["body"]["messages"] = deepcopy(messages)
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    assert chat_cassette["request"]["body"]["messages"] == messages
+
+
 @pytest.mark.parametrize(("chat_path", "responses_path"), REASONING_CASSETTES)
 def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path: Path) -> None:
     chat_cassette = read_yaml(str(chat_path))
@@ -158,6 +181,7 @@ def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path
 
     match_chat_completions_events(chat_cassette, responses_cassette)
 
+    assert chat_cassette["request"]["body"]["reasoning_effort"] == "high"
     chat_events = _data_events(chat_cassette)
     response_events = _data_events(responses_cassette)
     for event in chat_events:
@@ -462,3 +486,78 @@ def test_matches_multiple_ordered_tool_calls() -> None:
     assert {chunk["index"] for chunk in _chat_tool_call_chunks(chat_events)} == {0, 1}
     for event in chat_events:
         ChatCompletionChunk.model_validate(event)
+
+
+def test_rewrites_chat_finish_reason_from_completed_response() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(chat_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None:
+            event["choices"][0]["finish_reason"] = "length"
+            chat_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+            break
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    finish_reasons = [
+        event["choices"][0]["finish_reason"]
+        for event in _data_events(chat_cassette)
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None
+    ]
+    assert finish_reasons == ["stop"]
+
+
+@pytest.mark.parametrize(
+    ("incomplete_reason", "finish_reason"),
+    [
+        ("content_filter", "content_filter"),
+        ("max_output_tokens", "length"),
+        ("future_reason", "stop"),
+    ],
+)
+def test_maps_incomplete_response_to_chat_finish_reason(
+    incomplete_reason: str,
+    finish_reason: str,
+) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") != "response.completed":
+            continue
+        event["type"] = "response.incomplete"
+        event["response"]["status"] = "incomplete"
+        event["response"]["incomplete_details"] = {"reason": incomplete_reason}
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+        break
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    finish_reasons = [
+        event["choices"][0]["finish_reason"]
+        for event in _data_events(chat_cassette)
+        if event.get("choices") and event["choices"][0]["finish_reason"] is not None
+    ]
+    assert finish_reasons == [finish_reason]
+
+
+def test_uses_default_service_tier_for_translated_chat_completions() -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(responses_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:"):
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("type") not in {"response.created", "response.completed"}:
+            continue
+        event["response"]["service_tier"] = "priority"
+        responses_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    assert {event["service_tier"] for event in _data_events(chat_cassette)} == {"default"}

@@ -7,7 +7,17 @@ every ``response.output_text.delta`` and ``response.reasoning_text.delta`` event
 and one corresponding tool-call argument delta for every
 ``response.function_call_arguments.delta`` event, in the same order and with the
 same content. It also synchronizes fields that can pass through the conversion,
-including the response ID, creation time, model, service tier, tool call, and usage.
+including the response ID, creation time, model, target-default service tier, tool
+calls, and usage.
+
+Matched reasoning requests carry the canonical Responses effort as
+``reasoning_effort``. When a continuation contains reasoning history but omits a
+current reasoning configuration, the matcher uses ``high`` to match the default
+used by the normalized Anthropic thinking policy.
+
+The Responses terminal lifecycle controls the matched Chat finish reason:
+``response.completed`` maps to ``stop``, while incomplete output-token and
+content-filter limits map to ``length`` and ``content_filter`` respectively.
 
 The result remains a Chat Completions wire-format cassette. Responses-only envelope
 fields such as message item IDs, sequence numbers, and a distinct completion time
@@ -171,6 +181,55 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
     if len(matches) != 1:
         raise ValueError(f"Expected exactly one {event_type!r} event, found {len(matches)}.")
     return matches[0]
+
+
+def _response_terminal(
+    events: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    terminal_events = [
+        event
+        for event in events
+        if event.get("type") in {"response.completed", "response.incomplete"}
+    ]
+    if len(terminal_events) != 1:
+        raise ValueError(
+            "Expected exactly one completed or incomplete Responses event, "
+            f"found {len(terminal_events)}."
+        )
+
+    terminal_event = terminal_events[0]
+    response = terminal_event.get("response")
+    if not isinstance(response, dict):
+        raise ValueError("Responses terminal event must contain a response object.")
+    if terminal_event["type"] == "response.completed":
+        return response, "stop"
+
+    incomplete_details = response.get("incomplete_details")
+    if not isinstance(incomplete_details, dict):
+        raise ValueError("response.incomplete must contain incomplete_details.")
+    reason = incomplete_details.get("reason")
+    finish_reasons = {
+        "content_filter": "content_filter",
+        "max_output_tokens": "length",
+    }
+    return response, finish_reasons.get(reason, "stop")
+
+
+def _match_request_reasoning_effort(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> None:
+    chat_request = chat_cassette["request"]["body"]
+    responses_request = responses_cassette["request"]["body"]
+    reasoning = responses_request.get("reasoning")
+    effort = reasoning.get("effort") if isinstance(reasoning, dict) else None
+    response_input = responses_request.get("input")
+    has_reasoning_history = isinstance(response_input, list) and any(
+        isinstance(item, dict) and item.get("type") == "reasoning" for item in response_input
+    )
+    if effort is not None or has_reasoning_history:
+        chat_request["reasoning_effort"] = effort or "high"
+    else:
+        chat_request.pop("reasoning_effort", None)
 
 
 def _serialize_data_event(event: dict[str, Any], template: str) -> str:
@@ -504,26 +563,25 @@ def match_chat_completions_events(
     chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
 ) -> None:
     """Rewrite CC SSE events into the canonical input for Responses parity."""
+    _match_request_reasoning_effort(chat_cassette, responses_cassette)
     indexed_chat_events = _data_events(chat_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
 
     created_event = _response_event(response_events, "response.created")
-    completed_event = _response_event(response_events, "response.completed")
     created_response = created_event.get("response")
-    completed_response = completed_event.get("response")
-    if not isinstance(created_response, dict) or not isinstance(completed_response, dict):
+    terminal_response, finish_reason = _response_terminal(response_events)
+    if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):
-        if created_response.get(field) != completed_response.get(field):
+        if created_response.get(field) != terminal_response.get(field):
             raise ValueError(f"Responses lifecycle events disagree on {field!r}.")
 
     response_id = created_response["id"]
     created_at = created_response["created_at"]
-    model = completed_response["model"]
-    service_tier = completed_response.get("service_tier")
-    response_usage = completed_response.get("usage")
+    model = terminal_response["model"]
+    response_usage = terminal_response.get("usage")
     if not isinstance(response_usage, dict):
-        raise ValueError("response.completed must contain usage for stream matching.")
+        raise ValueError("Responses terminal event must contain usage for stream matching.")
 
     response_content_deltas = _response_text_deltas(
         response_events, "response.output_text", optional=True
@@ -532,16 +590,27 @@ def match_chat_completions_events(
         response_events, "response.reasoning_text", optional=True
     )
     response_tool_calls = _response_tool_calls(response_events)
+    if response_tool_calls["calls"] and terminal_response.get("status") == "completed":
+        finish_reason = "tool_calls"
 
     usage_events = [
         usage
         for _, event in indexed_chat_events
         if isinstance((usage := event.get("usage")), dict)
     ]
+    finish_events = [
+        event
+        for _, event in indexed_chat_events
+        if event.get("choices") and event["choices"][0].get("finish_reason") is not None
+    ]
 
     if len(usage_events) != 1:
         raise ValueError(
             f"Expected exactly one Chat Completions usage event, found {len(usage_events)}."
+        )
+    if len(finish_events) != 1:
+        raise ValueError(
+            f"Expected exactly one Chat Completions finish event, found {len(finish_events)}."
         )
 
     _replace_delta_events(
@@ -571,8 +640,13 @@ def match_chat_completions_events(
         event["id"] = response_id
         event["created"] = created_at
         event["model"] = model
-        if service_tier is not None:
-            event["service_tier"] = service_tier
+        event["service_tier"] = "default"
+    finish_events = [
+        event
+        for _, event in indexed_chat_events
+        if event.get("choices") and event["choices"][0].get("finish_reason") is not None
+    ]
+    finish_events[0]["choices"][0]["finish_reason"] = finish_reason
     _map_usage(response_usage, usage_events[0])
 
     sse_entries = chat_cassette["response"]["sse"]

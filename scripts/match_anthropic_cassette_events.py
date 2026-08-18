@@ -6,8 +6,25 @@ Anthropic Messages SSE stream so a converter receives one corresponding thinking
 text, or tool-input delta for every equivalent Responses delta, in the same order
 and with the same content. It also synchronizes fields that can pass through the
 conversion, including request history, the request model, response ID and model,
-tool call IDs and names, encrypted reasoning content, service tier, and terminal
-usage.
+tool call IDs and names, same-provider opaque reasoning state, and terminal usage.
+Translated Messages responses use the target default service tier
+``standard`` because OpenAI tier labels have no faithful Anthropic equivalent.
+Responses normal completion maps to Messages ``end_turn``; an incomplete
+output-token limit maps to ``max_tokens``. A Responses content-filter limit is
+coerced to ``end_turn`` because Messages has no corresponding stop reason.
+Matched reasoning requests use adaptive summarized thinking and carry normalized
+reasoning effort in ``output_config.effort``; reasoning history defaults that
+effort to ``high`` when the canonical request omits it.
+
+The matched fixtures assume OpenAI serves both the Responses and Messages
+endpoints. Under that same-provider contract, Responses ``encrypted_content``
+and Messages thinking ``signature`` carry the same OpenAI-issued opaque state.
+The matcher maps the ``response.output_item.added`` snapshot to the Messages
+thinking-block start signature and the ``response.output_item.done`` snapshot to
+the later replacement signature. Messages has no third lifecycle slot for the
+terminal response-output snapshot, so matching intentionally preserves the first
+two snapshots rather than buffering for terminal byte parity. This mapping must
+not be generalized to an Anthropic-issued signature.
 
 The result remains an Anthropic Messages wire-format cassette. Responses-only
 envelope fields such as item IDs, sequence numbers, and timestamps cannot be
@@ -98,9 +115,9 @@ def _image_content(image_url: Any) -> dict[str, Any]:
     }
 
 
-def _message_content(content: Any) -> str | list[dict[str, Any]]:
+def _message_content(content: Any) -> list[dict[str, Any]]:
     if isinstance(content, str):
-        return content
+        return [{"type": "text", "text": content}]
     if not isinstance(content, list):
         raise ValueError("Responses message content must be text or a list of content parts.")
 
@@ -122,6 +139,8 @@ def _message_content(content: Any) -> str | list[dict[str, Any]]:
 
 def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
     content = item.get("content")
+    if content is None:
+        content = []
     if not isinstance(content, list):
         raise ValueError("Responses reasoning input must contain a content list.")
     summary = item.get("summary", [])
@@ -148,7 +167,7 @@ def _reasoning_content(item: dict[str, Any]) -> dict[str, str]:
 
     thinking = {
         "type": "thinking",
-        "thinking": "".join(summary_text or reasoning_text),
+        "thinking": "".join(reasoning_text or summary_text),
     }
     encrypted_content = item.get("encrypted_content")
     if encrypted_content is not None:
@@ -184,10 +203,11 @@ def _function_call_output_content(item: dict[str, Any]) -> dict[str, Any]:
     call_id = item.get("call_id")
     if not isinstance(call_id, str):
         raise ValueError("Responses function call outputs must contain a string call_id field.")
+    output = item.get("output")
     return {
         "type": "tool_result",
         "tool_use_id": call_id,
-        "content": _message_content(item.get("output")),
+        "content": output if isinstance(output, str) else _message_content(output),
     }
 
 
@@ -221,7 +241,12 @@ def _append_tool_result(messages: list[dict[str, Any]], tool_result: dict[str, A
 
 def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
-        return [{"content": response_input, "role": "user"}]
+        return [
+            {
+                "content": [{"type": "text", "text": response_input}],
+                "role": "user",
+            }
+        ]
     if not isinstance(response_input, list):
         raise ValueError("Responses input must be a string or an input-item list.")
 
@@ -255,11 +280,8 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
             raise ValueError(f"Responses input role {role!r} cannot map to Messages.")
         content = _message_content(item.get("content"))
         if role == "assistant":
-            text_blocks = (
-                [{"type": "text", "text": content}] if isinstance(content, str) else content
-            )
             messages.append(
-                {"content": [*pending_assistant_content, *text_blocks], "role": "assistant"}
+                {"content": [*pending_assistant_content, *content], "role": "assistant"}
             )
             pending_assistant_content = []
         else:
@@ -288,6 +310,38 @@ def _matched_request_body(
     matched_request["stream"] = stream
     if responses_request.get("max_output_tokens") is not None:
         matched_request["max_tokens"] = responses_request["max_output_tokens"]
+
+    response_input = responses_request.get("input")
+    has_thinking_history = isinstance(response_input, list) and any(
+        isinstance(item, dict) and item.get("type") == "reasoning" for item in response_input
+    )
+    reasoning = responses_request.get("reasoning")
+    reasoning_effort = reasoning.get("effort") if isinstance(reasoning, dict) else None
+    reasoning_summary = reasoning.get("summary") if isinstance(reasoning, dict) else None
+    if reasoning_effort == "none":
+        matched_request["thinking"] = {"type": "disabled"}
+        matched_request.pop("output_config", None)
+    elif (
+        reasoning_effort is not None
+        or reasoning_summary is not None
+        or has_thinking_history
+        or (
+            isinstance(matched_request.get("thinking"), dict)
+            and matched_request["thinking"].get("type") == "adaptive"
+        )
+    ):
+        effort = "high" if reasoning_effort is None else reasoning_effort
+        if effort == "minimal":
+            effort = "low"
+        matched_request["thinking"] = {"type": "adaptive", "display": "summarized"}
+        existing_output_config = matched_request.get("output_config")
+        output_config = (
+            {"format": existing_output_config["format"]}
+            if isinstance(existing_output_config, dict) and "format" in existing_output_config
+            else {}
+        )
+        output_config["effort"] = effort
+        matched_request["output_config"] = output_config
     return matched_request
 
 
@@ -343,9 +397,44 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
     return matches[0]
 
 
+def _response_terminal(
+    events: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    terminal_events = [
+        event
+        for event in events
+        if event.get("type") in {"response.completed", "response.incomplete"}
+    ]
+    if len(terminal_events) != 1:
+        raise ValueError(
+            "Expected exactly one completed or incomplete Responses event, "
+            f"found {len(terminal_events)}."
+        )
+
+    terminal_event = terminal_events[0]
+    response = terminal_event.get("response")
+    if not isinstance(response, dict):
+        raise ValueError("Responses terminal event must contain a response object.")
+    if terminal_event["type"] == "response.completed":
+        return response, "end_turn"
+
+    incomplete_details = response.get("incomplete_details")
+    if not isinstance(incomplete_details, dict):
+        raise ValueError("response.incomplete must contain incomplete_details.")
+    reason = incomplete_details.get("reason")
+    if reason == "max_output_tokens":
+        return response, "max_tokens"
+    return response, "end_turn"
+
+
 def _serialize_data_event(event: dict[str, Any], template: str) -> str:
     suffix = template[len(template.rstrip("\r\n")) :]
     return f"data: {json_dumps(event)}{suffix}"
+
+
+def _serialize_event_name(event_type: str, template: str) -> str:
+    suffix = template[len(template.rstrip("\r\n")) :]
+    return f"event: {event_type}{suffix}"
 
 
 def _response_text_deltas(
@@ -377,17 +466,19 @@ def _response_reasoning_deltas(events: list[dict[str, Any]]) -> list[str] | None
     return summary_deltas if summary_deltas is not None else reasoning_deltas
 
 
-def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str | None:
+def _response_reasoning_encrypted_content(
+    events: list[dict[str, Any]], event_type: str
+) -> str | None:
     reasoning_items = [
         event.get("item")
         for event in events
-        if event.get("type") == "response.output_item.done"
+        if event.get("type") == event_type
         and isinstance(event.get("item"), dict)
         and event["item"].get("type") == "reasoning"
     ]
     if len(reasoning_items) != 1:
         raise ValueError(
-            "Expected exactly one completed Responses reasoning item, "
+            f"Expected exactly one Responses reasoning item in {event_type!r}, "
             f"found {len(reasoning_items)}."
         )
 
@@ -479,6 +570,17 @@ def _response_tool_calls(events: list[dict[str, Any]]) -> list[_ResponseToolCall
             "Responses function call argument events do not match completed function calls."
         )
     return calls
+
+
+def _replace_thinking_start_signature(units: list[_SSEEventUnit], signature: str | None) -> None:
+    block = _content_block(units, "thinking")
+    if block is None:
+        raise ValueError("Messages cassette has no thinking block for Responses reasoning.")
+    start_position, _, _ = block
+    content_block = units[start_position].event.get("content_block")
+    if not isinstance(content_block, dict):
+        raise ValueError("Messages thinking start must contain a content block.")
+    content_block["signature"] = signature or ""
 
 
 def _content_blocks(units: list[_SSEEventUnit], block_type: str) -> list[tuple[int, int, int]]:
@@ -629,17 +731,6 @@ def _message_event(units: list[_SSEEventUnit], event_type: str) -> dict[str, Any
     return matches[0]
 
 
-def _map_service_tier(response_service_tier: str) -> str:
-    service_tiers = {"default": "standard", "priority": "priority"}
-    try:
-        return service_tiers[response_service_tier]
-    except KeyError as exc:
-        raise ValueError(
-            f"Responses service tier {response_service_tier!r} cannot be represented by "
-            "Anthropic Messages."
-        ) from exc
-
-
 def _map_input_usage(response_usage: dict[str, Any], message_usage: dict[str, Any]) -> None:
     input_details = response_usage.get("input_tokens_details") or {}
     if not isinstance(input_details, dict):
@@ -689,6 +780,20 @@ def _write_message_event_units(
 ) -> None:
     sse_entries = prefix.copy()
     for unit in units:
+        event_type = unit.event.get("type")
+        if not isinstance(event_type, str):
+            raise ValueError("Messages event type must be a string.")
+        event_name_index = next(
+            (
+                index
+                for index, entry in enumerate(unit.entries[: unit.data_entry_index])
+                if entry.strip().startswith("event:")
+            ),
+            None,
+        )
+        if event_name_index is not None:
+            event_name_template = unit.entries[event_name_index]
+            unit.entries[event_name_index] = _serialize_event_name(event_type, event_name_template)
         data_template = unit.entries[unit.data_entry_index]
         unit.entries[unit.data_entry_index] = _serialize_data_event(unit.event, data_template)
         sse_entries.extend(unit.entries)
@@ -707,18 +812,17 @@ def match_messages_events(
     response_events = [event for _, event in _data_events(responses_cassette)]
 
     created_event = _response_event(response_events, "response.created")
-    completed_event = _response_event(response_events, "response.completed")
     created_response = created_event.get("response")
-    completed_response = completed_event.get("response")
-    if not isinstance(created_response, dict) or not isinstance(completed_response, dict):
+    terminal_response, stop_reason = _response_terminal(response_events)
+    if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):
-        if created_response.get(field) != completed_response.get(field):
+        if created_response.get(field) != terminal_response.get(field):
             raise ValueError(f"Responses lifecycle events disagree on {field!r}.")
 
-    response_usage = completed_response.get("usage")
+    response_usage = terminal_response.get("usage")
     if not isinstance(response_usage, dict):
-        raise ValueError("response.completed must contain usage for stream matching.")
+        raise ValueError("Responses terminal event must contain usage for stream matching.")
 
     response_text_deltas = _response_text_deltas(
         response_events, "response.output_text", optional=True
@@ -732,18 +836,23 @@ def match_messages_events(
         delta_type="thinking_delta",
         delta_field="thinking",
     )
-    response_reasoning_encrypted_content = (
-        None
-        if response_reasoning_deltas is None
-        else _response_reasoning_encrypted_content(response_events)
-    )
+    if response_reasoning_deltas is None:
+        response_reasoning_done_encrypted_content = None
+    else:
+        _replace_thinking_start_signature(
+            message_units,
+            _response_reasoning_encrypted_content(response_events, "response.output_item.added"),
+        )
+        response_reasoning_done_encrypted_content = _response_reasoning_encrypted_content(
+            response_events, "response.output_item.done"
+        )
     _replace_content_deltas(
         message_units,
         None
         if response_reasoning_deltas is None
         else (
-            [response_reasoning_encrypted_content]
-            if response_reasoning_encrypted_content is not None
+            [response_reasoning_done_encrypted_content]
+            if response_reasoning_done_encrypted_content is not None
             else []
         ),
         block_type="thinking",
@@ -763,22 +872,25 @@ def match_messages_events(
     if not isinstance(message_start, dict):
         raise ValueError("message_start must contain a message object.")
     message_start["id"] = created_response["id"]
-    message_start["model"] = completed_response["model"]
+    message_start["model"] = terminal_response["model"]
+    message_start["stop_reason"] = None
+    message_start["stop_sequence"] = None
 
     message_start_usage = message_start.get("usage")
     if not isinstance(message_start_usage, dict):
         raise ValueError("message_start.message must contain usage.")
     _map_input_usage(response_usage, message_start_usage)
     message_start_usage["output_tokens"] = 0
-    response_service_tier = completed_response.get("service_tier")
-    if response_service_tier is None:
-        message_start_usage.pop("service_tier", None)
-    else:
-        if not isinstance(response_service_tier, str):
-            raise ValueError("Responses service tier must be a string.")
-        message_start_usage["service_tier"] = _map_service_tier(response_service_tier)
+    message_start_usage["service_tier"] = "standard"
 
-    message_delta_usage = _message_event(message_units, "message_delta").get("usage")
+    message_delta = _message_event(message_units, "message_delta")
+    message_delta_value = message_delta.get("delta")
+    if not isinstance(message_delta_value, dict):
+        raise ValueError("message_delta must contain a delta object.")
+    message_delta_value["stop_reason"] = stop_reason
+    message_delta_value["stop_sequence"] = None
+
+    message_delta_usage = message_delta.get("usage")
     if not isinstance(message_delta_usage, dict):
         raise ValueError("message_delta must contain usage.")
     _map_usage(response_usage, message_delta_usage)

@@ -3,13 +3,18 @@ from collections.abc import AsyncIterator
 
 from pydantic import BaseModel
 
+from molto.providers import ProviderCapabilities
 from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
 
 
 class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
     """Translate the downstream protocol to and from normalized IR."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        capabilities: ProviderCapabilities,
+    ) -> None:
+        self._capabilities = capabilities
         self.native_request: NativeRequestT | None = None
 
     def normalize_request(self, request: NativeRequestT) -> NormalizedRequest:

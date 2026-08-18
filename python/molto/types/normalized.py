@@ -1,4 +1,5 @@
 from textwrap import dedent
+from time import time
 from typing import Annotated, Any, Literal, TypeAlias
 
 from openai.types.responses.response_create_params import ToolChoice
@@ -30,6 +31,19 @@ class TextInput(ExtraModel):
         Literal["text-input"],
         Field(description="Content type identifier as a discriminator."),
     ] = "text-input"
+
+
+class UserInput(ExtraModel):
+    """One user message containing its ordered input content parts."""
+
+    content: Annotated[
+        list[TextInput],
+        Field(description="The ordered content parts in the user message."),
+    ]
+    content_type: Annotated[
+        Literal["user-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "user-input"
 
 
 # class _FileUrlInput(ExtraModel):
@@ -250,7 +264,7 @@ class Thinking(ExtraModel):
     ] = None
     signature: Annotated[
         str | None,
-        Field(description="The signature or encrypted content of the thinking."),
+        Field(description="Provider-specific opaque state for the thinking."),
     ] = None
     content_type: Annotated[
         Literal["thinking"],
@@ -273,7 +287,7 @@ OutputItem = Annotated[
 
 
 InputItem = Annotated[
-    SystemPrompt | TextInput | Thinking | TextOutput | ToolReturn,
+    SystemPrompt | UserInput | Thinking | TextOutput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
@@ -386,7 +400,7 @@ class TextDelta(ExtraModel):
 
 
 class ThinkingDelta(ExtraModel):
-    """A partial update (delta) for a `Thinking` to append new thinking content."""
+    """An update to append thinking text or replace its provider-specific state."""
 
     content_delta: Annotated[
         str | None,
@@ -398,7 +412,7 @@ class ThinkingDelta(ExtraModel):
     ] = None
     signature_delta: Annotated[
         str | None,
-        Field(description="Optional signature delta. It can replace None."),
+        Field(description="An optional replacement for provider-specific opaque state."),
     ] = None
     delta_type: Annotated[
         Literal["thinking-delta"],
@@ -477,9 +491,18 @@ class Usage(ExtraModel):
 class ResponseStartEvent(ExtraModel):
     """Provider-backed response metadata available when a response stream starts."""
 
-    id: Annotated[str, Field(description="The upstream response identifier.")]
-    created_at: Annotated[int, Field(description="The upstream response creation time.")]
-    model: Annotated[str, Field(description="The model that produced the response.")]
+    id: Annotated[
+        str,
+        Field(description="The upstream response identifier."),
+    ]
+    created_at: Annotated[
+        int,
+        Field(description="The upstream response creation time."),
+    ] = Field(default_factory=lambda: int(time()))
+    model: Annotated[
+        str,
+        Field(description="The model that produced the response."),
+    ]
     service_tier: Annotated[
         str | None,
         Field(description="The service tier used for the response."),
@@ -490,17 +513,49 @@ class ResponseStartEvent(ExtraModel):
     ] = "response_start"
 
 
+TerminationReason: TypeAlias = Literal[
+    "content_filter",
+    "max_output_tokens",
+    "model_context_window_exceeded",
+    "pause",
+    "refusal",
+    "stop",
+    "stop_sequence",
+    "tool_call",
+]
+
+
 class ResponseEndEvent(ExtraModel):
     """Provider-backed response metadata available when a response stream ends."""
 
-    id: Annotated[str, Field(description="The upstream response identifier.")]
-    created_at: Annotated[int, Field(description="The upstream response creation time.")]
-    model: Annotated[str, Field(description="The model that produced the response.")]
+    id: Annotated[
+        str,
+        Field(description="The upstream response identifier."),
+    ]
+    created_at: Annotated[
+        int,
+        Field(description="The upstream response creation time."),
+    ]
+    model: Annotated[
+        str,
+        Field(description="The model that produced the response."),
+    ]
     service_tier: Annotated[
         str | None,
         Field(description="The service tier used for the response."),
     ] = None
-    usage: Annotated[Usage | None, Field(description="The response token usage.")] = None
+    termination_reason: Annotated[
+        TerminationReason,
+        Field(description="The provider-neutral reason that generation terminated."),
+    ]
+    stop_sequence: Annotated[
+        str | None,
+        Field(description="The matched stop sequence, when one terminated generation."),
+    ] = None
+    usage: Annotated[
+        Usage | None,
+        Field(description="The response token usage."),
+    ] = None
     event_kind: Annotated[
         Literal["response_end"],
         Field(description="Event type identifier, used as a discriminator."),
@@ -518,7 +573,10 @@ class PartStartEvent(ExtraModel):
         int,
         Field(description="The index of the part within the overall response parts list."),
     ]
-    part: Annotated[OutputItem, Field(description="The newly started response part.")]
+    part: Annotated[
+        OutputItem,
+        Field(description="The newly started response part."),
+    ]
     previous_part_kind: Annotated[
         Literal[
             "text",
@@ -545,7 +603,10 @@ class PartDeltaEvent(ExtraModel):
         int,
         Field(description="The index of the part within the overall response parts list."),
     ]
-    delta: Annotated[DeltaItem, Field(description="The delta to apply to the specified part.")]
+    delta: Annotated[
+        DeltaItem,
+        Field(description="The delta to apply to the specified part."),
+    ]
     event_kind: Annotated[
         Literal["part_delta"],
         Field(description="Event type identifier, used as a discriminator."),
@@ -559,7 +620,10 @@ class PartEndEvent(ExtraModel):
         int,
         Field(description="The index of the part within the overall response parts list."),
     ]
-    part: Annotated[OutputItem, Field(description="The complete response part.")]
+    part: Annotated[
+        OutputItem,
+        Field(description="The complete response part."),
+    ]
     next_part_kind: Annotated[
         Literal[
             "text",

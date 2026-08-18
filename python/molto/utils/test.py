@@ -12,6 +12,7 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
+from molto.types.anthropic_messages import AnthropicMessagesStreamEventAdapter
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsStreamChunk,
@@ -29,20 +30,22 @@ _RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "model",
     "object",
     "output",
+    "service_tier",
     "status",
     "usage",
 }
 
-# Responses reports the final service tier only at completion, so matching it on
-# every Chat chunk would require buffering the stream.
 _RECONSTRUCTIBLE_CHAT_COMPLETIONS_FIELDS = {
     "choices",
     "created",
     "id",
     "model",
     "object",
+    "service_tier",
     "usage",
 }
+
+_ANTHROPIC_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 
 
 def assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> None:
@@ -130,6 +133,7 @@ def reconstructable_responses_event(
     item = event.get("item")
     if isinstance(item, dict):
         item.pop("id", None)
+        item.pop("phase", None)
 
     response = event.get("response")
     if isinstance(response, dict):
@@ -140,8 +144,28 @@ def reconstructable_responses_event(
         }
         for output_item in response.get("output") or []:
             output_item.pop("id", None)
+            output_item.pop("phase", None)
         event["response"] = response
 
+    return event
+
+
+def reconstructable_anthropic_event(sse: str) -> dict[str, Any]:
+    """Validate an Anthropic SSE event and retain fields available across protocols."""
+    event = _ANTHROPIC_EVENT_ADAPTER.validate_python(load_sse(sse)).model_dump(
+        mode="json",
+        exclude_unset=True,
+    )
+    if event["type"] == "message_start":
+        message = event["message"]
+        message.pop("stop_details", None)
+        # Other protocols report usage only when the stream ends. Matching the
+        # Messages start counts would require buffering its otherwise-live stream.
+        usage = message.pop("usage", None)
+        if isinstance(usage, dict) and "service_tier" in usage:
+            message["usage"] = {"service_tier": usage["service_tier"]}
+    elif event["type"] == "message_delta":
+        event["delta"].pop("stop_details", None)
     return event
 
 

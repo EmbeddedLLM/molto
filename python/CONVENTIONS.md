@@ -12,6 +12,16 @@ A future `chat()` method is a dispatcher over those coordinators. It should sele
 
 Keep same-protocol optimizations visible in the relevant protocol coordinator. Do not hide pair-specific routing inside an adapter or client.
 
+## Endpoint, provider, and transport
+
+Keep these three concepts separate:
+
+- `endpoint` selects the wire protocol and upstream client;
+- `provider` identifies the serving implementation and selects its capability profile; and
+- `base_url` selects only the HTTP destination.
+
+Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
+
 ## Adapter and client base classes
 
 Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
@@ -74,13 +84,17 @@ Normalized models inherit from `ExtraModel`. `extra_fields` is an internal escap
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, assistant conversation history is `TextOutput`; do not encode its role in `TextInput.metadata`.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
 When non-streaming support is added, derive it with a generic collector over the normalized event stream. Do not add a separate provider completion path that can drift from streaming behavior.
 
 Preserve chunk boundaries when they are observable and covered by parity tests. Do not turn an empty role-establishment chunk into a text delta.
+
+Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly and must not be reclassified by a provider profile. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous; classify them with `ProviderCapabilities.thinking`. When projecting to Chat Completions or Messages, collapse either normalized representation into that protocol's single reasoning field.
+
+Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 
 Map usage semantically and construct the public usage payload explicitly. This prevents internal `extra_fields` containers and source-only usage details from leaking into the target protocol.
 
@@ -115,19 +129,22 @@ Prefer semantic normalized types over SDK parameter types. Any SDK type retained
 Matched cross-protocol cassettes use:
 
 ```text
-tests/cassettes/matched/{scenario}/openai_{endpoint}-{mode}-{turn}.yaml
+tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
 Examples:
 
 ```text
-tests/cassettes/matched/simple_text/openai_responses-stream-00.yaml
-tests/cassettes/matched/simple_text/openai_chat_completions-stream-00.yaml
+tests/cassettes/matched/simple_text/openai-responses-stream-00.yaml
+tests/cassettes/matched/simple_text/openai-chat_completions-stream-00.yaml
+tests/cassettes/matched/reasoning_raw/vllm-messages-stream-00.yaml
 ```
 
 Matched cassettes represent semantically equivalent requests expressed in each protocol's native schema, not identical request bodies. When a behavior-changing setting has protocol-specific field names, include its equivalent in every matched request, even if some protocols make it optional. Retain fields required by a protocol; do not remove them merely because a counterpart protocol makes the equivalent optional. For example, match Anthropic `max_tokens` with Responses `max_output_tokens` and Chat Completions `max_completion_tokens`.
 
 Treat each cassette as authoritative native wire data for its own downstream protocol. For cross-protocol matching, the Responses cassette is the canonical behavioral reference. Paired fixtures may align source-backed IDs, timestamps, model, usage, and delta boundaries, but each must remain valid native wire data.
+
+When Responses exposes `added`, `done`, and terminal encrypted snapshots but Messages exposes only a start signature and a later delta, preserve `added` and `done`. Do not buffer a stream solely to retrofit the separately observed terminal ciphertext. A deliberately curated continuation may use the prior turn's `done` snapshot in both native request fixtures when testing this cross-protocol policy; document and test that exception explicitly.
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
 
