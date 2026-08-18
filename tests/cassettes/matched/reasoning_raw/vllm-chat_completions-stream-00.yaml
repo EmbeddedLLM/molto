@@ -3,7 +3,9 @@ request:
   body:
     max_completion_tokens: 2048
     messages:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: text
       role: user
     model: deepseek-v4-flash
     reasoning_effort: high

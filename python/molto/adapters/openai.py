@@ -1,3 +1,10 @@
+"""Translate OpenAI Responses and Chat Completions protocol boundaries.
+
+See ``docs/openai-responses-cc-parity.md`` and
+``docs/openai-responses-anthropic-messages-parity.md`` for supported semantics,
+compatibility mappings, and testing policy.
+"""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -17,11 +24,13 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
+    TerminationReason,
     TextDelta,
     TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
+    UserInput,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -33,16 +42,24 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEventAdapter,
 )
 
+_CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
+    "content_filter": "content_filter",
+    "max_output_tokens": "length",
+    "stop": "stop",
+    "stop_sequence": "stop",
+    "tool_call": "tool_calls",
+}
+
 
 class OpenAIResponsesAdapter(
     BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
 
-    @staticmethod
     def _normalize_message(
+        self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -56,6 +73,7 @@ class OpenAIResponsesAdapter(
                     content="".join(part["text"] for part in content),
                     summary="".join(part["text"] for part in summary),
                     id=message.get("id"),
+                    signature=message.get("encrypted_content"),
                 )
             ]
         if message_type != "message":
@@ -76,21 +94,20 @@ class OpenAIResponsesAdapter(
         else:
             raise ValueError("Responses message content must be text.")
 
-        item_type: type[SystemPrompt] | type[TextInput] | type[TextOutput]
         if role in {"system", "developer"}:
-            item_type = SystemPrompt
-        elif role == "user":
-            item_type = TextInput
-        elif role == "assistant":
-            item_type = TextOutput
-        else:
-            raise ValueError(f"Unsupported Responses message role: {role}")
-        return [item_type(content=text) for text in text_parts]
+            return [SystemPrompt(content=text) for text in text_parts]
+        if role == "user":
+            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+        if role == "assistant":
+            return [TextOutput(content=text) for text in text_parts]
+        raise ValueError(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput] | None
-        if isinstance(request.input, str) or request.input is None:
-            normalized_input = request.input
+        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] | None
+        if isinstance(request.input, str):
+            normalized_input = [UserInput(content=[TextInput(content=request.input)])]
+        elif request.input is None:
+            normalized_input = None
         else:
             normalized_input = []
             for item in request.input:
@@ -101,16 +118,10 @@ class OpenAIResponsesAdapter(
                 normalized_input.extend(self._normalize_message(item))
 
         if request.instructions is not None:
-            if isinstance(normalized_input, str):
-                normalized_input = [
-                    SystemPrompt(content=request.instructions),
-                    TextInput(content=normalized_input),
-                ]
-            else:
-                normalized_input = [
-                    SystemPrompt(content=request.instructions),
-                    *(normalized_input or []),
-                ]
+            normalized_input = [
+                SystemPrompt(content=request.instructions),
+                *(normalized_input or []),
+            ]
 
         request_data = request.model_dump()
         request_data.pop("instructions", None)
@@ -125,8 +136,8 @@ class OpenAIResponsesAdapter(
         sequence_number = 0
         response_start: ResponseStartEvent | None = None
         item_id: str | None = None
+        thinking_representation: str | None = None
         output_items: list[dict[str, Any]] = []
-        had_thinking = False
 
         def event(data: dict[str, Any]) -> BaseModel:
             nonlocal sequence_number
@@ -153,12 +164,11 @@ class OpenAIResponsesAdapter(
                 "parallel_tool_calls": request.parallel_tool_calls
                 if request.parallel_tool_calls is not None
                 else True,
+                "service_tier": "default",
                 "tool_choice": self.native_request.tool_choice or "auto",
                 "tools": self.native_request.tools or [],
                 "usage": None,
             }
-            if metadata.service_tier is not None:
-                data["service_tier"] = metadata.service_tier
             if isinstance(metadata, ResponseEndEvent) and metadata.usage is not None:
                 usage = metadata.usage
                 data["usage"] = {
@@ -190,7 +200,7 @@ class OpenAIResponsesAdapter(
                 if not isinstance(normalized_event.part, (TextOutput, Thinking)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 is_thinking = isinstance(normalized_event.part, Thinking)
-                had_thinking = had_thinking or is_thinking
+                thinking_representation = None
                 item_id = f"{'' if is_thinking else 'msg_'}{uuid4().hex}"
                 output_index = normalized_event.index
                 item = (
@@ -200,6 +210,11 @@ class OpenAIResponsesAdapter(
                         "status": "in_progress",
                         "content": [],
                         "summary": [],
+                        **(
+                            {"encrypted_content": normalized_event.part.signature}
+                            if normalized_event.part.signature
+                            else {}
+                        ),
                     }
                     if is_thinking
                     else {
@@ -208,17 +223,6 @@ class OpenAIResponsesAdapter(
                         "status": "in_progress",
                         "content": [],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
-                    }
-                )
-                part = (
-                    {"type": "reasoning_text", "text": ""}
-                    if is_thinking
-                    else {
-                        "type": "output_text",
-                        "annotations": [],
-                        "logprobs": [],
-                        "text": "",
                     }
                 )
                 yield event(
@@ -228,39 +232,91 @@ class OpenAIResponsesAdapter(
                         "output_index": output_index,
                     }
                 )
-                yield event(
-                    {
-                        "type": "response.content_part.added",
-                        "content_index": 0,
-                        "item_id": item_id,
-                        "output_index": output_index,
-                        "part": part,
-                    }
-                )
+                if not is_thinking:
+                    yield event(
+                        {
+                            "type": "response.content_part.added",
+                            "content_index": 0,
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "part": {
+                                "type": "output_text",
+                                "annotations": [],
+                                "logprobs": [],
+                                "text": "",
+                            },
+                        }
+                    )
 
             elif isinstance(normalized_event, PartDeltaEvent):
                 if not isinstance(normalized_event.delta, (TextDelta, ThinkingDelta)):
                     raise ValueError(f"Unsupported output delta: {type(normalized_event.delta)}")
                 if item_id is None:
                     raise ValueError("Received a delta before its output item started.")
-                is_thinking = isinstance(normalized_event.delta, ThinkingDelta)
-                delta = normalized_event.delta.content_delta
-                if delta is None:
-                    continue
-                yield event(
-                    {
-                        "type": (
-                            "response.reasoning_text.delta"
-                            if is_thinking
-                            else "response.output_text.delta"
-                        ),
-                        "content_index": 0,
-                        "delta": delta,
-                        "item_id": item_id,
-                        "output_index": normalized_event.index,
-                        **({} if is_thinking else {"logprobs": []}),
-                    }
-                )
+                if isinstance(normalized_event.delta, ThinkingDelta):
+                    if normalized_event.delta.content_delta is not None:
+                        representation = "raw"
+                        delta = normalized_event.delta.content_delta
+                    elif normalized_event.delta.summary_delta is not None:
+                        representation = "summary"
+                        delta = normalized_event.delta.summary_delta
+                    else:
+                        continue
+                    if thinking_representation is None:
+                        thinking_representation = representation
+                        if representation == "raw":
+                            yield event(
+                                {
+                                    "type": "response.content_part.added",
+                                    "content_index": 0,
+                                    "item_id": item_id,
+                                    "output_index": normalized_event.index,
+                                    "part": {"type": "reasoning_text", "text": ""},
+                                }
+                            )
+                        else:
+                            yield event(
+                                {
+                                    "type": "response.reasoning_summary_part.added",
+                                    "item_id": item_id,
+                                    "output_index": normalized_event.index,
+                                    "part": {"type": "summary_text", "text": ""},
+                                    "summary_index": 0,
+                                }
+                            )
+                    elif thinking_representation != representation:
+                        raise ValueError(
+                            "A translated reasoning part cannot contain both raw reasoning "
+                            "and a summary."
+                        )
+                    yield event(
+                        {
+                            "type": (
+                                "response.reasoning_text.delta"
+                                if representation == "raw"
+                                else "response.reasoning_summary_text.delta"
+                            ),
+                            "delta": delta,
+                            "item_id": item_id,
+                            "output_index": normalized_event.index,
+                            **(
+                                {"content_index": 0}
+                                if representation == "raw"
+                                else {"summary_index": 0}
+                            ),
+                        }
+                    )
+                else:
+                    yield event(
+                        {
+                            "type": "response.output_text.delta",
+                            "content_index": 0,
+                            "delta": normalized_event.delta.content_delta,
+                            "item_id": item_id,
+                            "output_index": normalized_event.index,
+                            "logprobs": [],
+                        }
+                    )
 
             elif isinstance(normalized_event, PartEndEvent):
                 if not isinstance(normalized_event.part, (TextOutput, Thinking)):
@@ -269,23 +325,64 @@ class OpenAIResponsesAdapter(
                     raise ValueError("Received a part end before its output item started.")
                 output_index = normalized_event.index
                 is_thinking = isinstance(normalized_event.part, Thinking)
-                completed_part = (
-                    {"type": "reasoning_text", "text": normalized_event.part.content}
-                    if is_thinking
-                    else {
+                if is_thinking:
+                    if normalized_event.part.content and normalized_event.part.summary:
+                        raise ValueError(
+                            "A translated reasoning part cannot contain both raw reasoning "
+                            "and a summary."
+                        )
+                    representation = thinking_representation or (
+                        "summary" if normalized_event.part.summary else self._capabilities.thinking
+                    )
+                    reasoning_text = (
+                        normalized_event.part.content
+                        if representation == "raw"
+                        else normalized_event.part.summary
+                    )
+                    completed_part = {
+                        "type": "reasoning_text" if representation == "raw" else "summary_text",
+                        "text": reasoning_text,
+                    }
+                    if thinking_representation is None:
+                        if representation == "raw":
+                            yield event(
+                                {
+                                    "type": "response.content_part.added",
+                                    "content_index": 0,
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "part": {"type": "reasoning_text", "text": ""},
+                                }
+                            )
+                        else:
+                            yield event(
+                                {
+                                    "type": "response.reasoning_summary_part.added",
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "part": {"type": "summary_text", "text": ""},
+                                    "summary_index": 0,
+                                }
+                            )
+                else:
+                    completed_part = {
                         "type": "output_text",
                         "annotations": [],
                         "logprobs": [],
                         "text": normalized_event.part.content,
                     }
-                )
                 completed_item = (
                     {
                         "id": item_id,
                         "type": "reasoning",
                         "status": "completed",
-                        "content": [completed_part],
-                        "summary": [],
+                        "content": [completed_part] if representation == "raw" else [],
+                        "summary": [completed_part] if representation == "summary" else [],
+                        **(
+                            {"encrypted_content": normalized_event.part.signature}
+                            if normalized_event.part.signature
+                            else {}
+                        ),
                     }
                     if is_thinking
                     else {
@@ -294,33 +391,52 @@ class OpenAIResponsesAdapter(
                         "status": "completed",
                         "content": [completed_part],
                         "role": "assistant",
-                        **({"phase": "final_answer"} if had_thinking else {}),
                     }
                 )
                 output_items.append(completed_item)
-                yield event(
-                    {
-                        "type": (
-                            "response.reasoning_text.done"
-                            if is_thinking
-                            else "response.output_text.done"
-                        ),
-                        "content_index": 0,
-                        "item_id": item_id,
-                        "output_index": output_index,
-                        "text": normalized_event.part.content,
-                        **({} if is_thinking else {"logprobs": []}),
-                    }
-                )
-                yield event(
-                    {
-                        "type": "response.content_part.done",
-                        "content_index": 0,
-                        "item_id": item_id,
-                        "output_index": output_index,
-                        "part": completed_part,
-                    }
-                )
+                if is_thinking and representation == "summary":
+                    yield event(
+                        {
+                            "type": "response.reasoning_summary_text.done",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "summary_index": 0,
+                            "text": reasoning_text,
+                        }
+                    )
+                    yield event(
+                        {
+                            "type": "response.reasoning_summary_part.done",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "part": completed_part,
+                            "summary_index": 0,
+                        }
+                    )
+                else:
+                    yield event(
+                        {
+                            "type": (
+                                "response.reasoning_text.done"
+                                if is_thinking
+                                else "response.output_text.done"
+                            ),
+                            "content_index": 0,
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "text": normalized_event.part.content,
+                            **({} if is_thinking else {"logprobs": []}),
+                        }
+                    )
+                    yield event(
+                        {
+                            "type": "response.content_part.done",
+                            "content_index": 0,
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "part": completed_part,
+                        }
+                    )
                 yield event(
                     {
                         "type": "response.output_item.done",
@@ -332,14 +448,24 @@ class OpenAIResponsesAdapter(
             elif isinstance(normalized_event, ResponseEndEvent):
                 if response_start is None:
                     raise ValueError("Received a response end before its response start.")
+                termination_reason = normalized_event.termination_reason
+                if termination_reason in {"content_filter", "max_output_tokens"}:
+                    event_type = "response.incomplete"
+                    status = "incomplete"
+                else:
+                    event_type = "response.completed"
+                    status = "completed"
+                final_response = response_data(
+                    normalized_event,
+                    status=status,
+                    output=output_items,
+                )
+                if status == "incomplete":
+                    final_response["incomplete_details"] = {"reason": termination_reason}
                 yield event(
                     {
-                        "type": "response.completed",
-                        "response": response_data(
-                            normalized_event,
-                            status="completed",
-                            output=output_items,
-                        ),
+                        "type": event_type,
+                        "response": final_response,
                     }
                 )
 
@@ -349,45 +475,61 @@ class OpenAIChatCompletionsAdapter(
 ):
     """Translate Chat Completions requests and normalized response events."""
 
-    @staticmethod
     def _normalize_message(
+        self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | TextInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
         role = message.get("role")
         content = message.get("content")
+
+        if role == "user" and isinstance(content, list):
+            text_parts = [
+                part.get("text")
+                for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            ]
+            if len(text_parts) != len(content) or not all(
+                isinstance(text, str) for text in text_parts
+            ):
+                raise ValueError("Only text Chat Completions user content is supported.")
+            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+
         if not isinstance(content, str):
-            raise ValueError("Only string Chat Completions message content is supported.")
+            raise ValueError("Only string non-user Chat Completions content is supported.")
 
         if role in {"system", "developer"}:
             return [SystemPrompt(content=content)]
         if role == "user":
-            return [TextInput(content=content)]
+            return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             items: list[Thinking | TextOutput] = []
             reasoning_content = message.get("reasoning_content")
             if reasoning_content is not None:
                 if not isinstance(reasoning_content, str):
                     raise ValueError("Chat Completions reasoning_content must be a string.")
-                items.append(Thinking(content=reasoning_content, summary=""))
+                items.append(
+                    Thinking(
+                        content=(
+                            reasoning_content if self._capabilities.thinking == "raw" else ""
+                        ),
+                        summary=(
+                            reasoning_content if self._capabilities.thinking == "summary" else ""
+                        ),
+                    )
+                )
             items.append(TextOutput(content=content))
             return items
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | TextInput | Thinking | TextOutput] = []
+        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
         for message in request.messages:
             normalized_input.extend(self._normalize_message(dict(message)))
-
-        request_input: str | list[SystemPrompt | TextInput | Thinking | TextOutput]
-        if len(normalized_input) == 1 and isinstance(normalized_input[0], TextInput):
-            request_input = normalized_input[0].content
-        else:
-            request_input = normalized_input
 
         stream_options = request.stream_options or {}
         include_obfuscation = stream_options.get("include_obfuscation")
         data: dict[str, Any] = {
-            "input": request_input,
+            "input": normalized_input,
             "model": request.model,
             "stream": request.stream,
         }
@@ -398,8 +540,9 @@ class OpenAIChatCompletionsAdapter(
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
         if request.reasoning_effort is not None:
-            # Chat providers expose raw reasoning for this mode. Responses needs an
-            # explicit detailed summary request to provide the equivalent stream.
+            # Chat does not say whether its reasoning field is raw or summarized.
+            # Request a detailed Responses summary; the provider profile classifies
+            # ambiguous Chat output independently.
             data["reasoning"] = Reasoning(
                 effort=request.reasoning_effort,
                 summary="detailed",
@@ -431,7 +574,7 @@ class OpenAIChatCompletionsAdapter(
                     "object": "chat.completion.chunk",
                     "created": metadata.created_at,
                     "model": metadata.model,
-                    "service_tier": metadata.service_tier,
+                    "service_tier": "default",
                     "choices": choices,
                     "usage": usage,
                 }
@@ -470,9 +613,14 @@ class OpenAIChatCompletionsAdapter(
                 if response_start is None:
                     raise ValueError("Received a delta before its response started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
-                    if normalized_event.delta.content_delta is None:
+                    reasoning_delta = (
+                        normalized_event.delta.content_delta
+                        if normalized_event.delta.content_delta is not None
+                        else normalized_event.delta.summary_delta
+                    )
+                    if reasoning_delta is None:
                         continue
-                    delta = {"reasoning_content": normalized_event.delta.content_delta}
+                    delta = {"reasoning_content": reasoning_delta}
                 elif isinstance(normalized_event.delta, TextDelta):
                     delta = {"content": normalized_event.delta.content_delta}
                 else:
@@ -494,6 +642,9 @@ class OpenAIChatCompletionsAdapter(
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
 
             elif isinstance(normalized_event, ResponseEndEvent):
+                finish_reason = _CHAT_FINISH_REASONS.get(
+                    normalized_event.termination_reason, "stop"
+                )
                 usage = None
                 if normalized_event.usage is not None:
                     normalized_usage = normalized_event.usage
@@ -520,7 +671,7 @@ class OpenAIChatCompletionsAdapter(
                             "index": 0,
                             "delta": {},
                             "logprobs": None,
-                            "finish_reason": "stop",
+                            "finish_reason": finish_reason,
                         }
                     ],
                     usage=usage,

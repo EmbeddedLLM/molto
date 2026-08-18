@@ -3,7 +3,9 @@ request:
   body:
     max_tokens: 2048
     messages:
-    - content: What is 2+2?
+    - content:
+      - text: What is 2+2?
+        type: text
       role: user
     - content:
       - type: thinking
@@ -11,9 +13,13 @@ request:
       - type: text
         text: '4'
       role: assistant
-    - content: What about 2*2?
+    - content:
+      - text: What about 2*2?
+        type: text
       role: user
     model: deepseek-v4-flash
+    output_config:
+      effort: high
     stream: true
     thinking:
       display: summarized

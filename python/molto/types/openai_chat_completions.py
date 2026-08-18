@@ -8,7 +8,7 @@ requests and typed result aliases for both response modes.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai._types import SequenceNotStr
@@ -17,6 +17,7 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ChatCompletionAssistantMessageParam,
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
+from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_prediction_content_param import (
     ChatCompletionPredictionContentParam,
@@ -26,6 +27,7 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
 from openai.types.chat.chat_completion_tool_union_param import ChatCompletionToolUnionParam
+from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
 from openai.types.chat.completion_create_params import (
     Function,
     FunctionCall,
@@ -38,22 +40,42 @@ from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
 from pydantic import Field
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
 
 
 class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMessageParam):
-    """Provider-compatible assistant history containing raw reasoning text."""
+    """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
+
+
+class ChatCompletionUserMessageListParam(TypedDict):
+    """User message with eagerly validated, repeatable content parts."""
+
+    content: Required[str | list[ChatCompletionContentPartParam]]
+    role: Required[Literal["user"]]
+    name: NotRequired[str]
+
+
+_RETAINED_CHAT_MESSAGE_PARAMS = tuple(
+    item
+    for item in get_args(ChatCompletionMessageParam)
+    if item is not ChatCompletionUserMessageParam
+)
+OpenAIChatCompletionMessageParam: TypeAlias = Union[
+    ChatCompletionUserMessageListParam,
+    ChatCompletionAssistantMessageWithReasoningParam,
+    *_RETAINED_CHAT_MESSAGE_PARAMS,  # pyright: ignore[reportInvalidTypeForm]
+]
 
 
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 
     messages: Annotated[
-        list[ChatCompletionMessageParam | ChatCompletionAssistantMessageWithReasoningParam],
+        list[OpenAIChatCompletionMessageParam],
         Field(description="A list of messages comprising the conversation."),
     ]
     model: Annotated[

@@ -4,9 +4,11 @@ request:
     include:
     - reasoning.encrypted_content
     input:
-    - content: How much wood would a woodchuck chuck?
+    - content:
+      - text: How much wood would a woodchuck chuck?
+        type: input_text
       role: user
-    - encrypted_content: gAAAAABqcLQJTmRuYd14oE7uc99dRk8XQEdJb5VZRDS5o40tcUs7xG2rLDyWJk6430tEO299IemdfRngidKjN4vM42PtfnpVAXlM6e8cfR3MTGr-F7UY1BT8bjucPDKR3VsamiPVoXTfma1s5fDnLRoVvjEvUh22dw2FWEfkDOowKNU-l2BRkZ534tUSKs4qJQ6Da7c561VvaUKjbKCV3_yJSQMwR0-zj3VC5WvjKKIX12rYnT0ktj6l9s_G4Ip0c29VwAvAxTlTTvKVLOLQDdPlMkQDx3VkxDXOruVmReQeKjRtNVaeTZvftUoWYqZMy8OYFfRC2iu7bn8CNIeapLdiD9l-3Mnx6j27VDxDeYnGlDOMPPywm2BfkmJs354VBGt6tta3x8xDaNTKwIGc-d9KmHc6BiSLamIy27GvW8ECY6Ixo2xluD1HdvK75VCG-JrnG15nzlxH4AycQvNFee1GzyZiqbhvHwyRc221Rcb3lkSwwocC8dfve-oFohix0iV0C4hEXPHPXpTilrwbFRAn76IbRTxnGAsMl2sWiJufv2Y5yDayJAQaUVzA5Mf5mH15THPRh21sTNZEqaFnHwZx0iCtALCYFS16zJmqmUqJ5NaslgGsra9EbiZtMv8H_CCXchQEKu67JA_QKADnppIued2Ny1XNwgOuCldJTgV_If4OkJ-G4WEcjfzS0H-2TBbRsEXZanrn-wSj5J3nPYw5TSu0bpQJ87sd-WFTRwZtR9bOkzlcim0CyNOARPZdywPhfyqRtYHSqvP-Qktj5FaxyiLRq0LELNxY4OUan8DmqBbXmrZDz_tN3m_uI2g_TWOoExnFDY772PPgsIxUx3RSKkhA9VrDrr7lHdH8xRu0jY6OmxTlbw4Wj_p54bj0qCYubDShuRw3vatLAk_lllj8iMi66vPRlA==
+    - encrypted_content: gAAAAABqcLQLXb0qRz4EYhunWBpqTzD0mZtzdGDZjCd_gPF0bSwJPzDAi0PoOIAO3MjVLCkvZ7Iy-NyF0awMhFw6lmVV2npMq7njR8P2fubIcwskEK0BraWMPSTm6gIvGtcDr_zbqvJJw6uE2lHo0obZVrk87ULSBjQcYyhReUipJSHSZyS1UBbCcRp23eB5oYzVgr3xjkfs4Dtschu1QS-jXKHx7ggWSCKn86yb0RBcfb3jU1O6tLp2CkKjzMaZPsC4SwlqmcSrwmRCkxRGbONerSHJnfOs7zNr83E0X057X8BZAkLWOOtsamefHounuBJrkvfJn8zOk2Y27VOUFXW8GppvHB07mKnxv1jFxOjKh2npEZxg8dYXRhoL4PtGfiCQzcffDAqEybB3fuHQ5iD8ij1ZyXx0Xl5WcYvGbd2BUm-Nam5QcXmSW4DjEAgVlAij8ndgPfM5JpHnU41-7bjQE6Mn1t1I-IAZ60ldXdOvUU9n3RzehdlXtw996PNof-MhSC4Ult6zoZJHFr_2TTffBTF6wntvs18cjGo7gaQyJwePcawJQof8V6SbnBeUta40Lb1bjk1JUhiSY6DF8cO0k5R2GwTudFR20R3sDX8hEsrLxUZeHwW8qfBA90K5w6qvMzYgeLse8uujpqluk5-oNvz3dmEECDcHI645zoaVODaQAE9t0Nc1It-boZgTP1WmByFYbryvV5yF8y6UE7dR_ht1i1sNySvmAukAfQ6uCzD8slUqA6tdGRzp6pYgzV2KOnb_dtMt1zz5hbnDYYyZkM9PpSbYyA2oprAstEOYzigRPW5NcHiDS3ORcsNdHsIasWGdsI73mSZBYxVbVoSqqpCFbtMlz9G9ctakyjrvVbpNo_OaJZ6LZaRfXgzX66M7s44PPUdvRiSDsGAuuxUr6oAjQGyjIioS9fhtpxe03jXoGq6r-kFshuEisegI1leqRHjYpNhnwuJOM-t8a388trOnzVntf90-71eT-2wGbHo-F_AgSTnMXYp47dBYOIQpqnnc3oiatxCtRzU0xxYoV8DpIXjMbLxmSpXO164TFi0L1Zj_Xe1TIlbR8TJbHBH1ibknA98jCx8LoKLa_RdxWyXFgvSCBkHDVbNdLFrYwWnvzh38VDs=
       id: rs_02b0fed16e071f1d006a70b409e68c81999122d39d8585ffa1
       summary:
       - text: '**Considering tongue twisters**
@@ -23,8 +25,11 @@ request:
         \ a woodchuck could chuck wood. \n\nOne estimate, based on the tongue twister,\
         \ is about **700 pounds (318 kg)** of wood."
       role: assistant
-    - content: What's your reasoning?
+    - content:
+      - text: What's your reasoning?
+        type: input_text
       role: user
+    max_output_tokens: 2048
     model: gpt-5.6-luna
     reasoning:
       effort: medium
@@ -50,7 +55,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"resp_02b0fed16e071f1d006a70b61031e48199b253bb5a4d2fc7a8","object":"response","created_at":1785771536,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+  - 'data: {"type":"response.created","response":{"id":"resp_02b0fed16e071f1d006a70b61031e48199b253bb5a4d2fc7a8","object":"response","created_at":1785771536,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
   - '
@@ -59,7 +64,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"resp_02b0fed16e071f1d006a70b61031e48199b253bb5a4d2fc7a8","object":"response","created_at":1785771536,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_02b0fed16e071f1d006a70b61031e48199b253bb5a4d2fc7a8","object":"response","created_at":1785771536,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
   - '

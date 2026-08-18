@@ -3,11 +3,15 @@ request:
   body:
     max_completion_tokens: 1024
     messages:
-    - content: Write one short sentence about the ocean.
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
       role: user
     - content: The ocean is a vast and mysterious blue world.
       role: assistant
-    - content: Write another about the sky.
+    - content:
+      - text: Write another about the sky.
+        type: text
       role: user
     model: gpt-4.1-nano
     stream: true
