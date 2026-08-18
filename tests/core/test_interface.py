@@ -168,7 +168,7 @@ def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[st
         response.pop("reasoning", None)
         for output_item in response.get("output") or []:
             output_item.pop("status", None)
-            output_item.pop("encrypted_content", None)
+            # output_item.pop("encrypted_content", None)
 
     return event
 
