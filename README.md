@@ -19,7 +19,7 @@ from molto import Molto
 molto = Molto()
 stream = await molto.responses(
     body={
-        "model": "your-model",
+        "model": "claude-sonnet-5",
         "input": "Hello!",
         "max_output_tokens": 1024,
         "stream": True,
