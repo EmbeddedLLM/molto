@@ -164,7 +164,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             elif event_type == "response.output_item.added":
                 item = event.item
                 if item.type == "reasoning":
-                    part = Thinking(content="", summary="", id=item.id)
+                    part = Thinking(
+                        content="",
+                        summary="",
+                        id=item.id,
+                        signature=item.encrypted_content,
+                    )
                 elif item.type == "message":
                     part = TextOutput(content="", id=item.id)
                 else:

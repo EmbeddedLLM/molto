@@ -400,7 +400,7 @@ class TextDelta(ExtraModel):
 
 
 class ThinkingDelta(ExtraModel):
-    """A partial update (delta) for a `Thinking` to append new thinking content."""
+    """An update to append thinking text or replace its provider-specific state."""
 
     content_delta: Annotated[
         str | None,
@@ -412,7 +412,7 @@ class ThinkingDelta(ExtraModel):
     ] = None
     signature_delta: Annotated[
         str | None,
-        Field(description="An optional delta of provider-specific opaque thinking state."),
+        Field(description="An optional replacement for provider-specific opaque state."),
     ] = None
     delta_type: Annotated[
         Literal["thinking-delta"],

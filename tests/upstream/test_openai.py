@@ -477,7 +477,10 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
 
     async def normalized_events():
         yield ResponseStartEvent(id="resp_123", model="m")
-        yield PartStartEvent(index=0, part=Thinking(content="", summary=""))
+        yield PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="initial-state"),
+        )
         yield PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="New thought"))
         yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state"))
         yield PartEndEvent(
@@ -494,8 +497,10 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
     events = [
         event async for event in adapter.project_events(normalized_events(), normalized_request)
     ]
+    added = next(event for event in events if event.type == "response.output_item.added")
     done = next(event for event in events if event.type == "response.output_item.done")
     completed = next(event for event in events if event.type == "response.completed")
+    assert added.item.encrypted_content == "initial-state"
     assert done.item.encrypted_content == "response-state"
     assert completed.response.output[0].encrypted_content == "response-state"
 
@@ -517,6 +522,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
                     "type": "reasoning",
                     "summary": [],
                     "content": [],
+                    "encrypted_content": "initial-state",
                 },
                 "output_index": 0,
                 "sequence_number": 1,
@@ -630,7 +636,10 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
         ResponseStartEvent(
             id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
         ),
-        PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
+        PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", id="rs_123", signature="initial-state"),
+        ),
         PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="Think")),
         PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state")),
         PartEndEvent(

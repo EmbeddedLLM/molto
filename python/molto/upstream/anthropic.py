@@ -289,7 +289,9 @@ class AnthropicMessagesClient(
                     parts[event.index] = (
                         part,
                         part_state[1],
-                        part_state[2] + delta.signature,
+                        # Anthropic defines signature_delta as the complete replacement
+                        # signature for the block, not an append-only fragment.
+                        delta.signature,
                     )
                     yield PartDeltaEvent(
                         index=event.index,

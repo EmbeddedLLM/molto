@@ -210,6 +210,11 @@ class OpenAIResponsesAdapter(
                         "status": "in_progress",
                         "content": [],
                         "summary": [],
+                        **(
+                            {"encrypted_content": normalized_event.part.signature}
+                            if normalized_event.part.signature
+                            else {}
+                        ),
                     }
                     if is_thinking
                     else {

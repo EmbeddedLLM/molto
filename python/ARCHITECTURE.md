@@ -285,6 +285,8 @@ Chat's role chunk starts the first part but its empty content is not emitted as 
 
 The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Their downstream adapters collapse either normalized representation into the protocol's single reasoning field. Responses projection retains the distinction with its separate reasoning-text and reasoning-summary lifecycles.
 
+Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
+
 Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. When the target protocol cannot represent a normalized reason, its adapter deliberately coerces it to normal completion (`end_turn`, `stop`, or `response.completed`) so the translated stream remains consumable.
 
 ## Response collection
@@ -411,7 +413,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, and reasoning summaries across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map opaque reasoning state under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers. Non-streaming collection, tool calls, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, and reasoning summaries across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 

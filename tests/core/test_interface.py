@@ -161,8 +161,6 @@ def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[st
     item = event.get("item")
     if isinstance(item, dict):
         item.pop("status", None)
-        if event.get("type") == "response.output_item.added":
-            item.pop("encrypted_content", None)
 
     response = event.get("response")
     if isinstance(response, dict):

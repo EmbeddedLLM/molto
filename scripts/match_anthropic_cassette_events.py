@@ -19,7 +19,12 @@ effort to ``high`` when the canonical request omits it.
 The matched fixtures assume OpenAI serves both the Responses and Messages
 endpoints. Under that same-provider contract, Responses ``encrypted_content``
 and Messages thinking ``signature`` carry the same OpenAI-issued opaque state.
-This mapping must not be generalized to an Anthropic-issued signature.
+The matcher maps the ``response.output_item.added`` snapshot to the Messages
+thinking-block start signature and the ``response.output_item.done`` snapshot to
+the later replacement signature. Messages has no third lifecycle slot for the
+terminal response-output snapshot, so matching intentionally preserves the first
+two snapshots rather than buffering for terminal byte parity. This mapping must
+not be generalized to an Anthropic-issued signature.
 
 The result remains an Anthropic Messages wire-format cassette. Responses-only
 envelope fields such as item IDs, sequence numbers, and timestamps cannot be
@@ -378,17 +383,19 @@ def _response_reasoning_deltas(events: list[dict[str, Any]]) -> list[str] | None
     return summary_deltas if summary_deltas is not None else reasoning_deltas
 
 
-def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str | None:
+def _response_reasoning_encrypted_content(
+    events: list[dict[str, Any]], event_type: str
+) -> str | None:
     reasoning_items = [
         event.get("item")
         for event in events
-        if event.get("type") == "response.output_item.done"
+        if event.get("type") == event_type
         and isinstance(event.get("item"), dict)
         and event["item"].get("type") == "reasoning"
     ]
     if len(reasoning_items) != 1:
         raise ValueError(
-            "Expected exactly one completed Responses reasoning item, "
+            f"Expected exactly one Responses reasoning item in {event_type!r}, "
             f"found {len(reasoning_items)}."
         )
 
@@ -396,6 +403,17 @@ def _response_reasoning_encrypted_content(events: list[dict[str, Any]]) -> str |
     if encrypted_content is not None and not isinstance(encrypted_content, str):
         raise ValueError("Responses encrypted reasoning content must be a string.")
     return encrypted_content
+
+
+def _replace_thinking_start_signature(units: list[_SSEEventUnit], signature: str | None) -> None:
+    block = _content_block(units, "thinking")
+    if block is None:
+        raise ValueError("Messages cassette has no thinking block for Responses reasoning.")
+    start_position, _, _ = block
+    content_block = units[start_position].event.get("content_block")
+    if not isinstance(content_block, dict):
+        raise ValueError("Messages thinking start must contain a content block.")
+    content_block["signature"] = signature or ""
 
 
 def _content_block(units: list[_SSEEventUnit], block_type: str) -> tuple[int, int, int] | None:
@@ -604,18 +622,23 @@ def match_messages_events(
         delta_type="thinking_delta",
         delta_field="thinking",
     )
-    response_reasoning_encrypted_content = (
-        None
-        if response_reasoning_deltas is None
-        else _response_reasoning_encrypted_content(response_events)
-    )
+    if response_reasoning_deltas is None:
+        response_reasoning_done_encrypted_content = None
+    else:
+        _replace_thinking_start_signature(
+            message_units,
+            _response_reasoning_encrypted_content(response_events, "response.output_item.added"),
+        )
+        response_reasoning_done_encrypted_content = _response_reasoning_encrypted_content(
+            response_events, "response.output_item.done"
+        )
     _replace_content_deltas(
         message_units,
         None
         if response_reasoning_deltas is None
         else (
-            [response_reasoning_encrypted_content]
-            if response_reasoning_encrypted_content is not None
+            [response_reasoning_done_encrypted_content]
+            if response_reasoning_done_encrypted_content is not None
             else []
         ),
         block_type="thinking",

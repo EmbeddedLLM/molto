@@ -167,6 +167,22 @@ Under the OpenAI Messages fixture contract, Messages signature deltas become Res
 
 Terminal usage is authoritative for translated Messages streams. Backfilling `message_start` with terminal counts would require buffering the whole upstream response.
 
+### Opaque reasoning lifecycle
+
+An encrypted Responses reasoning item carries three opaque snapshots. Messages has two corresponding lifecycle slots:
+
+| Responses snapshot | Messages projection | Policy |
+| --- | --- | --- |
+| `response.output_item.added.item.encrypted_content` | `content_block_start.content_block.signature` | Preserve the initial snapshot. |
+| `response.output_item.done.item.encrypted_content` | `signature_delta.signature` | Preserve the part-complete snapshot as a full replacement. |
+| reasoning item in `response.completed.response.output` | no independent slot | Reuse the `done` snapshot in a translated terminal response; exact terminal ciphertext parity is intentionally sacrificed. |
+
+The Anthropic SDK replaces the thinking block's initial `signature` when it processes a `signature_delta`; it does not concatenate the two strings. Molto follows that behavior in its normalized state and uses the replacement value for part completion and subsequent history.
+
+In the current recordings, all three distinct ciphertexts were observed to cover the same number of reasoning tokens. Their byte differences may reflect opaque envelope data such as a version, timestamp, or nonce. This equivalence is empirical and non-contractual: applications must not inspect or synthesize these values. Matthew Green's [“Let's talk about encrypted reasoning”](https://blog.cryptographyengineering.com/2026/05/29/fooling-around-with-encrypted-reasoning-blobs/) provides cryptographic background on treating the blobs as opaque authenticated ciphertext and on the metadata their lengths can reveal; it does not establish equivalence among these three snapshots.
+
+Representing the separately recorded terminal snapshot would require a third normalized lifecycle value or buffering until `response.completed`. Molto instead preserves the early and part-complete snapshots, which keeps streaming incremental. The matched two-turn fixtures use the prior turn's `output_item.done` value as the next turn's Responses `encrypted_content` and Messages `signature` history.
+
 ## Termination Mapping
 
 Normalized termination preserves source distinctions before target projection.
@@ -205,7 +221,7 @@ Anthropic cache-creation TTL breakdowns, `inference_geo`, and `server_tool_use` 
 
 ## Provider-Owned and Transport-Only Fields
 
-- OpenAI `encrypted_content` and Messages thinking `signature` are opaque provider-issued continuation state. The matched fixtures map them because both endpoints are assumed to be served by OpenAI. Cross-provider OpenAI-to-Anthropic or Anthropic-to-OpenAI continuation cannot reuse that mapping safely.
+- OpenAI `encrypted_content` and Messages thinking `signature` are opaque provider-issued continuation state. The matched fixtures map them because both endpoints are assumed to be served by OpenAI. Messages `signature_delta` replaces its initial signature rather than appending to it. Cross-provider OpenAI-to-Anthropic or Anthropic-to-OpenAI continuation cannot reuse that mapping safely.
 - Anthropic `ping` is a transport keepalive, not model output, and is excluded from semantic parity.
 - Responses obfuscation has no Anthropic wire field. It is disabled when constructing a translated Responses request.
 - Exact transport headers, SSE field names, JSON key order, and whitespace are not semantic parity fields.
@@ -231,7 +247,7 @@ Responses is the canonical behavioral reference for matched cross-protocol fixtu
 
 When a matcher changes an SSE payload discriminator, it must update the corresponding `event:` header. Matched cassettes must retain valid native wire structure; JSON key order and whitespace should otherwise remain stable unless the modified value requires reserialization.
 
-The matcher copies Responses `encrypted_content` into a Messages `signature` under the explicit assumption that OpenAI owns both endpoints and the opaque token. These fixtures prove same-provider cross-protocol compatibility; they do not prove OpenAI-to-Anthropic continuation compatibility.
+The matcher maps Responses `output_item.added.encrypted_content` to the Messages thinking-block start signature and `output_item.done.encrypted_content` to its replacement signature delta, under the explicit assumption that OpenAI owns both endpoints and the opaque token. It does not buffer for the separately recorded terminal response-output ciphertext. These fixtures prove same-provider cross-protocol compatibility; they do not prove OpenAI-to-Anthropic continuation compatibility.
 
 The `reasoning_raw` fixtures use `vllm-*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
 

@@ -147,12 +147,12 @@ async def test_events_merge_start_usage_without_mutating_started_parts(
         (
             VLLM_CAPABILITIES,
             ThinkingDelta(content_delta="Thought"),
-            Thinking(content="Thought", summary="", signature="opaque-state"),
+            Thinking(content="Thought", summary="", signature="replacement-state"),
         ),
         (
             PROVIDER_CAPABILITIES["anthropic"],
             ThinkingDelta(summary_delta="Thought"),
-            Thinking(content="", summary="Thought", signature="opaque-state"),
+            Thinking(content="", summary="Thought", signature="replacement-state"),
         ),
     ],
 )
@@ -179,7 +179,11 @@ async def test_client_maps_streamed_signatures_to_ir(
         {
             "type": "content_block_start",
             "index": 0,
-            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+            "content_block": {
+                "type": "thinking",
+                "thinking": "",
+                "signature": "initial-state",
+            },
         },
         {
             "type": "content_block_delta",
@@ -189,7 +193,7 @@ async def test_client_maps_streamed_signatures_to_ir(
         {
             "type": "content_block_delta",
             "index": 0,
-            "delta": {"type": "signature_delta", "signature": "opaque-state"},
+            "delta": {"type": "signature_delta", "signature": "replacement-state"},
         },
         {"type": "content_block_stop", "index": 0},
         {
@@ -238,10 +242,10 @@ async def test_client_maps_streamed_signatures_to_ir(
     )
     part_end = next(event for event in events if isinstance(event, PartEndEvent))
     assert isinstance(part_start.part, Thinking)
-    assert part_start.part.signature == ""
+    assert part_start.part.signature == "initial-state"
     assert text_delta.delta == thinking_delta
     assert isinstance(signature_delta.delta, ThinkingDelta)
-    assert signature_delta.delta.signature_delta == "opaque-state"
+    assert signature_delta.delta.signature_delta == "replacement-state"
     assert isinstance(part_end.part, Thinking)
     assert part_end.part == thinking
 
@@ -557,12 +561,15 @@ async def test_adapter_maps_same_provider_opaque_reasoning_state():
 
     async def normalized_events():
         yield ResponseStartEvent(id="msg_123", model="model")
-        yield PartStartEvent(index=0, part=Thinking(content="", summary=""))
+        yield PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="initial-state"),
+        )
         yield PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Thought"))
-        yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="opaque-state"))
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="replacement-state"))
         yield PartEndEvent(
             index=0,
-            part=Thinking(content="", summary="Thought", signature="opaque-state"),
+            part=Thinking(content="", summary="Thought", signature="replacement-state"),
         )
         yield ResponseEndEvent(
             id="msg_123",
@@ -574,6 +581,11 @@ async def test_adapter_maps_same_provider_opaque_reasoning_state():
     events = [
         event async for event in adapter.project_events(normalized_events(), normalized_request)
     ]
+    thinking_start = next(
+        event
+        for event in events
+        if event.type == "content_block_start" and event.content_block.type == "thinking"
+    )
     signature_delta = next(
         event
         for event in events
@@ -585,7 +597,8 @@ async def test_adapter_maps_same_provider_opaque_reasoning_state():
         if event.type == "content_block_delta" and event.delta.type == "thinking_delta"
     )
     assert thinking_delta.delta.thinking == "Thought"
-    assert signature_delta.delta.signature == "opaque-state"
+    assert thinking_start.content_block.signature == "initial-state"
+    assert signature_delta.delta.signature == "replacement-state"
 
 
 async def test_client_forwards_same_provider_opaque_reasoning_state(

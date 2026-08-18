@@ -160,7 +160,8 @@ def _responses_cassette(
     reasoning_summary_deltas: list[str] | None = None,
     text_deltas: list[str],
     request_input: Any = "canonical prompt",
-    reasoning_encrypted_content: str | None = None,
+    reasoning_added_encrypted_content: str | None = None,
+    reasoning_done_encrypted_content: str | None = None,
 ) -> dict[str, Any]:
     response = {
         "id": "resp_reference",
@@ -171,6 +172,19 @@ def _responses_cassette(
         {"type": "response.created", "response": response},
     ]
     if reasoning_deltas is not None or reasoning_summary_deltas is not None:
+        added_reasoning_item = {
+            "type": "reasoning",
+            "content": [],
+            "summary": [],
+        }
+        if reasoning_added_encrypted_content is not None:
+            added_reasoning_item["encrypted_content"] = reasoning_added_encrypted_content
+        events.append(
+            {
+                "type": "response.output_item.added",
+                "item": added_reasoning_item,
+            }
+        )
         if reasoning_summary_deltas is not None:
             events.extend(
                 [
@@ -228,8 +242,8 @@ def _responses_cassette(
             if reasoning_summary_deltas is not None
             else [],
         }
-        if reasoning_encrypted_content is not None:
-            reasoning_item["encrypted_content"] = reasoning_encrypted_content
+        if reasoning_done_encrypted_content is not None:
+            reasoning_item["encrypted_content"] = reasoning_done_encrypted_content
         events.append({"type": "response.output_item.done", "item": reasoning_item})
     events.extend({"type": "response.output_text.delta", "delta": delta} for delta in text_deltas)
     events.extend(
@@ -442,7 +456,8 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=None,
         reasoning_summary_deltas=["summary", " text"],
-        reasoning_encrypted_content="canonical-signature",
+        reasoning_added_encrypted_content="initial-signature",
+        reasoning_done_encrypted_content="canonical-signature",
         text_deltas=["answer"],
         request_input=[
             {"content": "question", "role": "user"},
@@ -469,6 +484,12 @@ def test_matches_responses_reasoning_summary_to_messages_thinking() -> None:
         for event in events
         if event["type"] == "content_block_delta" and event["delta"]["type"] == "thinking_delta"
     ] == ["summary", " text"]
+    thinking_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
+    )
+    assert thinking_start["content_block"]["signature"] == "initial-signature"
     assert [
         event["delta"]["signature"]
         for event in events
@@ -711,7 +732,8 @@ def test_rejects_invalid_responses_image_urls(image_url: str | None) -> None:
 def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=["canonical reasoning"],
-        reasoning_encrypted_content="canonical-signature",
+        reasoning_added_encrypted_content="initial-signature",
+        reasoning_done_encrypted_content="canonical-signature",
         text_deltas=["canonical answer"],
         request_input=[
             {"content": "question", "role": "user"},
@@ -746,6 +768,12 @@ def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     match_messages_events(messages_cassette, responses_cassette)
 
     events = _data_events(messages_cassette)
+    thinking_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
+    )
+    assert thinking_start["content_block"]["signature"] == "initial-signature"
     assert [
         event["delta"]["signature"]
         for event in events
@@ -761,7 +789,7 @@ def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
 def test_maps_encrypted_reasoning_history_without_raw_content() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=["canonical reasoning"],
-        reasoning_encrypted_content="canonical-signature",
+        reasoning_done_encrypted_content="canonical-signature",
         text_deltas=["canonical answer"],
         request_input=[
             {"content": "question", "role": "user"},
@@ -899,3 +927,43 @@ def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
     for event in _data_events(messages_cassette):
         if event["type"] != "ping":
             MESSAGE_EVENT_ADAPTER.validate_python(event)
+
+
+@pytest.mark.parametrize(
+    "cassette_dir",
+    [OPAQUE_STATE_CASSETTES, ENCRYPTED_REASONING_CASSETTES],
+    ids=["input-image", "reasoning"],
+)
+def test_opaque_reasoning_history_uses_prior_done_snapshot(cassette_dir: Path) -> None:
+    responses_turn_0 = read_yaml(str(cassette_dir / "openai-responses-stream-00.yaml"))
+    responses_turn_1 = read_yaml(str(cassette_dir / "openai-responses-stream-01.yaml"))
+    messages_turn_1 = read_yaml(str(cassette_dir / "anthropic-messages-stream-01.yaml"))
+
+    turn_0_events = _data_events(responses_turn_0)
+    done_signature = next(
+        event["item"]["encrypted_content"]
+        for event in turn_0_events
+        if event["type"] == "response.output_item.done" and event["item"]["type"] == "reasoning"
+    )
+    terminal_signature = next(
+        item["encrypted_content"]
+        for event in turn_0_events
+        if event["type"] in {"response.completed", "response.incomplete"}
+        for item in event["response"]["output"]
+        if item["type"] == "reasoning"
+    )
+    responses_history_signature = next(
+        item["encrypted_content"]
+        for item in responses_turn_1["request"]["body"]["input"]
+        if isinstance(item, dict) and item.get("type") == "reasoning"
+    )
+    messages_history_signature = next(
+        block["signature"]
+        for message in messages_turn_1["request"]["body"]["messages"]
+        for block in message["content"]
+        if isinstance(block, dict) and block.get("type") == "thinking"
+    )
+
+    assert responses_history_signature == done_signature
+    assert messages_history_signature == done_signature
+    assert terminal_signature != done_signature
