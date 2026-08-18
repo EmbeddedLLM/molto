@@ -382,6 +382,7 @@ async def _assert_stream_events(
                 body=deepcopy(cassette["request"]["body"]),
                 endpoint=upstream,
                 provider=provider,
+                api_key="test-api-key",
             )
             events = [event async for event in response]
             expected_sse_events = _sse_records(cassette, downstream)
