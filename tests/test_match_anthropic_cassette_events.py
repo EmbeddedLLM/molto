@@ -1420,4 +1420,4 @@ def test_opaque_reasoning_history_uses_prior_done_snapshot(cassette_dir: Path) -
 
     assert responses_history_signature == done_signature
     assert messages_history_signature == done_signature
-    assert terminal_signature != done_signature
+    assert terminal_signature == done_signature

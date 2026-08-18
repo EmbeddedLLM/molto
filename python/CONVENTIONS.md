@@ -126,6 +126,8 @@ Prefer semantic normalized types over SDK parameter types. Any SDK type retained
 
 ## Matched cassettes
 
+Read [`tests/cassettes/README.md`](../tests/cassettes/README.md) before adding or updating cassette fixtures. It distinguishes faithful provider recordings from deliberately edited matched cassettes and documents the encrypted-reasoning exception.
+
 Matched cross-protocol cassettes use:
 
 ```text
@@ -155,7 +157,7 @@ Never record cassettes during a normal test run. New cassettes must come from an
 Use the following workflow when adding a feature shared by Responses and one or more other protocols:
 
 1. Record semantically equivalent Responses and counterpart protocol cassettes directly under `tests/cassettes/matched/` from approved official sources. Inspect their requests and events, verify that they contain no secrets, validate them against their native SDK types, and commit the unchanged recordings before modifying them.
-2. Add or extend deterministic matching tooling when the current tooling cannot align the new scenario. Use Responses as the canonical input and modify only the non-Responses response fixtures needed to align source-backed values and observable chunk boundaries. Never rewrite native request bodies or transport metadata, and keep every transformed fixture valid native wire data.
+2. Add or extend deterministic matching tooling when the current tooling cannot align the new scenario. Use Responses as the canonical input and modify only the non-Responses fixture fields needed to express equivalent native requests, align source-backed response values, and align observable chunk boundaries. Never copy a Responses request body into another protocol or rewrite transport metadata, and keep every transformed fixture valid native wire data.
 3. Run the matching tooling on each non-Responses cassette paired with the canonical Responses cassette.
 4. Review every resulting cassette diff before implementation. The diff must contain only intentional, representable alignment changes and must not remove meaningful native fields. If it does not, correct the matching logic and repeat the matching and review steps. Commit the reviewed matching-tool and cassette changes before implementation.
 5. Add a failing interface test covering all applicable routes: same-protocol passthrough for every participating protocol and both translation directions between Responses and each counterpart protocol. Assert translated upstream request bodies exactly; response parity alone cannot prove that request features reached the upstream protocol.
