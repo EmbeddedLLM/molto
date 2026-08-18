@@ -70,6 +70,7 @@ OpenAIChatCompletionMessageParam: TypeAlias = Union[
     *_RETAINED_CHAT_MESSAGE_PARAMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 
+
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
 

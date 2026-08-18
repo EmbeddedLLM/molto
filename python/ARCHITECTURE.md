@@ -244,6 +244,8 @@ Assistant conversation history uses `TextOutput`, not user-message metadata. Thi
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
 
+User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
+
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 
 Normalized models inherit from `ExtraModel`. Unknown provider fields are retained in `extra_fields` as an escape hatch. Vendor request construction must still map supported fields explicitly; preserving a field does not imply that another protocol supports it.

@@ -84,7 +84,7 @@ Normalized models inherit from `ExtraModel`. `extra_fields` is an internal escap
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
