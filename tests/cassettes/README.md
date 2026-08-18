@@ -1,0 +1,56 @@
+# Test cassettes
+
+These YAML files capture sanitized HTTP requests and provider responses for deterministic test playback. Most cassettes are faithful recordings apart from secret masking and the filtering of unstable transport metadata.
+
+Normal test runs are playback-only. Do not record or rewrite cassettes during a test run.
+
+## Recorded cassettes
+
+The cassettes under provider directories such as `openai/` preserve the recorded request and response as closely as possible. Authorization values and secret-looking request fields are masked, and only selected headers are retained so the fixtures remain safe and deterministic.
+
+Recorded headers are informational. In particular, `content-length` is not guaranteed to match the serialized body after sanitization or other approved cassette edits and must not be used as a fixture integrity check.
+
+Treat these files as provider evidence. Do not edit a recorded value merely to make an implementation pass a test. If a committed recording is demonstrably wrong, document the correction and review its diff explicitly.
+
+## Matched cassettes
+
+The cassettes under `matched/` are deliberately edited fixtures, not untouched recordings. Each scenario contains semantically equivalent native requests and responses for multiple protocols. A correct translator should be able to translate between any pair while preserving every representable semantic value and generating protocol-required structure according to the documented parity policy.
+
+They use the scenario-first naming pattern:
+
+```text
+matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
+```
+
+Responses is the canonical behavioral reference. A matched Chat Completions or Anthropic Messages cassette remains valid native wire data, but selected values are aligned with the corresponding Responses cassette. Intentional edits include:
+
+- using each protocol's equivalent request fields and lifecycle values;
+- aligning observable delta boundaries, model and usage values, and other representable response state; and
+- replacing Chat Completions (CC) chunk IDs and the Messages message ID with the corresponding Responses response ID.
+
+These edits make translation errors observable without requiring unrelated provider-generated values to coincide by chance.
+
+### Encrypted reasoning
+
+For encrypted reasoning from closed-source models, matched Responses and Messages cassettes assume that OpenAI serves both endpoints. Under that same-provider fixture contract, Responses `encrypted_content` and a Messages thinking `signature` are two protocol representations of the same OpenAI-issued opaque state. The Messages cassette is therefore edited to carry the encrypted content or signature from the Responses cassette. This does not imply that an OpenAI-issued value is valid against Anthropic's API, or that opaque reasoning state is portable across providers.
+
+Responses exposes three encrypted snapshots for one reasoning item:
+
+1. `response.output_item.added.item.encrypted_content`;
+2. `response.output_item.done.item.encrypted_content`; and
+3. the reasoning item's `encrypted_content` inside `response.completed.response.output`.
+
+A Messages stream has only two corresponding signature slots: the thinking block start and a later replacement `signature_delta`. The matched Responses cassette therefore edits the terminal `response.completed` encrypted content to equal the `response.output_item.done` value. This lets tests assert the terminal state while keeping translation incremental; reproducing a separately observed third value would require buffering the entire stream.
+
+The `signature_delta` is a complete replacement snapshot, not text to append to the initial signature.
+
+## Specifications and tooling
+
+The detailed contracts are documented in:
+
+- [Python conventions](../../python/CONVENTIONS.md#matched-cassettes), including naming, maintenance, and verification rules;
+- [Python architecture](../../python/ARCHITECTURE.md#replay-and-parity-testing), including how parity assertions differ by route;
+- [Responses and Chat Completions parity](../../docs/openai-responses-cc-parity.md#wire-representation); and
+- [Responses and Anthropic Messages parity](../../docs/openai-responses-anthropic-messages-parity.md#opaque-reasoning-lifecycle), including the encrypted-reasoning lifecycle policy.
+
+Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` for deterministic alignment. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
