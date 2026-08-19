@@ -30,6 +30,11 @@ terminal response-output snapshot, so matching intentionally preserves the first
 two snapshots rather than buffering for terminal byte parity. This mapping must
 not be generalized to an Anthropic-issued signature.
 
+An encrypted-only Responses reasoning item has no visible reasoning deltas. The
+matcher preserves an existing Messages thinking block without its unrelated text,
+or inserts an empty thinking block when the recorded Messages response omitted one,
+so the two opaque snapshots still have native Messages lifecycle slots.
+
 The result remains an Anthropic Messages wire-format cassette. Responses-only
 envelope fields such as item IDs, sequence numbers, and timestamps cannot be
 encoded in Messages events; the converter must generate those fields
@@ -566,7 +571,17 @@ def _response_reasoning_deltas(events: list[dict[str, Any]]) -> list[str] | None
         events, "response.reasoning_summary_text", optional=True
     )
     reasoning_deltas = _response_text_deltas(events, "response.reasoning_text", optional=True)
-    return summary_deltas if summary_deltas is not None else reasoning_deltas
+    deltas = summary_deltas if summary_deltas is not None else reasoning_deltas
+    if deltas is not None:
+        return deltas
+
+    has_reasoning_item = any(
+        event.get("type") in {"response.output_item.added", "response.output_item.done"}
+        and isinstance(event.get("item"), dict)
+        and event["item"].get("type") == "reasoning"
+        for event in events
+    )
+    return [] if has_reasoning_item else None
 
 
 def _response_reasoning_encrypted_content(
@@ -800,6 +815,64 @@ def _replace_content_deltas(
     )
 
 
+def _insert_empty_thinking_block(units: list[_SSEEventUnit]) -> None:
+    if _content_block(units, "thinking") is not None:
+        return
+
+    message_start_position = next(
+        (
+            position
+            for position, unit in enumerate(units)
+            if unit.event.get("type") == "message_start"
+        ),
+        None,
+    )
+    if message_start_position is None:
+        raise ValueError("Messages cassette has no message_start event.")
+
+    for unit in units:
+        event = unit.event
+        if event.get("type") not in {
+            "content_block_start",
+            "content_block_delta",
+            "content_block_stop",
+        }:
+            continue
+        block_index = event.get("index")
+        if not isinstance(block_index, int):
+            raise ValueError("Messages content block index must be an integer.")
+        event["index"] = block_index + 1
+
+    template = units[message_start_position]
+
+    def new_unit(event: dict[str, Any]) -> _SSEEventUnit:
+        unit = deepcopy(template)
+        unit.event = event
+        return unit
+
+    units[message_start_position + 1 : message_start_position + 1] = [
+        new_unit(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {
+                    "type": "thinking",
+                    "thinking": "",
+                    "signature": "",
+                },
+            }
+        ),
+        new_unit(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "signature_delta", "signature": ""},
+            }
+        ),
+        new_unit({"type": "content_block_stop", "index": 0}),
+    ]
+
+
 def _replace_tool_calls(
     units: list[_SSEEventUnit], response_tool_calls: list[_ResponseToolCall]
 ) -> None:
@@ -936,6 +1009,8 @@ def match_messages_events(
         event.get("type") == "response.completed" for event in response_events
     ):
         stop_reason = "tool_use"
+    if response_reasoning_deltas == []:
+        _insert_empty_thinking_block(message_units)
     _replace_content_deltas(
         message_units,
         response_reasoning_deltas,

@@ -27,6 +27,9 @@ OPAQUE_STATE_CASSETTES = (
 ENCRYPTED_REASONING_CASSETTES = (
     Path(__file__).parent / "cassettes" / "matched" / "reasoning_encrypted"
 )
+TOOL_CALL_ENCRYPTED_REASONING_CASSETTES = (
+    Path(__file__).parent / "cassettes" / "matched" / "tool_call_with_reasoning_encrypted"
+)
 
 
 def _sse_unit(event: dict[str, Any]) -> list[str]:
@@ -202,6 +205,12 @@ def _responses_cassette(
     reasoning_added_encrypted_content: str | None = None,
     reasoning_done_encrypted_content: str | None = None,
 ) -> dict[str, Any]:
+    has_reasoning = (
+        reasoning_deltas is not None
+        or reasoning_summary_deltas is not None
+        or reasoning_added_encrypted_content is not None
+        or reasoning_done_encrypted_content is not None
+    )
     response = {
         "id": "resp_reference",
         "created_at": 123,
@@ -210,7 +219,7 @@ def _responses_cassette(
     events: list[dict[str, Any]] = [
         {"type": "response.created", "response": response},
     ]
-    if reasoning_deltas is not None or reasoning_summary_deltas is not None:
+    if has_reasoning:
         added_reasoning_item = {
             "type": "reasoning",
             "content": [],
@@ -335,11 +344,7 @@ def _responses_cassette(
                         "cached_tokens": 11,
                     },
                     "output_tokens": 17,
-                    "output_tokens_details": {
-                        "reasoning_tokens": 13
-                        if reasoning_deltas is not None or reasoning_summary_deltas is not None
-                        else 0
-                    },
+                    "output_tokens_details": {"reasoning_tokens": 13 if has_reasoning else 0},
                     "total_tokens": 107,
                 },
             },
@@ -1148,6 +1153,56 @@ def test_maps_same_provider_encrypted_content_to_messages_signatures() -> None:
     }
 
 
+@pytest.mark.parametrize("has_messages_thinking", [False, True])
+def test_matches_encrypted_only_reasoning_lifecycle(has_messages_thinking: bool) -> None:
+    messages_cassette = _messages_cassette(
+        thinking_deltas=["unrelated native reasoning"] if has_messages_thinking else None,
+        text_deltas=["template answer"],
+    )
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        reasoning_added_encrypted_content="initial-signature",
+        reasoning_done_encrypted_content="canonical-signature",
+        text_deltas=["canonical answer"],
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    events = _data_events(messages_cassette)
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    thinking_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "thinking"
+    )
+    assert thinking_start == {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "initial-signature",
+        },
+    }
+    assert not any(
+        event["type"] == "content_block_delta" and event["delta"]["type"] == "thinking_delta"
+        for event in events
+    )
+    assert [
+        event["delta"]["signature"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "signature_delta"
+    ] == ["canonical-signature"]
+    text_start = next(
+        event
+        for event in events
+        if event["type"] == "content_block_start" and event["content_block"]["type"] == "text"
+    )
+    assert text_start["index"] == 1
+
+
 def test_maps_encrypted_reasoning_history_without_raw_content() -> None:
     responses_cassette = _responses_cassette(
         reasoning_deltas=["canonical reasoning"],
@@ -1383,10 +1438,33 @@ def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
             MESSAGE_EVENT_ADAPTER.validate_python(event)
 
 
+@pytest.mark.parametrize("turn", range(3))
+def test_tool_call_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
+    messages_cassette = read_yaml(
+        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
+    )
+    responses_cassette = read_yaml(
+        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
+    )
+    original_messages_cassette = deepcopy(messages_cassette)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    assert messages_cassette == original_messages_cassette
+    AnthropicMessagesCreateRequest.model_validate(messages_cassette["request"]["body"])
+    for event in _data_events(messages_cassette):
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+
+
 @pytest.mark.parametrize(
     "cassette_dir",
-    [OPAQUE_STATE_CASSETTES, ENCRYPTED_REASONING_CASSETTES],
-    ids=["input-image", "reasoning"],
+    [
+        OPAQUE_STATE_CASSETTES,
+        ENCRYPTED_REASONING_CASSETTES,
+        TOOL_CALL_ENCRYPTED_REASONING_CASSETTES,
+    ],
+    ids=["input-image", "reasoning", "tool-call"],
 )
 def test_opaque_reasoning_history_uses_prior_done_snapshot(cassette_dir: Path) -> None:
     responses_turn_0 = read_yaml(str(cassette_dir / "openai-responses-stream-00.yaml"))

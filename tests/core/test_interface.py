@@ -42,6 +42,11 @@ ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
 ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
     "reasoning_encrypted",
     "input_image_with_reasoning_encrypted",
+    "tool_call_with_reasoning_encrypted",
+)
+TOOL_CALL_SCENARIOS: tuple[str, ...] = (
+    "tool_call",
+    "tool_call_with_reasoning_encrypted",
 )
 
 
@@ -484,7 +489,7 @@ async def _assert_stream_events(
                         )
                         for sse in expected_sse_events
                     ]
-                    if scenario == "tool_call":
+                    if scenario in TOOL_CALL_SCENARIOS:
                         for event in actual_events + expected_events:
                             _reconstructable_tool_responses_event(event)
                     assert actual_events == expected_events
@@ -507,7 +512,7 @@ async def _assert_stream_events(
                             response_data.pop("created_at", None)
                         if scenario in ENCRYPTED_REASONING_SCENARIOS:
                             _reconstructable_encrypted_responses_event(event)
-                        elif scenario == "tool_call":
+                        if scenario in TOOL_CALL_SCENARIOS:
                             _reconstructable_tool_responses_event(event)
                     assert actual_events == expected_events
             elif downstream == "chat/completions":
@@ -612,6 +617,11 @@ async def test_input_image_with_reasoning_encrypted_stream(
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_with_reasoning_encrypted", downstream, upstream)
 
 
 async def test_instructions_stream():

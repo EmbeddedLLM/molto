@@ -502,25 +502,162 @@ class OpenAIResponsesAdapter(
                     )
 
             elif isinstance(normalized_event, PartEndEvent):
-                if not isinstance(normalized_event.part, (TextOutput, Thinking, ToolCall)):
-                    raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
+                part = normalized_event.part
+                if not isinstance(part, (TextOutput, Thinking, ToolCall)):
+                    raise ValueError(f"Unsupported output part: {type(part)}")
                 item_id = item_ids.get(normalized_event.index)
                 if item_id is None:
                     raise ValueError("Received a part end before its output item started.")
                 output_index = normalized_event.index
-                is_thinking = isinstance(normalized_event.part, Thinking)
-                if isinstance(normalized_event.part, ToolCall):
-                    arguments = normalized_event.part.args or ""
+                part_events: list[dict[str, Any]] = []
+
+                if isinstance(part, Thinking):
+                    if part.content and part.summary:
+                        raise ValueError(
+                            "A translated reasoning part cannot contain both raw reasoning "
+                            "and a summary."
+                        )
+                    representation = thinking_representations.get(output_index)
+                    is_opaque_only = (
+                        bool(part.signature)
+                        and not part.content
+                        and not part.summary
+                        and representation is None
+                    )
+                    completed_part = None
+                    reasoning_text = ""
+                    if not is_opaque_only:
+                        representation = representation or (
+                            "summary" if part.summary else self._capabilities.thinking
+                        )
+                        reasoning_text = part.content if representation == "raw" else part.summary
+                        completed_part = {
+                            "type": (
+                                "reasoning_text" if representation == "raw" else "summary_text"
+                            ),
+                            "text": reasoning_text,
+                        }
+                        if output_index not in thinking_representations:
+                            if representation == "raw":
+                                part_events.append(
+                                    {
+                                        "type": "response.content_part.added",
+                                        "content_index": 0,
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "part": {"type": "reasoning_text", "text": ""},
+                                    }
+                                )
+                            else:
+                                part_events.append(
+                                    {
+                                        "type": "response.reasoning_summary_part.added",
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "part": {"type": "summary_text", "text": ""},
+                                        "summary_index": 0,
+                                    }
+                                )
+                    completed_item = {
+                        "id": item_id,
+                        "type": "reasoning",
+                        "status": "completed",
+                        "content": (
+                            [completed_part]
+                            if representation == "raw" and completed_part is not None
+                            else []
+                        ),
+                        "summary": (
+                            [completed_part]
+                            if representation == "summary" and completed_part is not None
+                            else []
+                        ),
+                        **({"encrypted_content": part.signature} if part.signature else {}),
+                    }
+                    if representation == "summary":
+                        part_events.extend(
+                            [
+                                {
+                                    "type": "response.reasoning_summary_text.done",
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "summary_index": 0,
+                                    "text": reasoning_text,
+                                },
+                                {
+                                    "type": "response.reasoning_summary_part.done",
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "part": completed_part,
+                                    "summary_index": 0,
+                                },
+                            ]
+                        )
+                    elif representation == "raw":
+                        part_events.extend(
+                            [
+                                {
+                                    "type": "response.reasoning_text.done",
+                                    "content_index": 0,
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "text": reasoning_text,
+                                },
+                                {
+                                    "type": "response.content_part.done",
+                                    "content_index": 0,
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "part": completed_part,
+                                },
+                            ]
+                        )
+
+                elif isinstance(part, TextOutput):
+                    completed_part = {
+                        "type": "output_text",
+                        "annotations": [],
+                        "logprobs": [],
+                        "text": part.content,
+                    }
+                    completed_item = {
+                        "id": item_id,
+                        "type": "message",
+                        "status": "completed",
+                        "content": [completed_part],
+                        "role": "assistant",
+                    }
+                    part_events.extend(
+                        [
+                            {
+                                "type": "response.output_text.done",
+                                "content_index": 0,
+                                "item_id": item_id,
+                                "output_index": output_index,
+                                "text": part.content,
+                                "logprobs": [],
+                            },
+                            {
+                                "type": "response.content_part.done",
+                                "content_index": 0,
+                                "item_id": item_id,
+                                "output_index": output_index,
+                                "part": completed_part,
+                            },
+                        ]
+                    )
+
+                elif isinstance(part, ToolCall):
+                    arguments = part.args or ""
                     completed_item = {
                         "id": item_id,
                         "type": "function_call",
                         "status": "completed",
                         "arguments": arguments,
-                        "call_id": normalized_event.part.tool_call_id,
-                        "name": normalized_event.part.tool_name,
+                        "call_id": part.tool_call_id,
+                        "name": part.tool_name,
                     }
-                    output_items[output_index] = completed_item
-                    yield event(
+                    part_events.append(
                         {
                             "type": "response.function_call_arguments.done",
                             "arguments": arguments,
@@ -528,126 +665,10 @@ class OpenAIResponsesAdapter(
                             "output_index": output_index,
                         }
                     )
-                    yield event(
-                        {
-                            "type": "response.output_item.done",
-                            "item": completed_item,
-                            "output_index": output_index,
-                        }
-                    )
-                    continue
-                if is_thinking:
-                    if normalized_event.part.content and normalized_event.part.summary:
-                        raise ValueError(
-                            "A translated reasoning part cannot contain both raw reasoning "
-                            "and a summary."
-                        )
-                    representation = thinking_representations.get(output_index) or (
-                        "summary" if normalized_event.part.summary else self._capabilities.thinking
-                    )
-                    reasoning_text = (
-                        normalized_event.part.content
-                        if representation == "raw"
-                        else normalized_event.part.summary
-                    )
-                    completed_part = {
-                        "type": "reasoning_text" if representation == "raw" else "summary_text",
-                        "text": reasoning_text,
-                    }
-                    if output_index not in thinking_representations:
-                        if representation == "raw":
-                            yield event(
-                                {
-                                    "type": "response.content_part.added",
-                                    "content_index": 0,
-                                    "item_id": item_id,
-                                    "output_index": output_index,
-                                    "part": {"type": "reasoning_text", "text": ""},
-                                }
-                            )
-                        else:
-                            yield event(
-                                {
-                                    "type": "response.reasoning_summary_part.added",
-                                    "item_id": item_id,
-                                    "output_index": output_index,
-                                    "part": {"type": "summary_text", "text": ""},
-                                    "summary_index": 0,
-                                }
-                            )
-                else:
-                    completed_part = {
-                        "type": "output_text",
-                        "annotations": [],
-                        "logprobs": [],
-                        "text": normalized_event.part.content,
-                    }
-                completed_item = (
-                    {
-                        "id": item_id,
-                        "type": "reasoning",
-                        "status": "completed",
-                        "content": [completed_part] if representation == "raw" else [],
-                        "summary": [completed_part] if representation == "summary" else [],
-                        **(
-                            {"encrypted_content": normalized_event.part.signature}
-                            if normalized_event.part.signature
-                            else {}
-                        ),
-                    }
-                    if is_thinking
-                    else {
-                        "id": item_id,
-                        "type": "message",
-                        "status": "completed",
-                        "content": [completed_part],
-                        "role": "assistant",
-                    }
-                )
+
+                for part_event in part_events:
+                    yield event(part_event)
                 output_items[output_index] = completed_item
-                if is_thinking and representation == "summary":
-                    yield event(
-                        {
-                            "type": "response.reasoning_summary_text.done",
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "summary_index": 0,
-                            "text": reasoning_text,
-                        }
-                    )
-                    yield event(
-                        {
-                            "type": "response.reasoning_summary_part.done",
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "part": completed_part,
-                            "summary_index": 0,
-                        }
-                    )
-                else:
-                    yield event(
-                        {
-                            "type": (
-                                "response.reasoning_text.done"
-                                if is_thinking
-                                else "response.output_text.done"
-                            ),
-                            "content_index": 0,
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "text": normalized_event.part.content,
-                            **({} if is_thinking else {"logprobs": []}),
-                        }
-                    )
-                    yield event(
-                        {
-                            "type": "response.content_part.done",
-                            "content_index": 0,
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "part": completed_part,
-                        }
-                    )
                 yield event(
                     {
                         "type": "response.output_item.done",

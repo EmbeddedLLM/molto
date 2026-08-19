@@ -1039,6 +1039,47 @@ async def test_responses_adapter_projects_reasoning_summary_lifecycle() -> None:
     assert done.item.encrypted_content == "opaque-state"
 
 
+async def test_responses_adapter_projects_encrypted_only_reasoning_lifecycle() -> None:
+    adapter = OpenAIResponsesAdapter(OPENAI_CAPABILITIES)
+    request = adapter.normalize_request(
+        OpenAIResponsesCreateRequest(input="Question", model="m", stream=True)
+    )
+
+    async def normalized_events() -> AsyncIterator[ModelResponseStreamEvent]:
+        yield ResponseStartEvent(id="resp_123", created_at=1, model="m")
+        yield PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="initial-state"),
+        )
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final-state"))
+        yield PartEndEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="final-state"),
+        )
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason="stop",
+        )
+
+    events = [event async for event in adapter.project_events(normalized_events(), request)]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    added = next(event for event in events if event.type == "response.output_item.added")
+    done = next(event for event in events if event.type == "response.output_item.done")
+    assert added.item.encrypted_content == "initial-state"
+    assert done.item.content == []
+    assert done.item.summary == []
+    assert done.item.encrypted_content == "final-state"
+
+
 @pytest.mark.parametrize(
     ("capabilities", "added_type", "done_type"),
     [
