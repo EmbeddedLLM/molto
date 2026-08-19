@@ -22,7 +22,7 @@ REASONING_RAW_CASSETTES = MATCHED_CASSETTES / "reasoning_raw"
 TOOL_CALL_CASSETTES = MATCHED_CASSETTES / "tool_call"
 MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 OPAQUE_STATE_CASSETTES = (
-    Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning"
+    Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning_encrypted"
 )
 ENCRYPTED_REASONING_CASSETTES = (
     Path(__file__).parent / "cassettes" / "matched" / "reasoning_encrypted"

@@ -41,7 +41,7 @@ ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
 # compare reconstructible requests and events instead of exact wire values.
 ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
     "reasoning_encrypted",
-    "input_image_with_reasoning",
+    "input_image_with_reasoning_encrypted",
 )
 
 
@@ -613,7 +613,9 @@ async def test_input_image_with_reasoning_stream(
     downstream: Protocol,
     upstream: Protocol,
 ):
-    await _assert_matched_stream_events("input_image_with_reasoning", downstream, upstream)
+    await _assert_matched_stream_events(
+        "input_image_with_reasoning_encrypted", downstream, upstream
+    )
 
 
 async def test_instructions_stream():
