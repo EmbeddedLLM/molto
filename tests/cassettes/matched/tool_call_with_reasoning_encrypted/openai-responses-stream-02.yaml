@@ -1,0 +1,428 @@
+filename: 2026-08-19-01a01894-97fb-73a1-92b7-71eb8bd54485
+request:
+  body:
+    input:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: input_text
+      role: user
+    - content: []
+      encrypted_content: gAAAAABqhUTAur9Vn21_hwAEbK-WmmiPGlkGQD75qvtH_E72BrM1uGpCPqOgQ-QlyWX7fR_LPJbK-gXxZJGJRORYzmpMR25WSuxuNqWd2ttnSVDejDMgcv2z534CC-pNdAJxdDv8QVQaweuBz4b2xRuvG7bMf7QPzGiPt5bRsXYXLg_xsMW50QBbZNaIuUyLSwxsvqDq1zO3TqmQNwWNLo4SVqqFCWEwsikiCTpL1z01VHeZbnzcvRSD4C2EN_GJvZoLLPS28RvEbmJG9UfjxLjsWN1gkGw5mEjEiOE1-NXE94ghda7i21DbKQxk4RwLG2FQe1E4gfeHqgpCfPDwL8FUP32XQRunjPIOfRb7lFFyxP5EpxRn1stjhWcmGw_L1CpcXvFrVhAG2TcbEYDZGiYfY1Lm2z58TQBrnGpVSwLQIXnV5XsWYXk4151HztGvXLuUMKfKF9-57EN27puRlOI5g7Mk5fgrybd3J-UVDW3DhCkUeQIi9YiwgrczD9uuGEpUT3mR1caUASbAQ74cU_EdNm-E6XZVrVs8wxslpztJBmV_GFlhtE7DzbrSJCsVFkdg7f2PgqvJeed_y38_-7eE6aLSS20qa-U4sTU2i0nF-h-xPyNSE3Z9e3tWnvn34rD3BxJf1vFeHLfPP-IReT35juhTmuu0jTyyw9wjQb3MuBpgExTL3RYHreu_hBJlQx1R2Cl-cQF9k-zA5JRbhWIbpDDPc7ych9YUKopMLeAjEUbGhO8-wg2nEOdvSEO0gBIHEoNtI490S0dmsU3D9B7TE01hmqpbkZMg4dxSmn5KuVrTrUlWufXA23MH7_gJYow_fXI2g3HJ_09FKnGT4puM6D5G0CJXeHqp70-zfhMQwhPx6Jqoj7EM_GIXBY-mFBT2Eq6bMERCiXwiblbFNuwqJJtfugP5s6HndBszsEkD2CzpF8VKGch07oioyVCM9E8LDP-nQoj43U1KDdVb8jKyhyoLGDk-k9JQ7cPH1xaqgplLYyQFVWhYG70J1vpj01O0DWKHoBv7Dwg7ETLnsEche9XtX2O0P54V5fpckRMCodQn0lJO4ujTbHV4uhu_v-xLCNEidRtBpViav95j3gHttyt7PrsDzhhLiNWn16ka7hnQ035mATAOS_diwPlN-Eo_3RwOyosg5FqOKKkroQIQffrdXZfySZicapA8EP578LCURrdsc1PPx25wHwQUTBh90OjVXdrwOeMb4qe9eKirvMGbBw9ctGTXMmtNRI6-4UjZqtcPOJYtrnUU4oFZRFFYSyawnw8a
+      id: rs_090b298fa5fb9a05006a8544bfbe7c81999822cb58ba859056
+      summary: []
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: I’ll run the requested five-second sleep now.
+        type: output_text
+      id: msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b
+      phase: commentary
+      role: assistant
+      status: completed
+      type: message
+    - arguments: '{"command":"sleep 5"}'
+      call_id: call_kFgAajXAZ3NroMimxqGjDfni
+      id: fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055
+      name: Bash
+      status: completed
+      type: function_call
+    - call_id: call_kFgAajXAZ3NroMimxqGjDfni
+      output: '<returncode>
+
+
+        0
+
+
+        </returncode>
+
+
+        <stdout>
+
+
+
+        </stdout>
+
+
+        <stderr>
+
+
+
+        </stderr>'
+      type: function_call_output
+    - content:
+      - annotations: []
+        logprobs: []
+        text: The sleep completed. I’ll now retrieve the current UTC date and time.
+        type: output_text
+      id: msg_090b298fa5fb9a05006a8544c1d7248199b1c30eafe8944950
+      phase: commentary
+      role: assistant
+      status: completed
+      type: message
+    - arguments: '{}'
+      call_id: call_I3WKdkIr7qoXDN4Gn68D8RGF
+      id: fc_090b298fa5fb9a05006a8544c22d808199865073e64595494d
+      name: DateTime
+      status: completed
+      type: function_call
+    - call_id: call_I3WKdkIr7qoXDN4Gn68D8RGF
+      output: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
+
+
+        Current UTC day name: Monday'
+      type: function_call_output
+    max_output_tokens: 4096
+    model: gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: high
+      summary: detailed
+    stream: true
+    stream_options:
+      include_obfuscation: false
+    tools:
+    - description: Execute bash commands.
+      name: Bash
+      parameters:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      strict: false
+      type: function
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      name: DateTime
+      parameters:
+        additionalProperties: false
+        properties: {}
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3612'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a01894-97fb-73a1-92b7-71eb8bd54485
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_090b298fa5fb9a05006a8544c2b2448199bc151c94c4c1db3f","object":"response","created_at":1787118786,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_090b298fa5fb9a05006a8544c2b2448199bc151c94c4c1db3f","object":"response","created_at":1787118786,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"rs_090b298fa5fb9a05006a8544c340388199ab37546ba89b84ca","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUTD71QG7bdhTDwsMlh1GQHApCEfJUy_jRrA900JJzNUmLAPJsEE3AD09UROX7Q8QCb4QUpQGwBKndp-3HzMh7q2eEuq49ZBlk7XOMtXbCNYNGo5lXxjYKLzoC7cEwBUx_n8oEcOYJrtgx6z3_Ncbu5ncSDmBd5YxuXMBGVvo7x_oBoA9hlyZun8_dnXehGQtsCr5nMLUx3bwc4Psp_CtRkYRxSOq07s7ZOc0BIPrWUw5jQpm_mIHwxdzD9IS0duL6xmB5FKd05RvUbbNUOQ027B6K9pcKeuZBnzEGBDOeLXCjGCTi5dnBxX3i6m3-Yu_2xAFZgpUon-cZ56D2Kl6nlr8iaE-YxU0EBjmQK2KOsHBQrlxAPAUZrYV-Vjp2Qav2VPBzrq5tKTD5qW915zwRUxnbUtBs0MLqdC-sVezUuHY3SniHoPOmKovFVxRMYXOyQB29JUo_5mNHEszM2D10U3dR30jxC-ag1-b_hcY8KWSMC8G2iNVf4_y8gRjnReLGF_AgAiEpDL9_6aG6EJKhZKv1zu17cm-GtLxTpBo5jzxU0JMHsVj22pfKyX-Rhj40dvODKSfxPyOWihfb0oltTu9Cz_tkYYR0-0zC7gAwvFIJWZ0AMvsd0Ug79yT1M0UU5XrzNWmK7Zso-U_pgUtJ4L479HoTrYmbse-wXtvUD680n3ZctkTHN-zfZkrJyUXRxlp0Lwc_XqX5D-0U87jVLgBCSIC7qqzi05BNIpqyVxJQw6wKSXqlyWo1rAPsn1B4H5MorDFKdCRnOadOBjsutAhJfByNjOY44tN3AEd2Ms2DyAbFMbNpks5sirDVxjMAzwoy4uqNid-BsJk_I4lQuHTPhQgDT7Ydt-hcOnqm1NYunJZ5xIwXU3rM1c_pTDl1EmQrlosydT9Wb7mGMbydqNxsTDkzish2lJNnb3VODMCLK9xqKcTX4cwxwyUUhny5iX5lfXR2-lrEtwEILEs2BtqWHC1-QTSZ6QP278X-cSMi9xKxT3rPO9B5mMF0EfN23fAY1UO52aG8704KMuBUs48bhonAzlHK7yUYc0m2WFta6K99eKOUN6xYXYp3jEApbSRNhihxL5rK_XxyznAdsyIRaMLu7rQnifKMUbFcDaXjsS3iKRmiQfeNDdRXLEmyS5TCPleYus7gg4P_T5SVNdKQ==","summary":[]},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"rs_090b298fa5fb9a05006a8544c340388199ab37546ba89b84ca","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUTDxQSpaDYScvT7xfDYQR5-OeJygdhZXasfh3yMr9toi95OXnvbNvfaIveTgtIowlIIL0Bf_bc3IYPAmgP1gr4pGwQQKQ9iaG2gzkNGUCZb7HVqwMg-v8ffbCKvvhzrNmeq-a06X--GOMmYHCoj_mwD061PnhBrFpMBOy1hBKphzjVcrgIEcsHHGDGSZaJ5a5DfTVjeBSTEvVjUyCA6VSp-1rA-afCw1UW990MZJhNzMgeCr3XQc2cM3Tvtonx0TjjkJ9Yw73LDibYlGYwEjnmx8B8v_C3O0qR_y2G0dCur2aH6tbGa_ErOjc8Vn9yhkPQsQpkh0UWewqL0-5aMxU8ctxYNKBgr8ahxGZ4clP2roc-7FZqth9UIvfVk9fPGpaCEMpl-RO8gHZ2W4BR61dRdTHJeFdTR-1KHXg_JVImFR40hEjRifjFgSe_euhaJP5LdKrbXG3J026-dsNfac2jj8C8G5ebvryT3mkiYMYDwTHB-oAbdc4_KfDC3Mw3CdUriZ1qm8z0a55tY7rsfSDQuRc4zUNXhDXA-HAhoMBuezCl0OU3DuSqGzBp0_EhQKoLkISomwzfwxrcvtxTM0QdU8aUqLHYqja0oByDARbbi9OcljvlMNS3u3utHeC1oRL_2z4QY9qIhqGqli5hWYVxnYWu5PqzFCD_Kj83yQVGKvd6KBJpHWeNLzGSOITaj4bXEXawPe-LoRUA0nbpQ0gBPt1haVYwt5PCGpsYeze8RmZiJnB7fDdnGdCFBemWsAp1Reu-FKTIdsOc4_r5Y1GopN3F0rGJzBxdZFuS5t3GZT5uV_4BngUuy1y72uFRv5zs5Ku8VAfWFwtojgdJQZ81Yb0eI5MHTccFQ0Cle-goGHkqR6tNE2I38D_8_99q9OV7qzWiaukvl3NVqTU_RgjEG62-RKSUXXKG21vc0GDQjBsqG4xXp054T5G_Q7481rL7W0X-q4dBIEBvk5U9LAibc3TKypRDEvGtBC4xRJhD4DcaplLRalX4yAUNHXraZGVt4tE9Udl-CqKlM-bupJlB0Ki7wQdNvP_bBjIDvO07B278PhR2hLOkLX_0rI-uVIWX50UoU4HSMBAtsWghUIPPLHP1iWh_djEyPhqWlYiQnUrCpdTD8icXGbLznXIh8N6yiEgfh_D0nT_zH1sc3Gje_icff2CYn_mW58DZti9p7ZOy_BVH0Krterg-ihFllP8eh","summary":[]},"output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","type":"message","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":1,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"202","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"6","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"-","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"08","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"-","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"03","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"T","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"04","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":":","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"25","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":":","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"45","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"279","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"896","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"+","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"00","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":":","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"00","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" (","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"UTC","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":")","item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","logprobs":[],"output_index":1,"sequence_number":28,"text":"2026-08-03T04:25:45.279896+00:00
+    (UTC)"}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"2026-08-03T04:25:45.279896+00:00
+    (UTC)"},"sequence_number":29}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"2026-08-03T04:25:45.279896+00:00
+    (UTC)"}],"phase":"final_answer","role":"assistant"},"output_index":1,"sequence_number":30}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_090b298fa5fb9a05006a8544c2b2448199bc151c94c4c1db3f","object":"response","created_at":1787118786,"status":"completed","background":false,"completed_at":1787118787,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"rs_090b298fa5fb9a05006a8544c340388199ab37546ba89b84ca","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUTDxQSpaDYScvT7xfDYQR5-OeJygdhZXasfh3yMr9toi95OXnvbNvfaIveTgtIowlIIL0Bf_bc3IYPAmgP1gr4pGwQQKQ9iaG2gzkNGUCZb7HVqwMg-v8ffbCKvvhzrNmeq-a06X--GOMmYHCoj_mwD061PnhBrFpMBOy1hBKphzjVcrgIEcsHHGDGSZaJ5a5DfTVjeBSTEvVjUyCA6VSp-1rA-afCw1UW990MZJhNzMgeCr3XQc2cM3Tvtonx0TjjkJ9Yw73LDibYlGYwEjnmx8B8v_C3O0qR_y2G0dCur2aH6tbGa_ErOjc8Vn9yhkPQsQpkh0UWewqL0-5aMxU8ctxYNKBgr8ahxGZ4clP2roc-7FZqth9UIvfVk9fPGpaCEMpl-RO8gHZ2W4BR61dRdTHJeFdTR-1KHXg_JVImFR40hEjRifjFgSe_euhaJP5LdKrbXG3J026-dsNfac2jj8C8G5ebvryT3mkiYMYDwTHB-oAbdc4_KfDC3Mw3CdUriZ1qm8z0a55tY7rsfSDQuRc4zUNXhDXA-HAhoMBuezCl0OU3DuSqGzBp0_EhQKoLkISomwzfwxrcvtxTM0QdU8aUqLHYqja0oByDARbbi9OcljvlMNS3u3utHeC1oRL_2z4QY9qIhqGqli5hWYVxnYWu5PqzFCD_Kj83yQVGKvd6KBJpHWeNLzGSOITaj4bXEXawPe-LoRUA0nbpQ0gBPt1haVYwt5PCGpsYeze8RmZiJnB7fDdnGdCFBemWsAp1Reu-FKTIdsOc4_r5Y1GopN3F0rGJzBxdZFuS5t3GZT5uV_4BngUuy1y72uFRv5zs5Ku8VAfWFwtojgdJQZ81Yb0eI5MHTccFQ0Cle-goGHkqR6tNE2I38D_8_99q9OV7qzWiaukvl3NVqTU_RgjEG62-RKSUXXKG21vc0GDQjBsqG4xXp054T5G_Q7481rL7W0X-q4dBIEBvk5U9LAibc3TKypRDEvGtBC4xRJhD4DcaplLRalX4yAUNHXraZGVt4tE9Udl-CqKlM-bupJlB0Ki7wQdNvP_bBjIDvO07B278PhR2hLOkLX_0rI-uVIWX50UoU4HSMBAtsWghUIPPLHP1iWh_djEyPhqWlYiQnUrCpdTD8icXGbLznXIh8N6yiEgfh_D0nT_zH1sc3Gje_icff2CYn_mW58DZti9p7ZOy_BVH0Krterg-ihFllP8eh","summary":[]},{"id":"msg_090b298fa5fb9a05006a8544c39f4481998a45a9befa671aae","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"2026-08-03T04:25:45.279896+00:00
+    (UTC)"}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":360,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":37,"output_tokens_details":{"reasoning_tokens":9},"total_tokens":397},"user":null,"metadata":{}},"sequence_number":31}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T05:53:06.555224+00:00'
