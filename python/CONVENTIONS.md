@@ -84,7 +84,7 @@ Normalized models inherit from `ExtraModel`. `extra_fields` is an internal escap
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
@@ -149,6 +149,8 @@ Treat each cassette as authoritative native wire data for its own downstream pro
 When Responses exposes `added`, `done`, and terminal encrypted snapshots but Messages exposes only a start signature and a later delta, preserve `added` and `done`. Do not buffer a stream solely to retrofit the separately observed terminal ciphertext. A deliberately curated continuation may use the prior turn's `done` snapshot in both native request fixtures when testing this cross-protocol policy; document and test that exception explicitly.
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
+
+Responses assistant-message `phase` is source-backed native metadata, not a default that can be recovered from a Chat Completions result. Preserve it on native Responses paths. For Chat-to-Responses event parity, remove it from both sides of the reconstructible comparison; never infer `commentary` or `final_answer` from reasoning presence, message order, or text content.
 
 Never record cassettes during a normal test run. New cassettes must come from an approved recorded source. Moving or renaming a cassette must not alter its bytes.
 

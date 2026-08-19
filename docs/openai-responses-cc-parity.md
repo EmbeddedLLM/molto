@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenAI Responses and Chat Completions overlap substantially, but they are not wire-equivalent formats. A translator can preserve shared request semantics and all returned Chat data that has a defined Responses representation. It cannot recreate values that only an independent Responses request would have generated, such as opaque Responses output-item IDs or the exact response completion time.
+OpenAI Responses and Chat Completions overlap substantially, but they are not wire-equivalent formats. A translator can preserve shared request semantics and all returned Chat data that has a defined Responses representation. It cannot recreate values that only an independent Responses request would have generated, such as opaque Responses output-item IDs, assistant-message `phase`, or the exact response completion time.
 
 For this guide, parity means:
 
@@ -134,6 +134,7 @@ OpenAI uses `summary`; vLLM uses `raw`. Explicit Responses event types remain au
 | Model | `model` | Preserve exactly. |
 | Service tier | `service_tier` | Emit the Responses target default `default`; do not relabel the source tier. |
 | Assistant text | `choices[].message.content` or `choices[].delta.content` | Preserve text and stream boundaries when the source chunks are part of the parity contract. |
+| Assistant phase | No standard Chat result field | Treat as unavailable. Do not infer `commentary` or `final_answer` from reasoning presence, message order, or text content. |
 | Refusal text | message or delta `refusal` | Map to the corresponding Responses refusal content or events. |
 | Completion outcome | `finish_reason` | Apply a documented status and incomplete/error mapping. |
 | Function name and arguments | function or tool-call fields | Preserve names and argument bytes. |
@@ -231,6 +232,7 @@ Two values deserve special care:
 An independently recorded Responses result may contain data unavailable from the Chat request and result:
 
 - opaque Responses output-item IDs;
+- Responses assistant-message `phase`;
 - the exact Responses completion timestamp;
 - other Responses-only opaque IDs or server timestamps;
 - server-resolved conversation or previous-response state;
@@ -240,7 +242,7 @@ An independently recorded Responses result may contain data unavailable from the
 - Responses annotations or citations absent from the Chat message; and
 - Responses-specific error and incomplete details beyond a defined finish-reason mapping.
 
-Do not hardcode these values from an expected Responses cassette. For comparison against an independent recording, remove them from both sides and compare the remaining reconstructable projection.
+Do not hardcode these values from an expected Responses cassette. For comparison against an independent recording, remove them from both sides and compare the remaining reconstructable projection. Removing `phase` is a comparison rule only: native Responses paths must continue to preserve provider-supplied phase values.
 
 ## Known Source Data Without a Standard Target Field
 
@@ -292,7 +294,7 @@ For Responses downstream with Chat Completions upstream:
 1. Assert the translated Chat request path and body exactly.
 2. Require the translated and expected Responses streams to have the same event count.
 3. Validate contiguous sequence numbers and unique generated output-item IDs.
-4. Use `reconstructable_responses_event` to remove generated item IDs and retain the fixed reconstructable response envelope plus response fields explicitly present in the downstream request.
+4. Use `reconstructable_responses_event` to remove generated item IDs and Responses-only assistant phases, then retain the fixed reconstructable response envelope plus response fields explicitly present in the downstream request.
 5. Compare the projected event lists exactly, preserving every matched text and reasoning delta boundary.
 
 For Chat Completions downstream with Responses upstream:
@@ -342,6 +344,7 @@ Do not use a base URL hostname to choose raw-versus-summary behavior. Add or upd
 - Treat cache-write usage and logprobs as source data, but compare them only where the target lifecycle can reproduce them; the current implementation maps only the supported subset described above.
 - Generate Responses lifecycle structure according to a documented policy.
 - Never equate Chat tool-call IDs with Responses output-item IDs.
+- Never infer a Responses assistant phase from Chat reasoning or text; omit it only from cross-protocol reconstructed-event comparison.
 - Never treat `created` as the exact Responses completion timestamp.
 - Reject or document fields with no target representation.
 - Use validated event-by-event comparison for same-protocol paths, explicit reconstructable projections for independent cross-format recordings, and canonical byte comparison only for canonical translation fixtures.

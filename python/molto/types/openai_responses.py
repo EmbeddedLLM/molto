@@ -11,6 +11,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai.types.responses import Response, ResponseCompletedEvent, ResponseStreamEvent
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_create_params import (
     ContextManagement,
     Conversation,
@@ -23,7 +24,11 @@ from openai.types.responses.response_function_call_arguments_done_event import (
     ResponseFunctionCallArgumentsDoneEvent,
 )
 from openai.types.responses.response_includable import ResponseIncludable
+from openai.types.responses.response_input_file_param import ResponseInputFileParam
+from openai.types.responses.response_input_image_param import ResponseInputImageParam
+from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
+from openai.types.responses.response_input_text_param import ResponseInputTextParam
 from openai.types.responses.response_output_message_param import (
     Content as ResponseOutputMessageContentParam,
 )
@@ -42,6 +47,7 @@ from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
 from pydantic import Discriminator, Field, TypeAdapter, model_validator
+from typing_extensions import Required
 
 from molto.types.base import ExcludeNoneModel
 
@@ -83,27 +89,56 @@ class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
         list[ResponseOutputMessageContentParam],
         Field(description="The assistant message content."),
     ]
-    role: Annotated[
-        Literal["assistant"],
-        Field(description="The output message role."),
-    ]
+    role: Annotated[Literal["assistant"], Field(description="The output message role.")]
     status: Annotated[
         Literal["in_progress", "completed", "incomplete"],
         Field(description="The output message status."),
     ]
-    type: Annotated[
-        Literal["message"],
-        Field(description="The output message discriminator."),
-    ]
+    type: Annotated[Literal["message"], Field(description="The output message discriminator.")]
     phase: Annotated[
         Literal["commentary", "final_answer"] | None,
         Field(description="The assistant message phase."),
     ] = None
 
 
-# Compatible providers omit IDs from response history, so replace only the two
-# overly strict SDK members while inheriting every other current SDK input type.
+class ResponseInputImageOptionalDetailParam(ResponseInputImageParam, total=False):
+    """An input image whose SDK-required `detail` may be omitted.
+
+    The SDK marks `detail` as required, but the API defaults it to `auto` and
+    compatible providers omit it, so the passthrough boundary preserves the omission.
+    """
+
+    detail: Literal["low", "high", "auto", "original"]
+
+
+OpenAIResponsesInputContentParam: TypeAlias = Union[
+    ResponseInputTextParam,
+    ResponseInputImageOptionalDetailParam,
+    ResponseInputFileParam,
+]
+
+
+class ResponseEasyInputMessageParam(EasyInputMessageParam):
+    """The SDK easy input message with the detail-optional image content part."""
+
+    content: Required[str | list[OpenAIResponsesInputContentParam]]
+
+
+class ResponseInputMessageParam(SDKResponseInputMessageParam):
+    """The SDK typed input message with the detail-optional image content part."""
+
+    content: Required[list[OpenAIResponsesInputContentParam]]
+
+
+# The SDK input items are retained as-is so native passthrough accepts every
+# variant the SDK models, including `file_id` images and `input_file` parts.
+# Only four items are replaced: the two message wrappers re-point their content
+# lists at the detail-optional image, and compatible providers also omit IDs
+# from reasoning and output-history items. Translatability is enforced by the
+# adapter, not here.
 _REPLACED_SDK_INPUT_ITEMS = {
+    EasyInputMessageParam,
+    SDKResponseInputMessageParam,
     ResponseReasoningItemParam,
     ResponseOutputMessageParam,
 }
@@ -113,6 +148,8 @@ _RETAINED_SDK_INPUT_ITEMS = tuple(
 OpenAIResponsesInputItemParam: TypeAlias = Union[
     ResponseReasoningItemOptionalIDParam,
     ResponseOutputMessageOptionalIDParam,
+    ResponseEasyInputMessageParam,
+    ResponseInputMessageParam,
     *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
@@ -144,11 +181,10 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     input: Annotated[
         str | OpenAIResponsesInputParam | None,
         Field(
-            description=(
-                "Text, image, file, or provider response-history items sent to the model."
-            ),
+            description=("Text, image, or provider response-history items sent to the model."),
         ),
     ] = None
+
     instructions: Annotated[
         str | None,
         Field(description="A system or developer message for the model."),
@@ -307,6 +343,7 @@ OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 __all__ = [
     "OpenAIResponsesCreateRequest",
     "OpenAIResponsesCreateResult",
+    "OpenAIResponsesInputContentParam",
     "OpenAIResponsesInputItemParam",
     "OpenAIResponsesInputParam",
     "ResponseOutputMessageOptionalIDParam",

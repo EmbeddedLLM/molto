@@ -18,6 +18,7 @@ from molto.types.anthropic_messages import (
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
+    ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -73,6 +74,21 @@ class AnthropicMessagesAdapter(
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
 
+    @staticmethod
+    def _normalize_user_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
+        block_type = block.get("type")
+        if block_type == "text":
+            return TextInput(content=block["text"])
+        if block_type == "image":
+            source = block.get("source") or {}
+            source_type = source.get("type")
+            if source_type == "base64":
+                return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
+            if source_type == "url":
+                return ImageUrlInput(url=source["url"])
+            raise ValueError(f"Unsupported Anthropic image source: {source_type}")
+        raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
+
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
@@ -103,19 +119,19 @@ class AnthropicMessagesAdapter(
                 continue
 
             if message.role == "user":
-                text_parts: list[TextInput] = []
+                user_parts: list[TextInput | ImageUrlInput] = []
                 for block in content_blocks:
                     block_type = block.get("type")
-                    if block_type == "text":
-                        text_parts.append(TextInput(content=block["text"]))
+                    if block_type in {"text", "image"}:
+                        user_parts.append(self._normalize_user_block(block))
                         continue
                     if block_type != "tool_result":
                         raise ValueError(
                             f"Unsupported Anthropic {message.role} content block: {block_type}"
                         )
-                    if text_parts:
+                    if user_parts:
                         raise ValueError(
-                            "Anthropic tool results must precede text in a user message."
+                            "Anthropic tool results must precede user content in a message."
                         )
 
                     tool_call_id = block["tool_use_id"]
@@ -141,8 +157,8 @@ class AnthropicMessagesAdapter(
                             outcome="failed" if block.get("is_error") else "success",
                         )
                     )
-                if text_parts:
-                    normalized_input.append(UserInput(content=text_parts))
+                if user_parts:
+                    normalized_input.append(UserInput(content=user_parts))
                 continue
 
             for block in content_blocks:

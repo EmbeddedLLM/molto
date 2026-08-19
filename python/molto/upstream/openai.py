@@ -8,6 +8,7 @@ from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
     FunctionToolChoice,
+    ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -20,6 +21,7 @@ from molto.types.normalized import (
     SystemPrompt,
     TerminationReason,
     TextDelta,
+    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
@@ -146,14 +148,16 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             if isinstance(item, SystemPrompt):
                 items.append({"role": "developer", "content": item.content})
             elif isinstance(item, UserInput):
-                items.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": part.content} for part in item.content
-                        ],
-                    }
-                )
+                content: list[dict[str, Any]] = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "input_text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        image = {"type": "input_image", "image_url": part.url}
+                        if part.detail is not None:
+                            image["detail"] = part.detail
+                        content.append(image)
+                items.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 reasoning_item = {
                     "type": "reasoning",
@@ -457,14 +461,20 @@ class OpenAIChatCompletionsClient(
                 messages.append({"role": "developer", "content": item.content})
             elif isinstance(item, UserInput):
                 flush_assistant()
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": part.content} for part in item.content
-                        ],
-                    }
-                )
+                content: list[dict[str, Any]] = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        if part.detail == "original":
+                            raise ValueError(
+                                "Chat Completions cannot represent image detail 'original'."
+                            )
+                        image_url = {"url": part.url}
+                        if part.detail is not None:
+                            image_url["detail"] = part.detail
+                        content.append({"type": "image_url", "image_url": image_url})
+                messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 pending_assistant()["reasoning_content"] = item.content or item.summary
             elif isinstance(item, TextOutput):

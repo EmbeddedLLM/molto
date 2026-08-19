@@ -36,6 +36,13 @@ ENCRYPTED_REASONING_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
 ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
     product(ENCRYPTED_REASONING_PROTOCOLS, repeat=2)
 )
+# Scenarios whose Responses streams carry encrypted reasoning. Messages has no
+# equivalents for Responses include/stream options or item IDs, so these routes
+# compare reconstructible requests and events instead of exact wire values.
+ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
+    "reasoning_encrypted",
+    "input_image_with_reasoning",
+)
 
 
 def _protocol_name(protocol: Protocol) -> str:
@@ -114,7 +121,7 @@ def _get_http_client(
                 matched
                 and translated
                 and upstream == "responses"
-                and Path(cassette_name).name.startswith("reasoning_encrypted-")
+                and Path(cassette_name).name.partition("-")[0] in ENCRYPTED_REASONING_SCENARIOS
             ):
                 _assert_reconstructable_encrypted_responses_request(
                     request_body,
@@ -464,7 +471,7 @@ async def _assert_stream_events(
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "chat/completions":
                     # Chat does not expose Responses output-item IDs or the exact terminal
-                    # timestamp. Every other translated field must still match exactly.
+                    # timestamp or phase. Every other translated field must still match exactly.
                     actual_events = [
                         reconstructable_responses_event(
                             sse, body=deepcopy(cassette["request"]["body"])
@@ -498,7 +505,7 @@ async def _assert_stream_events(
                         response_data = event.get("response")
                         if isinstance(response_data, dict):
                             response_data.pop("created_at", None)
-                        if scenario == "reasoning_encrypted":
+                        if scenario in ENCRYPTED_REASONING_SCENARIOS:
                             _reconstructable_encrypted_responses_event(event)
                         elif scenario == "tool_call":
                             _reconstructable_tool_responses_event(event)
@@ -588,12 +595,25 @@ async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call", downstream, upstream)
 
 
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_input_image_base64_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("input_image_base64", downstream, upstream)
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
 async def test_reasoning_stream_encrypted_content(
     downstream: Protocol,
     upstream: Protocol,
 ):
     await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+async def test_input_image_with_reasoning_stream(
+    downstream: Protocol,
+    upstream: Protocol,
+):
+    await _assert_matched_stream_events("input_image_with_reasoning", downstream, upstream)
 
 
 async def test_instructions_stream():

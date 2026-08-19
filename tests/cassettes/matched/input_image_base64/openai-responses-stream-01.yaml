@@ -14,7 +14,6 @@ request:
         text: That is the **GitHub Octocat logo**—the stylized silhouette of GitHub’s
           mascot.
         type: output_text
-      id: msg_00c0e7423b71d21f006a7c499befc8819b95e1b1e0967dbb63
       role: assistant
       status: completed
       type: message

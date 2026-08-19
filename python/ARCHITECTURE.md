@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
 
 ## Route configuration
 
@@ -236,6 +236,7 @@ ChatCompletionChunk SDK stream
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
 - raw reasoning and reasoning summaries in requests and assistant history;
 - function tool definitions, tool selection, calls, and successful tool results;
+- ordered mixed text/image user messages, including remote URL and data-URL images;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
@@ -243,6 +244,8 @@ ChatCompletionChunk SDK stream
 Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
+
+User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 
@@ -406,7 +409,7 @@ The naming pattern is:
 tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
-Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically.
+Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
 
 Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
 
@@ -418,7 +421,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
