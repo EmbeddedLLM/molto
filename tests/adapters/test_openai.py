@@ -2,7 +2,6 @@ import pytest
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.normalized import NormalizedRequest, UserInput
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
