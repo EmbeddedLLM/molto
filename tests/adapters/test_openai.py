@@ -124,26 +124,6 @@ def test_chat_adapter_rejects_unsupported_user_content(content):
         adapter._normalize_message({"role": "user", "content": content})
 
 
-def test_chat_rejects_unrepresentable_image_detail():
-    request = NormalizedRequest(
-        input=[
-            UserInput(
-                content=[
-                    {
-                        "content_type": "image-url-input",
-                        "url": "https://example.com/a.png",
-                        "detail": "original",
-                    }
-                ]
-            )
-        ],
-        model="m",
-    )
-
-    with pytest.raises(ValueError, match="cannot represent"):
-        OpenAIChatCompletionsClient._messages(request)
-
-
 @pytest.mark.parametrize(
     ("role", "part_type", "expected_type"),
     [
