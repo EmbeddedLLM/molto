@@ -113,15 +113,19 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
         if item_type == "function_call_output":
             call_id = item.get("call_id")
             output = item.get("output")
-            if not isinstance(call_id, str) or not isinstance(output, str):
-                raise ValueError(
-                    "Responses function call outputs require string call_id and output."
-                )
+            if not isinstance(call_id, str):
+                raise ValueError("Responses function call outputs require a string call_id.")
             if call_id not in tool_call_ids:
                 raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
             if call_id in returned_tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
-            messages.append({"content": output, "role": "tool", "tool_call_id": call_id})
+            messages.append(
+                {
+                    "content": _response_message_content(output, preserve_parts=True),
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                }
+            )
             returned_tool_call_ids.add(call_id)
             continue
 

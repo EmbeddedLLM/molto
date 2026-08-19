@@ -228,15 +228,10 @@ class AnthropicMessagesClient(
                     raise ValueError(
                         "Anthropic Messages cannot preserve denied or interrupted tool outcomes."
                     )
-                content = item.content
                 block = {
                     "type": "tool_result",
                     "tool_use_id": item.tool_call_id,
-                    "content": (
-                        content
-                        if isinstance(content, str)
-                        else [{"type": "text", "text": part.content} for part in content]
-                    ),
+                    "content": [{"type": "text", "text": part.content} for part in item.content],
                 }
                 if item.outcome == "failed":
                     block["is_error"] = True

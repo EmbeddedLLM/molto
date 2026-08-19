@@ -385,12 +385,20 @@ def test_openai_adapters_normalize_function_tools_and_history():
     assert responses.tool_choice == chat.tool_choice == FunctionToolChoice(name="lookup")
     assert responses.input == [
         ToolCall(id="fc_123", tool_call_id="call_123", tool_name="lookup", args="{}"),
-        ToolReturn(tool_call_id="call_123", tool_name=None, content="result"),
+        ToolReturn(
+            tool_call_id="call_123",
+            tool_name=None,
+            content=[TextInput(content="result")],
+        ),
     ]
     assert chat.input == [
         TextOutput(content="Calling lookup."),
         ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
-        ToolReturn(tool_call_id="call_123", tool_name=None, content="result"),
+        ToolReturn(
+            tool_call_id="call_123",
+            tool_name=None,
+            content=[TextInput(content="result")],
+        ),
     ]
 
 
@@ -490,7 +498,11 @@ def test_openai_clients_project_function_tools_and_history():
         input=[
             TextOutput(content="Calling lookup."),
             ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
-            ToolReturn(tool_call_id="call_123", tool_name=None, content="result"),
+            ToolReturn(
+                tool_call_id="call_123",
+                tool_name=None,
+                content=[TextInput(content="result")],
+            ),
         ],
         model="m",
         tools=[FunctionTool(name="lookup", parameters={"type": "object"})],
@@ -521,7 +533,11 @@ def test_openai_clients_project_function_tools_and_history():
             "call_id": "call_123",
             "name": "lookup",
         },
-        {"type": "function_call_output", "call_id": "call_123", "output": "result"},
+        {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": [{"type": "input_text", "text": "result"}],
+        },
     ]
     assert responses["tools"] == [
         {
@@ -544,7 +560,11 @@ def test_openai_clients_project_function_tools_and_history():
                 }
             ],
         },
-        {"role": "tool", "content": "result", "tool_call_id": "call_123"},
+        {
+            "role": "tool",
+            "content": [{"type": "text", "text": "result"}],
+            "tool_call_id": "call_123",
+        },
     ]
     assert chat["tools"] == [
         {
@@ -568,7 +588,13 @@ def test_openai_clients_project_function_tools_and_history():
 )
 def test_openai_clients_reject_failed_tool_results(client):
     request = NormalizedRequest(
-        input=[ToolReturn(content="failed", tool_call_id="call_123", outcome="failed")],
+        input=[
+            ToolReturn(
+                content=[TextInput(content="failed")],
+                tool_call_id="call_123",
+                outcome="failed",
+            )
+        ],
         model="m",
     )
 

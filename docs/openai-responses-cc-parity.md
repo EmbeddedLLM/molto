@@ -89,6 +89,8 @@ Client-defined function tools map Responses `name`, `description`, `parameters`,
 
 Conversation history maps Responses `function_call` items to assistant `tool_calls` and `function_call_output` items to `tool` messages. The portable identifier is Responses `call_id` / Chat `tool_calls[].id`; Responses' enclosing output-item `id` has no Chat equivalent and is omitted when history is reconstructed.
 
+Normalized tool results always contain an ordered list of text parts. A native scalar result is wrapped in one part; translated requests always emit Responses `input_text` output parts or Chat `text` tool-message parts rather than reverting to scalar shorthand.
+
 ### Fields that require transformation
 
 | Responses request                   | Chat Completions request            | Notes                                                   |

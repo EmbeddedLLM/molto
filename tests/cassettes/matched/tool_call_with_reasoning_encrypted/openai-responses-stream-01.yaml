@@ -29,27 +29,29 @@ request:
       status: completed
       type: function_call
     - call_id: call_kFgAajXAZ3NroMimxqGjDfni
-      output: '<returncode>
+      output:
+      - text: '<returncode>
 
 
-        0
+          0
 
 
-        </returncode>
+          </returncode>
 
 
-        <stdout>
-
-
-
-        </stdout>
-
-
-        <stderr>
+          <stdout>
 
 
 
-        </stderr>'
+          </stdout>
+
+
+          <stderr>
+
+
+
+          </stderr>'
+        type: input_text
       type: function_call_output
     max_output_tokens: 4096
     model: gpt-5.6-luna

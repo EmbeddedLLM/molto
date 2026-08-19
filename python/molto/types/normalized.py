@@ -200,8 +200,8 @@ class ToolReturn(ExtraModel):
         Field(description="The name of the tool that was called."),
     ] = None
     content: Annotated[
-        str | list[TextInput],
-        Field(description="The tool return content, which may include multimodal files."),
+        list[TextInput],
+        Field(description="The ordered text content returned by the tool."),
     ]
     tool_call_id: Annotated[
         str,

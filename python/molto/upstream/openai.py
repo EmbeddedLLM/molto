@@ -204,15 +204,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     raise ValueError(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
-                output: str | list[dict[str, Any]] = item.content
-                if isinstance(item.content, list):
-                    output = [
-                        {"type": "input_text", "text": part.content} for part in item.content
-                    ]
                 function_output = {
                     "type": "function_call_output",
                     "call_id": item.tool_call_id,
-                    "output": output,
+                    "output": [
+                        {"type": "input_text", "text": part.content} for part in item.content
+                    ],
                 }
                 if item.id is not None:
                     function_output["id"] = item.id
@@ -501,13 +498,12 @@ class OpenAIChatCompletionsClient(
                     raise ValueError(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
-                content: str | list[dict[str, str]] = item.content
-                if isinstance(item.content, list):
-                    content = [{"type": "text", "text": part.content} for part in item.content]
                 messages.append(
                     {
                         "role": "tool",
-                        "content": content,
+                        "content": [
+                            {"type": "text", "text": part.content} for part in item.content
+                        ],
                         "tool_call_id": item.tool_call_id,
                     }
                 )

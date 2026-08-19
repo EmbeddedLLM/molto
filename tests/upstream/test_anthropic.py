@@ -909,7 +909,7 @@ def test_adapter_normalizes_function_tools_and_tool_history():
         ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
         ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
         ToolReturn(
-            content="one",
+            content=[TextInput(content="one")],
             tool_call_id="call_one",
         ),
         ToolReturn(
@@ -970,8 +970,12 @@ def test_client_projects_function_tools_and_tool_history_without_caller():
                 TextOutput(content="Running them."),
                 ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
                 ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
-                ToolReturn(content="one", tool_call_id="call_one"),
-                ToolReturn(content="two", tool_call_id="call_two", outcome="failed"),
+                ToolReturn(content=[TextInput(content="one")], tool_call_id="call_one"),
+                ToolReturn(
+                    content=[TextInput(content="two")],
+                    tool_call_id="call_two",
+                    outcome="failed",
+                ),
             ],
             max_output_tokens=2048,
             model="model",
@@ -1014,11 +1018,15 @@ def test_client_projects_function_tools_and_tool_history_without_caller():
         {
             "role": "user",
             "content": [
-                {"type": "tool_result", "tool_use_id": "call_one", "content": "one"},
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_one",
+                    "content": [{"type": "text", "text": "one"}],
+                },
                 {
                     "type": "tool_result",
                     "tool_use_id": "call_two",
-                    "content": "two",
+                    "content": [{"type": "text", "text": "two"}],
                     "is_error": True,
                 },
             ],
@@ -1061,7 +1069,13 @@ def test_client_omits_parallel_tool_choice_without_tools():
 @pytest.mark.parametrize("outcome", ["denied", "interrupted"])
 def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
     request = NormalizedRequest(
-        input=[ToolReturn(content="result", tool_call_id="call_one", outcome=outcome)],
+        input=[
+            ToolReturn(
+                content=[TextInput(content="result")],
+                tool_call_id="call_one",
+                outcome=outcome,
+            )
+        ],
         model="model",
     )
 

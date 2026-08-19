@@ -864,12 +864,12 @@ def test_matches_tool_call_history_and_argument_deltas() -> None:
         {
             "content": [
                 {
-                    "content": "Sunny",
+                    "content": [{"text": "Sunny", "type": "text"}],
                     "tool_use_id": "call_weather",
                     "type": "tool_result",
                 },
                 {
-                    "content": "12:00Z",
+                    "content": [{"text": "12:00Z", "type": "text"}],
                     "tool_use_id": "call_time",
                     "type": "tool_result",
                 },
@@ -1361,7 +1361,13 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
         (block["tool_use_id"], block["content"])
         for block in message_request_blocks
         if block["type"] == "tool_result"
-    ] == [(item["call_id"], item["output"]) for item in request_function_outputs]
+    ] == [
+        (
+            item["call_id"],
+            [{"text": part["text"], "type": "text"} for part in item["output"]],
+        )
+        for item in request_function_outputs
+    ]
 
 
 def test_matches_real_two_turn_request_body() -> None:

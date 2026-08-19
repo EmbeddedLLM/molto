@@ -137,7 +137,7 @@ class AnthropicMessagesAdapter(
                     tool_call_id = block["tool_use_id"]
                     content = block.get("content", "")
                     if isinstance(content, str):
-                        normalized_content: str | list[TextInput] = content
+                        normalized_content = [TextInput(content=content)]
                     else:
                         content = list(content)
                         unsupported = [

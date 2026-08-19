@@ -323,7 +323,11 @@ def test_matches_tool_call_stream_cassettes(
     ]
     assert actual_history_calls == expected_history_calls
     assert [
-        {"content": item["output"], "role": "tool", "tool_call_id": item["call_id"]}
+        {
+            "content": [{"text": part["text"], "type": "text"} for part in item["output"]],
+            "role": "tool",
+            "tool_call_id": item["call_id"],
+        }
         for item in response_input
         if item.get("type") == "function_call_output"
     ] == [message for message in chat_request["messages"] if message["role"] == "tool"]

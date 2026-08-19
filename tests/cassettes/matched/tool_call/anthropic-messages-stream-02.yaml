@@ -18,27 +18,29 @@ request:
         type: tool_use
       role: assistant
     - content:
-      - content: '<returncode>
+      - content:
+        - text: '<returncode>
 
 
-          0
+            0
 
 
-          </returncode>
+            </returncode>
 
 
-          <stdout>
-
-
-
-          </stdout>
-
-
-          <stderr>
+            <stdout>
 
 
 
-          </stderr>'
+            </stdout>
+
+
+            <stderr>
+
+
+
+            </stderr>'
+          type: text
         tool_use_id: call_MdFqoCBvXRzjO16kvaXaSLGU
         type: tool_result
       role: user
@@ -52,10 +54,12 @@ request:
         type: tool_use
       role: assistant
     - content:
-      - content: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
+      - content:
+        - text: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
 
 
-          Current UTC day name: Monday'
+            Current UTC day name: Monday'
+          type: text
         tool_use_id: call_moHJDZFxz30lFKNAhnfhzsMN
         type: tool_result
       role: user

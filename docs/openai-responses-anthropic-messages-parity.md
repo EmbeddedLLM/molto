@@ -102,6 +102,8 @@ Request `service_tier` is not forwarded across protocols. Supporting it would re
 
 User text is always emitted in the target protocol's explicit content-part form: Responses `input_text` parts or Messages `text` blocks. Each normalized `UserInput` maps to exactly one native user message and each ordered `TextInput` maps to one native text part; neither boundary is merged or split. Ordered `ImageUrlInput` parts map the same way: one part becomes one Responses `input_image` part or one Messages `image` block, preserving position.
 
+Tool-result text uses the same explicit-list policy. A native scalar result is normalized as one ordered text part, and translated requests always emit Responses `input_text` output parts or Messages `text` result blocks.
+
 The matched fixtures assume OpenAI serves both APIs and defines Responses `encrypted_content` and Messages `signature` as two protocol names for the same OpenAI-issued opaque state. Molto maps the value under that contract. This does not make an OpenAI-issued value valid against Anthropic's API; official Anthropic continuation still requires an Anthropic-issued signature.
 
 ### Messages to Responses

@@ -21,27 +21,29 @@ request:
         type: tool_use
       role: assistant
     - content:
-      - content: '<returncode>
+      - content:
+        - text: '<returncode>
 
 
-          0
+            0
 
 
-          </returncode>
+            </returncode>
 
 
-          <stdout>
-
-
-
-          </stdout>
-
-
-          <stderr>
+            <stdout>
 
 
 
-          </stderr>'
+            </stdout>
+
+
+            <stderr>
+
+
+
+            </stderr>'
+          type: text
         tool_use_id: call_kFgAajXAZ3NroMimxqGjDfni
         type: tool_result
       role: user

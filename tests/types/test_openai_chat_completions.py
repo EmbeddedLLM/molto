@@ -76,6 +76,38 @@ def test_request_dump_preserves_user_content_part_lists():
     assert body.model_dump() == expected
 
 
+def test_request_dump_preserves_tool_content_part_lists():
+    body = OpenAIChatCompletionsCreateRequest(
+        messages=[
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            }
+        ],
+        model="gpt-4o-mini",
+    )
+
+    expected = {
+        "messages": [
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            }
+        ],
+        "model": "gpt-4o-mini",
+    }
+    assert body.model_dump() == expected
+    assert body.model_dump() == expected
+
+
 @pytest.mark.parametrize(
     "content",
     [

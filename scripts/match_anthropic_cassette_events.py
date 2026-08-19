@@ -216,7 +216,7 @@ def _function_call_output_content(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "tool_result",
         "tool_use_id": call_id,
-        "content": output if isinstance(output, str) else _message_content(output),
+        "content": _message_content(output),
     }
 
 

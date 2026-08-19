@@ -33,13 +33,18 @@ def test_tool_call_and_return_are_valid_conversation_input():
         args='{"city":"Paris"}',
         tool_call_id="call_1",
     )
-    tool_return = ToolReturn(content="sunny", tool_call_id="call_1")
+    tool_return = ToolReturn(content=[TextInput(content="sunny")], tool_call_id="call_1")
 
     request = NormalizedRequest(input=[tool_call, tool_return])
 
     assert request.input == [tool_call, tool_return]
     assert tool_return.tool_name is None
     assert tool_return.outcome == "success"
+
+
+def test_tool_return_requires_content_parts():
+    with pytest.raises(ValidationError, match="valid list"):
+        ToolReturn(content="sunny", tool_call_id="call_1")
 
 
 def test_request_uses_provider_neutral_function_tools():

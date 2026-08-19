@@ -181,11 +181,9 @@ class OpenAIResponsesAdapter(
                     raise ValueError(
                         f"Unsupported Responses function output content: {unsupported}."
                     )
-                content: str | list[TextInput] = [
-                    TextInput(content=part["text"]) for part in output
-                ]
+                content = [TextInput(content=part["text"]) for part in output]
             else:
-                content = output
+                content = [TextInput(content=output)]
             return [
                 ToolReturn(
                     id=message.get("id"),
@@ -731,7 +729,7 @@ class OpenAIChatCompletionsAdapter(
 
         if role == "tool":
             if isinstance(content, str):
-                tool_content: str | list[TextInput] = content
+                tool_content = [TextInput(content=content)]
             elif isinstance(content, list):
                 text_parts = [
                     part.get("text")

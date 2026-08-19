@@ -16,27 +16,29 @@ request:
           name: Bash
         id: call_MdFqoCBvXRzjO16kvaXaSLGU
         type: function
-    - content: '<returncode>
+    - content:
+      - text: '<returncode>
 
 
-        0
+          0
 
 
-        </returncode>
+          </returncode>
 
 
-        <stdout>
-
-
-
-        </stdout>
-
-
-        <stderr>
+          <stdout>
 
 
 
-        </stderr>'
+          </stdout>
+
+
+          <stderr>
+
+
+
+          </stderr>'
+        type: text
       role: tool
       tool_call_id: call_MdFqoCBvXRzjO16kvaXaSLGU
     model: gpt-5.6-luna

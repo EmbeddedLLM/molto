@@ -16,27 +16,29 @@ request:
           name: Bash
         id: call_MdFqoCBvXRzjO16kvaXaSLGU
         type: function
-    - content: '<returncode>
+    - content:
+      - text: '<returncode>
 
 
-        0
+          0
 
 
-        </returncode>
+          </returncode>
 
 
-        <stdout>
-
-
-
-        </stdout>
-
-
-        <stderr>
+          <stdout>
 
 
 
-        </stderr>'
+          </stdout>
+
+
+          <stderr>
+
+
+
+          </stderr>'
+        type: text
       role: tool
       tool_call_id: call_MdFqoCBvXRzjO16kvaXaSLGU
     - content: The sleep completed successfully. I’ll now retrieve the current UTC
@@ -48,10 +50,12 @@ request:
           name: DateTime
         id: call_moHJDZFxz30lFKNAhnfhzsMN
         type: function
-    - content: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
+    - content:
+      - text: 'Current UTC datetime (ISO 8601 format): 2026-08-03T04:25:45.279896+00:00
 
 
-        Current UTC day name: Monday'
+          Current UTC day name: Monday'
+        type: text
       role: tool
       tool_call_id: call_moHJDZFxz30lFKNAhnfhzsMN
     model: gpt-5.6-luna
