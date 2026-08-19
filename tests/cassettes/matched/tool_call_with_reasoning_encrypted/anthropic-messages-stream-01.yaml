@@ -1,0 +1,209 @@
+filename: 2026-08-19-01a0189b-bba8-7491-b955-05d7f425cf99
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
+      role: user
+    - content:
+      - signature: EsgDCokBCBAYAipA0NRwNyZNlzUwTEC0OGOYuqgzCRzRl7kJCxbm7AlCtV2jkHvXeyQqGhsqD/SZGxikmPQVGIUzZbUxsilXoUr8ADIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDGZw6NEIf95r48teYRoM1wsvHtyE8jEN+Y27IjBLU+lo8LNdHYC0RDUdCCxD25oAsGrsDzj7GumwFbaMcl1DssN3twHQWX7huJuz13wq6wGlPJ+uOJNbIsck4fFyuA4Nwvb0YtX5EJvl4/eJ0SMLSF8fGiYmp2ERTnJpU1mJVNMwm8lhMOuKmovrqUSkmSlHXHzwuJsBQD6p55xJUMmOZPGAWPL7JtdTMZY7RrkQkbKUeg4ZcZqfl4v/7XIadoWxucstSbiXsQz+cEcxSsRsYJZHsxw36rP1/Bn5HnL00J+3xRhdjXv97IJraJzWjXXUJ6PSqj/z4RjWZTxHIFaxSCjmJ6u2qFM9KBosQIrlNt1RgBzScGfS0jpsvPVwvHm5qP+hEqI8olw5dgL74yB1cHfcxnTlX5BY515aGAE=
+        thinking: I'll run the sleep command first, then check the DateTime afterward,
+          doing these sequentially since the timing matters.
+        type: thinking
+      - text: I'll start by calling Bash to sleep for 5 seconds as instructed.
+        type: text
+      - caller:
+          type: direct
+        id: toolu_01WiVk9pA1YwfPf8PQRuNH87
+        input:
+          command: sleep 5
+        name: Bash
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '<returncode>
+
+
+          0
+
+
+          </returncode>
+
+
+          <stdout>
+
+
+
+          </stdout>
+
+
+          <stderr>
+
+
+
+          </stderr>'
+        tool_use_id: toolu_01WiVk9pA1YwfPf8PQRuNH87
+        type: tool_result
+      role: user
+    model: claude-sonnet-5
+    output_config:
+      effort: high
+    stream: true
+    thinking:
+      display: summarized
+      type: adaptive
+    tools:
+    - description: Execute bash commands.
+      input_schema:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      name: Bash
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      input_schema:
+        additionalProperties: false
+        properties: {}
+        type: object
+      name: DateTime
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '2012'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0189b-bba8-7491-b955-05d7f425cf99
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-5","id":"msg_011CeBbd1oXM9QEEKPjwUvuB","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":776,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":3,"service_tier":"standard","inference_geo":"global"}}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}          }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Now
+    that"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    the sleep command has"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    completed, I''ll call DateTime to get the current UTC date and time."}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01GFZXJtiKmoZC7NuXc2pKF8","name":"DateTime","input":{},"caller":{"type":"direct"}}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1               }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":776,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":59,"output_tokens_details":{"thinking_tokens":0}}          }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"            }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T06:00:54.440390+00:00'

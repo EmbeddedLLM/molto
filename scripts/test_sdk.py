@@ -80,7 +80,7 @@ ANTHROPIC_TOOLS = [
 ]
 
 OPENAI_MODEL = "gpt-5.6-luna"
-ANTHROPIC_MODEL = "claude-haiku-4-5"
+ANTHROPIC_MODEL = "claude-sonnet-5"
 
 
 async def responses():
@@ -98,7 +98,7 @@ async def responses():
             parallel_tool_calls=False,
             stream=True,
             stream_options=dict(include_obfuscation=False),
-            reasoning=dict(effort="none"),
+            reasoning=dict(effort="high", summary="detailed"),
             max_output_tokens=4096,
         )
         current_output = output_type = None
@@ -124,6 +124,8 @@ async def responses():
                 print(f"\033[97m{event.delta}\033[0m", end="", flush=True)
             elif event.type == "response.completed":
                 completed_output = event.response.output
+                print("", flush=True)
+                print(event.response.usage)
 
         print("\n" + "---" * 6, flush=True)
         input_items.extend(item.model_dump(exclude_none=True) for item in completed_output)
@@ -152,7 +154,7 @@ async def chat_completions():
             parallel_tool_calls=False,
             stream=True,
             stream_options=dict(include_obfuscation=False, include_usage=True),
-            reasoning_effort="none",
+            reasoning_effort="high",
             max_completion_tokens=4096,
         )
         current_output = output_type = None
@@ -226,7 +228,8 @@ async def messages():
             max_tokens=4096,
             messages=message_history,
             tools=ANTHROPIC_TOOLS,
-            thinking={"type": "disabled"},
+            thinking={"type": "adaptive", "display": "summarized"},
+            output_config={"effort": "high"},
         ) as response:
             current_output = None
             async for event in response:
