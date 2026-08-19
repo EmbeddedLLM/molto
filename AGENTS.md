@@ -154,8 +154,17 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - Do not add comments that simply restate the code, narrate each operation, or compensate for unnecessarily complicated implementation.
 - Keep comments accurate when modifying the associated code. Remove comments that are obsolete, misleading, or no longer useful.
 
-## Pull Request Review Guidelines
+## Code Review and Refactoring Guidelines
 
-- Always prioritise any security issues
-- Always provide solution or suggestions for any issues found
-- Check whether the code aligns with Coding Conventions stated in `AGENTS.md`
+- Prioritize correctness, security, data integrity, and behavioral regressions.
+- Identify duplicated logic, unnecessary branches, and avoidable complexity.
+- Keep variant-specific behavior in explicit, responsibility-focused paths.
+- Place genuinely shared validation, state updates, processing, and finalization in one location.
+- Preserve observable behavior, ordering, errors, and public interfaces unless a change is explicitly requested.
+- Prefer straightforward control flow over premature helper abstractions.
+- Ensure abstractions reduce cognitive load rather than merely moving code.
+- Touch only code relevant to the review or refactor.
+- Add or update regression tests for every affected path and edge case.
+- Review the final diff and confirm the result is materially simpler.
+- Always provide concrete findings and recommended solutions.
+- Check compliance with this `AGENTS.md` and project conventions.
