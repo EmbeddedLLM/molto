@@ -2,7 +2,7 @@ import pytest
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.normalized import NormalizedRequest, TextInput, UserInput
+from molto.types.normalized import NormalizedRequest, SystemPrompt, TextInput, UserInput
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -24,6 +24,21 @@ def test_responses_text_input(content):
         OpenAIResponsesCreateRequest(input=content, model="m")
     )
     assert request.input == [UserInput(content=[TextInput(content="a")])]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"role": "developer", "content": "a"}],
+        [{"role": "system", "content": [{"type": "input_text", "text": "a"}]}],
+    ],
+    ids=["easy-message", "typed-message"],
+)
+def test_responses_developer_role_normalization(content):
+    request = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(input=content, model="m")
+    )
+    assert request.input == [SystemPrompt(content="a")]
 
 
 def test_adapters_preserve_multimodal_input_boundaries_and_order():
