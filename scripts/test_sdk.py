@@ -1,9 +1,15 @@
 import asyncio
+import base64
+from pathlib import Path
 
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
 from molto.configs import ENV_CONFIG
+
+IMAGE_PATH = Path("tests") / "files" / "github.png"
+IMAGE_DATA = base64.b64encode(IMAGE_PATH.read_bytes()).decode("ascii")
+IMAGE_URL = f"data:image/png;base64,{IMAGE_DATA}"
 
 openai_client = AsyncOpenAI(
     api_key=ENV_CONFIG.openai_api_key_plain,
