@@ -590,22 +590,17 @@ async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Prot
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call", downstream, upstream)
-
-
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_input_image_base64_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("input_image_base64", downstream, upstream)
-
-
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
 async def test_reasoning_stream_encrypted_content(
     downstream: Protocol,
     upstream: Protocol,
 ):
     await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_input_image_base64_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("input_image_base64", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
@@ -616,6 +611,11 @@ async def test_input_image_with_reasoning_stream(
     await _assert_matched_stream_events(
         "input_image_with_reasoning_encrypted", downstream, upstream
     )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call", downstream, upstream)
 
 
 async def test_instructions_stream():
