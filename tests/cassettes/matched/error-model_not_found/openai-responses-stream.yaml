@@ -1,0 +1,37 @@
+filename: 2026-08-19-01a01abc-e006-75e2-b585-cb5501a1fe8f
+request:
+  body:
+    input:
+    - content:
+      - text: hi
+        type: input_text
+      role: user
+    max_output_tokens: 4096
+    model: kimi-k3
+    stream: true
+    stream_options:
+      include_obfuscation: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '177'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a01abc-e006-75e2-b585-cb5501a1fe8f
+response:
+  body:
+    error:
+      code: null
+      message: Model not found kimi-k3
+      param: model
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 404
+timestamp: '2026-08-19T15:56:20.870967+00:00'

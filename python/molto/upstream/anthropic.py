@@ -156,18 +156,6 @@ class AnthropicMessagesClient(
     def _request_parts(
         request: NormalizedRequest,
     ) -> tuple[str | None, list[dict[str, Any]], bool]:
-        if isinstance(request.input, str):
-            return (
-                None,
-                [
-                    {
-                        "role": "user",
-                        "content": [{"type": "text", "text": request.input}],
-                    }
-                ],
-                False,
-            )
-
         system_parts: list[str] = []
         messages: list[dict[str, Any]] = []
         assistant_blocks: list[dict[str, Any]] = []

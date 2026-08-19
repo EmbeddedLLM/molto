@@ -5,7 +5,12 @@ from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
+from molto.types.normalized import (
+    ModelResponseStreamEvent,
+    NormalizedRequest,
+    TextInput,
+    UserInput,
+)
 
 
 class NativeRequest(BaseModel):
@@ -14,7 +19,7 @@ class NativeRequest(BaseModel):
 
 class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
     def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
-        return NormalizedRequest(input=request.value)
+        return NormalizedRequest(input=[UserInput(content=[TextInput(content=request.value)])])
 
     def _project_events(
         self,
@@ -37,7 +42,7 @@ def test_adapter_remembers_native_request_before_projecting_events():
     events = EmptyEvents()
 
     assert adapter.native_request is native_request
-    assert normalized_request.input == "hello"
+    assert normalized_request.input == [UserInput(content=[TextInput(content="hello")])]
     assert adapter.project_events(events, normalized_request) is events
 
 

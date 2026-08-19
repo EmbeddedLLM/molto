@@ -27,6 +27,11 @@ def test_text_input_is_not_a_top_level_input_item():
         NormalizedRequest(input=[TextInput(content="Unwrapped")])
 
 
+def test_request_rejects_top_level_text():
+    with pytest.raises(ValidationError):
+        NormalizedRequest(input="Unwrapped")
+
+
 def test_tool_call_and_return_are_valid_conversation_input():
     tool_call = ToolCall(
         tool_name="get_weather",
