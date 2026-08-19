@@ -267,7 +267,7 @@ The matcher maps Responses `output_item.added.encrypted_content` to the Messages
 
 The `reasoning_raw` fixtures use `vllm-*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
 
-The three-turn `tool_call` fixtures cover a function call, a successful result followed by another call, and a successful result followed by final text. The matcher maps compatible function definitions and represents `parallel_tool_calls` through the inverse Messages `disable_parallel_tool_use` setting. Direct caller metadata remains present on native Messages response blocks and is the translated response default, but it is not added to reconstructed request history.
+The three-turn `tool_call` fixtures cover a function call, a successful result followed by another call, and a successful result followed by final text. The `tool_call_choice` fixtures cover named selection followed by disabled tool use, while `tool_call_parallel` covers two calls and results with parallel tool use enabled. The matcher maps compatible function definitions and represents `parallel_tool_calls` through the inverse Messages `disable_parallel_tool_use` setting. Direct caller metadata remains present on native Messages response blocks and is the translated response default, but it is not added to reconstructed request history.
 
 Committed cassettes remain native wire-format fixtures. Tests always replay them and never record during normal verification.
 

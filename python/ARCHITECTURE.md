@@ -289,6 +289,8 @@ For the text, reasoning, and function-tool paths:
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 
+Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
+
 The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Their downstream adapters collapse either normalized representation into the protocol's single reasoning field. Responses projection retains the distinction with its separate reasoning-text and reasoning-summary lifecycles.
 
 Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
@@ -403,6 +405,10 @@ tests/cassettes/matched/
     anthropic-messages-stream-00.yaml
     openai-chat_completions-stream-00.yaml
     openai-responses-stream-00.yaml
+  tool_call_choice/
+    ...
+  tool_call_parallel/
+    ...
 ```
 
 The naming pattern is:

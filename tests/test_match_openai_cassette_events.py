@@ -26,6 +26,14 @@ TOOL_CALL_CASSETTES = [
     )
     for index in range(3)
 ]
+TOOL_CALL_CHOICE_CASSETTES = (
+    CASSETTES / "tool_call_choice" / "openai-chat_completions-stream-00.yaml",
+    CASSETTES / "tool_call_choice" / "openai-responses-stream-00.yaml",
+)
+TOOL_CALL_CHOICE_HISTORY_CASSETTES = (
+    CASSETTES / "tool_call_choice" / "openai-chat_completions-stream-01.yaml",
+    CASSETTES / "tool_call_choice" / "openai-responses-stream-01.yaml",
+)
 
 
 def _data_events(cassette: dict) -> list[dict]:
@@ -435,6 +443,35 @@ def test_rebuilds_unequal_chat_tool_argument_delta_stream(adjustment: str) -> No
     for event in chat_events:
         ChatCompletionChunk.model_validate(event)
     assert sum(entry.strip() == "data: [DONE]" for entry in sse_entries) == 1
+
+
+def test_matches_tool_only_chat_role_and_history() -> None:
+    chat_cassette = read_yaml(str(TOOL_CALL_CHOICE_CASSETTES[0]))
+    responses_cassette = read_yaml(str(TOOL_CALL_CHOICE_CASSETTES[1]))
+    history_chat_cassette = read_yaml(str(TOOL_CALL_CHOICE_HISTORY_CASSETTES[0]))
+    history_responses_cassette = read_yaml(str(TOOL_CALL_CHOICE_HISTORY_CASSETTES[1]))
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+    match_chat_completions_events(history_chat_cassette, history_responses_cassette)
+
+    assistant_message = next(
+        message
+        for message in history_chat_cassette["request"]["body"]["messages"]
+        if message["role"] == "assistant"
+    )
+    assert "content" not in assistant_message
+
+    chat_events = _data_events(chat_cassette)
+    assert chat_events[0]["choices"][0]["delta"] == {
+        "content": None,
+        "refusal": None,
+        "role": "assistant",
+    }
+    assert chat_events[1]["choices"][0]["delta"]["tool_calls"]
+
+    first_match = deepcopy(chat_cassette)
+    match_chat_completions_events(chat_cassette, responses_cassette)
+    assert chat_cassette == first_match
 
 
 def test_rejects_tool_call_presence_mismatch() -> None:

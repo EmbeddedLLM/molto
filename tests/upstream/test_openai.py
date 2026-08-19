@@ -1426,6 +1426,33 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
                                 "type": "function",
                                 "function": {"name": "first", "arguments": ""},
                             },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_a",
+                                "function": {"name": "first", "arguments": '{"a":1}'},
+                            },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
                             {
                                 "index": 1,
                                 "id": "call_b",
@@ -1447,11 +1474,6 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
                                 "index": 1,
                                 "id": "call_b",
                                 "function": {"name": "second", "arguments": '{"b":2}'},
-                            },
-                            {
-                                "index": 0,
-                                "id": "call_a",
-                                "function": {"name": "first", "arguments": '{"a":1}'},
                             },
                         ]
                     },
@@ -1480,16 +1502,16 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
             index=0,
             part=ToolCall(tool_call_id="call_a", tool_name="first", args=""),
         ),
-        PartStartEvent(
-            index=1,
-            part=ToolCall(tool_call_id="call_b", tool_name="second", args=""),
-        ),
-        PartDeltaEvent(index=1, delta=ToolCallDelta(args_delta='{"b":2}')),
         PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta='{"a":1}')),
         PartEndEvent(
             index=0,
             part=ToolCall(tool_call_id="call_a", tool_name="first", args='{"a":1}'),
         ),
+        PartStartEvent(
+            index=1,
+            part=ToolCall(tool_call_id="call_b", tool_name="second", args=""),
+        ),
+        PartDeltaEvent(index=1, delta=ToolCallDelta(args_delta='{"b":2}')),
         PartEndEvent(
             index=1,
             part=ToolCall(tool_call_id="call_b", tool_name="second", args='{"b":2}'),
@@ -1502,6 +1524,44 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
             termination_reason="tool_call",
         ),
     ]
+
+
+async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    native_chunks = [
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": call_index,
+                                "id": f"call_{call_index}",
+                                "type": "function",
+                                "function": {"name": "read", "arguments": ""},
+                            }
+                        ]
+                    },
+                }
+            ]
+        )
+        for call_index in (0, 1, 0)
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for native_chunk in native_chunks:
+            yield native_chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+
+        with pytest.raises(ValueError, match="must be contiguous by index"):
+            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
 
 
 @pytest.mark.parametrize(

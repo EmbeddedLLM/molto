@@ -8,16 +8,12 @@ request:
         type: text
       role: user
     - content:
-      - caller:
-          type: direct
-        id: toolu_019vTY2DodKBCxdp4q5xiEoW
+      - id: call_2vUqiZL2gdz5t1zFZw4vZlCe
         input:
           file_path: a.txt
         name: read_file
         type: tool_use
-      - caller:
-          type: direct
-        id: toolu_01H5GT96zQeqgJN1NXpQ8CAJ
+      - id: call_LgJQYrp3UbAyzBLkP8LDQDxL
         input:
           file_path: b.txt
         name: read_file
@@ -27,17 +23,19 @@ request:
       - content:
         - text: Malaysia
           type: text
-        tool_use_id: toolu_019vTY2DodKBCxdp4q5xiEoW
+        tool_use_id: call_2vUqiZL2gdz5t1zFZw4vZlCe
         type: tool_result
       - content:
         - text: Malaysia
           type: text
-        tool_use_id: toolu_01H5GT96zQeqgJN1NXpQ8CAJ
+        tool_use_id: call_LgJQYrp3UbAyzBLkP8LDQDxL
         type: tool_result
+      role: user
+    - content:
       - text: What are the contents?
         type: text
       role: user
-    model: claude-haiku-4-5
+    model: gpt-5.6-luna
     stream: true
     thinking:
       type: disabled
@@ -76,8 +74,7 @@ response:
   - 'event: message_start
 
     '
-  - 'data: {"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_011CeBxSwBNu8zj1LwuxZskE","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":769,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"not_available"}}
-    }
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_09007b121320b6c5006a85863b9cd0819ba43469f121120c95","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":148,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"not_available"}}}
 
     '
   - '
@@ -86,7 +83,7 @@ response:
   - 'event: content_block_start
 
     '
-  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}       }
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
 
     '
   - '
@@ -95,7 +92,7 @@ response:
   - 'event: ping
 
     '
-  - 'data: {"type": "ping"}
+  - 'data: {"type":"ping"}
 
     '
   - '
@@ -104,17 +101,7 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Based"}        }
-
-    '
-  - '
-
-    '
-  - 'event: content_block_delta
-
-    '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    on the results"}              }
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Both"}}
 
     '
   - '
@@ -124,7 +111,34 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    from reading"}          }
+    `"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":".txt"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`"}}
 
     '
   - '
@@ -134,7 +148,7 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    both"}             }
+    and"}}
 
     '
   - '
@@ -144,7 +158,7 @@ response:
 
     '
   - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-    files:"}        }
+    `"}}
 
     '
   - '
@@ -153,9 +167,71 @@ response:
   - 'event: content_block_delta
 
     '
-  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n-
-    **a.txt** contains: `Malaysia`\n- **b.txt** contains: `Malaysia`\n\nBoth files
-    have the same content - the word \"Malaysia\"."}              }
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":".txt"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    contain"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":\n\n"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Malaysia"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"`"}}
 
     '
   - '
@@ -164,7 +240,7 @@ response:
   - 'event: content_block_stop
 
     '
-  - 'data: {"type":"content_block_stop","index":0           }
+  - 'data: {"type":"content_block_stop","index":0}
 
     '
   - '
@@ -173,7 +249,7 @@ response:
   - 'event: message_delta
 
     '
-  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":769,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":49}     }
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":148,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":19,"output_tokens_details":{"thinking_tokens":0}}}
 
     '
   - '
@@ -182,7 +258,7 @@ response:
   - 'event: message_stop
 
     '
-  - 'data: {"type":"message_stop"              }
+  - 'data: {"type":"message_stop"}
 
     '
   - '

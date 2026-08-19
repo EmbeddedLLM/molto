@@ -315,6 +315,8 @@ Repository fixtures and helpers relevant to this contract are:
 - `tests/cassettes/matched/simple_text/`;
 - `tests/cassettes/matched/reasoning_raw/`, whose `vllm-*` fixtures run with `provider="vllm"`;
 - `tests/cassettes/matched/tool_call/`, whose three turns cover calls, results, and continuation history;
+- `tests/cassettes/matched/tool_call_choice/`, which covers named selection followed by disabled tool use;
+- `tests/cassettes/matched/tool_call_parallel/`, which covers two calls and results with parallel tool use enabled;
 - `scripts/match_openai_cassette_events.py`;
 - `python/molto/utils/test.py`;
 - `tests/core/test_interface.py`; and

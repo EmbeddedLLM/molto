@@ -46,6 +46,8 @@ ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
 )
 TOOL_CALL_SCENARIOS: tuple[str, ...] = (
     "tool_call",
+    "tool_call_choice",
+    "tool_call_parallel",
     "tool_call_with_reasoning_encrypted",
 )
 
@@ -136,9 +138,16 @@ def _get_http_client(
                 matched
                 and translated
                 and upstream == "responses"
-                and Path(cassette_name).name.startswith("tool_call-")
+                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
             ):
                 _assert_reconstructable_tool_responses_request(request_body, expected_body)
+            elif (
+                matched
+                and translated
+                and upstream == "chat/completions"
+                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
+            ):
+                _assert_reconstructable_tool_chat_request(request_body, expected_body)
             else:
                 assert request_body == expected_body
         except AssertionError as e:
@@ -181,7 +190,7 @@ def _assert_reconstructable_tool_responses_request(
     expected_body: dict[str, Any],
 ) -> None:
     def without_history_item_ids(body: dict[str, Any]) -> dict[str, Any]:
-        body = deepcopy(body)
+        body = _without_irrelevant_parallel_tool_calls(body)
         for item in body.get("input") or []:
             if isinstance(item, dict):
                 item.pop("id", None)
@@ -191,6 +200,24 @@ def _assert_reconstructable_tool_responses_request(
     # Chat Completions and Messages preserve call IDs but expose no separate
     # Responses output-item IDs or commentary/final phases for assistant history.
     assert without_history_item_ids(actual_body) == without_history_item_ids(expected_body)
+
+
+def _assert_reconstructable_tool_chat_request(
+    actual_body: dict[str, Any],
+    expected_body: dict[str, Any],
+) -> None:
+    assert _without_irrelevant_parallel_tool_calls(
+        actual_body
+    ) == _without_irrelevant_parallel_tool_calls(expected_body)
+
+
+def _without_irrelevant_parallel_tool_calls(body: dict[str, Any]) -> dict[str, Any]:
+    body = deepcopy(body)
+    if body.get("tool_choice") == "none":
+        # Messages cannot encode parallel-call control when tool use is disabled,
+        # and the setting cannot affect a request that forbids every tool call.
+        body.pop("parallel_tool_calls", None)
+    return body
 
 
 def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -617,6 +644,16 @@ async def test_input_image_with_reasoning_encrypted_stream(
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_choice_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_choice", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_parallel_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_parallel", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)

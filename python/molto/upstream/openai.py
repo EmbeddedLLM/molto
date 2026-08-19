@@ -557,6 +557,9 @@ class OpenAIChatCompletionsClient(
         active_part: Literal["thinking", "text"] | None = None
         next_part_index = 0
         tool_calls: dict[int, dict[str, Any]] = {}
+        # Chat has no per-call stop event. Calls are treated as contiguous, so a
+        # new index closes the active call and a later return to that index is invalid.
+        active_tool_call_index: int | None = None
 
         def end_active_part() -> PartEndEvent | None:
             nonlocal active_part
@@ -571,6 +574,17 @@ class OpenAIChatCompletionsClient(
                 return None
             active_part = None
             return PartEndEvent(index=next_part_index - 1, part=part)
+
+        def end_tool_call(tool_call_index: int) -> PartEndEvent:
+            state = tool_calls[tool_call_index]
+            return PartEndEvent(
+                index=state["part_index"],
+                part=ToolCall(
+                    tool_call_id=state["tool_call_id"],
+                    tool_name=state["tool_name"],
+                    args=state["args"],
+                ),
+            )
 
         native_request = OpenAIChatCompletionsCreateRequest.model_validate(
             self._request_body(request)
@@ -656,6 +670,8 @@ class OpenAIChatCompletionsClient(
                                     "The first Chat Completions chunk for a tool call must "
                                     "include its ID and function name."
                                 )
+                            if active_tool_call_index is not None:
+                                yield end_tool_call(active_tool_call_index)
                             arguments = function_delta.arguments or ""
                             state = {
                                 "part_index": next_part_index,
@@ -664,6 +680,7 @@ class OpenAIChatCompletionsClient(
                                 "args": arguments,
                             }
                             tool_calls[tool_call_delta.index] = state
+                            active_tool_call_index = tool_call_delta.index
                             yield PartStartEvent(
                                 index=next_part_index,
                                 part=ToolCall(
@@ -674,6 +691,11 @@ class OpenAIChatCompletionsClient(
                             )
                             next_part_index += 1
                             continue
+
+                        if tool_call_delta.index != active_tool_call_index:
+                            raise ValueError(
+                                "Chat Completions tool-call deltas must be contiguous by index."
+                            )
 
                         name_delta = function_delta.name if function_delta is not None else None
                         args_delta = (
@@ -709,17 +731,10 @@ class OpenAIChatCompletionsClient(
                     ended_part = end_active_part()
                     if ended_part is not None:
                         yield ended_part
-                    for tool_call_index in sorted(tool_calls):
-                        state = tool_calls[tool_call_index]
-                        yield PartEndEvent(
-                            index=state["part_index"],
-                            part=ToolCall(
-                                tool_call_id=state["tool_call_id"],
-                                tool_name=state["tool_name"],
-                                args=state["args"],
-                            ),
-                        )
+                    if active_tool_call_index is not None:
+                        yield end_tool_call(active_tool_call_index)
                     tool_calls.clear()
+                    active_tool_call_index = None
 
             if chunk.usage is not None:
                 prompt_details = chunk.usage.prompt_tokens_details

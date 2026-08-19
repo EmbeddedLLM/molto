@@ -99,7 +99,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             if call_id in tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call ID: {call_id!r}.")
             if not messages or messages[-1].get("role") != "assistant":
-                messages.append({"content": None, "role": "assistant"})
+                messages.append({"role": "assistant"})
             messages[-1].setdefault("tool_calls", []).append(
                 {
                     "function": {"arguments": arguments, "name": name},
@@ -543,6 +543,45 @@ def _replace_tool_call_events(
     templates = [(sse_index, event) for _, sse_index, event in tool_call_events]
 
     replacement_entries: list[str] = []
+    preceding_deltas: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    for sse_index, event in indexed_chat_events[:first_event_position]:
+        choices = event.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            continue
+        delta = choices[0].get("delta")
+        if isinstance(delta, dict):
+            preceding_deltas.append((sse_index, event, delta))
+
+    has_visible_output = any(
+        any(
+            isinstance(delta.get(field), str) and bool(delta[field])
+            for field in ("content", "reasoning_content")
+        )
+        for _, _, delta in preceding_deltas
+    )
+    if not has_visible_output:
+        role_events = [
+            (sse_index, event)
+            for sse_index, event, delta in preceding_deltas
+            if delta.get("role") == "assistant"
+        ]
+        role_delta = {"role": "assistant", "content": None, "refusal": None}
+        if role_events:
+            role_index, role_event = role_events[-1]
+            role_event["choices"][0]["delta"] = role_delta
+            sse_entries[role_index] = _serialize_data_event(role_event, sse_entries[role_index])
+        else:
+            template_index, template_event = templates[0]
+            role_event = deepcopy(template_event)
+            role_choice = role_event["choices"][0]
+            role_choice["delta"] = role_delta
+            role_choice["finish_reason"] = None
+            role_event["usage"] = None
+            replacement_entries.append(
+                _serialize_data_event(role_event, sse_entries[template_index])
+            )
+            replacement_entries.extend(separator_entries)
+
     for index, response_chunk in enumerate(response_tool_calls["chunks"]):
         call = response_chunk["call"]
         template_index, template_event = templates[min(index, len(templates) - 1)]
