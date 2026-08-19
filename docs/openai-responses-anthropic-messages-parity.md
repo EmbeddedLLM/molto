@@ -25,15 +25,16 @@ The translated path currently supports:
 - string, text-message, and ordered mixed text/image user input (remote URL and base64 data-URL images);
 - system prompts;
 - assistant text, raw reasoning history, and reasoning-summary history;
+- client-defined function tools, tool selection, tool calls, successful results, and streamed argument deltas;
 - model, output-token limit, temperature, and `top_p`;
 - Anthropic adaptive and manual extended thinking with summarized display;
 - response IDs, model names, text and reasoning delta boundaries;
 - shared termination reasons and Anthropic stop sequences; and
 - semantic input, cache-read, cache-write, output, and thinking-token usage.
 
-Image output, tools, tool results, citations, refusals as content blocks, redacted thinking, server tools, structured output, multiple candidates, and non-streaming collection are not implemented across this normalized path. Fields accepted by a request wrapper are not supported cross-protocol unless an adapter and client map them explicitly.
+Image output, failed tool-result semantics outside Messages, citations, refusals as content blocks, redacted thinking, server tools, structured output, multiple candidates, and non-streaming collection are not implemented across this normalized path. Fields accepted by a request wrapper are not supported cross-protocol unless an adapter and client map them explicitly.
 
-Only text, image, and thinking content blocks are accepted by the current Messages adapter. Other content-block variants are rejected explicitly rather than silently discarded.
+The Messages adapter accepts text, thinking, direct client `tool_use`, and text-only `tool_result` content blocks. Anthropic error results remain representable within Messages, but translation to OpenAI protocols rejects them because those histories have no equivalent error outcome. Other variants are rejected explicitly rather than silently discarded.
 
 Official Anthropic thinking history requires its original signature. Molto's local Messages request schema also accepts a missing signature for compatible providers such as vLLM, whose raw-reasoning fixtures do not provide one. That permissive schema does not establish support for unsigned history against the official Anthropic API; official continuation support requires cassette coverage with Anthropic-issued signatures.
 
@@ -94,8 +95,14 @@ Request `service_tier` is not forwarded across protocols. Supporting it would re
 | reasoning configuration | `thinking` and `output_config.effort` | Use adaptive summarized thinking plus effort on compatible models; use manual extended thinking plus a preset budget on older Claude models. |
 | `temperature` | `temperature` | Preserve when present. |
 | `top_p` | `top_p` | Preserve when present. |
+| function `tools` | client `tools` | Rename `parameters` to `input_schema`; preserve name, description, and strict validation. |
+| `tool_choice` | `tool_choice` | Map `required` to `any` and a named function to a named `tool`; preserve `auto` and `none`. |
+| `parallel_tool_calls` | `tool_choice.disable_parallel_tool_use` | Invert the boolean. |
+| function-call history | assistant `tool_use` plus user `tool_result` blocks | Preserve call IDs, names, JSON arguments, results, and ordering. |
 
 User text is always emitted in the target protocol's explicit content-part form: Responses `input_text` parts or Messages `text` blocks. Each normalized `UserInput` maps to exactly one native user message and each ordered `TextInput` maps to one native text part; neither boundary is merged or split. Ordered `ImageUrlInput` parts map the same way: one part becomes one Responses `input_image` part or one Messages `image` block, preserving position.
+
+Tool-result text uses the same explicit-list policy. A native scalar result is normalized as one ordered text part, and translated requests always emit Responses `input_text` output parts or Messages `text` result blocks.
 
 The matched fixtures assume OpenAI serves both APIs and defines Responses `encrypted_content` and Messages `signature` as two protocol names for the same OpenAI-issued opaque state. Molto maps the value under that contract. This does not make an OpenAI-issued value valid against Anthropic's API; official Anthropic continuation still requires an Anthropic-issued signature.
 
@@ -112,10 +119,14 @@ The matched fixtures assume OpenAI serves both APIs and defines Responses `encry
 | summarized `thinking` | detailed reasoning | Preserve `output_config.effort`; default adaptive thinking to high effort and reduce a manual budget to the nearest effort preset. |
 | `temperature` | `temperature` | Preserve when present. |
 | `top_p` | `top_p` | Preserve when present. |
+| client `tools` | function `tools` | Rename `input_schema` to `parameters`; preserve name, description, and strict validation. |
+| `tool_choice` | `tool_choice` | Map `any` to `required` and a named `tool` to a named function; preserve `auto` and `none`. |
+| `tool_choice.disable_parallel_tool_use` | `parallel_tool_calls` | Invert the boolean. |
+| `tool_use` and `tool_result` history | function-call and function-call-output items | Preserve call IDs, names, JSON arguments, results, and ordering. |
 
 Anthropic has no obfuscation setting. A translated Responses request uses `stream_options.include_obfuscation=false` to make the target behavior explicit. Omitting the field could select a provider default that is not equivalent to Anthropic's stream.
 
-The Messages wrapper also accepts `cache_control`, `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `tool_choice`, `tools`, `top_k`, and `user_profile_id`. These fields are not currently forwarded through the normalized path and must not be assumed to work cross-protocol. Within `output_config`, only `effort` is currently normalized.
+The Messages wrapper also accepts `cache_control`, `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are not currently forwarded through the normalized path and must not be assumed to work cross-protocol. Within `output_config`, only `effort` is currently normalized.
 
 ### Anthropic thinking-mode policy
 
@@ -147,6 +158,7 @@ Manual `budget_tokens` must remain below `max_tokens`; Molto rejects an invalid 
 | Assistant text | text deltas and block | Preserve text and delta boundaries. |
 | Usage | start and terminal usage | Map semantically as described below. |
 | Outcome | `stop_reason` | Normalize the reason and project exact Responses completed or incomplete states. |
+| Function call | `tool_use` block and `input_json_delta` | Preserve the call ID and name, and preserve every partial-JSON delta. |
 
 The generated `created_at` is a valid downstream timestamp, not the creation time of an independently recorded OpenAI response. Responses output-item IDs and sequence numbers are also translator-generated.
 
@@ -156,16 +168,17 @@ Under the OpenAI Messages fixture contract, Messages signature deltas become Res
 
 ## Result Translation: Responses to Messages
 
-| Messages concept | Responses source               | Rule                                                                                     |
-| ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
-| Message ID       | response `id`                  | Preserve exactly.                                                                        |
-| Model            | response `model`               | Preserve exactly.                                                                        |
-| Start usage      | unavailable at Responses start | Emit zero counts so streaming remains live.                                              |
-| Service tier     | Responses tier                 | Emit target default `standard`.                                                          |
-| Thinking         | reasoning text or summary      | Collapse either representation into Messages thinking while preserving delta boundaries. |
-| Assistant text   | output text                    | Preserve text and delta boundaries.                                                      |
-| Terminal usage   | completed response usage       | Map semantically.                                                                        |
-| `stop_reason`    | normalized termination reason  | Apply the explicit mapping below.                                                        |
+| Messages concept | Responses source | Rule |
+| --- | --- | --- |
+| Message ID | response `id` | Preserve exactly. |
+| Model | response `model` | Preserve exactly. |
+| Start usage | unavailable at Responses start | Emit zero counts so streaming remains live. |
+| Service tier | Responses tier | Emit target default `standard`. |
+| Thinking | reasoning text or summary | Collapse either representation into Messages thinking while preserving delta boundaries. |
+| Assistant text | output text | Preserve text and delta boundaries. |
+| Terminal usage | completed response usage | Map semantically. |
+| `stop_reason` | normalized termination reason | Apply the explicit mapping below. |
+| Function call | function-call item and argument deltas | Emit a `tool_use` block with the same call ID, name, and partial JSON. |
 
 Terminal usage is authoritative for translated Messages streams. Backfilling `message_start` with terminal counts would require buffering the whole upstream response.
 
@@ -227,6 +240,7 @@ Anthropic cache-creation TTL breakdowns, `inference_geo`, and `server_tool_use` 
 - Anthropic `ping` is a transport keepalive, not model output, and is excluded from semantic parity.
 - Responses obfuscation has no Anthropic wire field. It is disabled when constructing a translated Responses request.
 - Exact transport headers, SSE field names, JSON key order, and whitespace are not semantic parity fields.
+- Messages `tool_use.caller` is response metadata with no function-call-history counterpart. Native passthrough retains the source value; translated Messages tool-use blocks emit the target default `caller: {type: direct}`, while reconstructed request history omits `caller`.
 
 ## Streaming Invariants
 
@@ -234,7 +248,7 @@ Cross-protocol tests require:
 
 - one normalized response start and one response end;
 - stable content indices;
-- one target delta for every matched source text, raw-reasoning, or reasoning-summary delta;
+- one target delta for every matched source text, raw-reasoning, reasoning-summary, or function-argument delta;
 - concatenated deltas equal completed content;
 - content blocks and output items close before the response ends;
 - target termination fields agree with the normalized reason;
@@ -252,6 +266,8 @@ When a matcher changes an SSE payload discriminator, it must update the correspo
 The matcher maps Responses `output_item.added.encrypted_content` to the Messages thinking-block start signature and `output_item.done.encrypted_content` to its replacement signature delta, under the explicit assumption that OpenAI owns both endpoints and the opaque token. It does not buffer for the separately recorded terminal response-output ciphertext. These fixtures prove same-provider cross-protocol compatibility; they do not prove OpenAI-to-Anthropic continuation compatibility.
 
 The `reasoning_raw` fixtures use `vllm-*` filenames and `provider="vllm"`, selecting the raw profile across Responses, Chat Completions, and Messages. The encrypted-reasoning fixtures use the summary profile. A base URL never selects either behavior.
+
+The three-turn `tool_call` fixtures cover a function call, a successful result followed by another call, and a successful result followed by final text. The `tool_call_choice` fixtures cover named selection followed by disabled tool use, while `tool_call_parallel` covers two calls and results with parallel tool use enabled. The matcher maps compatible function definitions and represents `parallel_tool_calls` through the inverse Messages `disable_parallel_tool_use` setting. Direct caller metadata remains present on native Messages response blocks and is the translated response default, but it is not added to reconstructed request history.
 
 Committed cassettes remain native wire-format fixtures. Tests always replay them and never record during normal verification.
 

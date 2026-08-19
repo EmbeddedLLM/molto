@@ -15,6 +15,8 @@ from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.types.normalized import (
+    FunctionTool,
+    FunctionToolChoice,
     ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -31,6 +33,10 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    ToolCall,
+    ToolCallDelta,
+    ToolChoice,
+    ToolReturn,
     UserInput,
 )
 from molto.types.openai_chat_completions import (
@@ -52,6 +58,83 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
 }
 
 
+def _responses_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
+    if tools is None:
+        return None
+    normalized: list[FunctionTool] = []
+    for tool in tools:
+        tool = dict(tool)
+        if tool.get("type") != "function":
+            raise ValueError(f"Unsupported Responses tool type: {tool.get('type')}")
+        if tool.get("allowed_callers") not in (None, ["direct"]):
+            raise ValueError("Only directly callable Responses function tools are supported.")
+        if tool.get("defer_loading"):
+            raise ValueError("Deferred Responses function tools are not supported.")
+        if tool.get("output_schema") is not None:
+            raise ValueError("Responses function output schemas are not supported.")
+        normalized.append(
+            FunctionTool(
+                name=tool["name"],
+                description=tool.get("description"),
+                parameters=tool.get("parameters") or {},
+                strict=tool.get("strict") or False,
+            )
+        )
+    return normalized
+
+
+def _responses_tool_choice(choice: Any) -> ToolChoice | None:
+    if choice is None or isinstance(choice, str):
+        return choice
+    choice = dict(choice)
+    if choice.get("type") != "function":
+        raise ValueError(f"Unsupported Responses tool choice: {choice.get('type')}")
+    return FunctionToolChoice(name=choice["name"])
+
+
+def _chat_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
+    if tools is None:
+        return None
+    normalized: list[FunctionTool] = []
+    for tool in tools:
+        tool = dict(tool)
+        if tool.get("type") != "function":
+            raise ValueError(f"Unsupported Chat Completions tool type: {tool.get('type')}")
+        function = dict(tool["function"])
+        normalized.append(
+            FunctionTool(
+                name=function["name"],
+                description=function.get("description"),
+                parameters=function.get("parameters") or {},
+                strict=function.get("strict") or False,
+            )
+        )
+    return normalized
+
+
+def _chat_tool_choice(choice: Any) -> ToolChoice | None:
+    if choice is None or isinstance(choice, str):
+        return choice
+    choice = dict(choice)
+    if choice.get("type") != "function":
+        raise ValueError(f"Unsupported Chat Completions tool choice: {choice.get('type')}")
+    return FunctionToolChoice(name=choice["function"]["name"])
+
+
+def _validate_responses_function_metadata(
+    item: dict[str, Any],
+    *,
+    statuses: set[str | None],
+) -> None:
+    caller = item.get("caller")
+    if caller is not None and caller.get("type") != "direct":
+        raise ValueError("Only direct Responses function calls are supported.")
+    if item.get("namespace") is not None:
+        raise ValueError("Namespaced Responses function calls are not supported.")
+    if item.get("status") not in statuses:
+        raise ValueError(f"Unsupported Responses function call status: {item.get('status')!r}.")
+
+
 class OpenAIResponsesAdapter(
     BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
 ):
@@ -60,7 +143,7 @@ class OpenAIResponsesAdapter(
     def _normalize_message(
         self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn]:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -75,6 +158,39 @@ class OpenAIResponsesAdapter(
                     summary="".join(part["text"] for part in summary),
                     id=message.get("id"),
                     signature=message.get("encrypted_content"),
+                )
+            ]
+        if message_type == "function_call":
+            _validate_responses_function_metadata(message, statuses={None, "completed"})
+            return [
+                ToolCall(
+                    id=message.get("id"),
+                    tool_call_id=message["call_id"],
+                    tool_name=message["name"],
+                    args=message["arguments"],
+                )
+            ]
+        if message_type == "function_call_output":
+            _validate_responses_function_metadata(message, statuses={None, "completed"})
+            output = message["output"]
+            if isinstance(output, list):
+                unsupported = [
+                    part.get("type") for part in output if part.get("type") != "input_text"
+                ]
+                if unsupported:
+                    raise ValueError(
+                        f"Unsupported Responses function output content: {unsupported}."
+                    )
+                content = [TextInput(content=part["text"]) for part in output]
+            else:
+                content = [TextInput(content=output)]
+            return [
+                ToolReturn(
+                    id=message.get("id"),
+                    tool_call_id=message["call_id"],
+                    tool_name=message.get("name"),
+                    content=content,
+                    outcome="success",
                 )
             ]
         if message_type != "message":
@@ -128,7 +244,9 @@ class OpenAIResponsesAdapter(
         raise ValueError(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] | None
+        normalized_input: (
+            list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn] | None
+        )
         if isinstance(request.input, str):
             normalized_input = [UserInput(content=[TextInput(content=request.input)])]
         elif request.input is None:
@@ -151,6 +269,8 @@ class OpenAIResponsesAdapter(
         request_data = request.model_dump()
         request_data.pop("instructions", None)
         request_data["input"] = normalized_input
+        request_data["tools"] = _responses_tools(request.tools)
+        request_data["tool_choice"] = _responses_tool_choice(request.tool_choice)
         return NormalizedRequest.model_validate(request_data)
 
     async def _project_events(
@@ -160,9 +280,9 @@ class OpenAIResponsesAdapter(
     ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
         sequence_number = 0
         response_start: ResponseStartEvent | None = None
-        item_id: str | None = None
-        thinking_representation: str | None = None
-        output_items: list[dict[str, Any]] = []
+        item_ids: dict[int, str] = {}
+        thinking_representations: dict[int, str] = {}
+        output_items: dict[int, dict[str, Any]] = {}
 
         def event(data: dict[str, Any]) -> BaseModel:
             nonlocal sequence_number
@@ -222,12 +342,15 @@ class OpenAIResponsesAdapter(
                 yield event({"type": "response.in_progress", "response": initial_response})
 
             elif isinstance(normalized_event, PartStartEvent):
-                if not isinstance(normalized_event.part, (TextOutput, Thinking)):
+                if not isinstance(normalized_event.part, (TextOutput, Thinking, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 is_thinking = isinstance(normalized_event.part, Thinking)
-                thinking_representation = None
-                item_id = f"{'' if is_thinking else 'msg_'}{uuid4().hex}"
                 output_index = normalized_event.index
+                item_id = normalized_event.part.id or (
+                    f"{'' if is_thinking else 'fc_' if isinstance(normalized_event.part, ToolCall) else 'msg_'}{uuid4().hex}"
+                )
+                item_ids[output_index] = item_id
+                thinking_representations.pop(output_index, None)
                 item = (
                     {
                         "id": item_id,
@@ -244,6 +367,15 @@ class OpenAIResponsesAdapter(
                     if is_thinking
                     else {
                         "id": item_id,
+                        "type": "function_call",
+                        "status": "in_progress",
+                        "arguments": normalized_event.part.args or "",
+                        "call_id": normalized_event.part.tool_call_id,
+                        "name": normalized_event.part.tool_name,
+                    }
+                    if isinstance(normalized_event.part, ToolCall)
+                    else {
+                        "id": item_id,
                         "type": "message",
                         "status": "in_progress",
                         "content": [],
@@ -257,7 +389,7 @@ class OpenAIResponsesAdapter(
                         "output_index": output_index,
                     }
                 )
-                if not is_thinking:
+                if isinstance(normalized_event.part, TextOutput):
                     yield event(
                         {
                             "type": "response.content_part.added",
@@ -274,8 +406,11 @@ class OpenAIResponsesAdapter(
                     )
 
             elif isinstance(normalized_event, PartDeltaEvent):
-                if not isinstance(normalized_event.delta, (TextDelta, ThinkingDelta)):
+                if not isinstance(
+                    normalized_event.delta, (TextDelta, ThinkingDelta, ToolCallDelta)
+                ):
                     raise ValueError(f"Unsupported output delta: {type(normalized_event.delta)}")
+                item_id = item_ids.get(normalized_event.index)
                 if item_id is None:
                     raise ValueError("Received a delta before its output item started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
@@ -287,8 +422,9 @@ class OpenAIResponsesAdapter(
                         delta = normalized_event.delta.summary_delta
                     else:
                         continue
+                    thinking_representation = thinking_representations.get(normalized_event.index)
                     if thinking_representation is None:
-                        thinking_representation = representation
+                        thinking_representations[normalized_event.index] = representation
                         if representation == "raw":
                             yield event(
                                 {
@@ -331,7 +467,7 @@ class OpenAIResponsesAdapter(
                             ),
                         }
                     )
-                else:
+                elif isinstance(normalized_event.delta, TextDelta):
                     yield event(
                         {
                             "type": "response.output_text.delta",
@@ -342,126 +478,195 @@ class OpenAIResponsesAdapter(
                             "logprobs": [],
                         }
                     )
+                else:
+                    if normalized_event.delta.tool_name_delta is not None:
+                        raise ValueError(
+                            "Responses cannot update a function name after call start."
+                        )
+                    if normalized_event.delta.tool_call_id is not None:
+                        raise ValueError("Responses cannot update a call ID after call start.")
+                    args_delta = normalized_event.delta.args_delta
+                    if args_delta is None:
+                        continue
+                    if not isinstance(args_delta, str):
+                        raise ValueError("Responses function argument deltas must be strings.")
+                    yield event(
+                        {
+                            "type": "response.function_call_arguments.delta",
+                            "delta": args_delta,
+                            "item_id": item_id,
+                            "output_index": normalized_event.index,
+                        }
+                    )
 
             elif isinstance(normalized_event, PartEndEvent):
-                if not isinstance(normalized_event.part, (TextOutput, Thinking)):
-                    raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
+                part = normalized_event.part
+                if not isinstance(part, (TextOutput, Thinking, ToolCall)):
+                    raise ValueError(f"Unsupported output part: {type(part)}")
+                item_id = item_ids.get(normalized_event.index)
                 if item_id is None:
                     raise ValueError("Received a part end before its output item started.")
                 output_index = normalized_event.index
-                is_thinking = isinstance(normalized_event.part, Thinking)
-                if is_thinking:
-                    if normalized_event.part.content and normalized_event.part.summary:
+                part_events: list[dict[str, Any]] = []
+
+                if isinstance(part, Thinking):
+                    if part.content and part.summary:
                         raise ValueError(
                             "A translated reasoning part cannot contain both raw reasoning "
                             "and a summary."
                         )
-                    representation = thinking_representation or (
-                        "summary" if normalized_event.part.summary else self._capabilities.thinking
+                    representation = thinking_representations.get(output_index)
+                    is_opaque_only = (
+                        bool(part.signature)
+                        and not part.content
+                        and not part.summary
+                        and representation is None
                     )
-                    reasoning_text = (
-                        normalized_event.part.content
-                        if representation == "raw"
-                        else normalized_event.part.summary
-                    )
-                    completed_part = {
-                        "type": "reasoning_text" if representation == "raw" else "summary_text",
-                        "text": reasoning_text,
+                    completed_part = None
+                    reasoning_text = ""
+                    if not is_opaque_only:
+                        representation = representation or (
+                            "summary" if part.summary else self._capabilities.thinking
+                        )
+                        reasoning_text = part.content if representation == "raw" else part.summary
+                        completed_part = {
+                            "type": (
+                                "reasoning_text" if representation == "raw" else "summary_text"
+                            ),
+                            "text": reasoning_text,
+                        }
+                        if output_index not in thinking_representations:
+                            if representation == "raw":
+                                part_events.append(
+                                    {
+                                        "type": "response.content_part.added",
+                                        "content_index": 0,
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "part": {"type": "reasoning_text", "text": ""},
+                                    }
+                                )
+                            else:
+                                part_events.append(
+                                    {
+                                        "type": "response.reasoning_summary_part.added",
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "part": {"type": "summary_text", "text": ""},
+                                        "summary_index": 0,
+                                    }
+                                )
+                    completed_item = {
+                        "id": item_id,
+                        "type": "reasoning",
+                        "status": "completed",
+                        "content": (
+                            [completed_part]
+                            if representation == "raw" and completed_part is not None
+                            else []
+                        ),
+                        "summary": (
+                            [completed_part]
+                            if representation == "summary" and completed_part is not None
+                            else []
+                        ),
+                        **({"encrypted_content": part.signature} if part.signature else {}),
                     }
-                    if thinking_representation is None:
-                        if representation == "raw":
-                            yield event(
+                    if representation == "summary":
+                        part_events.extend(
+                            [
                                 {
-                                    "type": "response.content_part.added",
+                                    "type": "response.reasoning_summary_text.done",
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "summary_index": 0,
+                                    "text": reasoning_text,
+                                },
+                                {
+                                    "type": "response.reasoning_summary_part.done",
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "part": completed_part,
+                                    "summary_index": 0,
+                                },
+                            ]
+                        )
+                    elif representation == "raw":
+                        part_events.extend(
+                            [
+                                {
+                                    "type": "response.reasoning_text.done",
                                     "content_index": 0,
                                     "item_id": item_id,
                                     "output_index": output_index,
-                                    "part": {"type": "reasoning_text", "text": ""},
-                                }
-                            )
-                        else:
-                            yield event(
+                                    "text": reasoning_text,
+                                },
                                 {
-                                    "type": "response.reasoning_summary_part.added",
+                                    "type": "response.content_part.done",
+                                    "content_index": 0,
                                     "item_id": item_id,
                                     "output_index": output_index,
-                                    "part": {"type": "summary_text", "text": ""},
-                                    "summary_index": 0,
-                                }
-                            )
-                else:
+                                    "part": completed_part,
+                                },
+                            ]
+                        )
+
+                elif isinstance(part, TextOutput):
                     completed_part = {
                         "type": "output_text",
                         "annotations": [],
                         "logprobs": [],
-                        "text": normalized_event.part.content,
+                        "text": part.content,
                     }
-                completed_item = (
-                    {
-                        "id": item_id,
-                        "type": "reasoning",
-                        "status": "completed",
-                        "content": [completed_part] if representation == "raw" else [],
-                        "summary": [completed_part] if representation == "summary" else [],
-                        **(
-                            {"encrypted_content": normalized_event.part.signature}
-                            if normalized_event.part.signature
-                            else {}
-                        ),
-                    }
-                    if is_thinking
-                    else {
+                    completed_item = {
                         "id": item_id,
                         "type": "message",
                         "status": "completed",
                         "content": [completed_part],
                         "role": "assistant",
                     }
-                )
-                output_items.append(completed_item)
-                if is_thinking and representation == "summary":
-                    yield event(
+                    part_events.extend(
+                        [
+                            {
+                                "type": "response.output_text.done",
+                                "content_index": 0,
+                                "item_id": item_id,
+                                "output_index": output_index,
+                                "text": part.content,
+                                "logprobs": [],
+                            },
+                            {
+                                "type": "response.content_part.done",
+                                "content_index": 0,
+                                "item_id": item_id,
+                                "output_index": output_index,
+                                "part": completed_part,
+                            },
+                        ]
+                    )
+
+                elif isinstance(part, ToolCall):
+                    arguments = part.args or ""
+                    completed_item = {
+                        "id": item_id,
+                        "type": "function_call",
+                        "status": "completed",
+                        "arguments": arguments,
+                        "call_id": part.tool_call_id,
+                        "name": part.tool_name,
+                    }
+                    part_events.append(
                         {
-                            "type": "response.reasoning_summary_text.done",
+                            "type": "response.function_call_arguments.done",
+                            "arguments": arguments,
                             "item_id": item_id,
                             "output_index": output_index,
-                            "summary_index": 0,
-                            "text": reasoning_text,
                         }
                     )
-                    yield event(
-                        {
-                            "type": "response.reasoning_summary_part.done",
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "part": completed_part,
-                            "summary_index": 0,
-                        }
-                    )
-                else:
-                    yield event(
-                        {
-                            "type": (
-                                "response.reasoning_text.done"
-                                if is_thinking
-                                else "response.output_text.done"
-                            ),
-                            "content_index": 0,
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "text": normalized_event.part.content,
-                            **({} if is_thinking else {"logprobs": []}),
-                        }
-                    )
-                    yield event(
-                        {
-                            "type": "response.content_part.done",
-                            "content_index": 0,
-                            "item_id": item_id,
-                            "output_index": output_index,
-                            "part": completed_part,
-                        }
-                    )
+
+                for part_event in part_events:
+                    yield event(part_event)
+                output_items[output_index] = completed_item
                 yield event(
                     {
                         "type": "response.output_item.done",
@@ -483,7 +688,7 @@ class OpenAIResponsesAdapter(
                 final_response = response_data(
                     normalized_event,
                     status=status,
-                    output=output_items,
+                    output=[output_items[index] for index in sorted(output_items)],
                 )
                 if status == "incomplete":
                     final_response["incomplete_details"] = {"reason": termination_reason}
@@ -503,7 +708,7 @@ class OpenAIChatCompletionsAdapter(
     def _normalize_message(
         self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput]:
+    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn]:
         role = message.get("role")
         content = message.get("content")
 
@@ -522,7 +727,31 @@ class OpenAIChatCompletionsAdapter(
                     raise ValueError(f"Unsupported Chat user content type: {part_type}")
             return [UserInput(content=parts)]
 
-        if not isinstance(content, str):
+        if role == "tool":
+            if isinstance(content, str):
+                tool_content = [TextInput(content=content)]
+            elif isinstance(content, list):
+                text_parts = [
+                    part.get("text")
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") == "text"
+                ]
+                if len(text_parts) != len(content) or not all(
+                    isinstance(text, str) for text in text_parts
+                ):
+                    raise ValueError("Only text Chat Completions tool content is supported.")
+                tool_content = [TextInput(content=text) for text in text_parts]
+            else:
+                raise ValueError("Chat Completions tool content must be text.")
+            return [
+                ToolReturn(
+                    tool_call_id=message["tool_call_id"],
+                    tool_name=None,
+                    content=tool_content,
+                )
+            ]
+
+        if role != "assistant" and not isinstance(content, str):
             raise ValueError("Only string non-user Chat Completions content is supported.")
 
         if role in {"system", "developer"}:
@@ -530,7 +759,9 @@ class OpenAIChatCompletionsAdapter(
         if role == "user":
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
-            items: list[Thinking | TextOutput] = []
+            if content is not None and not isinstance(content, str):
+                raise ValueError("Only string Chat Completions assistant content is supported.")
+            items: list[Thinking | TextOutput | ToolCall] = []
             reasoning_content = message.get("reasoning_content")
             if reasoning_content is not None:
                 if not isinstance(reasoning_content, str):
@@ -545,12 +776,29 @@ class OpenAIChatCompletionsAdapter(
                         ),
                     )
                 )
-            items.append(TextOutput(content=content))
+            if content is not None:
+                items.append(TextOutput(content=content))
+            for tool_call in message.get("tool_calls") or []:
+                tool_call = dict(tool_call)
+                if tool_call.get("type") != "function":
+                    raise ValueError(
+                        f"Unsupported Chat Completions tool call type: {tool_call.get('type')}"
+                    )
+                function = dict(tool_call["function"])
+                items.append(
+                    ToolCall(
+                        tool_name=function["name"],
+                        args=function["arguments"],
+                        tool_call_id=tool_call["id"],
+                    )
+                )
             return items
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
-        normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
+        normalized_input: list[
+            SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
+        ] = []
         for message in request.messages:
             normalized_input.extend(self._normalize_message(dict(message)))
 
@@ -567,6 +815,10 @@ class OpenAIChatCompletionsAdapter(
             data["max_output_tokens"] = request.max_completion_tokens
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
+        if request.tools is not None:
+            data["tools"] = _chat_tools(request.tools)
+        if request.tool_choice is not None:
+            data["tool_choice"] = _chat_tool_choice(request.tool_choice)
         if request.reasoning_effort is not None:
             # Chat does not say whether its reasoning field is raw or summarized.
             # Request a detailed Responses summary; the provider profile classifies
@@ -590,6 +842,7 @@ class OpenAIChatCompletionsAdapter(
         del request
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False
+        tool_indices: dict[int, int] = {}
 
         def chunk(
             metadata: ResponseStartEvent | ResponseEndEvent,
@@ -614,29 +867,56 @@ class OpenAIChatCompletionsAdapter(
                 response_start = normalized_event
 
             elif isinstance(normalized_event, PartStartEvent):
-                if not isinstance(normalized_event.part, (Thinking, TextOutput)):
+                if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
-                if initial_chunk_sent:
-                    continue
                 if response_start is None:
                     raise ValueError("Received a part before its response started.")
-                initial_chunk_sent = True
-                delta = (
-                    {"role": "assistant", "content": None, "reasoning_content": ""}
-                    if isinstance(normalized_event.part, Thinking)
-                    else {"role": "assistant", "content": "", "refusal": None}
-                )
-                yield chunk(
-                    response_start,
-                    choices=[
-                        {
-                            "index": 0,
-                            "delta": delta,
-                            "logprobs": None,
-                            "finish_reason": None,
-                        }
-                    ],
-                )
+                if not initial_chunk_sent:
+                    initial_chunk_sent = True
+                    if isinstance(normalized_event.part, Thinking):
+                        delta = {"role": "assistant", "content": None, "reasoning_content": ""}
+                    elif isinstance(normalized_event.part, TextOutput):
+                        delta = {"role": "assistant", "content": "", "refusal": None}
+                    else:
+                        delta = {"role": "assistant", "content": None, "refusal": None}
+                    yield chunk(
+                        response_start,
+                        choices=[
+                            {
+                                "index": 0,
+                                "delta": delta,
+                                "logprobs": None,
+                                "finish_reason": None,
+                            }
+                        ],
+                    )
+                if isinstance(normalized_event.part, ToolCall):
+                    tool_index = len(tool_indices)
+                    tool_indices[normalized_event.index] = tool_index
+                    yield chunk(
+                        response_start,
+                        choices=[
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "content": None,
+                                    "tool_calls": [
+                                        {
+                                            "index": tool_index,
+                                            "id": normalized_event.part.tool_call_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": normalized_event.part.tool_name,
+                                                "arguments": normalized_event.part.args or "",
+                                            },
+                                        }
+                                    ],
+                                },
+                                "logprobs": None,
+                                "finish_reason": None,
+                            }
+                        ],
+                    )
 
             elif isinstance(normalized_event, PartDeltaEvent):
                 if response_start is None:
@@ -652,6 +932,26 @@ class OpenAIChatCompletionsAdapter(
                     delta = {"reasoning_content": reasoning_delta}
                 elif isinstance(normalized_event.delta, TextDelta):
                     delta = {"content": normalized_event.delta.content_delta}
+                elif isinstance(normalized_event.delta, ToolCallDelta):
+                    try:
+                        tool_index = tool_indices[normalized_event.index]
+                    except KeyError as exc:
+                        raise ValueError("Received a tool delta before its call started.") from exc
+                    function: dict[str, Any] = {}
+                    if normalized_event.delta.tool_name_delta is not None:
+                        function["name"] = normalized_event.delta.tool_name_delta
+                    if normalized_event.delta.args_delta is not None:
+                        if not isinstance(normalized_event.delta.args_delta, str):
+                            raise ValueError(
+                                "Chat Completions function argument deltas must be strings."
+                            )
+                        function["arguments"] = normalized_event.delta.args_delta
+                    tool_call: dict[str, Any] = {"index": tool_index}
+                    if normalized_event.delta.tool_call_id is not None:
+                        tool_call["id"] = normalized_event.delta.tool_call_id
+                    if function:
+                        tool_call["function"] = function
+                    delta = {"tool_calls": [tool_call]}
                 else:
                     raise ValueError(f"Unsupported output delta: {type(normalized_event.delta)}")
                 yield chunk(
@@ -667,7 +967,7 @@ class OpenAIChatCompletionsAdapter(
                 )
 
             elif isinstance(normalized_event, PartEndEvent):
-                if not isinstance(normalized_event.part, (Thinking, TextOutput)):
+                if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
 
             elif isinstance(normalized_event, ResponseEndEvent):

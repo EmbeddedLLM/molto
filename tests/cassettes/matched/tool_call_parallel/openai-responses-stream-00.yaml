@@ -1,0 +1,151 @@
+filename: 2026-08-19-01a01994-5119-7251-a4fa-68e76f63f182
+request:
+  body:
+    input:
+    - content:
+      - text: Call `read_file('a.txt')` and `read_file('b.txt')` in parallel.
+        type: input_text
+      role: user
+    max_output_tokens: 4096
+    model: gpt-5.6-luna
+    parallel_tool_calls: true
+    reasoning:
+      effort: none
+    stream: true
+    stream_options:
+      include_obfuscation: false
+    tools:
+    - description: Read a file.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          file_path:
+            description: Path.
+            type: string
+        required:
+        - file_path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '545'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a01994-5119-7251-a4fa-68e76f63f182
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_09007b121320b6c5006a85863a01f4819b9e0b5728b1c81319","object":"response","created_at":1787135546,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"file_path":{"type":"string","description":"Path."}},"required":["file_path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_09007b121320b6c5006a85863a01f4819b9e0b5728b1c81319","object":"response","created_at":1787135546,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"file_path":{"type":"string","description":"Path."}},"required":["file_path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_09007b121320b6c5006a85863acad8819b88026d26e4bcabfc","type":"function_call","status":"in_progress","arguments":"","call_id":"call_2vUqiZL2gdz5t1zFZw4vZlCe","name":"read_file"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"file_path\":\"a.txt\"}","item_id":"fc_09007b121320b6c5006a85863acad8819b88026d26e4bcabfc","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"file_path\":\"a.txt\"}","item_id":"fc_09007b121320b6c5006a85863acad8819b88026d26e4bcabfc","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_09007b121320b6c5006a85863acad8819b88026d26e4bcabfc","type":"function_call","status":"completed","arguments":"{\"file_path\":\"a.txt\"}","call_id":"call_2vUqiZL2gdz5t1zFZw4vZlCe","name":"read_file"},"output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_09007b121320b6c5006a85863acaec819b9316a31920a01865","type":"function_call","status":"in_progress","arguments":"","call_id":"call_LgJQYrp3UbAyzBLkP8LDQDxL","name":"read_file"},"output_index":1,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"file_path\":\"b.txt\"}","item_id":"fc_09007b121320b6c5006a85863acaec819b9316a31920a01865","output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"file_path\":\"b.txt\"}","item_id":"fc_09007b121320b6c5006a85863acaec819b9316a31920a01865","output_index":1,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_09007b121320b6c5006a85863acaec819b9316a31920a01865","type":"function_call","status":"completed","arguments":"{\"file_path\":\"b.txt\"}","call_id":"call_LgJQYrp3UbAyzBLkP8LDQDxL","name":"read_file"},"output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_09007b121320b6c5006a85863a01f4819b9e0b5728b1c81319","object":"response","created_at":1787135546,"status":"completed","background":false,"completed_at":1787135546,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"fc_09007b121320b6c5006a85863acad8819b88026d26e4bcabfc","type":"function_call","status":"completed","arguments":"{\"file_path\":\"a.txt\"}","call_id":"call_2vUqiZL2gdz5t1zFZw4vZlCe","name":"read_file"},{"id":"fc_09007b121320b6c5006a85863acaec819b9316a31920a01865","type":"function_call","status":"completed","arguments":"{\"file_path\":\"b.txt\"}","call_id":"call_LgJQYrp3UbAyzBLkP8LDQDxL","name":"read_file"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"file_path":{"type":"string","description":"Path."}},"required":["file_path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":65,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":52,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":117},"user":null,"metadata":{}},"sequence_number":10}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T10:32:25.625988+00:00'

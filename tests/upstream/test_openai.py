@@ -9,6 +9,8 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.normalized import (
+    FunctionTool,
+    FunctionToolChoice,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -22,6 +24,9 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    ToolCall,
+    ToolCallDelta,
+    ToolReturn,
     UserInput,
 )
 from molto.types.openai_chat_completions import (
@@ -304,6 +309,297 @@ def test_chat_completions_client_preserves_user_message_and_part_boundaries():
         {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
         {"role": "assistant", "content": "Answer"},
     ]
+
+
+def test_openai_adapters_normalize_function_tools_and_history():
+    responses = OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(
+            input=[
+                {
+                    "type": "function_call",
+                    "id": "fc_123",
+                    "call_id": "call_123",
+                    "name": "lookup",
+                    "arguments": "{}",
+                    "status": "completed",
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_123",
+                    "output": "result",
+                },
+            ],
+            model="m",
+            stream=True,
+            tools=[
+                {
+                    "type": "function",
+                    "name": "lookup",
+                    "description": "Look up a value.",
+                    "parameters": {"type": "object", "properties": {}},
+                    "strict": False,
+                }
+            ],
+            tool_choice={"type": "function", "name": "lookup"},
+        )
+    )
+    chat = OpenAIChatCompletionsAdapter(OPENAI_CAPABILITIES).normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": "Calling lookup.",
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "call_123", "content": "result"},
+            ],
+            model="m",
+            stream=True,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "lookup",
+                        "description": "Look up a value.",
+                        "parameters": {"type": "object", "properties": {}},
+                        "strict": False,
+                    },
+                }
+            ],
+            tool_choice={"type": "function", "function": {"name": "lookup"}},
+        )
+    )
+
+    tool = FunctionTool(
+        name="lookup",
+        description="Look up a value.",
+        parameters={"type": "object", "properties": {}},
+    )
+    assert responses.tools == chat.tools == [tool]
+    assert responses.tool_choice == chat.tool_choice == FunctionToolChoice(name="lookup")
+    assert responses.input == [
+        ToolCall(id="fc_123", tool_call_id="call_123", tool_name="lookup", args="{}"),
+        ToolReturn(
+            tool_call_id="call_123",
+            tool_name=None,
+            content=[TextInput(content="result")],
+        ),
+    ]
+    assert chat.input == [
+        TextOutput(content="Calling lookup."),
+        ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+        ToolReturn(
+            tool_call_id="call_123",
+            tool_name=None,
+            content=[TextInput(content="result")],
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("allowed_callers", ["programmatic"], "directly callable"),
+        ("defer_loading", True, "Deferred"),
+        ("output_schema", {"type": "object"}, "output schemas"),
+    ],
+)
+def test_responses_adapter_rejects_nonportable_function_tool_fields(
+    field,
+    value,
+    message,
+):
+    tool = {
+        "type": "function",
+        "name": "lookup",
+        "parameters": {"type": "object"},
+        "strict": False,
+        field: value,
+    }
+
+    with pytest.raises(ValueError, match=message):
+        OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+            OpenAIResponsesCreateRequest(model="m", tools=[tool])
+        )
+
+
+@pytest.mark.parametrize(
+    ("item_type", "extra", "message"),
+    [
+        ("function_call", {"caller": {"type": "program", "caller_id": "program_1"}}, "direct"),
+        ("function_call", {"namespace": "tools"}, "Namespaced"),
+        ("function_call", {"status": "incomplete"}, "status"),
+        (
+            "function_call_output",
+            {"caller": {"type": "program", "caller_id": "program_1"}},
+            "direct",
+        ),
+        ("function_call_output", {"namespace": "tools"}, "Namespaced"),
+        ("function_call_output", {"status": "incomplete"}, "status"),
+    ],
+)
+def test_responses_adapter_rejects_nonportable_function_history(
+    item_type,
+    extra,
+    message,
+):
+    item = (
+        {
+            "type": "function_call",
+            "call_id": "call_123",
+            "name": "lookup",
+            "arguments": "{}",
+        }
+        if item_type == "function_call"
+        else {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": "result",
+        }
+    )
+    item.update(extra)
+
+    with pytest.raises(ValueError, match=message):
+        OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+            OpenAIResponsesCreateRequest(input=[item], model="m")
+        )
+
+
+def test_responses_adapter_normalizes_text_part_function_output():
+    normalized = OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(
+            input=[
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_123",
+                    "output": [{"type": "input_text", "text": "result"}],
+                }
+            ],
+            model="m",
+        )
+    )
+
+    assert normalized.input == [
+        ToolReturn(
+            tool_call_id="call_123",
+            content=[TextInput(content="result")],
+        )
+    ]
+
+
+def test_openai_clients_project_function_tools_and_history():
+    request = NormalizedRequest(
+        input=[
+            TextOutput(content="Calling lookup."),
+            ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+            ToolReturn(
+                tool_call_id="call_123",
+                tool_name=None,
+                content=[TextInput(content="result")],
+            ),
+        ],
+        model="m",
+        tools=[FunctionTool(name="lookup", parameters={"type": "object"})],
+        tool_choice=FunctionToolChoice(name="lookup"),
+    )
+
+    responses = OpenAIResponsesClient._request_body(request)
+    chat = OpenAIChatCompletionsClient._request_body(request)
+
+    assert responses["input"] == [
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "Calling lookup.",
+                    "annotations": [],
+                    "logprobs": [],
+                }
+            ],
+        },
+        {
+            "type": "function_call",
+            "status": "completed",
+            "arguments": "{}",
+            "call_id": "call_123",
+            "name": "lookup",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": [{"type": "input_text", "text": "result"}],
+        },
+    ]
+    assert responses["tools"] == [
+        {
+            "type": "function",
+            "name": "lookup",
+            "parameters": {"type": "object"},
+            "strict": False,
+        }
+    ]
+    assert responses["tool_choice"] == {"type": "function", "name": "lookup"}
+    assert chat["messages"] == [
+        {
+            "role": "assistant",
+            "content": "Calling lookup.",
+            "tool_calls": [
+                {
+                    "id": "call_123",
+                    "type": "function",
+                    "function": {"name": "lookup", "arguments": "{}"},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "content": [{"type": "text", "text": "result"}],
+            "tool_call_id": "call_123",
+        },
+    ]
+    assert chat["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "parameters": {"type": "object"},
+                "strict": False,
+            },
+        }
+    ]
+    assert chat["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "lookup"},
+    }
+
+
+@pytest.mark.parametrize(
+    "client",
+    [OpenAIResponsesClient, OpenAIChatCompletionsClient],
+)
+def test_openai_clients_reject_failed_tool_results(client):
+    request = NormalizedRequest(
+        input=[
+            ToolReturn(
+                content=[TextInput(content="failed")],
+                tool_call_id="call_123",
+                outcome="failed",
+            )
+        ],
+        model="m",
+    )
+
+    with pytest.raises(ValueError, match="cannot preserve non-successful"):
+        client._request_body(request)
 
 
 @pytest.mark.parametrize("termination_reason", ["content_filter", "max_output_tokens"])
@@ -769,6 +1065,47 @@ async def test_responses_adapter_projects_reasoning_summary_lifecycle() -> None:
     assert done.item.encrypted_content == "opaque-state"
 
 
+async def test_responses_adapter_projects_encrypted_only_reasoning_lifecycle() -> None:
+    adapter = OpenAIResponsesAdapter(OPENAI_CAPABILITIES)
+    request = adapter.normalize_request(
+        OpenAIResponsesCreateRequest(input="Question", model="m", stream=True)
+    )
+
+    async def normalized_events() -> AsyncIterator[ModelResponseStreamEvent]:
+        yield ResponseStartEvent(id="resp_123", created_at=1, model="m")
+        yield PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="initial-state"),
+        )
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final-state"))
+        yield PartEndEvent(
+            index=0,
+            part=Thinking(content="", summary="", signature="final-state"),
+        )
+        yield ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="m",
+            termination_reason="stop",
+        )
+
+    events = [event async for event in adapter.project_events(normalized_events(), request)]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    added = next(event for event in events if event.type == "response.output_item.added")
+    done = next(event for event in events if event.type == "response.output_item.done")
+    assert added.item.encrypted_content == "initial-state"
+    assert done.item.content == []
+    assert done.item.summary == []
+    assert done.item.encrypted_content == "final-state"
+
+
 @pytest.mark.parametrize(
     ("capabilities", "added_type", "done_type"),
     [
@@ -952,16 +1289,110 @@ async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.Mon
     assert response_end.termination_reason == "max_output_tokens"
 
 
-async def test_responses_events_reject_unsupported_native_sdk_event(
+async def test_responses_events_translate_function_call_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    function_call = {
+        "id": "fc_123",
+        "type": "function_call",
+        "status": "completed",
+        "arguments": "{}",
+        "call_id": "call_123",
+        "name": "lookup",
+    }
+    completed_response = _response()
+    completed_response["output"] = [function_call]
+    completed_response["status"] = "completed"
+    native_events = [
+        _response_event(
+            {"type": "response.created", "response": _response(), "sequence_number": 0}
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {**function_call, "status": "in_progress", "arguments": ""},
+                "output_index": 0,
+                "sequence_number": 1,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.function_call_arguments.delta",
+                "delta": "{}",
+                "item_id": "fc_123",
+                "output_index": 0,
+                "sequence_number": 2,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": function_call,
+                "output_index": 0,
+                "sequence_number": 3,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.completed",
+                "response": completed_response,
+                "sequence_number": 4,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for native_event in native_events:
+            yield native_event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        ResponseStartEvent(
+            id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
+        ),
+        PartStartEvent(
+            index=0,
+            part=ToolCall(id="fc_123", tool_call_id="call_123", tool_name="lookup", args=""),
+        ),
+        PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta="{}")),
+        PartEndEvent(
+            index=0,
+            part=ToolCall(id="fc_123", tool_call_id="call_123", tool_name="lookup", args="{}"),
+        ),
+        ResponseEndEvent(
+            id="resp_123",
+            created_at=1,
+            model="reasoning-model",
+            service_tier="default",
+            termination_reason="tool_call",
+        ),
+    ]
+
+
+async def test_responses_events_reject_programmatic_function_call(
     monkeypatch: pytest.MonkeyPatch,
 ):
     native_event = _response_event(
         {
-            "type": "response.function_call_arguments.delta",
-            "delta": "{}",
-            "item_id": "call_123",
+            "type": "response.output_item.added",
+            "item": {
+                "id": "fc_123",
+                "type": "function_call",
+                "status": "in_progress",
+                "arguments": "",
+                "call_id": "call_123",
+                "name": "lookup",
+                "caller": {"type": "program", "caller_id": "program_1"},
+            },
             "output_index": 0,
-            "sequence_number": 0,
+            "sequence_number": 1,
         }
     )
 
@@ -974,11 +1405,163 @@ async def test_responses_events_reject_unsupported_native_sdk_event(
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
 
-        with pytest.raises(
-            ValueError,
-            match="Unsupported Responses stream event: response.function_call_arguments.delta",
-        ):
-            [event async for event in client.events(NormalizedRequest(model="m"))]
+        with pytest.raises(ValueError, match="Only direct"):
+            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+
+async def test_chat_completions_events_preserve_multiple_tool_call_indices(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    native_chunks = [
+        _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}}]),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_a",
+                                "type": "function",
+                                "function": {"name": "first", "arguments": ""},
+                            },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_a",
+                                "function": {"name": "first", "arguments": '{"a":1}'},
+                            },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 1,
+                                "id": "call_b",
+                                "type": "function",
+                                "function": {"name": "second", "arguments": ""},
+                            },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 1,
+                                "id": "call_b",
+                                "function": {"name": "second", "arguments": '{"b":2}'},
+                            },
+                        ]
+                    },
+                }
+            ]
+        ),
+        _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for native_chunk in native_chunks:
+            yield native_chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        ResponseStartEvent(
+            id="chatcmpl_123", created_at=2, model="reasoning-model", service_tier="default"
+        ),
+        PartStartEvent(
+            index=0,
+            part=ToolCall(tool_call_id="call_a", tool_name="first", args=""),
+        ),
+        PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta='{"a":1}')),
+        PartEndEvent(
+            index=0,
+            part=ToolCall(tool_call_id="call_a", tool_name="first", args='{"a":1}'),
+        ),
+        PartStartEvent(
+            index=1,
+            part=ToolCall(tool_call_id="call_b", tool_name="second", args=""),
+        ),
+        PartDeltaEvent(index=1, delta=ToolCallDelta(args_delta='{"b":2}')),
+        PartEndEvent(
+            index=1,
+            part=ToolCall(tool_call_id="call_b", tool_name="second", args='{"b":2}'),
+        ),
+        ResponseEndEvent(
+            id="chatcmpl_123",
+            created_at=2,
+            model="reasoning-model",
+            service_tier="default",
+            termination_reason="tool_call",
+        ),
+    ]
+
+
+async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    native_chunks = [
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": call_index,
+                                "id": f"call_{call_index}",
+                                "type": "function",
+                                "function": {"name": "read", "arguments": ""},
+                            }
+                        ]
+                    },
+                }
+            ]
+        )
+        for call_index in (0, 1, 0)
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for native_chunk in native_chunks:
+            yield native_chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+
+        with pytest.raises(ValueError, match="must be contiguous by index"):
+            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
 
 
 @pytest.mark.parametrize(

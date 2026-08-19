@@ -2,8 +2,6 @@ from textwrap import dedent
 from time import time
 from typing import Annotated, Any, Literal, TypeAlias
 
-from openai.types.responses.response_create_params import ToolChoice
-from openai.types.responses.tool_param import ToolParam
 from pydantic import Discriminator, Field
 
 from molto.types.base import ExtraModel, ZeroIfNoneInt
@@ -198,12 +196,12 @@ class ToolReturn(ExtraModel):
         Field(description="The unique ID of the function tool call output."),
     ] = None
     tool_name: Annotated[
-        str,
+        str | None,
         Field(description="The name of the tool that was called."),
-    ]
+    ] = None
     content: Annotated[
-        str | list[TextInput],
-        Field(description="The tool return content, which may include multimodal files."),
+        list[TextInput],
+        Field(description="The ordered text content returned by the tool."),
     ]
     tool_call_id: Annotated[
         str,
@@ -218,7 +216,7 @@ class ToolReturn(ExtraModel):
                 "(e.g. Anthropic `is_error`, Bedrock `status='error'`)"
             )
         ),
-    ]
+    ] = "success"
     content_type: Annotated[
         Literal["tool-return"],
         Field(description="Content type identifier as a discriminator."),
@@ -250,9 +248,9 @@ class ToolCall(ExtraModel):
         Field(description="The name of the tool to call."),
     ]
     args: Annotated[
-        str | None,
+        str,
         Field(description="The arguments to pass to the tool."),
-    ] = None
+    ]
     tool_call_id: Annotated[
         str,
         Field(description="The tool call identifier."),
@@ -307,7 +305,7 @@ OutputItem = Annotated[
 
 
 InputItem = Annotated[
-    SystemPrompt | UserInput | Thinking | TextOutput | ToolReturn,
+    SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
@@ -335,6 +333,41 @@ class Reasoning(ExtraModel):
         Literal["auto", "concise", "detailed"] | None,
         Field(description="A summary of the reasoning performed by the model."),
     ] = None
+
+
+class FunctionTool(ExtraModel):
+    """A client-defined function available to the model."""
+
+    name: Annotated[str, Field(description="The function name.")]
+    description: Annotated[
+        str | None,
+        Field(description="A description of what the function does."),
+    ] = None
+    parameters: Annotated[
+        dict[str, Any],
+        Field(description="The JSON Schema for the function arguments."),
+    ]
+    strict: Annotated[
+        bool,
+        Field(description="Whether to enforce strict schema validation."),
+    ] = False
+    type: Annotated[
+        Literal["function"],
+        Field(description="Tool type identifier."),
+    ] = "function"
+
+
+class FunctionToolChoice(ExtraModel):
+    """Require the model to call one specific client-defined function."""
+
+    name: Annotated[str, Field(description="The required function name.")]
+    type: Annotated[
+        Literal["function"],
+        Field(description="Tool choice type identifier."),
+    ] = "function"
+
+
+ToolChoice: TypeAlias = Literal["none", "auto", "required"] | FunctionToolChoice
 
 
 class StreamOptions(ExtraModel):
@@ -397,7 +430,7 @@ class NormalizedRequest(ExtraModel):
         Field(description="How the model should select tools."),
     ] = None
     tools: Annotated[
-        list[ToolParam] | None,
+        list[FunctionTool] | None,
         Field(description="Tools available to the model."),
     ] = None
     top_p: Annotated[
@@ -448,7 +481,7 @@ class ToolCallDelta(ExtraModel):
         Field(description="Incremental text to add to the existing tool name, if any."),
     ] = None
     args_delta: Annotated[
-        str | dict[str, Any] | None,
+        str | None,
         Field(description="Incremental data to add to the tool arguments."),
     ] = None
     tool_call_id: Annotated[

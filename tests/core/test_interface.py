@@ -41,7 +41,14 @@ ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
 # compare reconstructible requests and events instead of exact wire values.
 ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
     "reasoning_encrypted",
-    "input_image_with_reasoning",
+    "input_image_with_reasoning_encrypted",
+    "tool_call_with_reasoning_encrypted",
+)
+TOOL_CALL_SCENARIOS: tuple[str, ...] = (
+    "tool_call",
+    "tool_call_choice",
+    "tool_call_parallel",
+    "tool_call_with_reasoning_encrypted",
 )
 
 
@@ -101,6 +108,7 @@ def _get_http_client(
     upstream: Protocol = "responses",
     *,
     matched: bool = False,
+    translated: bool = False,
 ) -> AsyncClient:
     cassette_names = cassette_names.copy()
 
@@ -118,6 +126,7 @@ def _get_http_client(
             expected_body = cassette["request"]["body"]
             if (
                 matched
+                and translated
                 and upstream == "responses"
                 and Path(cassette_name).name.partition("-")[0] in ENCRYPTED_REASONING_SCENARIOS
             ):
@@ -125,6 +134,20 @@ def _get_http_client(
                     request_body,
                     expected_body,
                 )
+            elif (
+                matched
+                and translated
+                and upstream == "responses"
+                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
+            ):
+                _assert_reconstructable_tool_responses_request(request_body, expected_body)
+            elif (
+                matched
+                and translated
+                and upstream == "chat/completions"
+                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
+            ):
+                _assert_reconstructable_tool_chat_request(request_body, expected_body)
             else:
                 assert request_body == expected_body
         except AssertionError as e:
@@ -162,6 +185,41 @@ def _assert_reconstructable_encrypted_responses_request(
     assert normalize(actual_body) == normalize(expected_body)
 
 
+def _assert_reconstructable_tool_responses_request(
+    actual_body: dict[str, Any],
+    expected_body: dict[str, Any],
+) -> None:
+    def without_history_item_ids(body: dict[str, Any]) -> dict[str, Any]:
+        body = _without_irrelevant_parallel_tool_calls(body)
+        for item in body.get("input") or []:
+            if isinstance(item, dict):
+                item.pop("id", None)
+                item.pop("phase", None)
+        return body
+
+    # Chat Completions and Messages preserve call IDs but expose no separate
+    # Responses output-item IDs or commentary/final phases for assistant history.
+    assert without_history_item_ids(actual_body) == without_history_item_ids(expected_body)
+
+
+def _assert_reconstructable_tool_chat_request(
+    actual_body: dict[str, Any],
+    expected_body: dict[str, Any],
+) -> None:
+    assert _without_irrelevant_parallel_tool_calls(
+        actual_body
+    ) == _without_irrelevant_parallel_tool_calls(expected_body)
+
+
+def _without_irrelevant_parallel_tool_calls(body: dict[str, Any]) -> dict[str, Any]:
+    body = deepcopy(body)
+    if body.get("tool_choice") == "none":
+        # Messages cannot encode parallel-call control when tool use is disabled,
+        # and the setting cannot affect a request that forbids every tool call.
+        body.pop("parallel_tool_calls", None)
+    return body
+
+
 def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[str, Any]:
     event.pop("obfuscation", None)
 
@@ -177,6 +235,21 @@ def _reconstructable_encrypted_responses_event(event: dict[str, Any]) -> dict[st
             output_item.pop("status", None)
             # output_item.pop("encrypted_content", None)
 
+    return event
+
+
+def _reconstructable_tool_responses_event(event: dict[str, Any]) -> dict[str, Any]:
+    response = event.get("response")
+    if not isinstance(response, dict):
+        return event
+
+    # These response-envelope values are server defaults or adjustments and are
+    # not present in Chat Completions or Messages stream events.
+    for field_name in ("max_output_tokens", "reasoning", "service_tier"):
+        response.pop(field_name, None)
+    for tool in response.get("tools") or []:
+        if isinstance(tool, dict):
+            tool.pop("output_schema", None)
     return event
 
 
@@ -246,8 +319,19 @@ async def test_extra_inputs():
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
-async def test_native_stream_matches_provider_sdk(protocol: Protocol):
-    cassette_name = "simple_text-stream-00.yaml"
+@pytest.mark.parametrize(
+    "cassette_name",
+    [
+        "simple_text-stream-00.yaml",
+        "tool_call-stream-00.yaml",
+        "tool_call-stream-01.yaml",
+        "tool_call-stream-02.yaml",
+    ],
+)
+async def test_native_stream_matches_provider_sdk(
+    protocol: Protocol,
+    cassette_name: str,
+):
     cassette = _read_cassette(_cassette_path(protocol, cassette_name, matched=True))
     request_body = deepcopy(cassette["request"]["body"])
 
@@ -299,6 +383,9 @@ async def test_native_stream_matches_provider_sdk(protocol: Protocol):
         "simple_text-stream-00.yaml",
         "reasoning_raw-stream-00.yaml",
         "reasoning_raw-stream-01.yaml",
+        "tool_call-stream-00.yaml",
+        "tool_call-stream-01.yaml",
+        "tool_call-stream-02.yaml",
     ],
 )
 def test_matched_request_body_matches_across_protocols(
@@ -337,7 +424,14 @@ def test_matched_request_body_matches_across_protocols(
     expected_body = _read_cassette(_cassette_path(upstream, cassette_name, matched=True))[
         "request"
     ]["body"]
-    assert actual_body == expected_body
+    if (
+        cassette_name.startswith("tool_call-")
+        and upstream == "responses"
+        and downstream != upstream
+    ):
+        _assert_reconstructable_tool_responses_request(actual_body, expected_body)
+    else:
+        assert actual_body == expected_body
 
 
 async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
@@ -374,7 +468,12 @@ async def _assert_stream_events(
         if matched
         else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
     )
-    async with _get_http_client(cassette_names, upstream, matched=matched) as http_client:
+    async with _get_http_client(
+        cassette_names,
+        upstream,
+        matched=matched,
+        translated=downstream != upstream,
+    ) as http_client:
         client = Molto(http_client=http_client)
         for _ in range(num_turns):
             cassette = _read_cassette(
@@ -417,6 +516,9 @@ async def _assert_stream_events(
                         )
                         for sse in expected_sse_events
                     ]
+                    if scenario in TOOL_CALL_SCENARIOS:
+                        for event in actual_events + expected_events:
+                            _reconstructable_tool_responses_event(event)
                     assert actual_events == expected_events
                 elif upstream == "messages":
                     actual_events = [
@@ -437,6 +539,8 @@ async def _assert_stream_events(
                             response_data.pop("created_at", None)
                         if scenario in ENCRYPTED_REASONING_SCENARIOS:
                             _reconstructable_encrypted_responses_event(event)
+                        if scenario in TOOL_CALL_SCENARIOS:
+                            _reconstructable_tool_responses_event(event)
                     assert actual_events == expected_events
             elif downstream == "chat/completions":
                 if upstream == "chat/completions":
@@ -514,8 +618,13 @@ async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_reasoning_stream_raw_content(downstream: Protocol, upstream: Protocol):
+async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+async def test_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
@@ -524,19 +633,32 @@ async def test_input_image_base64_stream(downstream: Protocol, upstream: Protoco
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
-async def test_reasoning_stream_encrypted_content(
-    downstream: Protocol,
-    upstream: Protocol,
+async def test_input_image_with_reasoning_encrypted_stream(
+    downstream: Protocol, upstream: Protocol
 ):
-    await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
+    await _assert_matched_stream_events(
+        "input_image_with_reasoning_encrypted", downstream, upstream
+    )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_choice_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_choice", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_tool_call_parallel_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_parallel", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
-async def test_input_image_with_reasoning_stream(
-    downstream: Protocol,
-    upstream: Protocol,
-):
-    await _assert_matched_stream_events("input_image_with_reasoning", downstream, upstream)
+async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_with_reasoning_encrypted", downstream, upstream)
 
 
 async def test_instructions_stream():
