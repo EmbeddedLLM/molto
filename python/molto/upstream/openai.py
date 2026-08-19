@@ -133,13 +133,6 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
-        if isinstance(request.input, str):
-            return [
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": request.input}],
-                }
-            ]
         if request.input is None:
             return None
 
@@ -422,14 +415,6 @@ class OpenAIChatCompletionsClient(
 
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
-        if isinstance(request.input, str):
-            return [
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": request.input}],
-                }
-            ]
-
         messages: list[dict[str, Any]] = []
         assistant_message: dict[str, Any] | None = None
 

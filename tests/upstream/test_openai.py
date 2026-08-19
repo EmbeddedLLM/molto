@@ -915,7 +915,12 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
 
-        events = [event async for event in client.events(NormalizedRequest(input="Hi", model="m"))]
+        events = [
+            event
+            async for event in client.events(
+                NormalizedRequest(input=[UserInput(content=[TextInput(content="Hi")])], model="m")
+            )
+        ]
 
     assert len(captured_requests) == 1
     assert isinstance(captured_requests[0], OpenAIResponsesCreateRequest)
@@ -1616,7 +1621,11 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
 
         events = [
             event
-            async for event in client.events(NormalizedRequest(input="Hi", model="m", stream=True))
+            async for event in client.events(
+                NormalizedRequest(
+                    input=[UserInput(content=[TextInput(content="Hi")])], model="m", stream=True
+                )
+            )
         ]
 
     assert len(captured_requests) == 1

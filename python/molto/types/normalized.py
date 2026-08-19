@@ -390,7 +390,7 @@ class StreamOptions(ExtraModel):
 
 class NormalizedRequest(ExtraModel):
     input: Annotated[
-        str | Input | None,
+        Input | None,
         Field(description="Text, image, or file inputs to the model."),
     ] = None
     max_output_tokens: Annotated[

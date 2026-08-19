@@ -126,7 +126,12 @@ async def test_events_merge_start_usage_without_mutating_started_parts(
         events = [
             event
             async for event in client.events(
-                NormalizedRequest(input="Hello", max_output_tokens=10, model="model", stream=True)
+                NormalizedRequest(
+                    input=[UserInput(content=[TextInput(content="Hello")])],
+                    max_output_tokens=10,
+                    model="model",
+                    stream=True,
+                )
             )
         ]
 
@@ -224,7 +229,7 @@ async def test_client_maps_streamed_signatures_to_ir(
             event
             async for event in client.events(
                 NormalizedRequest(
-                    input="Hello",
+                    input=[UserInput(content=[TextInput(content="Hello")])],
                     max_output_tokens=10,
                     model="model",
                     stream=True,
@@ -366,7 +371,7 @@ def test_client_selects_model_supported_thinking_configuration(
 ):
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
-            input="Hello",
+            input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=40_000,
             model=model,
             reasoning=Reasoning(effort=effort),
@@ -573,7 +578,7 @@ def test_client_maps_effort_to_extended_thinking_budget(
 ):
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
-            input="Hello",
+            input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=40_000,
             model="claude-sonnet-4-5-20250929",
             reasoning=Reasoning(effort=effort),
@@ -626,7 +631,7 @@ def test_client_uses_summary_when_reasoning_history_omits_raw_content():
 def test_client_disables_thinking_without_output_effort():
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
-            input="Hello",
+            input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=2048,
             model="compatible-model",
             reasoning=Reasoning(effort="none"),
@@ -642,7 +647,7 @@ def test_client_rejects_extended_thinking_budget_at_output_limit():
     with pytest.raises(ValueError, match="must be less than max_output_tokens"):
         AnthropicMessagesClient._request_body(
             NormalizedRequest(
-                input="Hello",
+                input=[UserInput(content=[TextInput(content="Hello")])],
                 max_output_tokens=10_000,
                 model="claude-sonnet-4-5-20250929",
                 reasoning=Reasoning(effort="medium"),
@@ -1141,7 +1146,7 @@ async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPa
             event
             async for event in client.events(
                 NormalizedRequest(
-                    input="Run it.",
+                    input=[UserInput(content=[TextInput(content="Run it.")])],
                     max_output_tokens=10,
                     model="model",
                     stream=True,
