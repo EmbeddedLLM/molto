@@ -85,6 +85,9 @@ def reconstructable_chat_completions_chunks(
 
     choices = chunk["choices"]
     for choice in choices:
+        # TODO: Remove this as soon as we support logprobs
+        if choice.get("logprobs") in (None, ""):
+            choice.pop("logprobs", None)
         if choice["finish_reason"] is not None:
             delta = choice["delta"]
             for field_name in ("content", "reasoning_content"):
@@ -122,7 +125,7 @@ def reconstructable_responses_event(
     sse: str,
     body: dict[str, Any],
 ) -> dict[str, Any]:
-    """Validate a Responses SSE event and retain its reconstructible fields."""
+    """Validate a Responses SSE event and retain fields reconstructible from Chat."""
     request = OpenAIResponsesCreateRequest.model_validate(body)
     event = OpenAIResponsesStreamEventAdapter.validate_python(load_sse(sse)).model_dump(
         mode="json",
@@ -132,6 +135,7 @@ def reconstructable_responses_event(
 
     item = event.get("item")
     if isinstance(item, dict):
+        # Chat results expose neither Responses item IDs nor assistant phases.
         item.pop("id", None)
         item.pop("phase", None)
 
@@ -142,6 +146,12 @@ def reconstructable_responses_event(
             for key, value in response.items()
             if key in request.model_fields_set or key in _RECONSTRUCTIBLE_RESPONSE_FIELDS
         }
+        reasoning = response.get("reasoning")
+        if isinstance(reasoning, dict):
+            # Chat exposes reasoning effort, but not Responses context, mode, or summary.
+            response["reasoning"] = {
+                key: value for key, value in reasoning.items() if key == "effort"
+            }
         for output_item in response.get("output") or []:
             output_item.pop("id", None)
             output_item.pop("phase", None)

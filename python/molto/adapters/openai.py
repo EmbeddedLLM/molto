@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.types.normalized import (
+    ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -84,13 +85,37 @@ class OpenAIResponsesAdapter(
         if isinstance(content, str):
             text_parts = [content]
         elif isinstance(content, list):
-            text_parts = [
-                part["text"]
+            if role == "user":
+                parts: list[TextInput | ImageUrlInput] = []
+                for part in content:
+                    if isinstance(part, BaseModel):
+                        part = part.model_dump()
+                    part_type = part.get("type") if isinstance(part, dict) else None
+                    if isinstance(part, dict) and "prompt_cache_breakpoint" in part:
+                        raise ValueError(
+                            f"Responses {part_type} prompt_cache_breakpoint is not "
+                            "supported for translation."
+                        )
+                    if part_type == "input_text":
+                        parts.append(TextInput(content=part["text"]))
+                    elif part_type == "input_image":
+                        image_url = part.get("image_url")
+                        if image_url is None:
+                            raise ValueError("Responses input_image requires image_url.")
+                        parts.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
+                    else:
+                        raise ValueError(f"Unsupported Responses user content type: {part_type}")
+                return [UserInput(content=parts)]
+            if role not in {"system", "developer", "assistant"}:
+                raise ValueError(f"Unsupported Responses message role: {role}")
+
+            expected_part_type = "output_text" if role == "assistant" else "input_text"
+            if any(
+                not isinstance(part, dict) or part.get("type") != expected_part_type
                 for part in content
-                if isinstance(part, dict) and part.get("type") in {"input_text", "output_text"}
-            ]
-            if len(text_parts) != len(content):
-                raise ValueError("Only text message content is currently supported.")
+            ):
+                raise ValueError(f"Responses {role} message content cannot be translated.")
+            text_parts = [part["text"] for part in content]
         else:
             raise ValueError("Responses message content must be text.")
 
@@ -483,16 +508,19 @@ class OpenAIChatCompletionsAdapter(
         content = message.get("content")
 
         if role == "user" and isinstance(content, list):
-            text_parts = [
-                part.get("text")
-                for part in content
-                if isinstance(part, dict) and part.get("type") == "text"
-            ]
-            if len(text_parts) != len(content) or not all(
-                isinstance(text, str) for text in text_parts
-            ):
-                raise ValueError("Only text Chat Completions user content is supported.")
-            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+            parts: list[TextInput | ImageUrlInput] = []
+            for part in content:
+                if isinstance(part, BaseModel):
+                    part = part.model_dump()
+                part_type = part.get("type") if isinstance(part, dict) else None
+                if part_type == "text":
+                    parts.append(TextInput(content=part["text"]))
+                elif part_type == "image_url":
+                    image = part["image_url"]
+                    parts.append(ImageUrlInput(url=image["url"], detail=image.get("detail")))
+                else:
+                    raise ValueError(f"Unsupported Chat user content type: {part_type}")
+            return [UserInput(content=parts)]
 
         if not isinstance(content, str):
             raise ValueError("Only string non-user Chat Completions content is supported.")
@@ -545,7 +573,8 @@ class OpenAIChatCompletionsAdapter(
             # ambiguous Chat output independently.
             data["reasoning"] = Reasoning(
                 effort=request.reasoning_effort,
-                summary="detailed",
+                # in case of effort is "none" summary "detailed" does not make sense.
+                summary="detailed" if request.reasoning_effort != "none" else None,
             )
         if request.temperature is not None:
             data["temperature"] = request.temperature

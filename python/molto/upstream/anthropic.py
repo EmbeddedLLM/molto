@@ -23,6 +23,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
 )
 from molto.types.normalized import (
+    ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -36,6 +37,7 @@ from molto.types.normalized import (
     SystemPrompt,
     TerminationReason,
     TextDelta,
+    TextInput,
     TextOutput,
     Thinking,
     ThinkingDelta,
@@ -99,6 +101,27 @@ def _thinking_budget(effort: ReasoningEffort) -> int:
     return ANTHROPIC_THINKING_BUDGET_MAP[effort or True]
 
 
+def _image_block(part: ImageUrlInput) -> dict[str, Any]:
+    # Anthropic has no image-fidelity control; an explicit non-default detail
+    # request would be silently lost, so it is rejected instead.
+    if part.detail not in (None, "auto"):
+        raise ValueError(f"Anthropic Messages cannot represent image detail {part.detail!r}.")
+    if not part.url.startswith("data:"):
+        return {"type": "image", "source": {"type": "url", "url": part.url}}
+    metadata, separator, data = part.url.partition(",")
+    media_type = metadata.removeprefix("data:")
+    if not separator or not media_type.endswith(";base64"):
+        raise ValueError("Anthropic image blocks require a base64 data URL or a remote URL.")
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": media_type.removesuffix(";base64"),
+            "data": data,
+        },
+    }
+
+
 class AnthropicMessagesClient(
     BaseClient[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
 ):
@@ -156,14 +179,13 @@ class AnthropicMessagesClient(
                 system_parts.append(item.content)
             elif isinstance(item, UserInput):
                 flush_assistant()
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": part.content} for part in item.content
-                        ],
-                    }
-                )
+                content: list[dict[str, Any]] = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        content.append(_image_block(part))
+                messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 has_thinking = True
                 block = {"type": "thinking", "thinking": item.content or item.summary}

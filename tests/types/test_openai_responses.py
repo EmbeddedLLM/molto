@@ -3,7 +3,9 @@ from typing import get_args
 
 import pytest
 from openai.resources.responses.responses import AsyncResponses
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response import Response
+from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
 from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
 from openai.types.responses.response_reasoning_item_param import ResponseReasoningItemParam
@@ -15,6 +17,8 @@ from molto.types.openai_responses import (
     OpenAIResponsesInputItemParam,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
+    ResponseEasyInputMessageParam,
+    ResponseInputMessageParam,
     ResponseOutputMessageOptionalIDParam,
     ResponseReasoningItemOptionalIDParam,
 )
@@ -37,12 +41,101 @@ def test_request_input_replaces_only_sdk_history_types():
     molto_items = set(get_args(OpenAIResponsesInputItemParam))
 
     assert molto_items == sdk_items - {
+        EasyInputMessageParam,
+        SDKResponseInputMessageParam,
         ResponseReasoningItemParam,
         ResponseOutputMessageParam,
     } | {
+        ResponseEasyInputMessageParam,
+        ResponseInputMessageParam,
         ResponseReasoningItemOptionalIDParam,
         ResponseOutputMessageOptionalIDParam,
     }
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "input_file", "file_id": "file_123"}],
+        [{"type": "input_image", "file_id": "file_123"}],
+        [
+            {
+                "type": "input_image",
+                "image_url": "https://example.com/image.png",
+                "file_id": "file_123",
+            }
+        ],
+        [
+            {
+                "type": "input_image",
+                "image_url": "https://example.com/image.png",
+                "prompt_cache_breakpoint": {"mode": "explicit"},
+            }
+        ],
+        [
+            {
+                "type": "input_text",
+                "text": "hello",
+                "prompt_cache_breakpoint": {"mode": "explicit"},
+            }
+        ],
+    ],
+)
+@pytest.mark.parametrize("message_fields", [{}, {"type": "message", "status": "completed"}])
+def test_request_accepts_sdk_input_variants_for_native_passthrough(content, message_fields):
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "role": "user",
+                "content": content,
+                **message_fields,
+            }
+        ],
+        model="m",
+        stream=True,
+    )
+
+    assert request.model_dump()["input"] == [
+        {"role": "user", "content": content, **message_fields}
+    ]
+
+
+def test_request_accepts_image_without_detail():
+    # The SDK marks input_image `detail` as required, but the API defaults it to
+    # "auto"; native passthrough must preserve the omission rather than invent it.
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "role": "user",
+                "content": [{"type": "input_image", "image_url": "https://example.com/a.png"}],
+            }
+        ],
+        model="m",
+        stream=True,
+    )
+
+    assert request.model_dump()["input"] == [
+        {
+            "role": "user",
+            "content": [{"type": "input_image", "image_url": "https://example.com/a.png"}],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"type": "input_image", "image_url": "https://example.com/a.png", "detail": "ultra"}],
+        [{"type": "input_unknown"}],
+    ],
+)
+def test_request_rejects_invalid_message_content(content):
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(
+            input=[{"role": "user", "content": content}],
+            model="m",
+            stream=True,
+        )
 
 
 def test_request_dump_is_ready_for_responses_create():

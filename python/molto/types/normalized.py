@@ -33,11 +33,31 @@ class TextInput(ExtraModel):
     ] = "text-input"
 
 
+class ImageUrlInput(ExtraModel):
+    """An image supplied by remote URL or data URL."""
+
+    url: Annotated[str, Field(description="The remote URL or data URL of the image.")]
+    detail: Annotated[
+        Literal["auto", "low", "high", "original"] | None,
+        Field(description="The requested image fidelity, when specified."),
+    ] = None
+    content_type: Annotated[
+        Literal["image-url-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "image-url-input"
+
+
+UserContent = Annotated[
+    TextInput | ImageUrlInput,
+    Discriminator("content_type"),
+]
+
+
 class UserInput(ExtraModel):
     """One user message containing its ordered input content parts."""
 
     content: Annotated[
-        list[TextInput],
+        list[UserContent],
         Field(description="The ordered content parts in the user message."),
     ]
     content_type: Annotated[

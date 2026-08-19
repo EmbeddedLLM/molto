@@ -235,6 +235,7 @@ ChatCompletionChunk SDK stream
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
 - raw reasoning and reasoning summaries in requests and assistant history;
+- ordered mixed text/image user messages, including remote URL and data-URL images;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
@@ -242,6 +243,8 @@ ChatCompletionChunk SDK stream
 Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
+
+User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 
@@ -401,7 +404,7 @@ The naming pattern is:
 tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
-Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically.
+Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
 
 Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
 
@@ -413,7 +416,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, and reasoning summaries across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
+The current public paths support streaming text, raw reasoning, reasoning summaries, and portable image input across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
 
 The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
 

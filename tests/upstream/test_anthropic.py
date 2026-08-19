@@ -3,6 +3,7 @@ from time import time
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
@@ -12,6 +13,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEventAdapter,
 )
 from molto.types.normalized import (
+    ImageUrlInput,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -423,6 +425,130 @@ def test_adapter_preserves_user_message_and_part_boundaries():
         UserInput(content=[TextInput(content="Follow-up")]),
         TextOutput(content="Answer"),
     ]
+
+
+def test_adapter_normalizes_image_blocks_as_data_urls():
+    request = AnthropicMessagesCreateRequest(
+        max_tokens=2048,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "before"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": "AA==",
+                        },
+                    },
+                    {
+                        "type": "image",
+                        "source": {"type": "url", "url": "https://example.test/b.png"},
+                    },
+                    {"type": "text", "text": "after"},
+                ],
+            }
+        ],
+        model="compatible-model",
+        stream=True,
+    )
+
+    normalized = AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
+
+    assert normalized.input == [
+        UserInput(
+            content=[
+                TextInput(content="before"),
+                ImageUrlInput(url="data:image/png;base64,AA=="),
+                ImageUrlInput(url="https://example.test/b.png"),
+                TextInput(content="after"),
+            ]
+        )
+    ]
+
+
+def test_request_rejects_file_image_source():
+    with pytest.raises(ValidationError):
+        AnthropicMessagesCreateRequest(
+            max_tokens=2048,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "file", "file_id": "file_123"}}
+                    ],
+                }
+            ],
+            model="compatible-model",
+            stream=True,
+        )
+
+
+def test_client_projects_image_parts_as_image_blocks():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            input=[
+                UserInput(
+                    content=[
+                        TextInput(content="before"),
+                        ImageUrlInput(url="data:image/png;base64,AA=="),
+                        ImageUrlInput(url="https://example.test/b.png"),
+                        TextInput(content="after"),
+                    ]
+                )
+            ],
+            max_output_tokens=2048,
+            model="compatible-model",
+            stream=True,
+        )
+    )
+
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "before"},
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": "AA=="},
+                },
+                {
+                    "type": "image",
+                    "source": {"type": "url", "url": "https://example.test/b.png"},
+                },
+                {"type": "text", "text": "after"},
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize("detail", ["low", "high", "original"])
+def test_client_rejects_unrepresentable_image_detail(detail: str):
+    request = NormalizedRequest(
+        input=[
+            UserInput(content=[ImageUrlInput(url="data:image/png;base64,AA==", detail=detail)])
+        ],
+        max_output_tokens=2048,
+        model="compatible-model",
+        stream=True,
+    )
+
+    with pytest.raises(ValueError, match="cannot represent image detail"):
+        AnthropicMessagesClient._request_body(request)
+
+
+def test_client_rejects_non_base64_data_url_image():
+    request = NormalizedRequest(
+        input=[UserInput(content=[ImageUrlInput(url="data:image/png,%89NP")])],
+        max_output_tokens=2048,
+        model="compatible-model",
+        stream=True,
+    )
+
+    with pytest.raises(ValueError, match="base64 data URL"):
+        AnthropicMessagesClient._request_body(request)
 
 
 @pytest.mark.parametrize(

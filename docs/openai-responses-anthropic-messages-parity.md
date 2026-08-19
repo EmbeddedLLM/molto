@@ -22,7 +22,7 @@ For this guide, parity means:
 The translated path currently supports:
 
 - streaming requests;
-- string and text-message input;
+- string, text-message, and ordered mixed text/image user input (remote URL and base64 data-URL images);
 - system prompts;
 - assistant text, raw reasoning history, and reasoning-summary history;
 - model, output-token limit, temperature, and `top_p`;
@@ -31,9 +31,9 @@ The translated path currently supports:
 - shared termination reasons and Anthropic stop sequences; and
 - semantic input, cache-read, cache-write, output, and thinking-token usage.
 
-Images, tools, tool results, citations, refusals as content blocks, redacted thinking, server tools, structured output, multiple candidates, and non-streaming collection are not implemented across this normalized path. Fields accepted by a request wrapper are not supported cross-protocol unless an adapter and client map them explicitly.
+Image output, tools, tool results, citations, refusals as content blocks, redacted thinking, server tools, structured output, multiple candidates, and non-streaming collection are not implemented across this normalized path. Fields accepted by a request wrapper are not supported cross-protocol unless an adapter and client map them explicitly.
 
-Only text and thinking content blocks are accepted by the current Messages adapter. Other content-block variants are rejected explicitly rather than silently discarded.
+Only text, image, and thinking content blocks are accepted by the current Messages adapter. Other content-block variants are rejected explicitly rather than silently discarded.
 
 Official Anthropic thinking history requires its original signature. Molto's local Messages request schema also accepts a missing signature for compatible providers such as vLLM, whose raw-reasoning fixtures do not provide one. That permissive schema does not establish support for unsigned history against the official Anthropic API; official continuation support requires cassette coverage with Anthropic-issued signatures.
 
@@ -87,6 +87,7 @@ Request `service_tier` is not forwarded across protocols. Supporting it would re
 | --- | --- | --- |
 | `instructions` | `system` | Preserve prompt text before conversation messages. |
 | string or text-message `input` | `messages` | Preserve supported roles and ordering. |
+| `input_image` part | `image` block | Decode a base64 data URL into a `base64` source; map a remote URL to a `url` source. Reject a non-default `detail`; Anthropic has no image-fidelity control. |
 | `max_output_tokens` | `max_tokens` | Direct scalar rename. |
 | `model` | `model` | Preserve exactly. |
 | `stream` | `stream` | Preserve streaming mode. |
@@ -94,7 +95,7 @@ Request `service_tier` is not forwarded across protocols. Supporting it would re
 | `temperature` | `temperature` | Preserve when present. |
 | `top_p` | `top_p` | Preserve when present. |
 
-User text is always emitted in the target protocol's explicit content-part form: Responses `input_text` parts or Messages `text` blocks. Each normalized `UserInput` maps to exactly one native user message and each ordered `TextInput` maps to one native text part; neither boundary is merged or split.
+User text is always emitted in the target protocol's explicit content-part form: Responses `input_text` parts or Messages `text` blocks. Each normalized `UserInput` maps to exactly one native user message and each ordered `TextInput` maps to one native text part; neither boundary is merged or split. Ordered `ImageUrlInput` parts map the same way: one part becomes one Responses `input_image` part or one Messages `image` block, preserving position.
 
 The matched fixtures assume OpenAI serves both APIs and defines Responses `encrypted_content` and Messages `signature` as two protocol names for the same OpenAI-issued opaque state. Molto maps the value under that contract. This does not make an OpenAI-issued value valid against Anthropic's API; official Anthropic continuation still requires an Anthropic-issued signature.
 
@@ -104,6 +105,7 @@ The matched fixtures assume OpenAI serves both APIs and defines Responses `encry
 | --- | --- | --- |
 | `system` | leading system input | Preserve prompt text and order. |
 | text `messages` | `input` items | Preserve user and assistant turns. |
+| `image` block | `input_image` part | Encode a `base64` source as a data URL; map a remote `url` source to `image_url`. Messages has no image-fidelity field, so no `detail` is set. |
 | `max_tokens` | `max_output_tokens` | Direct scalar rename. |
 | `model` | `model` | Preserve exactly. |
 | `stream` | `stream` | Preserve streaming mode. |

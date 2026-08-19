@@ -16,6 +16,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEventAdapter,
 )
 from molto.types.normalized import (
+    ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -67,6 +68,21 @@ class AnthropicMessagesAdapter(
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
 
+    @staticmethod
+    def _normalize_user_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
+        block_type = block.get("type")
+        if block_type == "text":
+            return TextInput(content=block["text"])
+        if block_type == "image":
+            source = block.get("source") or {}
+            source_type = source.get("type")
+            if source_type == "base64":
+                return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
+            if source_type == "url":
+                return ImageUrlInput(url=source["url"])
+            raise ValueError(f"Unsupported Anthropic image source: {source_type}")
+        raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
+
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
         normalized_input: list[SystemPrompt | UserInput | Thinking | TextOutput] = []
         if isinstance(request.system, str):
@@ -81,24 +97,23 @@ class AnthropicMessagesAdapter(
             else:
                 content_blocks = [dict(block) for block in message.content]
 
-            if message.role in {"system", "user"}:
+            if message.role == "system":
                 unsupported = [
                     block.get("type") for block in content_blocks if block.get("type") != "text"
                 ]
                 if unsupported:
-                    raise ValueError(
-                        f"Unsupported Anthropic {message.role} content blocks: {unsupported}"
+                    raise ValueError(f"Unsupported Anthropic system content blocks: {unsupported}")
+                normalized_input.extend(
+                    SystemPrompt(content=block["text"]) for block in content_blocks
+                )
+                continue
+
+            if message.role == "user":
+                normalized_input.append(
+                    UserInput(
+                        content=[self._normalize_user_block(block) for block in content_blocks]
                     )
-                if message.role == "system":
-                    normalized_input.extend(
-                        SystemPrompt(content=block["text"]) for block in content_blocks
-                    )
-                else:
-                    normalized_input.append(
-                        UserInput(
-                            content=[TextInput(content=block["text"]) for block in content_blocks]
-                        )
-                    )
+                )
                 continue
 
             for block in content_blocks:
