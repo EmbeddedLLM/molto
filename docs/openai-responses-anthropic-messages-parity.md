@@ -22,7 +22,7 @@ For this guide, parity means:
 The translated path currently supports:
 
 - streaming requests;
-- string, text-message, and ordered mixed text/image user input (URL and base64 data-URL images);
+- string, text-message, and ordered mixed text/image user input (remote URL and base64 data-URL images);
 - system prompts;
 - assistant text, raw reasoning history, and reasoning-summary history;
 - model, output-token limit, temperature, and `top_p`;
@@ -105,7 +105,7 @@ The matched fixtures assume OpenAI serves both APIs and defines Responses `encry
 | --- | --- | --- |
 | `system` | leading system input | Preserve prompt text and order. |
 | text `messages` | `input` items | Preserve user and assistant turns. |
-| `image` block | `input_image` part | Encode a `base64` source as a data URL; map a `url` source to `image_url`. Messages has no image-fidelity field, so no `detail` is set. |
+| `image` block | `input_image` part | Encode a `base64` source as a data URL; map a remote `url` source to `image_url`. Messages has no image-fidelity field, so no `detail` is set. |
 | `max_tokens` | `max_output_tokens` | Direct scalar rename. |
 | `model` | `model` | Preserve exactly. |
 | `stream` | `stream` | Preserve streaming mode. |

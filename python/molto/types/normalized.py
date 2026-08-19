@@ -34,9 +34,9 @@ class TextInput(ExtraModel):
 
 
 class ImageUrlInput(ExtraModel):
-    """An image supplied by URL or data URL."""
+    """An image supplied by remote URL or data URL."""
 
-    url: Annotated[str, Field(description="The URL or data URL of the image.")]
+    url: Annotated[str, Field(description="The remote URL or data URL of the image.")]
     detail: Annotated[
         Literal["auto", "low", "high", "original"] | None,
         Field(description="The requested image fidelity, when specified."),

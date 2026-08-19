@@ -59,6 +59,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Distinguish failures introduced by the current change from pre-existing or environment-dependent failures.
 - Verify the behavior affected by the change, not merely that the code compiles.
 - Add or update regression tests when fixing a reproducible defect. For any public provider behavior with an OpenAI SDK-equivalent contract, include cassette-backed parity coverage that compares Molto against parsed OpenAI SDK responses or events; IR and provider-setting unit tests may supplement this coverage, but must not replace it.
+- Read `tests/cassettes/README.md` before recording, editing, or reviewing cassette fixtures.
 - Never run tests in cassette-recording mode. Test runs must replay them only.
 - If any of the committed cassettes are demonstrably wrong, you may update them, but you must explicitly mention the changes to the user in your final review or reply.
 - Never update uncommitted cassettes, always commit them first, and use their diff to guide your changes.
