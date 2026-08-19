@@ -1,0 +1,111 @@
+filename: 2026-08-19-01a01938-87d2-7bc3-b813-ec9a94bd6c53
+request:
+  body:
+    input:
+    - content:
+      - text: Call read_image.
+        type: input_text
+      role: user
+    max_output_tokens: 4096
+    model: gpt-5.6-luna
+    parallel_tool_calls: false
+    stream: true
+    stream_options:
+      include_obfuscation: false
+    tool_choice:
+      name: read_image
+      type: function
+    tools:
+    - description: Read an image and return it to the model.
+      name: read_image
+      parameters:
+        additionalProperties: false
+        properties: {}
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '477'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a01938-87d2-7bc3-b813-ec9a94bd6c53
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0d225d517d9e2601006a856ebac9b481988b45361d22928df8","object":"response","created_at":1787129530,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"function","name":"read_image"},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    an image and return it to the model.","name":"read_image","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0d225d517d9e2601006a856ebac9b481988b45361d22928df8","object":"response","created_at":1787129530,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"function","name":"read_image"},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    an image and return it to the model.","name":"read_image","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0d225d517d9e2601006a856ebbc6108198a794b99dd8aa224b","type":"function_call","status":"in_progress","arguments":"","call_id":"call_yhsmByMNv09krvoY057JIHNa","name":"read_image"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{}","item_id":"fc_0d225d517d9e2601006a856ebbc6108198a794b99dd8aa224b","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{}","item_id":"fc_0d225d517d9e2601006a856ebbc6108198a794b99dd8aa224b","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0d225d517d9e2601006a856ebbc6108198a794b99dd8aa224b","type":"function_call","status":"completed","arguments":"{}","call_id":"call_yhsmByMNv09krvoY057JIHNa","name":"read_image"},"output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0d225d517d9e2601006a856ebac9b481988b45361d22928df8","object":"response","created_at":1787129530,"status":"completed","background":false,"completed_at":1787129531,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"fc_0d225d517d9e2601006a856ebbc6108198a794b99dd8aa224b","type":"function_call","status":"completed","arguments":"{}","call_id":"call_yhsmByMNv09krvoY057JIHNa","name":"read_image"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"medium","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"function","name":"read_image"},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    an image and return it to the model.","name":"read_image","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":122,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":136},"user":null,"metadata":{}},"sequence_number":6}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T08:52:10.322955+00:00'

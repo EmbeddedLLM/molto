@@ -1,0 +1,104 @@
+filename: 2026-08-19-01a01937-d5eb-7943-a9dd-3621ec63d2f7
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: Call read_image.
+        type: text
+      role: user
+    model: claude-sonnet-5
+    stream: true
+    tool_choice:
+      disable_parallel_tool_use: true
+      name: read_image
+      type: tool
+    tools:
+    - description: Read an image and return it to the model.
+      input_schema:
+        additionalProperties: false
+        properties: {}
+        type: object
+      name: read_image
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '393'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a01937-d5eb-7943-a9dd-3621ec63d2f7
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-5","id":"msg_011CeBpd9Mx8amV3RGtfrR94","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":557,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":9,"service_tier":"standard","inference_geo":"global"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01JodhocjiHqkhcMzw4nAX71","name":"read_image","input":{},"caller":{"type":"direct"}}           }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0              }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":557,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":9,"output_tokens_details":{"thinking_tokens":0}}        }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"               }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T08:51:24.779806+00:00'
