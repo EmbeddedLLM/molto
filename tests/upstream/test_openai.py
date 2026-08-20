@@ -1111,22 +1111,13 @@ async def test_responses_adapter_projects_encrypted_only_reasoning_lifecycle() -
     assert done.item.encrypted_content == "final-state"
 
 
-@pytest.mark.parametrize(
-    ("capabilities", "added_type", "done_type"),
-    [
-        (VLLM_CAPABILITIES, "response.content_part.added", "response.content_part.done"),
-        (
-            OPENAI_CAPABILITIES,
-            "response.reasoning_summary_part.added",
-            "response.reasoning_summary_part.done",
-        ),
-    ],
-)
-async def test_responses_adapter_balances_empty_reasoning_part_lifecycle(
+@pytest.mark.parametrize("capabilities", [VLLM_CAPABILITIES, OPENAI_CAPABILITIES])
+async def test_responses_adapter_omits_empty_reasoning_part_lifecycle(
     capabilities: ProviderCapabilities,
-    added_type: str,
-    done_type: str,
 ) -> None:
+    # A reasoning part with no content, summary, signature, or deltas carries no
+    # projectable state, so only its item lifecycle is emitted. Native Responses
+    # reasoning items look the same unless summary or encrypted content is opted in.
     adapter = OpenAIResponsesAdapter(capabilities)
     request = adapter.normalize_request(
         OpenAIResponsesCreateRequest(input="Question", model="m", stream=True)
@@ -1144,9 +1135,19 @@ async def test_responses_adapter_balances_empty_reasoning_part_lifecycle(
         )
 
     events = [event async for event in adapter.project_events(normalized_events(), request)]
-    event_types = [event.type for event in events]
 
-    assert event_types.index(added_type) < event_types.index(done_type)
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    done = next(event for event in events if event.type == "response.output_item.done")
+    assert done.item.type == "reasoning"
+    assert done.item.content == []
+    assert done.item.summary == []
+    assert done.item.encrypted_content is None
 
 
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(

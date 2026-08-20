@@ -1,8 +1,27 @@
+from collections.abc import AsyncIterator
+
 import pytest
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
-from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.normalized import NormalizedRequest, SystemPrompt, TextInput, UserInput
+from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
+from molto.types.normalized import (
+    ModelResponseStreamEvent,
+    NormalizedRequest,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    ResponseEndEvent,
+    ResponseStartEvent,
+    SystemPrompt,
+    TextDelta,
+    TextInput,
+    TextOutput,
+    Thinking,
+    ThinkingDelta,
+    ToolCall,
+    ToolCallDelta,
+    UserInput,
+)
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -199,3 +218,361 @@ def test_responses_adapter_rejects_wrong_content_part_for_message_role():
                 "content": [{"type": "input_text", "text": "x"}],
             }
         )
+
+
+async def _stream(*events: ModelResponseStreamEvent) -> AsyncIterator[ModelResponseStreamEvent]:
+    for event in events:
+        yield event
+
+
+def _responses_adapter(capabilities: ProviderCapabilities):
+    adapter = OpenAIResponsesAdapter(capabilities)
+    request = adapter.normalize_request(
+        OpenAIResponsesCreateRequest(input="Question", model="m", stream=True)
+    )
+    return adapter, request
+
+
+def _chat_adapter(capabilities: ProviderCapabilities):
+    adapter = OpenAIChatCompletionsAdapter(capabilities)
+    request = adapter.normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
+        )
+    )
+    return adapter, request
+
+
+_RESPONSE_START = ResponseStartEvent(id="resp_123", created_at=1, model="m")
+_RESPONSE_END = ResponseEndEvent(id="resp_123", created_at=1, model="m", termination_reason="stop")
+_CHAT_START = ResponseStartEvent(id="chatcmpl_123", created_at=1, model="m")
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "part", "added_type", "done_types", "field"),
+    [
+        (
+            PROVIDER_CAPABILITIES["vllm"],
+            Thinking(content="Raw thought", summary="", signature="opaque-state"),
+            "response.content_part.added",
+            ("response.reasoning_text.done", "response.content_part.done"),
+            "content",
+        ),
+        (
+            PROVIDER_CAPABILITIES["openai"],
+            Thinking(content="", summary="Summary", signature="opaque-state"),
+            "response.reasoning_summary_part.added",
+            ("response.reasoning_summary_text.done", "response.reasoning_summary_part.done"),
+            "summary",
+        ),
+    ],
+    ids=["raw", "summary"],
+)
+async def test_responses_projection_completes_thinking_text_arriving_without_deltas(
+    capabilities: ProviderCapabilities,
+    part: Thinking,
+    added_type: str,
+    done_types: tuple[str, str],
+    field: str,
+) -> None:
+    adapter, request = _responses_adapter(capabilities)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                PartEndEvent(index=0, part=part),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        added_type,
+        *done_types,
+        "response.output_item.done",
+        "response.completed",
+    ]
+    done = next(event for event in events if event.type == "response.output_item.done")
+    text = part.content or part.summary
+    assert [part.text for part in getattr(done.item, field)] == [text]
+    assert done.item.encrypted_content == "opaque-state"
+
+
+async def test_responses_projection_rejects_mixed_thinking_delta_representations() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="cannot contain both raw reasoning"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _RESPONSE_START,
+                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                    PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="raw")),
+                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="summary")),
+                ),
+                request,
+            )
+        ]
+
+
+async def test_responses_projection_rejects_thinking_part_with_content_and_summary() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="cannot contain both raw reasoning"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _RESPONSE_START,
+                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                    PartEndEvent(index=0, part=Thinking(content="raw", summary="summary")),
+                ),
+                request,
+            )
+        ]
+
+
+async def test_responses_projection_signature_only_delta_defers_to_completed_item() -> None:
+    # Responses has no mid-stream signature event, so a signature-only delta emits
+    # nothing and does not register a text representation; the completed item
+    # carries the final snapshot.
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(
+                    index=0, part=Thinking(content="", summary="", signature="initial")
+                ),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final")),
+                PartEndEvent(
+                    index=0, part=Thinking(content="", summary="Summary", signature="final")
+                ),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.reasoning_summary_part.added",
+        "response.reasoning_summary_text.done",
+        "response.reasoning_summary_part.done",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    added = next(event for event in events if event.type == "response.output_item.added")
+    done = next(event for event in events if event.type == "response.output_item.done")
+    assert added.item.encrypted_content == "initial"
+    assert [part.text for part in done.item.summary] == ["Summary"]
+    assert done.item.encrypted_content == "final"
+
+
+@pytest.mark.parametrize(
+    ("delta", "message"),
+    [
+        (ToolCallDelta(tool_name_delta="Extra"), "cannot update a function name"),
+        (ToolCallDelta(tool_call_id="call_new"), "cannot update a call ID"),
+    ],
+)
+async def test_responses_projection_rejects_tool_identity_updates(
+    delta: ToolCallDelta, message: str
+) -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match=message):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _RESPONSE_START,
+                    PartStartEvent(
+                        index=0,
+                        part=ToolCall(tool_name="First", args="", tool_call_id="call_one"),
+                    ),
+                    PartDeltaEvent(index=0, delta=delta),
+                ),
+                request,
+            )
+        ]
+
+
+async def test_responses_projection_rejects_delta_before_part_start() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="delta before its output item started"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _RESPONSE_START,
+                    PartDeltaEvent(index=0, delta=TextDelta(content_delta="text")),
+                ),
+                request,
+            )
+        ]
+
+
+@pytest.mark.parametrize(
+    ("part", "expected_id"),
+    [
+        (Thinking(content="", summary="", id="rs_custom"), "rs_custom"),
+        (TextOutput(content="", id="msg_custom"), "msg_custom"),
+        (
+            ToolCall(tool_name="First", args="", tool_call_id="call_one", id="fc_custom"),
+            "fc_custom",
+        ),
+    ],
+)
+async def test_responses_projection_preserves_native_part_ids(
+    part: Thinking | TextOutput | ToolCall, expected_id: str
+) -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(_RESPONSE_START, PartStartEvent(index=0, part=part)),
+            request,
+        )
+    ]
+
+    added = next(event for event in events if event.type == "response.output_item.added")
+    assert added.item.id == expected_id
+
+
+@pytest.mark.parametrize(
+    ("part", "prefix"),
+    [
+        (Thinking(content="", summary=""), ""),
+        (TextOutput(content=""), "msg_"),
+        (ToolCall(tool_name="First", args="", tool_call_id="call_one"), "fc_"),
+    ],
+)
+async def test_responses_projection_generates_prefixed_item_ids(
+    part: Thinking | TextOutput | ToolCall, prefix: str
+) -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(_RESPONSE_START, PartStartEvent(index=0, part=part)),
+            request,
+        )
+    ]
+
+    added = next(event for event in events if event.type == "response.output_item.added")
+    assert added.item.id is not None
+    assert added.item.id.startswith(prefix)
+    assert len(added.item.id) == len(prefix) + 32
+
+
+@pytest.mark.parametrize(
+    ("part", "expected_delta"),
+    [
+        (
+            Thinking(content="", summary=""),
+            {"role": "assistant", "content": None, "reasoning_content": ""},
+        ),
+        (TextOutput(content=""), {"role": "assistant", "content": "", "refusal": None}),
+        (
+            ToolCall(tool_name="First", args="{}", tool_call_id="call_one"),
+            {"role": "assistant", "content": None, "refusal": None},
+        ),
+    ],
+)
+async def test_chat_projection_initial_chunk_matches_first_part(
+    part: Thinking | TextOutput | ToolCall, expected_delta: dict
+) -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(_CHAT_START, PartStartEvent(index=0, part=part)),
+            request,
+        )
+    ]
+
+    assert events[0].choices[0].delta.model_dump(exclude_unset=True) == expected_delta
+
+
+async def test_chat_projection_skips_empty_thinking_delta() -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _CHAT_START,
+                PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                PartDeltaEvent(index=0, delta=ThinkingDelta()),
+            ),
+            request,
+        )
+    ]
+
+    assert [event.choices[0].delta.model_dump(exclude_unset=True) for event in events] == [
+        {"role": "assistant", "content": None, "reasoning_content": ""}
+    ]
+
+
+async def test_chat_projection_applies_tool_identity_deltas() -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _CHAT_START,
+                PartStartEvent(
+                    index=0,
+                    part=ToolCall(tool_name="First", args="", tool_call_id="call_one"),
+                ),
+                PartDeltaEvent(
+                    index=0,
+                    delta=ToolCallDelta(
+                        tool_name_delta="Extra", tool_call_id="call_two", args_delta="{}"
+                    ),
+                ),
+            ),
+            request,
+        )
+    ]
+
+    tool_call = events[-1].choices[0].delta.tool_calls[0]
+    assert tool_call.model_dump(exclude_unset=True) == {
+        "index": 0,
+        "id": "call_two",
+        "function": {"name": "Extra", "arguments": "{}"},
+    }
+
+
+async def test_chat_projection_rejects_tool_delta_before_call_start() -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="tool delta before its call started"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _CHAT_START,
+                    PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta="{}")),
+                ),
+                request,
+            )
+        ]

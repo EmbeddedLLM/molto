@@ -69,6 +69,32 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     )
 
 
+def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
+    if tool.get("type") not in {None, "custom"}:
+        raise ValueError(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
+    unsupported_fields = {
+        field
+        for field in (
+            "allowed_callers",
+            "cache_control",
+            "defer_loading",
+            "eager_input_streaming",
+            "input_examples",
+        )
+        if tool.get(field) not in (None, False, [])
+    }
+    if unsupported_fields:
+        raise ValueError(
+            f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
+        )
+    return FunctionTool(
+        name=tool["name"],
+        description=tool.get("description"),
+        parameters=tool["input_schema"],
+        strict=tool.get("strict", False),
+    )
+
+
 class AnthropicMessagesAdapter(
     BaseAdapter[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
 ):
@@ -89,6 +115,91 @@ class AnthropicMessagesAdapter(
             raise ValueError(f"Unsupported Anthropic image source: {source_type}")
         raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
 
+    @staticmethod
+    def _normalize_system_blocks(content_blocks: list[dict[str, Any]]) -> list[SystemPrompt]:
+        unsupported = [
+            block.get("type") for block in content_blocks if block.get("type") != "text"
+        ]
+        if unsupported:
+            raise ValueError(f"Unsupported Anthropic system content blocks: {unsupported}")
+        return [SystemPrompt(content=block["text"]) for block in content_blocks]
+
+    def _normalize_user_blocks(
+        self, content_blocks: list[dict[str, Any]]
+    ) -> list[UserInput | ToolReturn]:
+        items: list[UserInput | ToolReturn] = []
+        user_parts: list[TextInput | ImageUrlInput] = []
+        for block in content_blocks:
+            block_type = block.get("type")
+            if block_type in {"text", "image"}:
+                user_parts.append(self._normalize_user_block(block))
+                continue
+            if block_type != "tool_result":
+                raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
+            if user_parts:
+                raise ValueError("Anthropic tool results must precede user content in a message.")
+            items.append(self._normalize_tool_result(block))
+        if user_parts:
+            items.append(UserInput(content=user_parts))
+        return items
+
+    @staticmethod
+    def _normalize_tool_result(block: dict[str, Any]) -> ToolReturn:
+        content = block.get("content", "")
+        if isinstance(content, str):
+            normalized_content = [TextInput(content=content)]
+        else:
+            parts = list(content)
+            unsupported = [
+                part.get("type")
+                for part in parts
+                if not isinstance(part, dict) or part.get("type") != "text"
+            ]
+            if unsupported:
+                raise ValueError(
+                    f"Unsupported Anthropic tool result content blocks: {unsupported}"
+                )
+            normalized_content = [TextInput(content=part["text"]) for part in parts]
+        return ToolReturn(
+            content=normalized_content,
+            tool_call_id=block["tool_use_id"],
+            outcome="failed" if block.get("is_error") else "success",
+        )
+
+    def _normalize_assistant_blocks(
+        self, content_blocks: list[dict[str, Any]]
+    ) -> list[Thinking | TextOutput | ToolCall]:
+        items: list[Thinking | TextOutput | ToolCall] = []
+        for block in content_blocks:
+            block_type = block.get("type")
+            if block_type == "thinking":
+                items.append(
+                    self._classify_thinking(block["thinking"], signature=block.get("signature"))
+                )
+            elif block_type == "text":
+                items.append(TextOutput(content=block["text"]))
+            elif block_type == "tool_use":
+                caller = block.get("caller")
+                caller_type = (
+                    caller.get("type")
+                    if isinstance(caller, dict)
+                    else getattr(caller, "type", None)
+                )
+                if caller is not None and caller_type != "direct":
+                    raise ValueError(
+                        "Only directly invoked Anthropic tool uses can be translated."
+                    )
+                items.append(
+                    ToolCall(
+                        tool_name=block["name"],
+                        args=json_dumps(block["input"]),
+                        tool_call_id=block["id"],
+                    )
+                )
+            else:
+                raise ValueError(f"Unsupported Anthropic assistant content block: {block_type}")
+        return items
+
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
@@ -106,103 +217,11 @@ class AnthropicMessagesAdapter(
                 content_blocks = [dict(block) for block in message.content]
 
             if message.role == "system":
-                unsupported = [
-                    block.get("type") for block in content_blocks if block.get("type") != "text"
-                ]
-                if unsupported:
-                    raise ValueError(
-                        f"Unsupported Anthropic {message.role} content blocks: {unsupported}"
-                    )
-                normalized_input.extend(
-                    SystemPrompt(content=block["text"]) for block in content_blocks
-                )
-                continue
-
-            if message.role == "user":
-                user_parts: list[TextInput | ImageUrlInput] = []
-                for block in content_blocks:
-                    block_type = block.get("type")
-                    if block_type in {"text", "image"}:
-                        user_parts.append(self._normalize_user_block(block))
-                        continue
-                    if block_type != "tool_result":
-                        raise ValueError(
-                            f"Unsupported Anthropic {message.role} content block: {block_type}"
-                        )
-                    if user_parts:
-                        raise ValueError(
-                            "Anthropic tool results must precede user content in a message."
-                        )
-
-                    tool_call_id = block["tool_use_id"]
-                    content = block.get("content", "")
-                    if isinstance(content, str):
-                        normalized_content = [TextInput(content=content)]
-                    else:
-                        content = list(content)
-                        unsupported = [
-                            part.get("type")
-                            for part in content
-                            if not isinstance(part, dict) or part.get("type") != "text"
-                        ]
-                        if unsupported:
-                            raise ValueError(
-                                f"Unsupported Anthropic tool result content blocks: {unsupported}"
-                            )
-                        normalized_content = [TextInput(content=part["text"]) for part in content]
-                    normalized_input.append(
-                        ToolReturn(
-                            content=normalized_content,
-                            tool_call_id=tool_call_id,
-                            outcome="failed" if block.get("is_error") else "success",
-                        )
-                    )
-                if user_parts:
-                    normalized_input.append(UserInput(content=user_parts))
-                continue
-
-            for block in content_blocks:
-                block_type = block.get("type")
-                if block_type == "thinking":
-                    normalized_input.append(
-                        Thinking(
-                            content=(
-                                block["thinking"] if self._capabilities.thinking == "raw" else ""
-                            ),
-                            summary=(
-                                block["thinking"]
-                                if self._capabilities.thinking == "summary"
-                                else ""
-                            ),
-                            signature=block.get("signature"),
-                        )
-                    )
-                elif block_type == "text":
-                    normalized_input.append(TextOutput(content=block["text"]))
-                elif block_type == "tool_use":
-                    caller = block.get("caller")
-                    caller_type = (
-                        caller.get("type")
-                        if isinstance(caller, dict)
-                        else getattr(caller, "type", None)
-                    )
-                    if caller is not None and caller_type != "direct":
-                        raise ValueError(
-                            "Only directly invoked Anthropic tool uses can be translated."
-                        )
-                    tool_call_id = block["id"]
-                    tool_name = block["name"]
-                    normalized_input.append(
-                        ToolCall(
-                            tool_name=tool_name,
-                            args=json_dumps(block["input"]),
-                            tool_call_id=tool_call_id,
-                        )
-                    )
-                else:
-                    raise ValueError(
-                        f"Unsupported Anthropic {message.role} content block: {block_type}"
-                    )
+                normalized_input.extend(self._normalize_system_blocks(content_blocks))
+            elif message.role == "user":
+                normalized_input.extend(self._normalize_user_blocks(content_blocks))
+            else:
+                normalized_input.extend(self._normalize_assistant_blocks(content_blocks))
 
         data: dict[str, Any] = {
             "input": normalized_input,
@@ -212,34 +231,7 @@ class AnthropicMessagesAdapter(
             "stream_options": StreamOptions(include_obfuscation=False),
         }
         if request.tools is not None:
-            normalized_tools: list[FunctionTool] = []
-            for tool in request.tools:
-                if tool.get("type") not in {None, "custom"}:
-                    raise ValueError(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
-                unsupported_fields = {
-                    field
-                    for field in (
-                        "allowed_callers",
-                        "cache_control",
-                        "defer_loading",
-                        "eager_input_streaming",
-                        "input_examples",
-                    )
-                    if tool.get(field) not in (None, False, [])
-                }
-                if unsupported_fields:
-                    raise ValueError(
-                        f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
-                    )
-                normalized_tools.append(
-                    FunctionTool(
-                        name=tool["name"],
-                        description=tool.get("description"),
-                        parameters=tool["input_schema"],
-                        strict=tool.get("strict", False),
-                    )
-                )
-            data["tools"] = normalized_tools
+            data["tools"] = [_normalize_tool(tool) for tool in request.tools]
         if request.tool_choice is not None:
             choice_type = request.tool_choice["type"]
             if choice_type == "auto":
@@ -356,11 +348,7 @@ class AnthropicMessagesAdapter(
                     )
             elif isinstance(normalized_event, PartDeltaEvent):
                 if isinstance(normalized_event.delta, ThinkingDelta):
-                    reasoning_delta = (
-                        normalized_event.delta.content_delta
-                        if normalized_event.delta.content_delta is not None
-                        else normalized_event.delta.summary_delta
-                    )
+                    reasoning_delta = self._thinking_delta_text(normalized_event.delta)
                     if reasoning_delta is not None:
                         yield event(
                             {
