@@ -394,6 +394,43 @@ async def test_responses_projection_preserves_streamed_reasoning(
     assert done.item.encrypted_content == completed.signature
 
 
+async def test_responses_projection_preserves_signature_only_reasoning_snapshots() -> None:
+    adapter, request = _responses_adapter(PROVIDER_CAPABILITIES["openai"])
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(
+                    index=0,
+                    part=Thinking(content="", summary="", signature="initial-signature"),
+                ),
+                PartEndEvent(
+                    index=0,
+                    part=Thinking(content="", summary="", signature="final-signature"),
+                ),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    added = next(event for event in events if event.type == "response.output_item.added")
+    done = next(event for event in events if event.type == "response.output_item.done")
+    assert added.item.content == added.item.summary == []
+    assert added.item.encrypted_content == "initial-signature"
+    assert done.item.content == done.item.summary == []
+    assert done.item.encrypted_content == "final-signature"
+
+
 @pytest.mark.parametrize(
     "deltas",
     [
