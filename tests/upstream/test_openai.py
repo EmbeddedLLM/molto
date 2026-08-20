@@ -1030,6 +1030,197 @@ async def test_responses_events_normalize_explicit_reasoning_summary(
     ]
 
 
+async def test_responses_events_omit_completely_empty_reasoning_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A reasoning item with no content, summary, signature, or deltas carries
+    # nothing to translate, so its part lifecycle is omitted from the IR.
+    reasoning_item = {
+        "id": "rs_123",
+        "type": "reasoning",
+        "content": [],
+        "summary": [],
+    }
+    native_events = [
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": reasoning_item,
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": reasoning_item,
+                "output_index": 0,
+                "sequence_number": 1,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "msg_123",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "in_progress",
+                    "content": [],
+                },
+                "output_index": 1,
+                "sequence_number": 2,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "msg_123",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "",
+                            "annotations": [],
+                            "logprobs": [],
+                        }
+                    ],
+                },
+                "output_index": 1,
+                "sequence_number": 3,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    # The empty reasoning part is omitted; the empty message part is still reported.
+    assert events == [
+        PartStartEvent(index=1, part=TextOutput(content="", id="msg_123")),
+        PartEndEvent(index=1, part=TextOutput(content="", id="msg_123")),
+    ]
+
+
+async def test_responses_events_preserve_encrypted_only_reasoning_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An encrypted reasoning item without text deltas still carries opaque state.
+    native_events = [
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [],
+                    "summary": [],
+                    "encrypted_content": "initial-state",
+                },
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [],
+                    "summary": [],
+                    "encrypted_content": "final-state",
+                },
+                "output_index": 0,
+                "sequence_number": 1,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        PartStartEvent(
+            index=0,
+            part=Thinking(content="", summary="", id="rs_123", signature="initial-state"),
+        ),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final-state")),
+        PartEndEvent(
+            index=0,
+            part=Thinking(content="", summary="", id="rs_123", signature="final-state"),
+        ),
+    ]
+
+
+async def test_responses_events_complete_reasoning_part_without_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A reasoning item whose text only appears in the completed item still gets a
+    # balanced part lifecycle: the deferred start is flushed at completion.
+    native_events = [
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {"id": "rs_123", "type": "reasoning", "content": [], "summary": []},
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [{"type": "reasoning_text", "text": "Done-only thought"}],
+                    "summary": [],
+                },
+                "output_index": 0,
+                "sequence_number": 1,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
+        PartEndEvent(
+            index=0,
+            part=Thinking(content="Done-only thought", summary="", id="rs_123"),
+        ),
+    ]
+
+
 async def test_responses_adapter_projects_reasoning_summary_lifecycle() -> None:
     adapter = OpenAIResponsesAdapter(OPENAI_CAPABILITIES)
     request = adapter.normalize_request(
@@ -1667,6 +1858,73 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
             },
         ),
     ]
+
+
+async def test_chat_completions_events_omit_empty_reasoning_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Empty `reasoning_content` chunks carry nothing: no thinking part starts.
+    native_chunks = [
+        _chat_chunk(
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": None, "reasoning_content": ""},
+                }
+            ]
+        ),
+        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": ""}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}]),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for chunk in native_chunks:
+            yield chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        ResponseStartEvent(
+            id="chatcmpl_123", created_at=2, model="reasoning-model", service_tier="default"
+        ),
+        ResponseEndEvent(
+            id="chatcmpl_123",
+            created_at=2,
+            model="reasoning-model",
+            service_tier="default",
+            termination_reason="stop",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("reasoning_delta", ["", "Late thought"])
+async def test_chat_completions_events_reject_reasoning_after_text(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_delta: str,
+) -> None:
+    native_chunks = [
+        _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"content": "Answer"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": reasoning_delta}}]),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIChatCompletionsCreateRequest,
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        for chunk in native_chunks:
+            yield chunk
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+
+        with pytest.raises(ValueError, match="reasoning after text"):
+            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
 
 
 async def test_chat_completions_events_reject_empty_native_stream(

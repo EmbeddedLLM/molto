@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from anthropic import AsyncAnthropic, AsyncStream
@@ -104,6 +105,89 @@ def _thinking_budget(effort: ReasoningEffort) -> int:
     if effort == "max":
         return ANTHROPIC_THINKING_BUDGET_MAP["xhigh"]
     return ANTHROPIC_THINKING_BUDGET_MAP[effort or True]
+
+
+@dataclass
+class _PartState:
+    """Accumulated wire state for one streamed Anthropic content block."""
+
+    part: Thinking | TextOutput | ToolCall
+    content: str = ""
+    signature: str = ""
+
+
+def _tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
+    if request.tools is None:
+        return None
+    tools: list[dict[str, Any]] = []
+    for tool in request.tools:
+        native_tool: dict[str, Any] = {
+            "name": tool.name,
+            "input_schema": tool.parameters,
+        }
+        if tool.description is not None:
+            native_tool["description"] = tool.description
+        if tool.strict:
+            native_tool["strict"] = True
+        tools.append(native_tool)
+    return tools
+
+
+def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
+    has_tools = bool(request.tools)
+    if not has_tools and (
+        request.tool_choice == "required" or isinstance(request.tool_choice, FunctionToolChoice)
+    ):
+        raise ValueError("A required Anthropic tool choice needs at least one tool.")
+    if request.tool_choice is not None and has_tools:
+        if request.tool_choice == "auto":
+            tool_choice: dict[str, Any] = {"type": "auto"}
+        elif request.tool_choice == "none":
+            tool_choice = {"type": "none"}
+        elif request.tool_choice == "required":
+            tool_choice = {"type": "any"}
+        elif isinstance(request.tool_choice, FunctionToolChoice):
+            tool_choice = {"type": "tool", "name": request.tool_choice.name}
+        else:
+            raise ValueError(f"Unsupported tool choice: {request.tool_choice!r}.")
+    elif request.parallel_tool_calls is not None and has_tools:
+        # Parallel-call control rides on an explicit auto choice.
+        tool_choice = {"type": "auto"}
+    else:
+        return None
+    # Messages cannot encode parallel-call control when tool use is disabled.
+    if request.parallel_tool_calls is not None and tool_choice["type"] != "none":
+        tool_choice["disable_parallel_tool_use"] = not request.parallel_tool_calls
+    return tool_choice
+
+
+def _thinking_configuration(request: NormalizedRequest, *, has_thinking: bool) -> dict[str, Any]:
+    """Build the thinking-related request body fields for the target model."""
+    effort = request.reasoning.effort if request.reasoning is not None else None
+    if effort == "none":
+        return {"thinking": {"type": "disabled"}}
+    if not has_thinking and request.reasoning is None:
+        return {}
+    adaptive, supports_xhigh = _model_thinking_capabilities(request.model or "")
+    if adaptive:
+        return {
+            "thinking": {"type": "adaptive", "display": "summarized"},
+            "output_config": {"effort": _anthropic_effort(effort, supports_xhigh=supports_xhigh)},
+        }
+    budget_tokens = _thinking_budget(effort)
+    max_tokens = request.max_output_tokens
+    if max_tokens is None or budget_tokens >= max_tokens:
+        raise ValueError(
+            "Anthropic extended-thinking budget "
+            f"{budget_tokens} must be less than max_output_tokens {max_tokens}."
+        )
+    return {
+        "thinking": {
+            "type": "enabled",
+            "budget_tokens": budget_tokens,
+            "display": "summarized",
+        }
+    }
 
 
 def _image_block(part: ImageUrlInput) -> dict[str, Any]:
@@ -241,68 +325,13 @@ class AnthropicMessagesClient(
         }
         if system is not None:
             body["system"] = system
-        if request.tools is not None:
-            tools: list[dict[str, Any]] = []
-            for tool in request.tools:
-                native_tool: dict[str, Any] = {
-                    "name": tool.name,
-                    "input_schema": tool.parameters,
-                }
-                if tool.description is not None:
-                    native_tool["description"] = tool.description
-                if tool.strict:
-                    native_tool["strict"] = True
-                tools.append(native_tool)
+        tools = _tools(request)
+        if tools is not None:
             body["tools"] = tools
-        has_tools = bool(request.tools)
-        if not has_tools and (
-            request.tool_choice == "required"
-            or isinstance(request.tool_choice, FunctionToolChoice)
-        ):
-            raise ValueError("A required Anthropic tool choice needs at least one tool.")
-        if request.tool_choice is not None and has_tools:
-            if request.tool_choice == "auto":
-                tool_choice: dict[str, Any] = {"type": "auto"}
-            elif request.tool_choice == "none":
-                tool_choice = {"type": "none"}
-            elif request.tool_choice == "required":
-                tool_choice = {"type": "any"}
-            elif isinstance(request.tool_choice, FunctionToolChoice):
-                tool_choice = {"type": "tool", "name": request.tool_choice.name}
-            else:
-                raise ValueError(f"Unsupported tool choice: {request.tool_choice!r}.")
-        elif request.parallel_tool_calls is not None and has_tools:
-            tool_choice = {"type": "auto"}
-        else:
-            tool_choice = None
-        if request.parallel_tool_calls is not None and tool_choice is not None:
-            if tool_choice["type"] != "none":
-                tool_choice["disable_parallel_tool_use"] = not request.parallel_tool_calls
+        tool_choice = _tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
-        effort = request.reasoning.effort if request.reasoning is not None else None
-        if effort == "none":
-            body["thinking"] = {"type": "disabled"}
-        elif has_thinking or request.reasoning is not None:
-            adaptive, supports_xhigh = _model_thinking_capabilities(request.model or "")
-            if adaptive:
-                body["thinking"] = {"type": "adaptive", "display": "summarized"}
-                body["output_config"] = {
-                    "effort": _anthropic_effort(effort, supports_xhigh=supports_xhigh)
-                }
-            else:
-                budget_tokens = _thinking_budget(effort)
-                max_tokens = request.max_output_tokens
-                if max_tokens is None or budget_tokens >= max_tokens:
-                    raise ValueError(
-                        "Anthropic extended-thinking budget "
-                        f"{budget_tokens} must be less than max_output_tokens {max_tokens}."
-                    )
-                body["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": budget_tokens,
-                    "display": "summarized",
-                }
+        body.update(_thinking_configuration(request, has_thinking=has_thinking))
         if request.temperature is not None:
             body["temperature"] = request.temperature
         if request.top_p is not None:
@@ -317,7 +346,17 @@ class AnthropicMessagesClient(
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         stop_sequence: str | None = None
-        parts: dict[int, tuple[Thinking | TextOutput | ToolCall, str, str]] = {}
+        parts: dict[int, _PartState] = {}
+        # Thinking block starts are deferred until content arrives: a thinking
+        # block with no text, signature, or deltas carries nothing to translate,
+        # so its part lifecycle is omitted from the IR entirely.
+        pending_thinking: set[int] = set()
+
+        def pop_thinking_start(index: int) -> PartStartEvent | None:
+            if index not in pending_thinking:
+                return None
+            pending_thinking.discard(index)
+            return PartStartEvent(index=index, part=parts[index].part)
 
         native_request = AnthropicMessagesCreateRequest.model_validate(self._request_body(request))
         async for event in self.native_events(native_request):
@@ -335,12 +374,8 @@ class AnthropicMessagesClient(
             elif isinstance(event, RawContentBlockStartEvent):
                 block = event.content_block
                 if block.type == "thinking":
-                    part = Thinking(
-                        content=(block.thinking if self._capabilities.thinking == "raw" else ""),
-                        summary=(
-                            block.thinking if self._capabilities.thinking == "summary" else ""
-                        ),
-                        signature=block.signature,
+                    part: Thinking | TextOutput | ToolCall = self._classify_thinking(
+                        block.thinking, signature=block.signature
                     )
                 elif block.type == "text":
                     part = TextOutput(content=block.text)
@@ -349,76 +384,51 @@ class AnthropicMessagesClient(
                         raise ValueError(
                             "Only directly invoked Anthropic tool uses can be translated."
                         )
-                    args = "" if not block.input else json_dumps(block.input)
                     part = ToolCall(
                         tool_name=block.name,
-                        args=args,
+                        args="" if not block.input else json_dumps(block.input),
                         tool_call_id=block.id,
                     )
                 else:
                     raise ValueError(f"Unsupported Anthropic output block: {block.type}")
-                signature = (part.signature or "") if isinstance(part, Thinking) else ""
-                if isinstance(part, ToolCall):
-                    content = part.args or ""
-                elif isinstance(part, Thinking):
-                    content = (
-                        part.content if self._capabilities.thinking == "raw" else part.summary
-                    )
+                if isinstance(part, Thinking):
+                    parts[event.index] = _PartState(part, block.thinking, part.signature or "")
+                    pending_thinking.add(event.index)
                 else:
-                    content = part.content
-                parts[event.index] = (part, content, signature)
-                yield PartStartEvent(index=event.index, part=part)
+                    parts[event.index] = _PartState(
+                        part, part.content if isinstance(part, TextOutput) else part.args
+                    )
+                    yield PartStartEvent(index=event.index, part=part)
             elif isinstance(event, RawContentBlockDeltaEvent):
                 delta = event.delta
-                part_state = parts.get(event.index)
-                part = part_state[0] if part_state is not None else None
+                state = parts.get(event.index)
+                part = state.part if state is not None else None
                 if delta.type == "thinking_delta" and isinstance(part, Thinking):
-                    parts[event.index] = (
-                        part,
-                        part_state[1] + delta.thinking,
-                        part_state[2],
-                    )
+                    if (start := pop_thinking_start(event.index)) is not None:
+                        yield start
+                    state.content += delta.thinking
                     yield PartDeltaEvent(
                         index=event.index,
-                        delta=ThinkingDelta(
-                            content_delta=(
-                                delta.thinking if self._capabilities.thinking == "raw" else None
-                            ),
-                            summary_delta=(
-                                delta.thinking
-                                if self._capabilities.thinking == "summary"
-                                else None
-                            ),
-                        ),
+                        delta=self._classify_thinking_delta(delta.thinking),
                     )
                 elif delta.type == "signature_delta" and isinstance(part, Thinking):
-                    parts[event.index] = (
-                        part,
-                        part_state[1],
-                        # Anthropic defines signature_delta as the complete replacement
-                        # signature for the block, not an append-only fragment.
-                        delta.signature,
-                    )
+                    if (start := pop_thinking_start(event.index)) is not None:
+                        yield start
+                    # Anthropic defines signature_delta as the complete replacement
+                    # signature for the block, not an append-only fragment.
+                    state.signature = delta.signature
                     yield PartDeltaEvent(
                         index=event.index,
                         delta=ThinkingDelta(signature_delta=delta.signature),
                     )
                 elif delta.type == "text_delta" and isinstance(part, TextOutput):
-                    parts[event.index] = (
-                        part,
-                        part_state[1] + delta.text,
-                        part_state[2],
-                    )
+                    state.content += delta.text
                     yield PartDeltaEvent(
                         index=event.index,
                         delta=TextDelta(content_delta=delta.text),
                     )
                 elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
-                    parts[event.index] = (
-                        part,
-                        part_state[1] + delta.partial_json,
-                        part_state[2],
-                    )
+                    state.content += delta.partial_json
                     yield PartDeltaEvent(
                         index=event.index,
                         delta=ToolCallDelta(args_delta=delta.partial_json),
@@ -426,24 +436,26 @@ class AnthropicMessagesClient(
                 else:
                     raise ValueError(f"Unsupported Anthropic output delta: {delta.type}")
             elif isinstance(event, RawContentBlockStopEvent):
-                part_state = parts.get(event.index)
-                if part_state is None:
+                state = parts.get(event.index)
+                if state is None:
                     raise ValueError("Received an Anthropic block stop before its start.")
-                part, content, signature = part_state
+                if (start := pop_thinking_start(event.index)) is not None:
+                    if not state.content and not state.signature:
+                        continue
+                    yield start
+                part = state.part
                 if isinstance(part, Thinking):
-                    completed_part: Thinking | TextOutput | ToolCall = Thinking(
-                        content=content if self._capabilities.thinking == "raw" else "",
-                        summary=content if self._capabilities.thinking == "summary" else "",
-                        signature=signature,
+                    completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
+                        state.content, signature=state.signature
                     )
                 elif isinstance(part, ToolCall):
                     completed_part = ToolCall(
                         tool_name=part.tool_name,
-                        args=content,
+                        args=state.content,
                         tool_call_id=part.tool_call_id,
                     )
                 else:
-                    completed_part = TextOutput(content=content)
+                    completed_part = TextOutput(content=state.content)
                 yield PartEndEvent(index=event.index, part=completed_part)
             elif isinstance(event, RawMessageDeltaEvent):
                 if event.delta.stop_reason is not None:

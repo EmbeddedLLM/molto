@@ -24,6 +24,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     TerminationReason,
+    TextDelta,
     TextInput,
     TextOutput,
     Thinking,
@@ -260,6 +261,171 @@ async def test_client_maps_streamed_signatures_to_ir(
     assert signature_delta.delta.signature_delta == "replacement-state"
     assert isinstance(part_end.part, Thinking)
     assert part_end.part == thinking
+
+
+_MESSAGE_START = {
+    "type": "message_start",
+    "message": {
+        "id": "msg_123",
+        "type": "message",
+        "role": "assistant",
+        "content": [],
+        "model": "model",
+        "stop_reason": None,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 1, "output_tokens": 0},
+    },
+}
+_MESSAGE_END_EVENTS = [
+    {
+        "type": "message_delta",
+        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+        "usage": {"output_tokens": 1},
+    },
+    {"type": "message_stop"},
+]
+
+
+async def _collect_client_events(
+    monkeypatch: pytest.MonkeyPatch,
+    native_events: list[dict],
+) -> list:
+    async def stub_native_events(
+        native_request: AnthropicMessagesCreateRequest,
+    ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
+        for event in native_events:
+            yield AnthropicMessagesStreamEventAdapter.validate_python(event)
+
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        return [
+            event
+            async for event in client.events(
+                NormalizedRequest(
+                    input=[UserInput(content=[TextInput(content="Hello")])],
+                    max_output_tokens=10,
+                    model="model",
+                    stream=True,
+                )
+            )
+        ]
+
+
+async def test_client_omits_completely_empty_thinking_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A thinking block with no text, signature, or deltas carries nothing to
+    # translate, so its part lifecycle is omitted from the IR.
+    native_events = [
+        _MESSAGE_START,
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {"type": "text", "text": ""},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 1,
+            "delta": {"type": "text_delta", "text": "Hi"},
+        },
+        {"type": "content_block_stop", "index": 1},
+        *_MESSAGE_END_EVENTS,
+    ]
+
+    events = await _collect_client_events(monkeypatch, native_events)
+
+    part_events = [
+        event
+        for event in events
+        if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
+    ]
+    assert part_events == [
+        PartStartEvent(index=1, part=TextOutput(content="")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Hi")),
+        PartEndEvent(index=1, part=TextOutput(content="Hi")),
+    ]
+
+
+async def test_client_preserves_signature_only_thinking_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A thinking block without text deltas still carries its opaque signature.
+    native_events = [
+        _MESSAGE_START,
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+                "type": "thinking",
+                "thinking": "",
+                "signature": "initial-state",
+            },
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "signature_delta", "signature": "final-state"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        *_MESSAGE_END_EVENTS,
+    ]
+
+    events = await _collect_client_events(monkeypatch, native_events)
+
+    part_events = [
+        event
+        for event in events
+        if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
+    ]
+    assert part_events == [
+        PartStartEvent(index=0, part=Thinking(content="", summary="", signature="initial-state")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final-state")),
+        PartEndEvent(index=0, part=Thinking(content="", summary="", signature="final-state")),
+    ]
+
+
+async def test_client_completes_thinking_block_without_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A thinking block whose text is complete at block start still gets a
+    # balanced part lifecycle: the deferred start is flushed at block stop.
+    native_events = [
+        _MESSAGE_START,
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+                "type": "thinking",
+                "thinking": "Settled thought",
+                "signature": "sig-1",
+            },
+        },
+        {"type": "content_block_stop", "index": 0},
+        *_MESSAGE_END_EVENTS,
+    ]
+
+    events = await _collect_client_events(monkeypatch, native_events)
+
+    part_events = [
+        event
+        for event in events
+        if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
+    ]
+    assert part_events == [
+        PartStartEvent(
+            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
+        ),
+        PartEndEvent(
+            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
+        ),
+    ]
 
 
 def test_adapter_rejects_omitted_thinking_display():

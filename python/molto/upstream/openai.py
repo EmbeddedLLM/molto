@@ -1,12 +1,16 @@
+"""OpenAI Responses and Chat Completions upstream transport and normalization."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from openai import AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
+    FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
@@ -47,21 +51,22 @@ _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
 }
 
 
+def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
+    """Project one function tool definition into the shared OpenAI field shape."""
+    payload: dict[str, Any] = {
+        "name": tool.name,
+        "parameters": tool.parameters,
+        "strict": tool.strict,
+    }
+    if tool.description is not None:
+        payload["description"] = tool.description
+    return payload
+
+
 def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
     if request.tools is None:
         return None
-    tools: list[dict[str, Any]] = []
-    for tool in request.tools:
-        data: dict[str, Any] = {
-            "type": "function",
-            "name": tool.name,
-            "parameters": tool.parameters,
-            "strict": tool.strict,
-        }
-        if tool.description is not None:
-            data["description"] = tool.description
-        tools.append(data)
-    return tools
+    return [{"type": "function", **_function_tool_payload(tool)} for tool in request.tools]
 
 
 def _responses_tool_choice(request: NormalizedRequest) -> Any:
@@ -73,17 +78,9 @@ def _responses_tool_choice(request: NormalizedRequest) -> Any:
 def _chat_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
     if request.tools is None:
         return None
-    tools: list[dict[str, Any]] = []
-    for tool in request.tools:
-        function: dict[str, Any] = {
-            "name": tool.name,
-            "parameters": tool.parameters,
-            "strict": tool.strict,
-        }
-        if tool.description is not None:
-            function["description"] = tool.description
-        tools.append({"type": "function", "function": function})
-    return tools
+    return [
+        {"type": "function", "function": _function_tool_payload(tool)} for tool in request.tools
+    ]
 
 
 def _chat_tool_choice(request: NormalizedRequest) -> Any:
@@ -107,6 +104,121 @@ def _validate_responses_function_call(
         raise ValueError("Namespaced Responses function calls are not supported.")
     if item.status not in statuses:
         raise ValueError(f"Unsupported Responses function call status: {item.status!r}.")
+
+
+def _function_call_part(item: Any) -> ToolCall:
+    """Project a Responses function call item into a normalized tool call."""
+    return ToolCall(
+        id=item.id,
+        tool_call_id=item.call_id,
+        tool_name=item.name,
+        args=item.arguments,
+    )
+
+
+def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+    """Project a just-added Responses output item into an empty normalized part."""
+    if item.type == "reasoning":
+        return Thinking(
+            content="",
+            summary="",
+            id=item.id,
+            signature=item.encrypted_content,
+        )
+    if item.type == "message":
+        return TextOutput(content="", id=item.id)
+    if item.type == "function_call":
+        _validate_responses_function_call(item, statuses={None, "in_progress"})
+        return _function_call_part(item)
+    raise ValueError(f"Unsupported Responses output item: {item.type}")
+
+
+def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+    """Project a completed Responses output item into its normalized part."""
+    if item.type == "reasoning":
+        return Thinking(
+            content="".join(
+                part.text for part in item.content or [] if part.type == "reasoning_text"
+            ),
+            summary="".join(part.text for part in item.summary if part.type == "summary_text"),
+            id=item.id,
+            signature=item.encrypted_content,
+        )
+    if item.type == "message":
+        return TextOutput(
+            content="".join(part.text for part in item.content if part.type == "output_text"),
+            id=item.id,
+        )
+    if item.type == "function_call":
+        _validate_responses_function_call(item, statuses={None, "completed"})
+        return _function_call_part(item)
+    raise ValueError(f"Unsupported Responses output item: {item.type}")
+
+
+def _responses_usage(raw_usage: Any) -> Usage | None:
+    """Project Responses usage into normalized usage, preserving absent usage."""
+    if raw_usage is None:
+        return None
+    input_details = raw_usage.input_tokens_details
+    output_details = raw_usage.output_tokens_details
+    return Usage(
+        input_tokens=raw_usage.input_tokens,
+        input_tokens_details=InputTokenDetails(
+            cached_tokens=input_details.cached_tokens,
+            cache_write_tokens=input_details.cache_write_tokens,
+        ),
+        output_tokens=raw_usage.output_tokens,
+        output_tokens_details=OutputTokenDetails(reasoning_tokens=output_details.reasoning_tokens),
+        total_tokens=raw_usage.total_tokens,
+    )
+
+
+def _chat_usage(raw_usage: Any) -> Usage:
+    """Project Chat Completions usage into normalized usage."""
+    prompt_details = raw_usage.prompt_tokens_details
+    completion_details = raw_usage.completion_tokens_details
+    return Usage(
+        input_tokens=raw_usage.prompt_tokens,
+        input_tokens_details=InputTokenDetails(
+            cached_tokens=prompt_details.cached_tokens if prompt_details is not None else 0,
+            cache_write_tokens=(
+                prompt_details.cache_write_tokens if prompt_details is not None else 0
+            ),
+        ),
+        output_tokens=raw_usage.completion_tokens,
+        output_tokens_details=OutputTokenDetails(
+            reasoning_tokens=(
+                completion_details.reasoning_tokens if completion_details is not None else 0
+            ),
+        ),
+        total_tokens=raw_usage.total_tokens,
+    )
+
+
+# Lifecycle echoes that carry no content beyond the events already translated.
+_IGNORED_RESPONSES_EVENTS = frozenset(
+    {
+        "response.in_progress",
+        "response.content_part.added",
+        "response.content_part.done",
+        "response.reasoning_text.done",
+        "response.reasoning_summary_part.added",
+        "response.reasoning_summary_part.done",
+        "response.reasoning_summary_text.done",
+        "response.function_call_arguments.done",
+        "response.output_text.done",
+    }
+)
+
+
+@dataclass
+class _ChatToolCallState:
+    """Accumulated wire state for one streamed Chat Completions tool call."""
+
+    part_index: int
+    tool_call_id: str
+    tool_name: str
+    args: str
 
 
 class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent]):
@@ -244,6 +356,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        # Reasoning part starts are deferred until content arrives: a reasoning
+        # item with no content, summary, signature, or deltas carries nothing to
+        # translate, so its part lifecycle is omitted from the IR entirely.
+        pending_reasoning: dict[int, Thinking] = {}
+
         async for event in self.native_events(native_request):
             event_type = event.type
 
@@ -256,36 +373,21 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     service_tier=metadata.service_tier,
                 )
             elif event_type == "response.output_item.added":
-                item = event.item
-                if item.type == "reasoning":
-                    part = Thinking(
-                        content="",
-                        summary="",
-                        id=item.id,
-                        signature=item.encrypted_content,
-                    )
-                elif item.type == "message":
-                    part = TextOutput(content="", id=item.id)
-                elif item.type == "function_call":
-                    _validate_responses_function_call(
-                        item,
-                        statuses={None, "in_progress"},
-                    )
-                    part = ToolCall(
-                        id=item.id,
-                        tool_call_id=item.call_id,
-                        tool_name=item.name,
-                        args=item.arguments,
-                    )
+                part = _started_output_item(event.item)
+                if isinstance(part, Thinking):
+                    pending_reasoning[event.output_index] = part
                 else:
-                    raise ValueError(f"Unsupported Responses output item: {item.type}")
-                yield PartStartEvent(index=event.output_index, part=part)
+                    yield PartStartEvent(index=event.output_index, part=part)
             elif event_type == "response.reasoning_text.delta":
+                if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                    yield PartStartEvent(index=event.output_index, part=start)
                 yield PartDeltaEvent(
                     index=event.output_index,
                     delta=ThinkingDelta(content_delta=event.delta),
                 )
             elif event_type == "response.reasoning_summary_text.delta":
+                if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                    yield PartStartEvent(index=event.output_index, part=start)
                 yield PartDeltaEvent(
                     index=event.output_index,
                     delta=ThinkingDelta(summary_delta=event.delta),
@@ -301,43 +403,24 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     delta=ToolCallDelta(args_delta=event.delta),
                 )
             elif event_type == "response.output_item.done":
-                item = event.item
-                if item.type == "reasoning":
-                    content = "".join(
-                        part.text for part in item.content or [] if part.type == "reasoning_text"
-                    )
-                    summary = "".join(
-                        part.text for part in item.summary if part.type == "summary_text"
-                    )
-                    if item.encrypted_content is not None:
+                start = pending_reasoning.pop(event.output_index, None)
+                part = _completed_output_item(event.item)
+                if isinstance(part, Thinking):
+                    if (
+                        start is not None
+                        and not part.content
+                        and not part.summary
+                        and part.signature is None
+                        and start.signature is None
+                    ):
+                        continue
+                    if start is not None:
+                        yield PartStartEvent(index=event.output_index, part=start)
+                    if part.signature is not None:
                         yield PartDeltaEvent(
                             index=event.output_index,
-                            delta=ThinkingDelta(signature_delta=item.encrypted_content),
+                            delta=ThinkingDelta(signature_delta=part.signature),
                         )
-                    part = Thinking(
-                        content=content,
-                        summary=summary,
-                        id=item.id,
-                        signature=item.encrypted_content,
-                    )
-                elif item.type == "message":
-                    content = "".join(
-                        part.text for part in item.content if part.type == "output_text"
-                    )
-                    part = TextOutput(content=content, id=item.id)
-                elif item.type == "function_call":
-                    _validate_responses_function_call(
-                        item,
-                        statuses={None, "completed"},
-                    )
-                    part = ToolCall(
-                        id=item.id,
-                        tool_call_id=item.call_id,
-                        tool_name=item.name,
-                        args=item.arguments,
-                    )
-                else:
-                    raise ValueError(f"Unsupported Responses output item: {item.type}")
                 yield PartEndEvent(index=event.output_index, part=part)
             elif event_type in {"response.completed", "response.incomplete"}:
                 metadata = event.response
@@ -352,42 +435,15 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     if incomplete_details is None or incomplete_details.reason is None:
                         raise ValueError("Incomplete Responses stream omitted its reason.")
                     termination_reason = incomplete_details.reason
-                raw_usage = metadata.usage
-                usage = None
-                if raw_usage is not None:
-                    input_details = raw_usage.input_tokens_details
-                    output_details = raw_usage.output_tokens_details
-                    usage = Usage(
-                        input_tokens=raw_usage.input_tokens,
-                        input_tokens_details=InputTokenDetails(
-                            cached_tokens=input_details.cached_tokens,
-                            cache_write_tokens=input_details.cache_write_tokens,
-                        ),
-                        output_tokens=raw_usage.output_tokens,
-                        output_tokens_details=OutputTokenDetails(
-                            reasoning_tokens=output_details.reasoning_tokens
-                        ),
-                        total_tokens=raw_usage.total_tokens,
-                    )
                 yield ResponseEndEvent(
                     id=metadata.id,
                     created_at=int(metadata.created_at),
                     model=metadata.model,
                     service_tier=metadata.service_tier,
                     termination_reason=termination_reason,
-                    usage=usage,
+                    usage=_responses_usage(metadata.usage),
                 )
-            elif event_type in {
-                "response.in_progress",
-                "response.content_part.added",
-                "response.content_part.done",
-                "response.reasoning_text.done",
-                "response.reasoning_summary_part.added",
-                "response.reasoning_summary_part.done",
-                "response.reasoning_summary_text.done",
-                "response.function_call_arguments.done",
-                "response.output_text.done",
-            }:
+            elif event_type in _IGNORED_RESPONSES_EVENTS:
                 continue
             else:
                 raise ValueError(f"Unsupported Responses stream event: {event_type}")
@@ -540,34 +596,39 @@ class OpenAIChatCompletionsClient(
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
+        active_part_index = 0
         next_part_index = 0
-        tool_calls: dict[int, dict[str, Any]] = {}
+        tool_calls: dict[int, _ChatToolCallState] = {}
         # Chat has no per-call stop event. Calls are treated as contiguous, so a
         # new index closes the active call and a later return to that index is invalid.
         active_tool_call_index: int | None = None
 
+        def start_part(part: Thinking | TextOutput) -> PartStartEvent:
+            nonlocal active_part, active_part_index, next_part_index
+            active_part = "thinking" if isinstance(part, Thinking) else "text"
+            active_part_index = next_part_index
+            next_part_index += 1
+            return PartStartEvent(index=active_part_index, part=part)
+
         def end_active_part() -> PartEndEvent | None:
             nonlocal active_part
             if active_part == "thinking":
-                part = Thinking(
-                    content=thinking_text if self._capabilities.thinking == "raw" else "",
-                    summary=thinking_text if self._capabilities.thinking == "summary" else "",
-                )
+                part: Thinking | TextOutput = self._classify_thinking(thinking_text)
             elif active_part == "text":
                 part = TextOutput(content=text_content)
             else:
                 return None
             active_part = None
-            return PartEndEvent(index=next_part_index - 1, part=part)
+            return PartEndEvent(index=active_part_index, part=part)
 
         def end_tool_call(tool_call_index: int) -> PartEndEvent:
             state = tool_calls[tool_call_index]
             return PartEndEvent(
-                index=state["part_index"],
+                index=state.part_index,
                 part=ToolCall(
-                    tool_call_id=state["tool_call_id"],
-                    tool_name=state["tool_name"],
-                    args=state["args"],
+                    tool_call_id=state.tool_call_id,
+                    tool_name=state.tool_name,
+                    args=state.args,
                 ),
             )
 
@@ -587,33 +648,18 @@ class OpenAIChatCompletionsClient(
             if chunk.choices:
                 choice = chunk.choices[0]
                 reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                if reasoning_delta is not None:
+                if reasoning_delta is not None and active_part not in (None, "thinking"):
+                    raise ValueError("Received reasoning after text output started.")
+                # An empty reasoning chunk carries nothing: a thinking part only
+                # starts once actual reasoning text arrives.
+                if reasoning_delta:
                     if active_part is None:
-                        active_part = "thinking"
-                        yield PartStartEvent(
-                            index=next_part_index,
-                            part=Thinking(content="", summary=""),
-                        )
-                        next_part_index += 1
-                    elif active_part != "thinking":
-                        raise ValueError("Received reasoning after text output started.")
-                    if reasoning_delta:
-                        thinking_text += reasoning_delta
-                        yield PartDeltaEvent(
-                            index=next_part_index - 1,
-                            delta=ThinkingDelta(
-                                content_delta=(
-                                    reasoning_delta
-                                    if self._capabilities.thinking == "raw"
-                                    else None
-                                ),
-                                summary_delta=(
-                                    reasoning_delta
-                                    if self._capabilities.thinking == "summary"
-                                    else None
-                                ),
-                            ),
-                        )
+                        yield start_part(Thinking(content="", summary=""))
+                    thinking_text += reasoning_delta
+                    yield PartDeltaEvent(
+                        index=active_part_index,
+                        delta=self._classify_thinking_delta(reasoning_delta),
+                    )
 
                 if choice.delta.content is not None:
                     is_empty_role_chunk = (
@@ -625,16 +671,11 @@ class OpenAIChatCompletionsClient(
                             if ended_part is not None:
                                 yield ended_part
                         if active_part is None:
-                            active_part = "text"
-                            yield PartStartEvent(
-                                index=next_part_index,
-                                part=TextOutput(content=""),
-                            )
-                            next_part_index += 1
+                            yield start_part(TextOutput(content=""))
                         if choice.delta.content:
                             text_content += choice.delta.content
                             yield PartDeltaEvent(
-                                index=next_part_index - 1,
+                                index=active_part_index,
                                 delta=TextDelta(content_delta=choice.delta.content),
                             )
 
@@ -657,21 +698,20 @@ class OpenAIChatCompletionsClient(
                                 )
                             if active_tool_call_index is not None:
                                 yield end_tool_call(active_tool_call_index)
-                            arguments = function_delta.arguments or ""
-                            state = {
-                                "part_index": next_part_index,
-                                "tool_call_id": tool_call_delta.id,
-                                "tool_name": function_delta.name,
-                                "args": arguments,
-                            }
+                            state = _ChatToolCallState(
+                                part_index=next_part_index,
+                                tool_call_id=tool_call_delta.id,
+                                tool_name=function_delta.name,
+                                args=function_delta.arguments or "",
+                            )
                             tool_calls[tool_call_delta.index] = state
                             active_tool_call_index = tool_call_delta.index
                             yield PartStartEvent(
                                 index=next_part_index,
                                 part=ToolCall(
-                                    tool_call_id=tool_call_delta.id,
-                                    tool_name=function_delta.name,
-                                    args=arguments,
+                                    tool_call_id=state.tool_call_id,
+                                    tool_name=state.tool_name,
+                                    args=state.args,
                                 ),
                             )
                             next_part_index += 1
@@ -686,19 +726,19 @@ class OpenAIChatCompletionsClient(
                         args_delta = (
                             function_delta.arguments if function_delta is not None else None
                         )
-                        if name_delta == state["tool_name"]:
+                        if name_delta == state.tool_name:
                             name_delta = None
                         tool_call_id_delta = tool_call_delta.id
-                        if tool_call_id_delta == state["tool_call_id"]:
+                        if tool_call_id_delta == state.tool_call_id:
                             tool_call_id_delta = None
                         if name_delta is not None:
-                            state["tool_name"] += name_delta
+                            state.tool_name += name_delta
                         if args_delta is not None:
-                            state["args"] += args_delta
+                            state.args += args_delta
                         if tool_call_id_delta is not None:
-                            state["tool_call_id"] = tool_call_id_delta
+                            state.tool_call_id = tool_call_id_delta
                         yield PartDeltaEvent(
-                            index=state["part_index"],
+                            index=state.part_index,
                             delta=ToolCallDelta(
                                 tool_name_delta=name_delta,
                                 args_delta=args_delta,
@@ -722,26 +762,7 @@ class OpenAIChatCompletionsClient(
                     active_tool_call_index = None
 
             if chunk.usage is not None:
-                prompt_details = chunk.usage.prompt_tokens_details
-                completion_details = chunk.usage.completion_tokens_details
-                usage = Usage(
-                    input_tokens=chunk.usage.prompt_tokens,
-                    input_tokens_details=InputTokenDetails(
-                        cached_tokens=(prompt_details.cached_tokens or 0)
-                        if prompt_details is not None
-                        else 0,
-                        cache_write_tokens=(prompt_details.cache_write_tokens or 0)
-                        if prompt_details is not None
-                        else 0,
-                    ),
-                    output_tokens=chunk.usage.completion_tokens,
-                    output_tokens_details=OutputTokenDetails(
-                        reasoning_tokens=(completion_details.reasoning_tokens or 0)
-                        if completion_details is not None
-                        else 0,
-                    ),
-                    total_tokens=chunk.usage.total_tokens,
-                )
+                usage = _chat_usage(chunk.usage)
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
