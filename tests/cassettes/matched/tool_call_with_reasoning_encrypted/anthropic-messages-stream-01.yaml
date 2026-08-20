@@ -1,0 +1,325 @@
+filename: 2026-08-19-01a0189b-bba8-7491-b955-05d7f425cf99
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
+      role: user
+    - content:
+      - signature: gAAAAABqhUTAur9Vn21_hwAEbK-WmmiPGlkGQD75qvtH_E72BrM1uGpCPqOgQ-QlyWX7fR_LPJbK-gXxZJGJRORYzmpMR25WSuxuNqWd2ttnSVDejDMgcv2z534CC-pNdAJxdDv8QVQaweuBz4b2xRuvG7bMf7QPzGiPt5bRsXYXLg_xsMW50QBbZNaIuUyLSwxsvqDq1zO3TqmQNwWNLo4SVqqFCWEwsikiCTpL1z01VHeZbnzcvRSD4C2EN_GJvZoLLPS28RvEbmJG9UfjxLjsWN1gkGw5mEjEiOE1-NXE94ghda7i21DbKQxk4RwLG2FQe1E4gfeHqgpCfPDwL8FUP32XQRunjPIOfRb7lFFyxP5EpxRn1stjhWcmGw_L1CpcXvFrVhAG2TcbEYDZGiYfY1Lm2z58TQBrnGpVSwLQIXnV5XsWYXk4151HztGvXLuUMKfKF9-57EN27puRlOI5g7Mk5fgrybd3J-UVDW3DhCkUeQIi9YiwgrczD9uuGEpUT3mR1caUASbAQ74cU_EdNm-E6XZVrVs8wxslpztJBmV_GFlhtE7DzbrSJCsVFkdg7f2PgqvJeed_y38_-7eE6aLSS20qa-U4sTU2i0nF-h-xPyNSE3Z9e3tWnvn34rD3BxJf1vFeHLfPP-IReT35juhTmuu0jTyyw9wjQb3MuBpgExTL3RYHreu_hBJlQx1R2Cl-cQF9k-zA5JRbhWIbpDDPc7ych9YUKopMLeAjEUbGhO8-wg2nEOdvSEO0gBIHEoNtI490S0dmsU3D9B7TE01hmqpbkZMg4dxSmn5KuVrTrUlWufXA23MH7_gJYow_fXI2g3HJ_09FKnGT4puM6D5G0CJXeHqp70-zfhMQwhPx6Jqoj7EM_GIXBY-mFBT2Eq6bMERCiXwiblbFNuwqJJtfugP5s6HndBszsEkD2CzpF8VKGch07oioyVCM9E8LDP-nQoj43U1KDdVb8jKyhyoLGDk-k9JQ7cPH1xaqgplLYyQFVWhYG70J1vpj01O0DWKHoBv7Dwg7ETLnsEche9XtX2O0P54V5fpckRMCodQn0lJO4ujTbHV4uhu_v-xLCNEidRtBpViav95j3gHttyt7PrsDzhhLiNWn16ka7hnQ035mATAOS_diwPlN-Eo_3RwOyosg5FqOKKkroQIQffrdXZfySZicapA8EP578LCURrdsc1PPx25wHwQUTBh90OjVXdrwOeMb4qe9eKirvMGbBw9ctGTXMmtNRI6-4UjZqtcPOJYtrnUU4oFZRFFYSyawnw8a
+        thinking: ''
+        type: thinking
+      - text: I’ll run the requested five-second sleep now.
+        type: text
+      - id: call_kFgAajXAZ3NroMimxqGjDfni
+        input:
+          command: sleep 5
+        name: Bash
+        type: tool_use
+      role: assistant
+    - content:
+      - content:
+        - text: '<returncode>
+
+
+            0
+
+
+            </returncode>
+
+
+            <stdout>
+
+
+
+            </stdout>
+
+
+            <stderr>
+
+
+
+            </stderr>'
+          type: text
+        tool_use_id: call_kFgAajXAZ3NroMimxqGjDfni
+        type: tool_result
+      role: user
+    model: gpt-5.6-luna
+    output_config:
+      effort: high
+    stream: true
+    thinking:
+      display: summarized
+      type: adaptive
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Execute bash commands.
+      input_schema:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      name: Bash
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      input_schema:
+        additionalProperties: false
+        properties: {}
+        type: object
+      name: DateTime
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '2012'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0189b-bba8-7491-b955-05d7f425cf99
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_090b298fa5fb9a05006a8544c1672881998db99a563606e37a","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":276,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"global"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type":"ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    sleep"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    completed"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    I"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"’ll"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    now"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    retrieve"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    current"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    UTC"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    date"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    time"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_I3WKdkIr7qoXDN4Gn68D8RGF","name":"DateTime","input":{},"caller":{"type":"direct"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{}"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":276,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":36,"output_tokens_details":{"thinking_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T06:00:54.440390+00:00'

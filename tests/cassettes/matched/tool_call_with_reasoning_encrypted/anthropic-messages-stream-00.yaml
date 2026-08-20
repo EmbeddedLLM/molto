@@ -1,0 +1,318 @@
+filename: 2026-08-19-01a0189b-af40-75e1-8531-192fffa21f73
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    output_config:
+      effort: high
+    stream: true
+    thinking:
+      display: summarized
+      type: adaptive
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Execute bash commands.
+      input_schema:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      name: Bash
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      input_schema:
+        additionalProperties: false
+        properties: {}
+        type: object
+      name: DateTime
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '777'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0189b-af40-75e1-8531-192fffa21f73
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_090b298fa5fb9a05006a8544bf0ba48199a5bec51e7c367ad7","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":186,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"global"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":"gAAAAABqhUS_oh7jMy7qBKywx49Go7b4ASz6EF07VbcBLTQAA53C6LlBsBMdln4JmvPGBkR6zcrshezDLFzVdAUe-63FMNPzbZh3I-OHj0Nv9fYv0WyqIbG_R0JORjyiI6nw-qJb97rf9JxXPKwqAvxgWuVfoaxzwo_l-20tJ0ui0w_GsGpr1GGLxBMXonEQ5TOx-M93iWV9CxFl1i3UhW35DXwsOmV4onK6aXWIXb7QLc3zKCIIwxX_VsgLODUK8dW8nE7Ri7PPoLZH7kAM3aWcgS4F8-p3Y-e5mW-82PisGCCDrmBmiuLYXqH59Gnjv-kDWpUBaAzPw4mUCwBDXg-fS2kRMlgogrmAOGdN72bxjZiCTcHtl-UNa21RNSvceh39qigy5RjZs4Tsh0iJvUfYIAt1MOeVO8Kq-UHCzyvQKK82wIR0r2CPdpDBJdASfr2w9l3Qgc0LZMJQvTEO6CObi56Npb84bFWYquVBAbpm7Hl-jTYAkkzi6hu2y8xKRdoOqN9r3flzNRqtIiRZNf59wMUmwP78IxQ1H0ocwgKMGAPGwZaulTfF5nBXiHvRD5DZ_5YCsNdH82J80XoukssW8v_Yv_Y3_ZI4DT5F2uDnMEKWobEjuBOkaUKBGyWz-bQvqRlZeVtpv498Bf-Nx5SbRfXVO9Of4G8w65KNDPo3j9QAw3yvVUccX0Ikb_kt8a6y9MT-R1NEB7nnPmb9EfbBOy6YOMcBR2A2arDaPQsrxQPRmsZlpyqjkXiRSLey27MsVJFtZOm5xYo5ZDHQXOa5QYdzellqjmZeFsTYAqlsKj_xqpOFj96U-jfaeV5e2PI50Cua4_loq5KjRaYamW4_umw5l7Yg0Qq7YiBgfdtLYcA4jgE0MsvDyCHs6HAKbooF_R39u7mWJv8iSZlKGmV1uqIVyBXeykuHVUtWVZj6zdyrdW8ReWPztt_Bqckv_9OddaovQvhkwYrkmHj9xLaZYRXH4IZ6DoR3QyDThT7z_1txIN3TCfzI-KjP3K3SDtoRAVWgqhg4XGJM9jPSLnqR4jhNFu4ET-S8GESbyjRKHGY9nGSREhYW1QmTY4Bu_ZxZZM41vETIvN2URKa5xfgZhnLMDep-VTyDho72K8S6qFYNoB__6TuyC4TEXdkoaizVi7UxvO_vHJ7x0UT9pX1rLMYFcjWgDg=="}}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type":"ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"gAAAAABqhUTAur9Vn21_hwAEbK-WmmiPGlkGQD75qvtH_E72BrM1uGpCPqOgQ-QlyWX7fR_LPJbK-gXxZJGJRORYzmpMR25WSuxuNqWd2ttnSVDejDMgcv2z534CC-pNdAJxdDv8QVQaweuBz4b2xRuvG7bMf7QPzGiPt5bRsXYXLg_xsMW50QBbZNaIuUyLSwxsvqDq1zO3TqmQNwWNLo4SVqqFCWEwsikiCTpL1z01VHeZbnzcvRSD4C2EN_GJvZoLLPS28RvEbmJG9UfjxLjsWN1gkGw5mEjEiOE1-NXE94ghda7i21DbKQxk4RwLG2FQe1E4gfeHqgpCfPDwL8FUP32XQRunjPIOfRb7lFFyxP5EpxRn1stjhWcmGw_L1CpcXvFrVhAG2TcbEYDZGiYfY1Lm2z58TQBrnGpVSwLQIXnV5XsWYXk4151HztGvXLuUMKfKF9-57EN27puRlOI5g7Mk5fgrybd3J-UVDW3DhCkUeQIi9YiwgrczD9uuGEpUT3mR1caUASbAQ74cU_EdNm-E6XZVrVs8wxslpztJBmV_GFlhtE7DzbrSJCsVFkdg7f2PgqvJeed_y38_-7eE6aLSS20qa-U4sTU2i0nF-h-xPyNSE3Z9e3tWnvn34rD3BxJf1vFeHLfPP-IReT35juhTmuu0jTyyw9wjQb3MuBpgExTL3RYHreu_hBJlQx1R2Cl-cQF9k-zA5JRbhWIbpDDPc7ych9YUKopMLeAjEUbGhO8-wg2nEOdvSEO0gBIHEoNtI490S0dmsU3D9B7TE01hmqpbkZMg4dxSmn5KuVrTrUlWufXA23MH7_gJYow_fXI2g3HJ_09FKnGT4puM6D5G0CJXeHqp70-zfhMQwhPx6Jqoj7EM_GIXBY-mFBT2Eq6bMERCiXwiblbFNuwqJJtfugP5s6HndBszsEkD2CzpF8VKGch07oioyVCM9E8LDP-nQoj43U1KDdVb8jKyhyoLGDk-k9JQ7cPH1xaqgplLYyQFVWhYG70J1vpj01O0DWKHoBv7Dwg7ETLnsEche9XtX2O0P54V5fpckRMCodQn0lJO4ujTbHV4uhu_v-xLCNEidRtBpViav95j3gHttyt7PrsDzhhLiNWn16ka7hnQ035mATAOS_diwPlN-Eo_3RwOyosg5FqOKKkroQIQffrdXZfySZicapA8EP578LCURrdsc1PPx25wHwQUTBh90OjVXdrwOeMb4qe9eKirvMGbBw9ctGTXMmtNRI6-4UjZqtcPOJYtrnUU4oFZRFFYSyawnw8a"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"I"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"’ll"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    run"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    requested"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    five"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-second"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    sleep"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"
+    now"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"call_kFgAajXAZ3NroMimxqGjDfni","name":"Bash","input":{},"caller":{"type":"direct"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"command"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\":\""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"sleep"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"
+    "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"5"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":2}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":186,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":57,"output_tokens_details":{"thinking_tokens":18}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T06:00:51.264509+00:00'

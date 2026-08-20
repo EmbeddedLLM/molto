@@ -25,11 +25,12 @@ The current cross-protocol implementation supports:
 - streaming requests only;
 - string input and text messages with system, developer, user, and assistant roles;
 - raw assistant reasoning and reasoning summaries through Responses reasoning items and the ambiguous Chat `reasoning_content` extension;
+- client-defined function tools, tool selection, tool calls, successful results, and streamed argument deltas;
 - request translation for `instructions`, model, streaming mode, output-token limits, parallel-tool-call configuration, reasoning effort, temperature, `top_p`, and `include_obfuscation` where the counterpart protocol represents them;
 - response IDs, creation times, model names, text and reasoning delta boundaries, lifecycle structure, and semantic token usage; and
 - same-protocol paths that validate and yield SDK-native events without crossing the normalized representation.
 
-Refusals, tool calls and tool results, hosted tools, multiple choices, moderation, annotations, log probabilities, and non-streaming collection are not implemented across the normalized path. The current Chat client reads only `choices[0]`. Normalized streams retain source termination reasons; target projections use exact mappings when available and coerce unrepresentable reasons to normal completion. Responses still maps output-token and content-filter limits exactly to `response.incomplete`. Those limitations are implementation gaps, not evidence that the source values are unavailable in principle.
+Refusals, hosted tools, failed tool-result semantics, multiple choices, moderation, annotations, log probabilities, and non-streaming collection are not implemented across the normalized path. The current Chat client reads only `choices[0]`. Normalized streams retain source termination reasons; target projections use exact mappings when available and coerce unrepresentable reasons to normal completion. Responses still maps output-token and content-filter limits exactly to `response.incomplete`. Those limitations are implementation gaps, not evidence that the source values are unavailable in principle.
 
 Fields accepted by the SDK-compatible request wrappers but absent from the supported list above may currently be retained only as extra data or omitted by an upstream request constructor. Treat them as unsupported until they have an explicit mapping or rejection and cassette-backed parity coverage.
 
@@ -84,6 +85,12 @@ The current OpenAI SDK request surfaces share these top-level concepts, but most
 
 Shared names do not guarantee identical nested schemas. Validate each nested union before copying it. Responses supports hosted tools that have no general Chat Completions equivalent. Chat also requires `logprobs: true` when `top_logprobs` is set; copying `top_logprobs` alone is insufficient.
 
+Client-defined function tools map Responses `name`, `description`, `parameters`, and `strict` to Chat's nested `function` object. `auto`, `none`, and `required` tool choices map directly; a named Responses function choice maps to Chat's named `function` choice. Hosted, custom-text, and other protocol-specific tools remain unsupported.
+
+Conversation history maps Responses `function_call` items to assistant `tool_calls` and `function_call_output` items to `tool` messages. The portable identifier is Responses `call_id` / Chat `tool_calls[].id`; Responses' enclosing output-item `id` has no Chat equivalent and is omitted when history is reconstructed.
+
+Normalized tool results always contain an ordered list of text parts. A native scalar result is wrapped in one part; translated requests always emit Responses `input_text` output parts or Chat `text` tool-message parts rather than reverting to scalar shorthand.
+
 ### Fields that require transformation
 
 | Responses request                   | Chat Completions request            | Notes                                                   |
@@ -105,7 +112,7 @@ Responses `phase` is not reconstructible from Chat output or the normalized text
 
 ## Result Translation: Chat Completions to Responses
 
-The implemented result path currently covers response metadata, text, raw reasoning, reasoning summaries, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusal, tools, finish-reason-specific status, log probabilities, moderation, annotations, and multiple choices remain unsupported.
+The implemented result path covers response metadata, text, raw reasoning, reasoning summaries, function calls, lifecycle events, and usage. The mappings below are target requirements for the broader result surface. In particular, refusals, hosted tools, log probabilities, moderation, annotations, and multiple choices remain unsupported.
 
 ### Reasoning representation
 
@@ -198,11 +205,11 @@ Chat stream options expose both `include_usage` and `include_obfuscation`. The g
 
 ## Result Translation: Responses to Chat Completions
 
-The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning or summary deltas, semantic termination reason, and token usage into SDK-native Chat chunks. It emits one initial assistant-role chunk and preserves every matched text and reasoning delta boundary.
+The current reverse projection maps the Responses ID, creation time, model, text deltas, raw reasoning or summary deltas, function calls, semantic termination reason, and token usage into SDK-native Chat chunks. It emits one initial assistant-role chunk and preserves every matched text, reasoning, and function-argument delta boundary.
 
 Every projected Chat chunk reports the target default `service_tier="default"`, regardless of the source Responses tier. Responses has no Chat `system_fingerprint`, so that field does not participate in exact cross-protocol comparison.
 
-Refusals, tool calls, log probabilities, moderation, annotations, and multiple choices are not implemented in this direction. Terminal reasons without an explicit Chat mapping are coerced to `finish_reason="stop"`.
+Refusals, hosted tools, log probabilities, moderation, annotations, and multiple choices are not implemented in this direction. Terminal reasons without an explicit Chat mapping are coerced to `finish_reason="stop"`.
 
 ## Values That Must Be Generated
 
@@ -299,7 +306,7 @@ For Chat Completions downstream with Responses upstream:
 3. Omit `system_fingerprint`, which Responses cannot reproduce.
 4. Normalize cached, cache-write, and reasoning token details while dropping source-only audio, prediction, and cache-alias fields.
 5. Treat a combined finish-and-usage chunk as equivalent to separate finish and usage chunks, then flatten the canonical chunks.
-6. Compare the canonical chunk lists exactly. All matched text and reasoning delta boundaries remain observable and must match.
+6. Compare the canonical chunk lists exactly. All matched text, reasoning, and function-argument delta boundaries remain observable and must match.
 
 Matched source cassettes must carry all source fields under test. Canonicalization is narrow: it handles known protocol differences but must not aggregate deltas or hide missing mappings.
 
@@ -307,6 +314,9 @@ Repository fixtures and helpers relevant to this contract are:
 
 - `tests/cassettes/matched/simple_text/`;
 - `tests/cassettes/matched/reasoning_raw/`, whose `vllm-*` fixtures run with `provider="vllm"`;
+- `tests/cassettes/matched/tool_call/`, whose three turns cover calls, results, and continuation history;
+- `tests/cassettes/matched/tool_call_choice/`, which covers named selection followed by disabled tool use;
+- `tests/cassettes/matched/tool_call_parallel/`, which covers two calls and results with parallel tool use enabled;
 - `scripts/match_openai_cassette_events.py`;
 - `python/molto/utils/test.py`;
 - `tests/core/test_interface.py`; and

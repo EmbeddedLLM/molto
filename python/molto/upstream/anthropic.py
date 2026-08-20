@@ -23,6 +23,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
 )
 from molto.types.normalized import (
+    FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
@@ -41,10 +42,14 @@ from molto.types.normalized import (
     TextOutput,
     Thinking,
     ThinkingDelta,
+    ToolCall,
+    ToolCallDelta,
+    ToolReturn,
     Usage,
     UserInput,
 )
 from molto.upstream.base import BaseClient
+from molto.utils.io import json_dumps, json_loads
 
 _TERMINATION_REASONS: dict[str, TerminationReason] = {
     "end_turn": "stop",
@@ -151,21 +156,10 @@ class AnthropicMessagesClient(
     def _request_parts(
         request: NormalizedRequest,
     ) -> tuple[str | None, list[dict[str, Any]], bool]:
-        if isinstance(request.input, str):
-            return (
-                None,
-                [
-                    {
-                        "role": "user",
-                        "content": [{"type": "text", "text": request.input}],
-                    }
-                ],
-                False,
-            )
-
         system_parts: list[str] = []
         messages: list[dict[str, Any]] = []
         assistant_blocks: list[dict[str, Any]] = []
+        tool_result_blocks: list[dict[str, Any]] = []
         has_thinking = False
 
         def flush_assistant() -> None:
@@ -173,12 +167,19 @@ class AnthropicMessagesClient(
                 messages.append({"role": "assistant", "content": assistant_blocks.copy()})
                 assistant_blocks.clear()
 
+        def flush_tool_results() -> None:
+            if tool_result_blocks:
+                messages.append({"role": "user", "content": tool_result_blocks.copy()})
+                tool_result_blocks.clear()
+
         for item in request.input or []:
             if isinstance(item, SystemPrompt):
                 flush_assistant()
+                flush_tool_results()
                 system_parts.append(item.content)
             elif isinstance(item, UserInput):
                 flush_assistant()
+                flush_tool_results()
                 content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
@@ -187,16 +188,46 @@ class AnthropicMessagesClient(
                         content.append(_image_block(part))
                 messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
+                flush_tool_results()
                 has_thinking = True
                 block = {"type": "thinking", "thinking": item.content or item.summary}
                 if item.signature is not None:
                     block["signature"] = item.signature
                 assistant_blocks.append(block)
             elif isinstance(item, TextOutput):
+                flush_tool_results()
                 assistant_blocks.append({"type": "text", "text": item.content})
+            elif isinstance(item, ToolCall):
+                flush_tool_results()
+                tool_input = {} if item.args is None else json_loads(item.args)
+                if not isinstance(tool_input, dict):
+                    raise ValueError("Anthropic tool arguments must contain a JSON object.")
+                assistant_blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": item.tool_call_id,
+                        "name": item.tool_name,
+                        "input": tool_input,
+                    }
+                )
+            elif isinstance(item, ToolReturn):
+                flush_assistant()
+                if item.outcome not in {"success", "failed"}:
+                    raise ValueError(
+                        "Anthropic Messages cannot preserve denied or interrupted tool outcomes."
+                    )
+                block = {
+                    "type": "tool_result",
+                    "tool_use_id": item.tool_call_id,
+                    "content": [{"type": "text", "text": part.content} for part in item.content],
+                }
+                if item.outcome == "failed":
+                    block["is_error"] = True
+                tool_result_blocks.append(block)
             else:
                 raise ValueError(f"Unsupported Anthropic input item: {type(item)}")
         flush_assistant()
+        flush_tool_results()
         return "\n\n".join(system_parts) or None, messages, has_thinking
 
     @classmethod
@@ -210,6 +241,45 @@ class AnthropicMessagesClient(
         }
         if system is not None:
             body["system"] = system
+        if request.tools is not None:
+            tools: list[dict[str, Any]] = []
+            for tool in request.tools:
+                native_tool: dict[str, Any] = {
+                    "name": tool.name,
+                    "input_schema": tool.parameters,
+                }
+                if tool.description is not None:
+                    native_tool["description"] = tool.description
+                if tool.strict:
+                    native_tool["strict"] = True
+                tools.append(native_tool)
+            body["tools"] = tools
+        has_tools = bool(request.tools)
+        if not has_tools and (
+            request.tool_choice == "required"
+            or isinstance(request.tool_choice, FunctionToolChoice)
+        ):
+            raise ValueError("A required Anthropic tool choice needs at least one tool.")
+        if request.tool_choice is not None and has_tools:
+            if request.tool_choice == "auto":
+                tool_choice: dict[str, Any] = {"type": "auto"}
+            elif request.tool_choice == "none":
+                tool_choice = {"type": "none"}
+            elif request.tool_choice == "required":
+                tool_choice = {"type": "any"}
+            elif isinstance(request.tool_choice, FunctionToolChoice):
+                tool_choice = {"type": "tool", "name": request.tool_choice.name}
+            else:
+                raise ValueError(f"Unsupported tool choice: {request.tool_choice!r}.")
+        elif request.parallel_tool_calls is not None and has_tools:
+            tool_choice = {"type": "auto"}
+        else:
+            tool_choice = None
+        if request.parallel_tool_calls is not None and tool_choice is not None:
+            if tool_choice["type"] != "none":
+                tool_choice["disable_parallel_tool_use"] = not request.parallel_tool_calls
+        if tool_choice is not None:
+            body["tool_choice"] = tool_choice
         effort = request.reasoning.effort if request.reasoning is not None else None
         if effort == "none":
             body["thinking"] = {"type": "disabled"}
@@ -247,7 +317,7 @@ class AnthropicMessagesClient(
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         stop_sequence: str | None = None
-        parts: dict[int, tuple[Thinking | TextOutput, str, str]] = {}
+        parts: dict[int, tuple[Thinking | TextOutput | ToolCall, str, str]] = {}
 
         native_request = AnthropicMessagesCreateRequest.model_validate(self._request_body(request))
         async for event in self.native_events(native_request):
@@ -274,14 +344,28 @@ class AnthropicMessagesClient(
                     )
                 elif block.type == "text":
                     part = TextOutput(content=block.text)
+                elif block.type == "tool_use":
+                    if block.caller is not None and block.caller.type != "direct":
+                        raise ValueError(
+                            "Only directly invoked Anthropic tool uses can be translated."
+                        )
+                    args = "" if not block.input else json_dumps(block.input)
+                    part = ToolCall(
+                        tool_name=block.name,
+                        args=args,
+                        tool_call_id=block.id,
+                    )
                 else:
                     raise ValueError(f"Unsupported Anthropic output block: {block.type}")
                 signature = (part.signature or "") if isinstance(part, Thinking) else ""
-                content = (
-                    part.content
-                    if not isinstance(part, Thinking) or self._capabilities.thinking == "raw"
-                    else part.summary
-                )
+                if isinstance(part, ToolCall):
+                    content = part.args or ""
+                elif isinstance(part, Thinking):
+                    content = (
+                        part.content if self._capabilities.thinking == "raw" else part.summary
+                    )
+                else:
+                    content = part.content
                 parts[event.index] = (part, content, signature)
                 yield PartStartEvent(index=event.index, part=part)
             elif isinstance(event, RawContentBlockDeltaEvent):
@@ -329,6 +413,16 @@ class AnthropicMessagesClient(
                         index=event.index,
                         delta=TextDelta(content_delta=delta.text),
                     )
+                elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
+                    parts[event.index] = (
+                        part,
+                        part_state[1] + delta.partial_json,
+                        part_state[2],
+                    )
+                    yield PartDeltaEvent(
+                        index=event.index,
+                        delta=ToolCallDelta(args_delta=delta.partial_json),
+                    )
                 else:
                     raise ValueError(f"Unsupported Anthropic output delta: {delta.type}")
             elif isinstance(event, RawContentBlockStopEvent):
@@ -336,15 +430,20 @@ class AnthropicMessagesClient(
                 if part_state is None:
                     raise ValueError("Received an Anthropic block stop before its start.")
                 part, content, signature = part_state
-                completed_part = (
-                    Thinking(
+                if isinstance(part, Thinking):
+                    completed_part: Thinking | TextOutput | ToolCall = Thinking(
                         content=content if self._capabilities.thinking == "raw" else "",
                         summary=content if self._capabilities.thinking == "summary" else "",
                         signature=signature,
                     )
-                    if isinstance(part, Thinking)
-                    else TextOutput(content=content)
-                )
+                elif isinstance(part, ToolCall):
+                    completed_part = ToolCall(
+                        tool_name=part.tool_name,
+                        args=content,
+                        tool_call_id=part.tool_call_id,
+                    )
+                else:
+                    completed_part = TextOutput(content=content)
                 yield PartEndEvent(index=event.index, part=completed_part)
             elif isinstance(event, RawMessageDeltaEvent):
                 if event.delta.stop_reason is not None:

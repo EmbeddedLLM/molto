@@ -18,6 +18,9 @@ from openai.types.chat.chat_completion_assistant_message_param import (
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
 from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
+from openai.types.chat.chat_completion_content_part_text_param import (
+    ChatCompletionContentPartTextParam,
+)
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_prediction_content_param import (
     ChatCompletionPredictionContentParam,
@@ -26,6 +29,7 @@ from openai.types.chat.chat_completion_stream_options_param import ChatCompletio
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
+from openai.types.chat.chat_completion_tool_message_param import ChatCompletionToolMessageParam
 from openai.types.chat.chat_completion_tool_union_param import ChatCompletionToolUnionParam
 from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
 from openai.types.chat.completion_create_params import (
@@ -59,13 +63,22 @@ class ChatCompletionUserMessageListParam(TypedDict):
     name: NotRequired[str]
 
 
+class ChatCompletionToolMessageListParam(TypedDict):
+    """Tool message with eagerly validated, repeatable text content parts."""
+
+    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    role: Required[Literal["tool"]]
+    tool_call_id: Required[str]
+
+
 _RETAINED_CHAT_MESSAGE_PARAMS = tuple(
     item
     for item in get_args(ChatCompletionMessageParam)
-    if item is not ChatCompletionUserMessageParam
+    if item not in {ChatCompletionUserMessageParam, ChatCompletionToolMessageParam}
 )
 OpenAIChatCompletionMessageParam: TypeAlias = Union[
     ChatCompletionUserMessageListParam,
+    ChatCompletionToolMessageListParam,
     ChatCompletionAssistantMessageWithReasoningParam,
     *_RETAINED_CHAT_MESSAGE_PARAMS,  # pyright: ignore[reportInvalidTypeForm]
 ]

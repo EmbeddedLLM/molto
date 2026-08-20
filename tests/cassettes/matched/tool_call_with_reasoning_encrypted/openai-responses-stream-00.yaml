@@ -1,0 +1,347 @@
+filename: 2026-08-19-01a01894-8907-7da1-81cb-328237c40b90
+request:
+  body:
+    input:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: input_text
+      role: user
+    max_output_tokens: 4096
+    model: gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: high
+      summary: detailed
+    stream: true
+    stream_options:
+      include_obfuscation: false
+    tools:
+    - description: Execute bash commands.
+      name: Bash
+      parameters:
+        additionalProperties: false
+        properties:
+          command:
+            description: Shell command to execute.
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+        - command
+        type: object
+      strict: false
+      type: function
+    - description: Get the current date and time in UTC (ISO 8601 format).
+      name: DateTime
+      parameters:
+        additionalProperties: false
+        properties: {}
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '884'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a01894-8907-7da1-81cb-328237c40b90
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_090b298fa5fb9a05006a8544bf0ba48199a5bec51e7c367ad7","object":"response","created_at":1787118783,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_090b298fa5fb9a05006a8544bf0ba48199a5bec51e7c367ad7","object":"response","created_at":1787118783,"status":"in_progress","background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"rs_090b298fa5fb9a05006a8544bfbe7c81999822cb58ba859056","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUS_oh7jMy7qBKywx49Go7b4ASz6EF07VbcBLTQAA53C6LlBsBMdln4JmvPGBkR6zcrshezDLFzVdAUe-63FMNPzbZh3I-OHj0Nv9fYv0WyqIbG_R0JORjyiI6nw-qJb97rf9JxXPKwqAvxgWuVfoaxzwo_l-20tJ0ui0w_GsGpr1GGLxBMXonEQ5TOx-M93iWV9CxFl1i3UhW35DXwsOmV4onK6aXWIXb7QLc3zKCIIwxX_VsgLODUK8dW8nE7Ri7PPoLZH7kAM3aWcgS4F8-p3Y-e5mW-82PisGCCDrmBmiuLYXqH59Gnjv-kDWpUBaAzPw4mUCwBDXg-fS2kRMlgogrmAOGdN72bxjZiCTcHtl-UNa21RNSvceh39qigy5RjZs4Tsh0iJvUfYIAt1MOeVO8Kq-UHCzyvQKK82wIR0r2CPdpDBJdASfr2w9l3Qgc0LZMJQvTEO6CObi56Npb84bFWYquVBAbpm7Hl-jTYAkkzi6hu2y8xKRdoOqN9r3flzNRqtIiRZNf59wMUmwP78IxQ1H0ocwgKMGAPGwZaulTfF5nBXiHvRD5DZ_5YCsNdH82J80XoukssW8v_Yv_Y3_ZI4DT5F2uDnMEKWobEjuBOkaUKBGyWz-bQvqRlZeVtpv498Bf-Nx5SbRfXVO9Of4G8w65KNDPo3j9QAw3yvVUccX0Ikb_kt8a6y9MT-R1NEB7nnPmb9EfbBOy6YOMcBR2A2arDaPQsrxQPRmsZlpyqjkXiRSLey27MsVJFtZOm5xYo5ZDHQXOa5QYdzellqjmZeFsTYAqlsKj_xqpOFj96U-jfaeV5e2PI50Cua4_loq5KjRaYamW4_umw5l7Yg0Qq7YiBgfdtLYcA4jgE0MsvDyCHs6HAKbooF_R39u7mWJv8iSZlKGmV1uqIVyBXeykuHVUtWVZj6zdyrdW8ReWPztt_Bqckv_9OddaovQvhkwYrkmHj9xLaZYRXH4IZ6DoR3QyDThT7z_1txIN3TCfzI-KjP3K3SDtoRAVWgqhg4XGJM9jPSLnqR4jhNFu4ET-S8GESbyjRKHGY9nGSREhYW1QmTY4Bu_ZxZZM41vETIvN2URKa5xfgZhnLMDep-VTyDho72K8S6qFYNoB__6TuyC4TEXdkoaizVi7UxvO_vHJ7x0UT9pX1rLMYFcjWgDg==","summary":[]},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"rs_090b298fa5fb9a05006a8544bfbe7c81999822cb58ba859056","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUTAur9Vn21_hwAEbK-WmmiPGlkGQD75qvtH_E72BrM1uGpCPqOgQ-QlyWX7fR_LPJbK-gXxZJGJRORYzmpMR25WSuxuNqWd2ttnSVDejDMgcv2z534CC-pNdAJxdDv8QVQaweuBz4b2xRuvG7bMf7QPzGiPt5bRsXYXLg_xsMW50QBbZNaIuUyLSwxsvqDq1zO3TqmQNwWNLo4SVqqFCWEwsikiCTpL1z01VHeZbnzcvRSD4C2EN_GJvZoLLPS28RvEbmJG9UfjxLjsWN1gkGw5mEjEiOE1-NXE94ghda7i21DbKQxk4RwLG2FQe1E4gfeHqgpCfPDwL8FUP32XQRunjPIOfRb7lFFyxP5EpxRn1stjhWcmGw_L1CpcXvFrVhAG2TcbEYDZGiYfY1Lm2z58TQBrnGpVSwLQIXnV5XsWYXk4151HztGvXLuUMKfKF9-57EN27puRlOI5g7Mk5fgrybd3J-UVDW3DhCkUeQIi9YiwgrczD9uuGEpUT3mR1caUASbAQ74cU_EdNm-E6XZVrVs8wxslpztJBmV_GFlhtE7DzbrSJCsVFkdg7f2PgqvJeed_y38_-7eE6aLSS20qa-U4sTU2i0nF-h-xPyNSE3Z9e3tWnvn34rD3BxJf1vFeHLfPP-IReT35juhTmuu0jTyyw9wjQb3MuBpgExTL3RYHreu_hBJlQx1R2Cl-cQF9k-zA5JRbhWIbpDDPc7ych9YUKopMLeAjEUbGhO8-wg2nEOdvSEO0gBIHEoNtI490S0dmsU3D9B7TE01hmqpbkZMg4dxSmn5KuVrTrUlWufXA23MH7_gJYow_fXI2g3HJ_09FKnGT4puM6D5G0CJXeHqp70-zfhMQwhPx6Jqoj7EM_GIXBY-mFBT2Eq6bMERCiXwiblbFNuwqJJtfugP5s6HndBszsEkD2CzpF8VKGch07oioyVCM9E8LDP-nQoj43U1KDdVb8jKyhyoLGDk-k9JQ7cPH1xaqgplLYyQFVWhYG70J1vpj01O0DWKHoBv7Dwg7ETLnsEche9XtX2O0P54V5fpckRMCodQn0lJO4ujTbHV4uhu_v-xLCNEidRtBpViav95j3gHttyt7PrsDzhhLiNWn16ka7hnQ035mATAOS_diwPlN-Eo_3RwOyosg5FqOKKkroQIQffrdXZfySZicapA8EP578LCURrdsc1PPx25wHwQUTBh90OjVXdrwOeMb4qe9eKirvMGbBw9ctGTXMmtNRI6-4UjZqtcPOJYtrnUU4oFZRFFYSyawnw8a","summary":[]},"output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","type":"message","status":"in_progress","content":[],"phase":"commentary","role":"assistant"},"output_index":1,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"I","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"’ll","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" run","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" requested","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" five","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"-second","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" sleep","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" now","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","logprobs":[],"output_index":1,"sequence_number":16,"text":"I’ll
+    run the requested five-second sleep now."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"I’ll
+    run the requested five-second sleep now."},"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"I’ll
+    run the requested five-second sleep now."}],"phase":"commentary","role":"assistant"},"output_index":1,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","type":"function_call","status":"in_progress","arguments":"","call_id":"call_kFgAajXAZ3NroMimxqGjDfni","name":"Bash"},"output_index":2,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"command","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"sleep","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":" ","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"5","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"command\":\"sleep
+    5\"}","item_id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","output_index":2,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","type":"function_call","status":"completed","arguments":"{\"command\":\"sleep
+    5\"}","call_id":"call_kFgAajXAZ3NroMimxqGjDfni","name":"Bash"},"output_index":2,"sequence_number":28}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_090b298fa5fb9a05006a8544bf0ba48199a5bec51e7c367ad7","object":"response","created_at":1787118783,"status":"completed","background":false,"completed_at":1787118784,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.6-luna","moderation":null,"output":[{"id":"rs_090b298fa5fb9a05006a8544bfbe7c81999822cb58ba859056","type":"reasoning","content":[],"encrypted_content":"gAAAAABqhUTAur9Vn21_hwAEbK-WmmiPGlkGQD75qvtH_E72BrM1uGpCPqOgQ-QlyWX7fR_LPJbK-gXxZJGJRORYzmpMR25WSuxuNqWd2ttnSVDejDMgcv2z534CC-pNdAJxdDv8QVQaweuBz4b2xRuvG7bMf7QPzGiPt5bRsXYXLg_xsMW50QBbZNaIuUyLSwxsvqDq1zO3TqmQNwWNLo4SVqqFCWEwsikiCTpL1z01VHeZbnzcvRSD4C2EN_GJvZoLLPS28RvEbmJG9UfjxLjsWN1gkGw5mEjEiOE1-NXE94ghda7i21DbKQxk4RwLG2FQe1E4gfeHqgpCfPDwL8FUP32XQRunjPIOfRb7lFFyxP5EpxRn1stjhWcmGw_L1CpcXvFrVhAG2TcbEYDZGiYfY1Lm2z58TQBrnGpVSwLQIXnV5XsWYXk4151HztGvXLuUMKfKF9-57EN27puRlOI5g7Mk5fgrybd3J-UVDW3DhCkUeQIi9YiwgrczD9uuGEpUT3mR1caUASbAQ74cU_EdNm-E6XZVrVs8wxslpztJBmV_GFlhtE7DzbrSJCsVFkdg7f2PgqvJeed_y38_-7eE6aLSS20qa-U4sTU2i0nF-h-xPyNSE3Z9e3tWnvn34rD3BxJf1vFeHLfPP-IReT35juhTmuu0jTyyw9wjQb3MuBpgExTL3RYHreu_hBJlQx1R2Cl-cQF9k-zA5JRbhWIbpDDPc7ych9YUKopMLeAjEUbGhO8-wg2nEOdvSEO0gBIHEoNtI490S0dmsU3D9B7TE01hmqpbkZMg4dxSmn5KuVrTrUlWufXA23MH7_gJYow_fXI2g3HJ_09FKnGT4puM6D5G0CJXeHqp70-zfhMQwhPx6Jqoj7EM_GIXBY-mFBT2Eq6bMERCiXwiblbFNuwqJJtfugP5s6HndBszsEkD2CzpF8VKGch07oioyVCM9E8LDP-nQoj43U1KDdVb8jKyhyoLGDk-k9JQ7cPH1xaqgplLYyQFVWhYG70J1vpj01O0DWKHoBv7Dwg7ETLnsEche9XtX2O0P54V5fpckRMCodQn0lJO4ujTbHV4uhu_v-xLCNEidRtBpViav95j3gHttyt7PrsDzhhLiNWn16ka7hnQ035mATAOS_diwPlN-Eo_3RwOyosg5FqOKKkroQIQffrdXZfySZicapA8EP578LCURrdsc1PPx25wHwQUTBh90OjVXdrwOeMb4qe9eKirvMGbBw9ctGTXMmtNRI6-4UjZqtcPOJYtrnUU4oFZRFFYSyawnw8a","summary":[]},{"id":"msg_090b298fa5fb9a05006a8544c0348481999e02e0d96fd50e0b","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"I’ll
+    run the requested five-second sleep now."}],"phase":"commentary","role":"assistant"},{"id":"fc_090b298fa5fb9a05006a8544c068d081999f2f482d0831b055","type":"function_call","status":"completed","arguments":"{\"command\":\"sleep
+    5\"}","call_id":"call_kFgAajXAZ3NroMimxqGjDfni","name":"Bash"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"all_turns","effort":"high","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Execute
+    bash commands.","name":"Bash","output_schema":null,"parameters":{"type":"object","properties":{"command":{"type":"string","description":"Shell
+    command to execute.","maxLength":200,"minLength":1}},"required":["command"],"additionalProperties":false},"strict":false},{"type":"function","description":"Get
+    the current date and time in UTC (ISO 8601 format).","name":"DateTime","output_schema":null,"parameters":{"type":"object","properties":{},"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":186,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":57,"output_tokens_details":{"reasoning_tokens":18},"total_tokens":243},"user":null,"metadata":{}},"sequence_number":29}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T05:53:02.727952+00:00'

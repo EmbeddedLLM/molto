@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, raw reasoning, reasoning summaries, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
 
 ## Route configuration
 
@@ -235,6 +235,7 @@ ChatCompletionChunk SDK stream
 - string input;
 - text messages with `system`, `developer`, `user`, and `assistant` roles;
 - raw reasoning and reasoning summaries in requests and assistant history;
+- function tool definitions, tool selection, calls, and successful tool results;
 - ordered mixed text/image user messages, including remote URL and data-URL images;
 - instructions as a leading `SystemPrompt`;
 - model and streaming configuration;
@@ -243,6 +244,8 @@ ChatCompletionChunk SDK stream
 Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
+
+Tool results follow the same canonical-part rule. `ToolReturn.content` is always an ordered `TextInput` list. Adapters wrap a native scalar result in one text part, while upstream clients always project the list form supported by Responses, Chat Completions, and Messages.
 
 User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 
@@ -276,15 +279,17 @@ ResponseEndEvent
 
 `FinalResultEvent` is also part of the union for future result handling.
 
-For the text and reasoning paths:
+For the text, reasoning, and function-tool paths:
 
 - `ResponseStartEvent` carries the upstream response ID, creation time, model, and service tier;
-- `PartStartEvent` establishes an empty `Thinking` or `TextOutput` at a stable output index;
-- each source reasoning or text chunk becomes one matching `PartDeltaEvent`;
-- `PartEndEvent` carries the complete reasoning or text accumulated from the deltas;
+- `PartStartEvent` establishes a `Thinking`, `TextOutput`, or `ToolCall` snapshot at a stable output index; native protocols normally start empty, but an initial function-argument fragment is preserved when present;
+- each source reasoning, text, or function-argument chunk becomes one matching `PartDeltaEvent`;
+- `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
 - `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+
+Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
 
 The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Their downstream adapters collapse either normalized representation into the protocol's single reasoning field. Responses projection retains the distinction with its separate reasoning-text and reasoning-summary lifecycles.
 
@@ -396,6 +401,14 @@ tests/cassettes/matched/
     vllm-messages-stream-00.yaml
     vllm-chat_completions-stream-00.yaml
     vllm-responses-stream-00.yaml
+  tool_call/
+    anthropic-messages-stream-00.yaml
+    openai-chat_completions-stream-00.yaml
+    openai-responses-stream-00.yaml
+  tool_call_choice/
+    ...
+  tool_call_parallel/
+    ...
 ```
 
 The naming pattern is:
@@ -411,14 +424,14 @@ Detailed parity policies live in the [Responses and Chat Completions guide](../d
 Parity differs by path:
 
 - same-protocol routes assert exact request bodies and parsed SDK stream events;
-- Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, and generated IDs;
-- Responses to Chat Completions compares ordered text and reasoning deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
+- Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, generated IDs, and function-call identity;
+- Responses to Chat Completions compares ordered text, reasoning, and function-argument deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, raw reasoning, reasoning summaries, and portable image input across Responses, Chat Completions, and Messages. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages. Non-streaming collection, tool calls, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet.
+The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
-The normalized IR should ultimately be SDK-independent. The current `NormalizedRequest.tools` and `tool_choice` fields still reuse OpenAI SDK parameter types; this is transitional coupling and should be replaced with semantic tool types before additional downstream protocols depend on them.
+Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
 To add another upstream protocol:
 
