@@ -448,10 +448,6 @@ class OpenAIChatCompletionsClient(
                     if isinstance(part, TextInput):
                         content.append({"type": "text", "text": part.content})
                     elif isinstance(part, ImageUrlInput):
-                        if part.detail == "original":
-                            raise ValueError(
-                                "Chat Completions cannot represent image detail 'original'."
-                            )
                         image_url = {"url": part.url}
                         if part.detail is not None:
                             image_url["detail"] = part.detail

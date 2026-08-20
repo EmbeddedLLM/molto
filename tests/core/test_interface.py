@@ -632,6 +632,11 @@ async def test_input_image_base64_stream(downstream: Protocol, upstream: Protoco
     await _assert_matched_stream_events("input_image_base64", downstream, upstream)
 
 
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_input_image_remote_url_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("input_image_remote_url", downstream, upstream)
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
 async def test_input_image_with_reasoning_encrypted_stream(
     downstream: Protocol, upstream: Protocol
