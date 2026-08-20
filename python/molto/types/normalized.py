@@ -1,8 +1,8 @@
 from textwrap import dedent
 from time import time
-from typing import Annotated, Any, Literal, TypeAlias
+from typing import Annotated, Any, Literal, Self, TypeAlias
 
-from pydantic import Discriminator, Field
+from pydantic import Discriminator, Field, model_validator
 
 from molto.types.base import ExtraModel, ZeroIfNoneInt
 
@@ -294,6 +294,14 @@ class Thinking(ExtraModel):
         Field(description="Content type identifier as a discriminator."),
     ] = "thinking"
 
+    @model_validator(mode="after")
+    def _validate_representation(self) -> Self:
+        if self.content and self.summary:
+            raise ValueError("Thinking cannot contain both raw reasoning and a summary.")
+        if self.content and self.signature:
+            raise ValueError("A thinking signature cannot accompany raw reasoning.")
+        return self
+
 
 OutputItem = Annotated[
     Thinking | TextOutput | ToolCall,
@@ -476,6 +484,14 @@ class ThinkingDelta(ExtraModel):
         Literal["thinking-delta"],
         Field(description="Part delta type identifier, used as a discriminator."),
     ] = "thinking-delta"
+
+    @model_validator(mode="after")
+    def _validate_representation(self) -> Self:
+        if self.content_delta and self.summary_delta:
+            raise ValueError("A thinking delta cannot contain both raw reasoning and a summary.")
+        if self.content_delta and self.signature_delta:
+            raise ValueError("A signature delta cannot accompany raw reasoning.")
+        return self
 
 
 class ToolCallDelta(ExtraModel):

@@ -4,7 +4,11 @@ from collections.abc import AsyncIterator
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
-from molto.types.normalized import ModelResponseStreamEvent, NormalizedRequest
+from molto.types.normalized import (
+    ModelResponseStreamEvent,
+    NormalizedRequest,
+    Thinking,
+)
 
 
 class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
@@ -45,3 +49,15 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
     ) -> AsyncIterator[NativeEventT]:
         """Implement downstream event projection."""
         raise NotImplementedError
+
+    def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:
+        """Place a protocol's ambiguous reasoning text in the provider's representation.
+
+        Protocols with a single reasoning field do not say whether their text is
+        raw reasoning or a summary; the provider capability profile classifies it.
+        """
+        return Thinking(
+            content=text if self._capabilities.thinking == "raw" else "",
+            summary=text if self._capabilities.thinking == "summary" else "",
+            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
+        )

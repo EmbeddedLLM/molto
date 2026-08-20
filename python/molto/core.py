@@ -44,6 +44,10 @@ class Molto:
 
     @staticmethod
     def _resolve_provider(endpoint: Endpoint, provider: Provider | None) -> Provider:
+        # Validate the endpoint before any adapter normalization so an unknown
+        # endpoint cannot surface as an unrelated translation error.
+        if endpoint not in DEFAULT_PROVIDER_BY_ENDPOINT:
+            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
 
     async def responses(
@@ -93,13 +97,15 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-        else:
+        elif endpoint == "messages":
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,
                 capabilities=capabilities,
             )
+        else:
+            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         return adapter.project_events(upstream.events(normalized_request), normalized_request)
 
     async def chat_completions(
@@ -143,13 +149,15 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-        else:
+        elif endpoint == "messages":
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,
                 capabilities=capabilities,
             )
+        else:
+            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         return adapter.project_events(upstream.events(normalized_request), normalized_request)
 
     async def messages(
@@ -191,11 +199,13 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-        else:
+        elif endpoint == "chat/completions":
             upstream = OpenAIChatCompletionsClient(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,
                 capabilities=capabilities,
             )
+        else:
+            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         return adapter.project_events(upstream.events(normalized_request), normalized_request)

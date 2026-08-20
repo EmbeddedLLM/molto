@@ -73,3 +73,62 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
         "base_url": base_url,
     }
     await client.close()
+
+
+_STREAMING_BODIES = {
+    "responses": {"input": "Hi", "model": "m", "stream": True},
+    "chat_completions": {
+        "messages": [{"role": "user", "content": "Hi"}],
+        "model": "m",
+        "stream": True,
+    },
+    "messages": {
+        "max_tokens": 10,
+        "messages": [{"role": "user", "content": "Hi"}],
+        "model": "m",
+        "stream": True,
+    },
+}
+
+
+@pytest.mark.parametrize("provider", [None, "openai"])
+@pytest.mark.parametrize("coordinator", ["responses", "chat_completions", "messages"])
+async def test_coordinators_reject_unsupported_endpoints(
+    provider: str | None,
+    coordinator: str,
+) -> None:
+    # The endpoint Literal is not enforced at runtime; an unknown endpoint must
+    # fail explicitly instead of falling through to a default client or provider.
+    client = Molto(http_client=httpx.AsyncClient())
+    with pytest.raises(ValueError, match="Unsupported endpoint: 'bogus'"):
+        await getattr(client, coordinator)(
+            body=_STREAMING_BODIES[coordinator],
+            endpoint="bogus",
+            provider=provider,
+        )
+    await client.close()
+
+
+async def test_coordinators_validate_endpoint_before_request_normalization() -> None:
+    # The body below fails adapter normalization (namespaced function call), but
+    # the unsupported endpoint must be reported first, not the translation error.
+    client = Molto(http_client=httpx.AsyncClient())
+    with pytest.raises(ValueError, match="Unsupported endpoint: 'bogus'"):
+        await client.responses(
+            body={
+                "input": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_123",
+                        "name": "lookup",
+                        "arguments": "{}",
+                        "namespace": "tools",
+                    }
+                ],
+                "model": "m",
+                "stream": True,
+            },
+            endpoint="bogus",
+            provider="openai",
+        )
+    await client.close()
