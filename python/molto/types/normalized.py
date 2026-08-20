@@ -50,6 +50,11 @@ UserContent = Annotated[
     Discriminator("content_type"),
 ]
 
+ToolReturnContent = Annotated[
+    TextInput | ImageUrlInput,
+    Discriminator("content_type"),
+]
+
 
 class UserInput(ExtraModel):
     """One user message containing its ordered input content parts."""
@@ -200,8 +205,8 @@ class ToolReturn(ExtraModel):
         Field(description="The name of the tool that was called."),
     ] = None
     content: Annotated[
-        list[TextInput],
-        Field(description="The ordered text content returned by the tool."),
+        list[ToolReturnContent],
+        Field(description="The ordered content returned by the tool."),
     ]
     tool_call_id: Annotated[
         str,

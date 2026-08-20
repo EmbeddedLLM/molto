@@ -197,12 +197,19 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     raise ValueError(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
+                output: list[dict[str, Any]] = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        output.append({"type": "input_text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        image = {"type": "input_image", "image_url": part.url}
+                        if part.detail is not None:
+                            image["detail"] = part.detail
+                        output.append(image)
                 function_output = {
                     "type": "function_call_output",
                     "call_id": item.tool_call_id,
-                    "output": [
-                        {"type": "input_text", "text": part.content} for part in item.content
-                    ],
+                    "output": output,
                 }
                 if item.id is not None:
                     function_output["id"] = item.id
@@ -483,12 +490,18 @@ class OpenAIChatCompletionsClient(
                     raise ValueError(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
+                content: list[dict[str, Any]] = []
+                for part in item.content:
+                    if isinstance(part, TextInput):
+                        content.append({"type": "text", "text": part.content})
+                    elif isinstance(part, ImageUrlInput):
+                        raise ValueError(
+                            "Chat Completions cannot represent image tool result content."
+                        )
                 messages.append(
                     {
                         "role": "tool",
-                        "content": [
-                            {"type": "text", "text": part.content} for part in item.content
-                        ],
+                        "content": content,
                         "tool_call_id": item.tool_call_id,
                     }
                 )

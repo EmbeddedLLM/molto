@@ -467,7 +467,7 @@ def test_responses_adapter_rejects_nonportable_function_history(
 
     with pytest.raises(ValueError, match=message):
         OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
-            OpenAIResponsesCreateRequest(input=[item], model="m")
+            OpenAIResponsesCreateRequest.model_construct(input=[item], model="m")
         )
 
 
