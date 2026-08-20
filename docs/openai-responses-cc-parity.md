@@ -118,7 +118,7 @@ The implemented result path covers response metadata, text, raw reasoning, reaso
 
 Responses distinguishes raw reasoning (`response.reasoning_text.*`) from summaries (`response.reasoning_summary_*`). Chat Completions `reasoning_content` does not. The upstream Chat client therefore classifies that field with `ProviderCapabilities.thinking`:
 
-A Responses reasoning lifecycle has exactly one valid representation: raw reasoning content with no summary or encrypted signature, or a reasoning summary accompanied by an encrypted signature with no raw content. It must not combine or switch representations across its added, delta, and completed state. A completely empty added snapshot may remain deferred until its representation is known.
+A Responses reasoning lifecycle has exactly one valid representation: raw reasoning content with no summary or encrypted signature, or a reasoning summary accompanied by an encrypted signature with no raw content, or an encrypted signature with no reasoning summary and no raw content. It must not combine or switch representations across its added, delta, and completed state. A completely empty added snapshot may remain deferred until its representation is known.
 
 Chat Completions carries one ambiguous `reasoning_content` field and no signature. Provider capabilities classify that field as either raw reasoning or a reasoning summary; both are valid Chat representations without a signature.
 

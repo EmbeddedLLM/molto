@@ -8,7 +8,7 @@ OpenAI Responses and Anthropic Messages overlap on conversation text, reasoning,
 
 Messages `thinking_delta` does not identify its text as raw reasoning or a summary. Anthropic and OpenAI profiles classify it as a summary; vLLM classifies it as raw reasoning. Responses labels these representations explicitly, and each explicit event must agree with the configured provider profile.
 
-A Messages thinking lifecycle has one of two valid representations: raw reasoning with no signature, or a reasoning summary accompanied by a signature. It must not combine or switch representations during the block lifecycle. A completely empty block start may remain deferred until its representation is known.
+A Messages thinking lifecycle has one of three valid representations: raw reasoning with no signature, a reasoning summary accompanied by a signature, or a signature with no reasoning text. It must not combine or switch representations during the block lifecycle. A completely empty block start may remain deferred until its representation is known.
 
 For this guide, parity means:
 
