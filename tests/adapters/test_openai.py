@@ -2,7 +2,12 @@ import pytest
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.normalized import NormalizedRequest, SystemPrompt, TextInput, UserInput
+from molto.types.normalized import (
+    NormalizedRequest,
+    SystemPrompt,
+    TextInput,
+    UserInput,
+)
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -173,6 +178,27 @@ def test_chat_rejects_unrepresentable_image_detail():
 
     with pytest.raises(ValueError, match="cannot represent"):
         OpenAIChatCompletionsClient._messages(request)
+
+
+def test_chat_input_validation_rejects_image_tool_results():
+    request = OpenAIChatCompletionsCreateRequest.model_construct(
+        messages=[
+            {
+                "role": "tool",
+                "tool_call_id": "call_123",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/result.png"},
+                    }
+                ],
+            }
+        ],
+        model="m",
+    )
+
+    with pytest.raises(ValueError, match="cannot represent image tool result"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
 
 
 @pytest.mark.parametrize(

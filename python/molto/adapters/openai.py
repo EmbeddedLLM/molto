@@ -737,6 +737,12 @@ class OpenAIChatCompletionsAdapter(
             if isinstance(content, str):
                 tool_content = [TextInput(content=content)]
             elif isinstance(content, list):
+                if any(
+                    isinstance(part, dict) and part.get("type") == "image_url" for part in content
+                ):
+                    raise ValueError(
+                        "Chat Completions cannot represent image tool result content."
+                    )
                 text_parts = [
                     part.get("text")
                     for part in content
