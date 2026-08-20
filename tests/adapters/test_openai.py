@@ -305,7 +305,19 @@ async def test_responses_projection_completes_thinking_text_arriving_without_del
     assert done.item.encrypted_content == "opaque-state"
 
 
-async def test_responses_projection_rejects_mixed_thinking_delta_representations() -> None:
+@pytest.mark.parametrize(
+    "deltas",
+    [
+        (
+            ThinkingDelta(content_delta="raw"),
+            ThinkingDelta(summary_delta="summary"),
+        ),
+        (ThinkingDelta(content_delta="raw", summary_delta="summary"),),
+    ],
+)
+async def test_responses_projection_rejects_mixed_thinking_delta_representations(
+    deltas: tuple[ThinkingDelta, ...],
+) -> None:
     adapter, request = _responses_adapter(_CAPABILITIES)
 
     with pytest.raises(ValueError, match="cannot contain both raw reasoning"):
@@ -315,8 +327,7 @@ async def test_responses_projection_rejects_mixed_thinking_delta_representations
                 _stream(
                     _RESPONSE_START,
                     PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="raw")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="summary")),
+                    *(PartDeltaEvent(index=0, delta=delta) for delta in deltas),
                 ),
                 request,
             )
@@ -549,6 +560,56 @@ async def test_chat_projection_preserves_non_empty_later_part_starts() -> None:
         {"reasoning_content": "Second thought"},
         {"content": "Second"},
     ]
+
+
+async def test_responses_projection_seeds_lifecycle_from_non_empty_part_starts() -> None:
+    # A non-empty start snapshot opens the Responses text lifecycle with that
+    # text, keeping the stream consistent with the completed item.
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=Thinking(content="Initial", summary="", id="rs_1")),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta=" more")),
+                PartEndEvent(
+                    index=0, part=Thinking(content="Initial more", summary="", id="rs_1")
+                ),
+                PartStartEvent(index=1, part=TextOutput(content="Answer", id="msg_1")),
+                PartEndEvent(index=1, part=TextOutput(content="Answer", id="msg_1")),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [event.type for event in events] == [
+        "response.created",
+        "response.in_progress",
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.reasoning_text.delta",
+        "response.reasoning_text.done",
+        "response.content_part.done",
+        "response.output_item.done",
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.done",
+        "response.content_part.done",
+        "response.output_item.done",
+        "response.completed",
+    ]
+    part_adds = [event for event in events if event.type == "response.content_part.added"]
+    assert [part_adds[0].part.text, part_adds[1].part.text] == ["Initial", "Answer"]
+    reasoning_delta = next(
+        event for event in events if event.type == "response.reasoning_text.delta"
+    )
+    assert reasoning_delta.delta == " more"
+    done_items = [event for event in events if event.type == "response.output_item.done"]
+    assert [part.text for part in done_items[0].item.content] == ["Initial more"]
+    assert [part.text for part in done_items[1].item.content] == ["Answer"]
 
 
 async def test_chat_projection_skips_empty_thinking_delta() -> None:

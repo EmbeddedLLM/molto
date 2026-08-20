@@ -132,7 +132,11 @@ def _validate_responses_function_metadata(
 
 
 def _reasoning_part_added(
-    representation: ReasoningRepresentation, *, item_id: str, output_index: int
+    representation: ReasoningRepresentation,
+    *,
+    item_id: str,
+    output_index: int,
+    text: str = "",
 ) -> dict[str, Any]:
     """Build the event that opens a translated reasoning part's text lifecycle."""
     if representation == "raw":
@@ -141,13 +145,13 @@ def _reasoning_part_added(
             "content_index": 0,
             "item_id": item_id,
             "output_index": output_index,
-            "part": {"type": "reasoning_text", "text": ""},
+            "part": {"type": "reasoning_text", "text": text},
         }
     return {
         "type": "response.reasoning_summary_part.added",
         "item_id": item_id,
         "output_index": output_index,
-        "part": {"type": "summary_text", "text": ""},
+        "part": {"type": "summary_text", "text": text},
         "summary_index": 0,
     }
 
@@ -405,6 +409,11 @@ class OpenAIResponsesAdapter(
                 part = normalized_event.part
                 output_index = normalized_event.index
                 if isinstance(part, Thinking):
+                    if part.content and part.summary:
+                        raise ValueError(
+                            "A translated reasoning part cannot contain both raw reasoning "
+                            "and a summary."
+                        )
                     item_id = part.id or uuid4().hex
                     item: dict[str, Any] = {
                         "id": item_id,
@@ -445,7 +454,20 @@ class OpenAIResponsesAdapter(
                         "output_index": output_index,
                     }
                 )
-                if isinstance(part, TextOutput):
+                # Seed the part lifecycle from a non-empty start snapshot so the
+                # streamed text stays consistent with the completed item.
+                if isinstance(part, Thinking) and (part.content or part.summary):
+                    representation = "raw" if part.content else "summary"
+                    thinking_representations[output_index] = representation
+                    yield event(
+                        _reasoning_part_added(
+                            representation,
+                            item_id=item_id,
+                            output_index=output_index,
+                            text=part.content if representation == "raw" else part.summary,
+                        )
+                    )
+                elif isinstance(part, TextOutput):
                     yield event(
                         {
                             "type": "response.content_part.added",
@@ -456,7 +478,7 @@ class OpenAIResponsesAdapter(
                                 "type": "output_text",
                                 "annotations": [],
                                 "logprobs": [],
-                                "text": "",
+                                "text": part.content,
                             },
                         }
                     )
@@ -470,6 +492,14 @@ class OpenAIResponsesAdapter(
                 if item_id is None:
                     raise ValueError("Received a delta before its output item started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
+                    if (
+                        normalized_event.delta.content_delta is not None
+                        and normalized_event.delta.summary_delta is not None
+                    ):
+                        raise ValueError(
+                            "A translated reasoning part cannot contain both raw reasoning "
+                            "and a summary."
+                        )
                     if normalized_event.delta.content_delta is not None:
                         representation: ReasoningRepresentation = "raw"
                         text_delta = normalized_event.delta.content_delta

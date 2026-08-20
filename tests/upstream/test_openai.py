@@ -840,7 +840,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
                 "item": {
                     "id": "rs_123",
                     "type": "reasoning",
-                    "summary": [{"type": "summary_text", "text": "Summary"}],
+                    "summary": [],
                     "content": [{"type": "reasoning_text", "text": "Think"}],
                     "encrypted_content": "response-state",
                 },
@@ -947,7 +947,7 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             index=0,
             part=Thinking(
                 content="Think",
-                summary="Summary",
+                summary="",
                 id="rs_123",
                 signature="response-state",
             ),
@@ -1537,6 +1537,215 @@ async def test_responses_adapter_omits_empty_reasoning_part_lifecycle(
     assert done.item.content == []
     assert done.item.summary == []
     assert done.item.encrypted_content is None
+
+
+async def test_responses_events_translate_non_empty_part_added_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Part-added snapshots can carry initial text; translate them as deltas so
+    # the streamed text stays consistent with the completed snapshots. Raw
+    # reasoning and summaries use separate reasoning items, as required by the
+    # Responses lifecycle. Empty part-added echoes remain ignored (see
+    # test_responses_events_ignore_...).
+    native_events = [
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {"id": "rs_123", "type": "reasoning", "content": [], "summary": []},
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.content_part.added",
+                "content_index": 0,
+                "item_id": "rs_123",
+                "output_index": 0,
+                "part": {"type": "reasoning_text", "text": "Initial"},
+                "sequence_number": 1,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [{"type": "reasoning_text", "text": "Initial"}],
+                    "summary": [],
+                },
+                "output_index": 0,
+                "sequence_number": 2,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {"id": "rs_456", "type": "reasoning", "content": [], "summary": []},
+                "output_index": 1,
+                "sequence_number": 3,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.reasoning_summary_part.added",
+                "item_id": "rs_456",
+                "output_index": 1,
+                "part": {"type": "summary_text", "text": "Sum"},
+                "sequence_number": 4,
+                "summary_index": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "rs_456",
+                    "type": "reasoning",
+                    "content": [],
+                    "summary": [{"type": "summary_text", "text": "Sum"}],
+                },
+                "output_index": 1,
+                "sequence_number": 5,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "msg_123",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "in_progress",
+                    "content": [],
+                },
+                "output_index": 2,
+                "sequence_number": 6,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.content_part.added",
+                "content_index": 0,
+                "item_id": "msg_123",
+                "output_index": 2,
+                "part": {
+                    "type": "output_text",
+                    "text": "Answer",
+                    "annotations": [],
+                    "logprobs": [],
+                },
+                "sequence_number": 7,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "msg_123",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Answer",
+                            "annotations": [],
+                            "logprobs": [],
+                        }
+                    ],
+                },
+                "output_index": 2,
+                "sequence_number": 8,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == [
+        PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="Initial")),
+        PartEndEvent(
+            index=0,
+            part=Thinking(content="Initial", summary="", id="rs_123"),
+        ),
+        PartStartEvent(index=1, part=Thinking(content="", summary="", id="rs_456")),
+        PartDeltaEvent(index=1, delta=ThinkingDelta(summary_delta="Sum")),
+        PartEndEvent(index=1, part=Thinking(content="", summary="Sum", id="rs_456")),
+        PartStartEvent(index=2, part=TextOutput(content="", id="msg_123")),
+        PartDeltaEvent(index=2, delta=TextDelta(content_delta="Answer")),
+        PartEndEvent(index=2, part=TextOutput(content="Answer", id="msg_123")),
+    ]
+
+
+async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Empty deltas are lifecycle echoes: they must not materialize a deferred
+    # reasoning part, so the part is still omitted at completion.
+    empty_item = {"id": "rs_123", "type": "reasoning", "content": [], "summary": []}
+    native_events = [
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": empty_item,
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.reasoning_text.delta",
+                "content_index": 0,
+                "delta": "",
+                "item_id": "rs_123",
+                "output_index": 0,
+                "sequence_number": 1,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.reasoning_summary_text.delta",
+                "delta": "",
+                "item_id": "rs_123",
+                "output_index": 0,
+                "sequence_number": 2,
+                "summary_index": 0,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": empty_item,
+                "output_index": 0,
+                "sequence_number": 3,
+            }
+        ),
+    ]
+
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    assert events == []
 
 
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(

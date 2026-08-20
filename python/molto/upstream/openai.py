@@ -197,10 +197,8 @@ def _chat_usage(raw_usage: Any) -> Usage:
 _IGNORED_RESPONSES_EVENTS = frozenset(
     {
         "response.in_progress",
-        "response.content_part.added",
         "response.content_part.done",
         "response.reasoning_text.done",
-        "response.reasoning_summary_part.added",
         "response.reasoning_summary_part.done",
         "response.reasoning_summary_text.done",
         "response.function_call_arguments.done",
@@ -398,6 +396,9 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 else:
                     yield start_part(event.output_index, part)
             elif event_type == "response.reasoning_text.delta":
+                # An empty delta must not materialize a deferred reasoning part.
+                if not event.delta and event.output_index in pending_reasoning:
+                    continue
                 if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                     yield start_part(event.output_index, start)
                 yield PartDeltaEvent(
@@ -405,12 +406,40 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     delta=ThinkingDelta(content_delta=event.delta),
                 )
             elif event_type == "response.reasoning_summary_text.delta":
+                # An empty delta must not materialize a deferred reasoning part.
+                if not event.delta and event.output_index in pending_reasoning:
+                    continue
                 if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                     yield start_part(event.output_index, start)
                 yield PartDeltaEvent(
                     index=part_index(event.output_index),
                     delta=ThinkingDelta(summary_delta=event.delta),
                 )
+            elif event_type == "response.content_part.added":
+                # A part-added snapshot can carry initial text; empty ones are
+                # lifecycle echoes and must not materialize a deferred part.
+                added_part = event.part
+                if added_part.type == "reasoning_text" and added_part.text:
+                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                        yield start_part(event.output_index, start)
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=ThinkingDelta(content_delta=added_part.text),
+                    )
+                elif added_part.type == "output_text" and added_part.text:
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=TextDelta(content_delta=added_part.text),
+                    )
+            elif event_type == "response.reasoning_summary_part.added":
+                added_part = event.part
+                if added_part.type == "summary_text" and added_part.text:
+                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                        yield start_part(event.output_index, start)
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=ThinkingDelta(summary_delta=added_part.text),
+                    )
             elif event_type == "response.output_text.delta":
                 yield PartDeltaEvent(
                     index=part_index(event.output_index),

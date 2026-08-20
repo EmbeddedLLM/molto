@@ -391,6 +391,41 @@ async def test_client_defers_completely_empty_thinking_block_start(
             await anext(stream)
 
 
+@pytest.mark.parametrize(
+    "delta",
+    [
+        {"type": "thinking_delta", "thinking": ""},
+        {"type": "signature_delta", "signature": ""},
+    ],
+    ids=["thinking", "signature"],
+)
+async def test_client_omits_thinking_block_after_empty_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+    delta: dict,
+) -> None:
+    # Empty deltas carry nothing: they must not materialize a deferred thinking
+    # block, so the block is still omitted at block stop.
+    native_events = [
+        _MESSAGE_START,
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {"type": "content_block_delta", "index": 0, "delta": delta},
+        {"type": "content_block_stop", "index": 0},
+        *_MESSAGE_END_EVENTS,
+    ]
+
+    events = await _collect_client_events(monkeypatch, native_events)
+
+    assert [
+        event
+        for event in events
+        if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
+    ] == []
+
+
 async def test_client_omits_completely_empty_thinking_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

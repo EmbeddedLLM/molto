@@ -421,6 +421,9 @@ class AnthropicMessagesClient(
                 state = parts.get(event.index)
                 part = state.part if state is not None else None
                 if delta.type == "thinking_delta" and isinstance(part, Thinking):
+                    # An empty delta must not materialize a deferred block.
+                    if not delta.thinking and event.index in pending_thinking:
+                        continue
                     if (pending := pop_pending_thinking(event.index)) is not None:
                         yield start_part(event.index, pending)
                     state.content += delta.thinking
@@ -429,6 +432,10 @@ class AnthropicMessagesClient(
                         delta=self._classify_thinking_delta(delta.thinking),
                     )
                 elif delta.type == "signature_delta" and isinstance(part, Thinking):
+                    # An empty signature carries no state and must not
+                    # materialize a deferred block.
+                    if not delta.signature and event.index in pending_thinking:
+                        continue
                     if (pending := pop_pending_thinking(event.index)) is not None:
                         yield start_part(event.index, pending)
                     # Anthropic defines signature_delta as the complete replacement
