@@ -597,7 +597,7 @@ class OpenAIChatCompletionsClient(
                         content.append({"type": "text", "text": part.content})
                     elif isinstance(part, ImageUrlInput):
                         raise ValueError(
-                            "Chat Completions cannot represent image tool result content."
+                            "Chat Completions does not support image tool result content."
                         )
                 messages.append(
                     {

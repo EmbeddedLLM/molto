@@ -763,7 +763,7 @@ class OpenAIChatCompletionsAdapter(
                     isinstance(part, dict) and part.get("type") == "image_url" for part in content
                 ):
                     raise ValueError(
-                        "Chat Completions cannot represent image tool result content."
+                        "Chat Completions does not support image tool result content."
                     )
                 text_parts = [
                     part.get("text")

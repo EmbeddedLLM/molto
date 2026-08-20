@@ -101,7 +101,7 @@ class AnthropicMessagesAdapter(
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
 
     @staticmethod
-    def _normalize_user_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
+    def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
         block_type = block.get("type")
         if block_type == "text":
             return TextInput(content=block["text"])
@@ -132,7 +132,7 @@ class AnthropicMessagesAdapter(
         for block in content_blocks:
             block_type = block.get("type")
             if block_type in {"text", "image"}:
-                user_parts.append(self._normalize_user_block(block))
+                user_parts.append(self._normalize_input_block(block))
                 continue
             if block_type != "tool_result":
                 raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
@@ -149,7 +149,7 @@ class AnthropicMessagesAdapter(
             normalized_content = [TextInput(content=content)]
         else:
             parts = list(content)
-            normalized_content = [self._normalize_user_block(part) for part in parts]
+            normalized_content = [self._normalize_input_block(part) for part in parts]
         return ToolReturn(
             content=normalized_content,
             tool_call_id=block["tool_use_id"],
