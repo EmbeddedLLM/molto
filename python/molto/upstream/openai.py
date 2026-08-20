@@ -126,6 +126,21 @@ def _reasoning_part(item: Any) -> Thinking:
     )
 
 
+def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
+    if part.summary and not part.signature:
+        raise ValueError("A Responses reasoning summary requires a signature.")
+    return part
+
+
+def _validate_responses_reasoning_capability(
+    part: Thinking, representation: Literal["raw", "summary"]
+) -> None:
+    if representation == "raw" and (part.summary or part.signature):
+        raise ValueError("Raw Responses reasoning cannot contain a summary or signature.")
+    if representation == "summary" and part.content:
+        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
+
+
 def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     """Project a just-added Responses output item into its initial normalized part."""
     if item.type == "reasoning":
@@ -141,7 +156,7 @@ def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
 def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     """Project a completed Responses output item into its normalized part."""
     if item.type == "reasoning":
-        return _reasoning_part(item)
+        return _validate_completed_responses_reasoning(_reasoning_part(item))
     if item.type == "message":
         return TextOutput(
             content="".join(part.text for part in item.content if part.type == "output_text"),
@@ -260,6 +275,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
+                _validate_completed_responses_reasoning(item)
                 reasoning_item = {
                     "type": "reasoning",
                     "status": "completed",
@@ -393,6 +409,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 )
             elif event_type == "response.output_item.added":
                 part = _started_output_item(event.item)
+                if isinstance(part, Thinking):
+                    _validate_responses_reasoning_capability(part, self._capabilities.thinking)
                 if (
                     isinstance(part, Thinking)
                     and not part.content
@@ -403,6 +421,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 else:
                     yield start_part(event.output_index, part)
             elif event_type == "response.reasoning_text.delta":
+                if self._capabilities.thinking != "raw" and event.delta:
+                    raise ValueError("Summarized Responses reasoning cannot contain raw text.")
                 # An empty delta must not materialize a deferred reasoning part.
                 if not event.delta and event.output_index in pending_reasoning:
                     continue
@@ -413,6 +433,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     delta=ThinkingDelta(content_delta=event.delta),
                 )
             elif event_type == "response.reasoning_summary_text.delta":
+                if self._capabilities.thinking != "summary" and event.delta:
+                    raise ValueError("Raw Responses reasoning cannot contain a summary.")
                 # An empty delta must not materialize a deferred reasoning part.
                 if not event.delta and event.output_index in pending_reasoning:
                     continue
@@ -427,6 +449,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 # lifecycle echoes and must not materialize a deferred part.
                 added_part = event.part
                 if added_part.type == "reasoning_text" and added_part.text:
+                    if self._capabilities.thinking != "raw":
+                        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
                     if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                         yield start_part(event.output_index, start)
                     yield PartDeltaEvent(
@@ -441,6 +465,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             elif event_type == "response.reasoning_summary_part.added":
                 added_part = event.part
                 if added_part.type == "summary_text" and added_part.text:
+                    if self._capabilities.thinking != "summary":
+                        raise ValueError("Raw Responses reasoning cannot contain a summary.")
                     if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                         yield start_part(event.output_index, start)
                     yield PartDeltaEvent(
@@ -461,6 +487,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 start = pending_reasoning.pop(event.output_index, None)
                 part = _completed_output_item(event.item)
                 if isinstance(part, Thinking):
+                    _validate_responses_reasoning_capability(part, self._capabilities.thinking)
                     # Deferred items always start empty, so the part is omitted
                     # when it also completes without content or state.
                     if (

@@ -7,6 +7,8 @@ from molto.types.normalized import (
     InputItem,
     NormalizedRequest,
     TextInput,
+    Thinking,
+    ThinkingDelta,
     ToolCall,
     ToolReturn,
     UserInput,
@@ -93,3 +95,34 @@ def test_user_input_preserves_ordered_text_and_image_parts():
     assert message.content[1].url == "data:image/png;base64,AA=="
     assert message.content[1].detail == "high"
     assert message.content[2].content == "after"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"content": "raw", "summary": "summary"},
+        {"content": "raw", "summary": "", "signature": "opaque-state"},
+    ],
+)
+def test_thinking_rejects_contradictory_representations(values: dict) -> None:
+    with pytest.raises(ValidationError):
+        Thinking(**values)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"content_delta": "raw", "summary_delta": "summary"},
+        {"content_delta": "raw", "signature_delta": "opaque-state"},
+    ],
+)
+def test_thinking_delta_rejects_contradictory_representations(values: dict) -> None:
+    with pytest.raises(ValidationError):
+        ThinkingDelta(**values)
+
+
+def test_thinking_keeps_protocol_specific_valid_states() -> None:
+    assert Thinking(content="", summary="summary").signature is None
+    assert Thinking(content="", summary="", signature="opaque-state").signature == "opaque-state"
+    assert ThinkingDelta(summary_delta="summary").signature_delta is None
+    assert ThinkingDelta(signature_delta="opaque-state").summary_delta is None

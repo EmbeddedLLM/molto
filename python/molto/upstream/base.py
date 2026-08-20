@@ -55,7 +55,7 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         return Thinking(
             content=text if self._capabilities.thinking == "raw" else "",
             summary=text if self._capabilities.thinking == "summary" else "",
-            signature=signature,
+            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
         )
 
     def _classify_thinking_delta(self, text: str) -> ThinkingDelta:

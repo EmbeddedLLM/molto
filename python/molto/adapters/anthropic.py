@@ -163,9 +163,10 @@ class AnthropicMessagesAdapter(
         for block in content_blocks:
             block_type = block.get("type")
             if block_type == "thinking":
-                items.append(
-                    self._classify_thinking(block["thinking"], signature=block.get("signature"))
-                )
+                part = self._classify_thinking(block["thinking"], signature=block.get("signature"))
+                if self._capabilities.thinking == "summary" and not part.signature:
+                    raise ValueError("An Anthropic reasoning summary requires a signature.")
+                items.append(part)
             elif block_type == "text":
                 items.append(TextOutput(content=block["text"]))
             elif block_type == "tool_use":
@@ -276,6 +277,9 @@ class AnthropicMessagesAdapter(
         def event(data: dict[str, Any]) -> AnthropicMessagesStreamEvent:
             return AnthropicMessagesStreamEventAdapter.validate_python(data)
 
+        thinking_parts: set[int] = set()
+        thinking_signatures: dict[int, str] = {}
+
         async for normalized_event in events:
             if isinstance(normalized_event, ResponseStartEvent):
                 yield event(
@@ -303,12 +307,27 @@ class AnthropicMessagesAdapter(
                 # A part start may already carry an initial snapshot; preserve it
                 # in the block instead of waiting for deltas that may not exist.
                 if isinstance(normalized_event.part, Thinking):
+                    part = normalized_event.part
+                    if self._capabilities.thinking == "raw":
+                        if part.summary or part.signature:
+                            raise ValueError(
+                                "A raw Anthropic thinking block cannot contain a summary "
+                                "or signature."
+                            )
+                        thinking = part.content
+                    else:
+                        if part.content:
+                            raise ValueError(
+                                "An Anthropic summary block cannot contain raw reasoning."
+                            )
+                        thinking = part.summary
+                        if part.signature:
+                            thinking_signatures[normalized_event.index] = part.signature
+                    thinking_parts.add(normalized_event.index)
                     content_block = {
                         "type": "thinking",
-                        "thinking": (
-                            normalized_event.part.content or normalized_event.part.summary
-                        ),
-                        "signature": normalized_event.part.signature or "",
+                        "thinking": thinking,
+                        "signature": part.signature or "",
                     }
                 elif isinstance(normalized_event.part, TextOutput):
                     content_block = {"type": "text", "text": normalized_event.part.content}
@@ -342,8 +361,23 @@ class AnthropicMessagesAdapter(
                     )
             elif isinstance(normalized_event, PartDeltaEvent):
                 if isinstance(normalized_event.delta, ThinkingDelta):
-                    reasoning_delta = self._thinking_delta_text(normalized_event.delta)
-                    if reasoning_delta is not None:
+                    delta = normalized_event.delta
+                    if normalized_event.index not in thinking_parts:
+                        raise ValueError("Received a thinking delta before its block started.")
+                    if self._capabilities.thinking == "raw":
+                        if delta.summary_delta or delta.signature_delta:
+                            raise ValueError(
+                                "A raw Anthropic thinking block cannot contain a summary "
+                                "or signature."
+                            )
+                        reasoning_delta = delta.content_delta
+                    else:
+                        if delta.content_delta:
+                            raise ValueError(
+                                "An Anthropic summary block cannot contain raw reasoning."
+                            )
+                        reasoning_delta = delta.summary_delta
+                    if reasoning_delta:
                         yield event(
                             {
                                 "type": "content_block_delta",
@@ -354,14 +388,15 @@ class AnthropicMessagesAdapter(
                                 },
                             }
                         )
-                    if normalized_event.delta.signature_delta is not None:
+                    if delta.signature_delta:
+                        thinking_signatures[normalized_event.index] = delta.signature_delta
                         yield event(
                             {
                                 "type": "content_block_delta",
                                 "index": normalized_event.index,
                                 "delta": {
                                     "type": "signature_delta",
-                                    "signature": normalized_event.delta.signature_delta,
+                                    "signature": delta.signature_delta,
                                 },
                             }
                         )
@@ -402,6 +437,30 @@ class AnthropicMessagesAdapter(
             elif isinstance(normalized_event, PartEndEvent):
                 if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
+                if isinstance(normalized_event.part, Thinking):
+                    part = normalized_event.part
+                    if normalized_event.index not in thinking_parts:
+                        raise ValueError("Received a thinking end before its block started.")
+                    if self._capabilities.thinking == "raw":
+                        if part.summary or part.signature:
+                            raise ValueError(
+                                "A raw Anthropic thinking block cannot contain a summary "
+                                "or signature."
+                            )
+                    else:
+                        if part.content:
+                            raise ValueError(
+                                "An Anthropic summary block cannot contain raw reasoning."
+                            )
+                        if not part.signature:
+                            raise ValueError(
+                                "An Anthropic reasoning summary requires a signature."
+                            )
+                        if thinking_signatures.get(normalized_event.index) != part.signature:
+                            raise ValueError(
+                                "An Anthropic reasoning signature must be streamed before "
+                                "the block ends."
+                            )
                 yield event({"type": "content_block_stop", "index": normalized_event.index})
             elif isinstance(normalized_event, ResponseEndEvent):
                 stop_reason = _STOP_REASONS.get(normalized_event.termination_reason, "end_turn")

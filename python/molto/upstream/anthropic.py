@@ -19,6 +19,7 @@ from pydantic_ai.profiles.anthropic import (
     resolve_anthropic_effort,
 )
 
+from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesStreamEvent,
@@ -239,6 +240,8 @@ class AnthropicMessagesClient(
     @staticmethod
     def _request_parts(
         request: NormalizedRequest,
+        *,
+        capabilities: ProviderCapabilities | None = None,
     ) -> tuple[str | None, list[dict[str, Any]], bool]:
         system_parts: list[str] = []
         messages: list[dict[str, Any]] = []
@@ -274,8 +277,29 @@ class AnthropicMessagesClient(
             elif isinstance(item, Thinking):
                 flush_tool_results()
                 has_thinking = True
-                block = {"type": "thinking", "thinking": item.content or item.summary}
-                if item.signature is not None:
+                representation = (
+                    "raw"
+                    if item.content
+                    else "summary"
+                    if item.summary or item.signature
+                    else None
+                )
+                if representation == "summary" and not item.signature:
+                    raise ValueError("An Anthropic reasoning summary requires a signature.")
+                if (
+                    representation is not None
+                    and capabilities is not None
+                    and representation != capabilities.thinking
+                ):
+                    raise ValueError(
+                        "Anthropic thinking history does not match the provider's reasoning "
+                        "representation."
+                    )
+                block = {
+                    "type": "thinking",
+                    "thinking": item.content if representation == "raw" else item.summary,
+                }
+                if representation == "summary":
                     block["signature"] = item.signature
                 assistant_blocks.append(block)
             elif isinstance(item, TextOutput):
@@ -320,8 +344,13 @@ class AnthropicMessagesClient(
         return "\n\n".join(system_parts) or None, messages, has_thinking
 
     @classmethod
-    def _request_body(cls, request: NormalizedRequest) -> dict[str, Any]:
-        system, messages, has_thinking = cls._request_parts(request)
+    def _request_body(
+        cls,
+        request: NormalizedRequest,
+        *,
+        capabilities: ProviderCapabilities | None = None,
+    ) -> dict[str, Any]:
+        system, messages, has_thinking = cls._request_parts(request, capabilities=capabilities)
         body: dict[str, Any] = {
             "max_tokens": request.max_output_tokens,
             "messages": messages,
@@ -377,7 +406,9 @@ class AnthropicMessagesClient(
             part_indices[source_index] = len(part_indices)
             return PartStartEvent(index=part_indices[source_index], part=part)
 
-        native_request = AnthropicMessagesCreateRequest.model_validate(self._request_body(request))
+        native_request = AnthropicMessagesCreateRequest.model_validate(
+            self._request_body(request, capabilities=self._capabilities)
+        )
         async for event in self.native_events(native_request):
             if isinstance(event, RawMessageStartEvent):
                 message = event.message
@@ -410,7 +441,12 @@ class AnthropicMessagesClient(
                     )
                 else:
                     raise ValueError(f"Unsupported Anthropic output block: {block.type}")
-                if isinstance(part, Thinking) and not block.thinking and not block.signature:
+                if (
+                    isinstance(part, Thinking)
+                    and not part.content
+                    and not part.summary
+                    and not part.signature
+                ):
                     parts[event.index] = _PartState(part)
                     pending_thinking.add(event.index)
                 elif isinstance(part, Thinking):
@@ -437,6 +473,8 @@ class AnthropicMessagesClient(
                         delta=self._classify_thinking_delta(delta.thinking),
                     )
                 elif delta.type == "signature_delta" and isinstance(part, Thinking):
+                    if self._capabilities.thinking == "raw":
+                        continue
                     # An empty signature carries no state and must not
                     # materialize a deferred block.
                     if not delta.signature and event.index in pending_thinking:
@@ -473,6 +511,8 @@ class AnthropicMessagesClient(
                     continue
                 part = state.part
                 if isinstance(part, Thinking):
+                    if self._capabilities.thinking == "summary" and not state.signature:
+                        raise ValueError("An Anthropic reasoning summary requires a signature.")
                     completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
                         state.content, signature=state.signature
                     )

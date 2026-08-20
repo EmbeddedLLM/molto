@@ -128,7 +128,7 @@ async def test_responses_adapter_uses_target_default_service_tier():
 
 async def test_responses_adapter_does_not_synthesize_output_phase():
     request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
-    adapter = OpenAIResponsesAdapter(OPENAI_CAPABILITIES)
+    adapter = OpenAIResponsesAdapter(VLLM_CAPABILITIES)
     normalized_request = adapter.normalize_request(request)
 
     async def normalized_events():
@@ -756,9 +756,9 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
         input=[
             {
                 "type": "reasoning",
-                "content": [{"type": "reasoning_text", "text": "Prior thought"}],
+                "content": [],
                 "encrypted_content": "request-state",
-                "summary": [],
+                "summary": [{"type": "summary_text", "text": "Prior thought"}],
             },
             {"role": "assistant", "content": "Prior answer"},
         ],
@@ -777,11 +777,11 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
             index=0,
             part=Thinking(content="", summary="", signature="initial-state"),
         )
-        yield PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="New thought"))
+        yield PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="New thought"))
         yield PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state"))
         yield PartEndEvent(
             index=0,
-            part=Thinking(content="New thought", summary="", signature="response-state"),
+            part=Thinking(content="", summary="New thought", signature="response-state"),
         )
         yield ResponseEndEvent(
             id="resp_123",
@@ -826,12 +826,12 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
         ),
         _response_event(
             {
-                "type": "response.reasoning_text.delta",
-                "content_index": 0,
+                "type": "response.reasoning_summary_text.delta",
                 "delta": "Think",
                 "item_id": "rs_123",
                 "output_index": 0,
                 "sequence_number": 2,
+                "summary_index": 0,
             }
         ),
         _response_event(
@@ -840,8 +840,8 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
                 "item": {
                     "id": "rs_123",
                     "type": "reasoning",
-                    "summary": [],
-                    "content": [{"type": "reasoning_text", "text": "Think"}],
+                    "summary": [{"type": "summary_text", "text": "Think"}],
+                    "content": [],
                     "encrypted_content": "response-state",
                 },
                 "output_index": 0,
@@ -941,13 +941,13 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             index=0,
             part=Thinking(content="", summary="", id="rs_123", signature="initial-state"),
         ),
-        PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="Think")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Think")),
         PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state")),
         PartEndEvent(
             index=0,
             part=Thinking(
-                content="Think",
-                summary="",
+                content="",
+                summary="Think",
                 id="rs_123",
                 signature="response-state",
             ),
@@ -1002,6 +1002,7 @@ async def test_responses_events_normalize_explicit_reasoning_summary(
                     "type": "reasoning",
                     "content": [],
                     "summary": [{"type": "summary_text", "text": "Summary"}],
+                    "encrypted_content": "response-state",
                 },
                 "output_index": 0,
                 "sequence_number": 2,
@@ -1023,9 +1024,15 @@ async def test_responses_events_normalize_explicit_reasoning_summary(
     assert events == [
         PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
         PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state")),
         PartEndEvent(
             index=0,
-            part=Thinking(content="", summary="Summary", id="rs_123"),
+            part=Thinking(
+                content="",
+                summary="Summary",
+                id="rs_123",
+                signature="response-state",
+            ),
         ),
     ]
 
@@ -1233,14 +1240,16 @@ async def test_responses_events_start_signed_reasoning_part_immediately(
 
 
 @pytest.mark.parametrize(
-    ("added_content", "added_summary", "expected_part"),
+    ("capabilities", "added_content", "added_summary", "expected_part"),
     [
         (
+            VLLM_CAPABILITIES,
             [{"type": "reasoning_text", "text": "Initial"}],
             [],
             Thinking(content="Initial", summary="", id="rs_123"),
         ),
         (
+            OPENAI_CAPABILITIES,
             [],
             [{"type": "summary_text", "text": "Summary"}],
             Thinking(content="", summary="Summary", id="rs_123"),
@@ -1250,6 +1259,7 @@ async def test_responses_events_start_signed_reasoning_part_immediately(
 )
 async def test_responses_events_preserve_reasoning_added_snapshot(
     monkeypatch: pytest.MonkeyPatch,
+    capabilities: ProviderCapabilities,
     added_content: list[dict[str, object]],
     added_summary: list[dict[str, object]],
     expected_part: Thinking,
@@ -1274,7 +1284,7 @@ async def test_responses_events_preserve_reasoning_added_snapshot(
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        client = OpenAIResponsesClient(http_client, capabilities=capabilities)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         stream = client.events(NormalizedRequest(model="m"))
         first = await anext(stream)
@@ -1283,7 +1293,44 @@ async def test_responses_events_preserve_reasoning_added_snapshot(
     assert first == PartStartEvent(index=0, part=expected_part)
 
 
-async def test_responses_events_accumulate_reasoning_added_snapshot_and_deltas(
+async def test_responses_events_reject_reasoning_outside_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        yield _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [{"type": "reasoning_text", "text": "raw"}],
+                    "summary": [],
+                },
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        with pytest.raises(ValueError, match="cannot contain raw text"):
+            await anext(client.events(NormalizedRequest(model="m")))
+
+
+def test_responses_client_rejects_unsigned_summary_history() -> None:
+    request = NormalizedRequest(
+        input=[Thinking(content="", summary="Summary")],
+        model="m",
+    )
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        OpenAIResponsesClient._request_body(request)
+
+
+async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The start snapshot is the initial state, not a delta: the completed part
@@ -1334,7 +1381,7 @@ async def test_responses_events_accumulate_reasoning_added_snapshot_and_deltas(
             yield event
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
@@ -1363,7 +1410,7 @@ async def test_responses_events_defer_completely_empty_reasoning_part_start(
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         stream = client.events(NormalizedRequest(model="m"))
         with pytest.raises(StopAsyncIteration):
@@ -1406,7 +1453,7 @@ async def test_responses_events_complete_reasoning_part_without_deltas(
             yield event
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
@@ -1605,6 +1652,7 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
                     "type": "reasoning",
                     "content": [],
                     "summary": [{"type": "summary_text", "text": "Sum"}],
+                    "encrypted_content": "response-state",
                 },
                 "output_index": 1,
                 "sequence_number": 5,
@@ -1662,16 +1710,27 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
         ),
     ]
 
-    async def stub_native_events(
-        native_request: OpenAIResponsesCreateRequest,
-    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-        for event in native_events:
-            yield event
+    async def collect(
+        selected_events: list[OpenAIResponsesStreamEvent],
+        capabilities: ProviderCapabilities,
+    ) -> list[ModelResponseStreamEvent]:
+        async def stub_native_events(
+            native_request: OpenAIResponsesCreateRequest,
+        ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+            for event in selected_events:
+                yield event
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(_unexpected_http)
+        ) as http_client:
+            client = OpenAIResponsesClient(http_client, capabilities=capabilities)
+            monkeypatch.setattr(client, "native_events", stub_native_events)
+            return [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    events = [
+        *(await collect(native_events[:3], VLLM_CAPABILITIES)),
+        *(await collect(native_events[3:], OPENAI_CAPABILITIES)),
+    ]
 
     assert events == [
         PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
@@ -1680,12 +1739,21 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
             index=0,
             part=Thinking(content="Initial", summary="", id="rs_123"),
         ),
-        PartStartEvent(index=1, part=Thinking(content="", summary="", id="rs_456")),
-        PartDeltaEvent(index=1, delta=ThinkingDelta(summary_delta="Sum")),
-        PartEndEvent(index=1, part=Thinking(content="", summary="Sum", id="rs_456")),
-        PartStartEvent(index=2, part=TextOutput(content="", id="msg_123")),
-        PartDeltaEvent(index=2, delta=TextDelta(content_delta="Answer")),
-        PartEndEvent(index=2, part=TextOutput(content="Answer", id="msg_123")),
+        PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_456")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Sum")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="response-state")),
+        PartEndEvent(
+            index=0,
+            part=Thinking(
+                content="",
+                summary="Sum",
+                id="rs_456",
+                signature="response-state",
+            ),
+        ),
+        PartStartEvent(index=1, part=TextOutput(content="", id="msg_123")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Answer")),
+        PartEndEvent(index=1, part=TextOutput(content="Answer", id="msg_123")),
     ]
 
 
@@ -1769,8 +1837,8 @@ async def test_responses_events_forward_same_provider_opaque_reasoning_state(
                 NormalizedRequest(
                     input=[
                         Thinking(
-                            content="Prior thought",
-                            summary="",
+                            content="",
+                            summary="Prior thought",
                             signature="request-state",
                         ),
                         TextOutput(content="Prior answer"),

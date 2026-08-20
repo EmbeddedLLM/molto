@@ -118,16 +118,18 @@ The implemented result path covers response metadata, text, raw reasoning, reaso
 
 Responses distinguishes raw reasoning (`response.reasoning_text.*`) from summaries (`response.reasoning_summary_*`). Chat Completions `reasoning_content` does not. The upstream Chat client therefore classifies that field with `ProviderCapabilities.thinking`:
 
-A Responses reasoning item uses exactly one textual representation: raw reasoning content or a reasoning summary. It must not contain both representations or switch between them across its added, delta, and completed snapshots. An opaque encrypted signature may accompany either representation.
+A Responses reasoning lifecycle has exactly one valid representation: raw reasoning content with no summary or encrypted signature, or a reasoning summary accompanied by an encrypted signature with no raw content. It must not combine or switch representations across its added, delta, and completed state. A completely empty added snapshot may remain deferred until its representation is known.
+
+Chat Completions carries one ambiguous `reasoning_content` field and no signature. Provider capabilities classify that field as either raw reasoning or a reasoning summary; both are valid Chat representations without a signature.
 
 | Source                      | Provider capability | Normalized representation            | Responses projection           |
 | --------------------------- | ------------------- | ------------------------------------ | ------------------------------ |
 | Chat `reasoning_content`    | `raw`               | `Thinking.content` / `content_delta` | `response.reasoning_text.*`    |
 | Chat `reasoning_content`    | `summary`           | `Thinking.summary` / `summary_delta` | `response.reasoning_summary_*` |
-| Responses reasoning text    | any                 | `Thinking.content` / `content_delta` | Chat `reasoning_content`       |
-| Responses reasoning summary | any                 | `Thinking.summary` / `summary_delta` | Chat `reasoning_content`       |
+| Responses reasoning text    | `raw`               | `Thinking.content` / `content_delta` | Chat `reasoning_content`       |
+| Responses reasoning summary | `summary`           | `Thinking.summary` / `summary_delta` | Chat `reasoning_content`       |
 
-OpenAI uses `summary`; vLLM uses `raw`. Explicit Responses event types remain authoritative and ignore this capability. Projecting to Chat collapses either normalized form into its one reasoning field.
+OpenAI uses `summary`; vLLM uses `raw`. Explicit Responses event types determine the normalized field, and each event must match the configured provider capability. Chat projection accepts the matching normalized form and emits it through Chat's single reasoning field.
 
 ### Direct result mappings
 

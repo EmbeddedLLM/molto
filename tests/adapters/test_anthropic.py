@@ -45,6 +45,20 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
     return AnthropicMessagesAdapter(capabilities).normalize_request(request)
 
 
+def test_normalization_rejects_unsigned_summary_history() -> None:
+    request = _request(
+        messages=[
+            {
+                "role": "assistant",
+                "content": [{"type": "thinking", "thinking": "Summary"}],
+            }
+        ]
+    )
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        _normalize(request, _CAPABILITIES)
+
+
 @pytest.mark.parametrize(
     ("system", "expected"),
     [
@@ -244,12 +258,17 @@ _MESSAGE_START = ResponseStartEvent(id="msg_123", created_at=1, model="m")
 
 
 @pytest.mark.parametrize(
-    "delta",
-    [ThinkingDelta(content_delta="raw"), ThinkingDelta(summary_delta="summary")],
+    ("capabilities", "delta"),
+    [
+        (PROVIDER_CAPABILITIES["vllm"], ThinkingDelta(content_delta="raw")),
+        (_CAPABILITIES, ThinkingDelta(summary_delta="summary")),
+    ],
     ids=["raw", "summary"],
 )
-async def test_projection_collapses_either_thinking_representation(delta: ThinkingDelta) -> None:
-    adapter, request = _adapter()
+async def test_projection_collapses_either_thinking_representation(
+    capabilities: ProviderCapabilities, delta: ThinkingDelta
+) -> None:
+    adapter, request = _adapter(capabilities)
 
     events = [
         event
@@ -285,6 +304,67 @@ async def test_projection_skips_empty_thinking_delta() -> None:
     ]
 
     assert [event.type for event in events] == ["message_start", "content_block_start"]
+
+
+async def test_projection_supports_official_empty_summary_start() -> None:
+    adapter, request = _adapter()
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="opaque-state")),
+                PartEndEvent(
+                    index=0,
+                    part=Thinking(content="", summary="Summary", signature="opaque-state"),
+                ),
+            ),
+            request,
+        )
+    ]
+
+    start = next(event for event in events if event.type == "content_block_start")
+    deltas = [event.delta for event in events if event.type == "content_block_delta"]
+    assert start.content_block.signature == ""
+    assert [delta.type for delta in deltas] == ["thinking_delta", "signature_delta"]
+
+
+async def test_projection_rejects_reasoning_outside_capability() -> None:
+    adapter, request = _adapter()
+
+    with pytest.raises(ValueError, match="cannot contain raw reasoning"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _MESSAGE_START,
+                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                    PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="raw")),
+                ),
+                request,
+            )
+        ]
+
+
+async def test_projection_rejects_unsigned_summary_completion() -> None:
+    adapter, request = _adapter()
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _MESSAGE_START,
+                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                    PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
+                ),
+                request,
+            )
+        ]
 
 
 async def test_projection_preserves_non_empty_part_starts() -> None:

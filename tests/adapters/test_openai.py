@@ -253,7 +253,7 @@ _CHAT_START = ResponseStartEvent(id="chatcmpl_123", created_at=1, model="m")
     [
         (
             PROVIDER_CAPABILITIES["vllm"],
-            Thinking(content="Raw thought", summary="", signature="opaque-state"),
+            Thinking(content="Raw thought", summary=""),
             "response.content_part.added",
             ("response.reasoning_text.done", "response.content_part.done"),
             "content",
@@ -302,7 +302,96 @@ async def test_responses_projection_completes_thinking_text_arriving_without_del
     done = next(event for event in events if event.type == "response.output_item.done")
     text = part.content or part.summary
     assert [part.text for part in getattr(done.item, field)] == [text]
-    assert done.item.encrypted_content == "opaque-state"
+    assert done.item.encrypted_content == part.signature
+
+
+@pytest.mark.parametrize(
+    (
+        "capabilities",
+        "start",
+        "deltas",
+        "completed",
+        "part_added_type",
+        "text_delta_type",
+        "completed_field",
+    ),
+    [
+        (
+            PROVIDER_CAPABILITIES["openai"],
+            Thinking(content="", summary="", signature=None),
+            (
+                ThinkingDelta(summary_delta="I am"),
+                ThinkingDelta(summary_delta=" reasoning"),
+            ),
+            Thinking(
+                content="",
+                summary="I am reasoning",
+                signature="opaque-signature",
+            ),
+            "response.reasoning_summary_part.added",
+            "response.reasoning_summary_text.delta",
+            "summary",
+        ),
+        (
+            PROVIDER_CAPABILITIES["vllm"],
+            Thinking(content="", summary="", signature=None),
+            (
+                ThinkingDelta(content_delta="I am"),
+                ThinkingDelta(content_delta=" reasoning"),
+            ),
+            Thinking(content="I am reasoning", summary="", signature=None),
+            "response.content_part.added",
+            "response.reasoning_text.delta",
+            "content",
+        ),
+        (
+            PROVIDER_CAPABILITIES["vllm"],
+            Thinking(content="I", summary="", signature=None),
+            (
+                ThinkingDelta(content_delta=" am"),
+                ThinkingDelta(content_delta=" reasoning"),
+            ),
+            Thinking(content="I am reasoning", summary="", signature=None),
+            "response.content_part.added",
+            "response.reasoning_text.delta",
+            "content",
+        ),
+    ],
+    ids=["summary-empty-start", "raw-empty-start", "raw-non-empty-start"],
+)
+async def test_responses_projection_preserves_streamed_reasoning(
+    capabilities: ProviderCapabilities,
+    start: Thinking,
+    deltas: tuple[ThinkingDelta, ...],
+    completed: Thinking,
+    part_added_type: str,
+    text_delta_type: str,
+    completed_field: str,
+) -> None:
+    adapter, request = _responses_adapter(capabilities)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=start),
+                *(PartDeltaEvent(index=0, delta=delta) for delta in deltas),
+                PartEndEvent(index=0, part=completed),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    part_added = next(event for event in events if event.type == part_added_type)
+    text_deltas = [event.delta for event in events if event.type == text_delta_type]
+    done = next(event for event in events if event.type == "response.output_item.done")
+
+    assert part_added.part.text == (start.content or start.summary)
+    assert text_deltas == [delta.content_delta or delta.summary_delta for delta in deltas]
+    assert [part.text for part in getattr(done.item, completed_field)] == ["I am reasoning"]
+    assert done.item.encrypted_content == completed.signature
 
 
 @pytest.mark.parametrize(
@@ -312,15 +401,14 @@ async def test_responses_projection_completes_thinking_text_arriving_without_del
             ThinkingDelta(content_delta="raw"),
             ThinkingDelta(summary_delta="summary"),
         ),
-        (ThinkingDelta(content_delta="raw", summary_delta="summary"),),
     ],
 )
-async def test_responses_projection_rejects_mixed_thinking_delta_representations(
+async def test_responses_projection_rejects_reasoning_outside_capability(
     deltas: tuple[ThinkingDelta, ...],
 ) -> None:
     adapter, request = _responses_adapter(_CAPABILITIES)
 
-    with pytest.raises(ValueError, match="cannot contain both raw reasoning"):
+    with pytest.raises(ValueError, match="cannot contain raw text"):
         [
             event
             async for event in adapter.project_events(
@@ -328,6 +416,40 @@ async def test_responses_projection_rejects_mixed_thinking_delta_representations
                     _RESPONSE_START,
                     PartStartEvent(index=0, part=Thinking(content="", summary="")),
                     *(PartDeltaEvent(index=0, delta=delta) for delta in deltas),
+                ),
+                request,
+            )
+        ]
+
+
+def test_responses_normalization_rejects_unsigned_summary_history() -> None:
+    request = OpenAIResponsesCreateRequest(
+        input=[
+            {
+                "type": "reasoning",
+                "content": [],
+                "summary": [{"type": "summary_text", "text": "Summary"}],
+            }
+        ],
+        model="m",
+    )
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+
+
+async def test_responses_projection_rejects_unsigned_summary_completion() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        [
+            event
+            async for event in adapter.project_events(
+                _stream(
+                    _RESPONSE_START,
+                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                    PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
                 ),
                 request,
             )
@@ -493,35 +615,46 @@ async def test_responses_projection_generates_prefixed_item_ids(
 
 
 @pytest.mark.parametrize(
-    ("part", "expected_delta"),
+    ("capabilities", "part", "expected_delta"),
     [
         (
+            _CAPABILITIES,
             Thinking(content="", summary=""),
             {"role": "assistant", "content": None, "reasoning_content": ""},
         ),
         (
+            PROVIDER_CAPABILITIES["vllm"],
             Thinking(content="Raw thought", summary=""),
             {"role": "assistant", "content": None, "reasoning_content": "Raw thought"},
         ),
         (
+            _CAPABILITIES,
             Thinking(content="", summary="Summarized thought"),
             {"role": "assistant", "content": None, "reasoning_content": "Summarized thought"},
         ),
-        (TextOutput(content=""), {"role": "assistant", "content": "", "refusal": None}),
         (
+            _CAPABILITIES,
+            TextOutput(content=""),
+            {"role": "assistant", "content": "", "refusal": None},
+        ),
+        (
+            _CAPABILITIES,
             TextOutput(content="Ready answer"),
             {"role": "assistant", "content": "Ready answer", "refusal": None},
         ),
         (
+            _CAPABILITIES,
             ToolCall(tool_name="First", args="{}", tool_call_id="call_one"),
             {"role": "assistant", "content": None, "refusal": None},
         ),
     ],
 )
 async def test_chat_projection_initial_chunk_matches_first_part(
-    part: Thinking | TextOutput | ToolCall, expected_delta: dict
+    capabilities: ProviderCapabilities,
+    part: Thinking | TextOutput | ToolCall,
+    expected_delta: dict,
 ) -> None:
-    adapter, request = _chat_adapter(_CAPABILITIES)
+    adapter, request = _chat_adapter(capabilities)
 
     events = [
         event
@@ -565,7 +698,7 @@ async def test_chat_projection_preserves_non_empty_later_part_starts() -> None:
 async def test_responses_projection_seeds_lifecycle_from_non_empty_part_starts() -> None:
     # A non-empty start snapshot opens the Responses text lifecycle with that
     # text, keeping the stream consistent with the completed item.
-    adapter, request = _responses_adapter(_CAPABILITIES)
+    adapter, request = _responses_adapter(PROVIDER_CAPABILITIES["vllm"])
 
     events = [
         event

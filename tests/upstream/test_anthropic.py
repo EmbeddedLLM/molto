@@ -40,23 +40,31 @@ VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
 
 
 @pytest.mark.parametrize(
-    ("provider", "expected"),
+    ("provider", "signature", "expected"),
     [
-        ("vllm", Thinking(content="Reasoning", summary="")),
-        ("anthropic", Thinking(content="", summary="Reasoning")),
+        ("vllm", None, Thinking(content="Reasoning", summary="")),
+        (
+            "anthropic",
+            "opaque-state",
+            Thinking(content="", summary="Reasoning", signature="opaque-state"),
+        ),
     ],
 )
 def test_adapter_classifies_ambiguous_thinking_history(
     provider: str,
+    signature: str | None,
     expected: Thinking,
 ) -> None:
+    thinking_block = {"type": "thinking", "thinking": "Reasoning"}
+    if signature is not None:
+        thinking_block["signature"] = signature
     request = AnthropicMessagesCreateRequest(
         max_tokens=100,
         messages=[
             {
                 "role": "assistant",
                 "content": [
-                    {"type": "thinking", "thinking": "Reasoning"},
+                    thinking_block,
                     {"type": "text", "text": "Answer"},
                 ],
             }
@@ -155,17 +163,19 @@ async def test_events_merge_start_usage_without_mutating_started_parts(
 
 
 @pytest.mark.parametrize(
-    ("capabilities", "thinking_delta", "thinking"),
+    ("capabilities", "thinking_delta", "thinking", "preserves_signature"),
     [
         (
             VLLM_CAPABILITIES,
             ThinkingDelta(content_delta="Thought"),
-            Thinking(content="Thought", summary="", signature="replacement-state"),
+            Thinking(content="Thought", summary=""),
+            False,
         ),
         (
             PROVIDER_CAPABILITIES["anthropic"],
             ThinkingDelta(summary_delta="Thought"),
             Thinking(content="", summary="Thought", signature="replacement-state"),
+            True,
         ),
     ],
 )
@@ -174,6 +184,7 @@ async def test_client_maps_streamed_signatures_to_ir(
     capabilities: ProviderCapabilities,
     thinking_delta: ThinkingDelta,
     thinking: Thinking,
+    preserves_signature: bool,
 ):
     native_events = [
         {
@@ -246,19 +257,20 @@ async def test_client_maps_streamed_signatures_to_ir(
         and isinstance(event.delta, ThinkingDelta)
         and event.delta.signature_delta is None
     )
-    signature_delta = next(
+    signature_deltas = [
         event
         for event in events
         if isinstance(event, PartDeltaEvent)
         and isinstance(event.delta, ThinkingDelta)
         and event.delta.signature_delta is not None
-    )
+    ]
     part_end = next(event for event in events if isinstance(event, PartEndEvent))
     assert isinstance(part_start.part, Thinking)
-    assert part_start.part.signature == "initial-state"
+    assert part_start.part.signature == ("initial-state" if preserves_signature else None)
     assert text_delta.delta == thinking_delta
-    assert isinstance(signature_delta.delta, ThinkingDelta)
-    assert signature_delta.delta.signature_delta == "replacement-state"
+    assert [event.delta.signature_delta for event in signature_deltas] == (
+        ["replacement-state"] if preserves_signature else []
+    )
     assert isinstance(part_end.part, Thinking)
     assert part_end.part == thinking
 
@@ -289,6 +301,7 @@ _MESSAGE_END_EVENTS = [
 async def _collect_client_events(
     monkeypatch: pytest.MonkeyPatch,
     native_events: list[dict],
+    capabilities: ProviderCapabilities = VLLM_CAPABILITIES,
 ) -> list:
     async def stub_native_events(
         native_request: AnthropicMessagesCreateRequest,
@@ -297,7 +310,7 @@ async def _collect_client_events(
             yield AnthropicMessagesStreamEventAdapter.validate_python(event)
 
     async with httpx.AsyncClient() as http_client:
-        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        client = AnthropicMessagesClient(http_client, capabilities=capabilities)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         return [
             event
@@ -313,20 +326,23 @@ async def _collect_client_events(
 
 
 @pytest.mark.parametrize(
-    ("content_block", "expected_part"),
+    ("capabilities", "content_block", "expected_part"),
     [
         (
+            PROVIDER_CAPABILITIES["anthropic"],
             {"type": "thinking", "thinking": "", "signature": "initial-state"},
             Thinking(content="", summary="", signature="initial-state"),
         ),
         (
+            VLLM_CAPABILITIES,
             {"type": "thinking", "thinking": "Preface", "signature": ""},
-            Thinking(content="Preface", summary="", signature=""),
+            Thinking(content="Preface", summary=""),
         ),
     ],
 )
 async def test_client_starts_non_empty_thinking_block_immediately(
     monkeypatch: pytest.MonkeyPatch,
+    capabilities: ProviderCapabilities,
     content_block: dict,
     expected_part: Thinking,
 ) -> None:
@@ -344,7 +360,7 @@ async def test_client_starts_non_empty_thinking_block_immediately(
         )
 
     async with httpx.AsyncClient() as http_client:
-        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        client = AnthropicMessagesClient(http_client, capabilities=capabilities)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         stream = client.events(
             NormalizedRequest(
@@ -417,7 +433,9 @@ async def test_client_omits_thinking_block_after_empty_deltas(
         *_MESSAGE_END_EVENTS,
     ]
 
-    events = await _collect_client_events(monkeypatch, native_events)
+    events = await _collect_client_events(
+        monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
+    )
 
     assert [
         event
@@ -465,7 +483,9 @@ async def test_client_omits_completely_empty_thinking_block(
         *_MESSAGE_END_EVENTS,
     ]
 
-    events = await _collect_client_events(monkeypatch, native_events)
+    events = await _collect_client_events(
+        monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
+    )
 
     part_events = [
         event
@@ -506,7 +526,9 @@ async def test_client_preserves_signature_only_thinking_block(
         *_MESSAGE_END_EVENTS,
     ]
 
-    events = await _collect_client_events(monkeypatch, native_events)
+    events = await _collect_client_events(
+        monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
+    )
 
     part_events = [
         event
@@ -518,6 +540,30 @@ async def test_client_preserves_signature_only_thinking_block(
         PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="final-state")),
         PartEndEvent(index=0, part=Thinking(content="", summary="", signature="final-state")),
     ]
+
+
+async def test_client_rejects_unsigned_summary_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    native_events = [
+        _MESSAGE_START,
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "thinking_delta", "thinking": "Summary"},
+        },
+        {"type": "content_block_stop", "index": 0},
+    ]
+
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        await _collect_client_events(
+            monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
+        )
 
 
 async def test_client_completes_thinking_block_without_deltas(
@@ -548,12 +594,8 @@ async def test_client_completes_thinking_block_without_deltas(
         if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
     ]
     assert part_events == [
-        PartStartEvent(
-            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
-        ),
-        PartEndEvent(
-            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
-        ),
+        PartStartEvent(index=0, part=Thinking(content="Settled thought", summary="")),
+        PartEndEvent(index=0, part=Thinking(content="Settled thought", summary="")),
     ]
 
 
@@ -599,7 +641,11 @@ def test_adapter_maps_thinking_configuration_to_reasoning_effort(
             {
                 "role": "assistant",
                 "content": [
-                    {"type": "thinking", "thinking": "Prior thought"},
+                    {
+                        "type": "thinking",
+                        "thinking": "Prior thought",
+                        "signature": "opaque-state",
+                    },
                     {"type": "text", "text": "Prior answer"},
                 ],
             },
@@ -611,7 +657,9 @@ def test_adapter_maps_thinking_configuration_to_reasoning_effort(
         thinking=thinking,
     )
 
-    normalized_request = AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
+    normalized_request = AnthropicMessagesAdapter(
+        PROVIDER_CAPABILITIES["anthropic"]
+    ).normalize_request(request)
 
     assert normalized_request.reasoning is not None
     assert normalized_request.reasoning.effort == effort
@@ -923,6 +971,18 @@ def test_client_uses_summary_when_reasoning_history_omits_raw_content():
     }
 
 
+def test_client_rejects_reasoning_history_outside_capability() -> None:
+    request = NormalizedRequest(
+        input=[Thinking(content="", summary="Summary", signature="opaque-state")],
+        max_output_tokens=100,
+        model="model",
+        stream=True,
+    )
+
+    with pytest.raises(ValueError, match="does not match the provider"):
+        AnthropicMessagesClient._request_body(request, capabilities=VLLM_CAPABILITIES)
+
+
 def test_client_disables_thinking_without_output_effort():
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
@@ -973,10 +1033,13 @@ def test_adapter_maps_request_signatures_to_ir():
         stream=True,
     )
 
-    normalized_request = AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
+    normalized_request = AnthropicMessagesAdapter(
+        PROVIDER_CAPABILITIES["anthropic"]
+    ).normalize_request(request)
 
     assert isinstance(normalized_request.input, list)
     thinking = next(item for item in normalized_request.input if isinstance(item, Thinking))
+    assert thinking.summary == "Prior thought"
     assert thinking.signature == "opaque-state"
 
 
@@ -1052,7 +1115,7 @@ async def test_client_forwards_same_provider_opaque_reasoning_state(
             async for event in client.events(
                 NormalizedRequest(
                     input=[
-                        Thinking(content="Prior thought", summary="", signature="opaque-state"),
+                        Thinking(content="Prior thought", summary=""),
                         TextOutput(content="Prior answer"),
                     ],
                     max_output_tokens=10,
@@ -1064,7 +1127,7 @@ async def test_client_forwards_same_provider_opaque_reasoning_state(
 
     assert events == []
     content = captured_requests[0].model_dump()["messages"][0]["content"]
-    assert content[0]["signature"] == "opaque-state"
+    assert "signature" not in content[0]
 
 
 @pytest.mark.parametrize(

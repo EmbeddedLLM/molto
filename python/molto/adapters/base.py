@@ -8,7 +8,6 @@ from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
     Thinking,
-    ThinkingDelta,
 )
 
 
@@ -60,10 +59,5 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         return Thinking(
             content=text if self._capabilities.thinking == "raw" else "",
             summary=text if self._capabilities.thinking == "summary" else "",
-            signature=signature,
+            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
         )
-
-    @staticmethod
-    def _thinking_delta_text(delta: ThinkingDelta) -> str | None:
-        """Collapse either reasoning representation into one ambiguous text delta."""
-        return delta.content_delta if delta.content_delta is not None else delta.summary_delta
