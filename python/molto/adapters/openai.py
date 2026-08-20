@@ -870,15 +870,34 @@ class OpenAIChatCompletionsAdapter(
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 if response_start is None:
                     raise ValueError("Received a part before its response started.")
+                # A part start may already carry an initial snapshot; preserve it
+                # in the stream instead of waiting for deltas that may not exist.
+                if isinstance(normalized_event.part, Thinking):
+                    start_text = normalized_event.part.content or normalized_event.part.summary
+                elif isinstance(normalized_event.part, TextOutput):
+                    start_text = normalized_event.part.content
+                else:
+                    start_text = ""
                 if not initial_chunk_sent:
                     initial_chunk_sent = True
                     if isinstance(normalized_event.part, Thinking):
-                        delta = {"role": "assistant", "content": None, "reasoning_content": ""}
+                        delta = {
+                            "role": "assistant",
+                            "content": None,
+                            "reasoning_content": start_text,
+                        }
                     elif isinstance(normalized_event.part, TextOutput):
-                        delta = {"role": "assistant", "content": "", "refusal": None}
+                        delta = {"role": "assistant", "content": start_text, "refusal": None}
                     else:
                         delta = {"role": "assistant", "content": None, "refusal": None}
                     yield delta_chunk(response_start, delta)
+                elif start_text:
+                    key = (
+                        "reasoning_content"
+                        if isinstance(normalized_event.part, Thinking)
+                        else "content"
+                    )
+                    yield delta_chunk(response_start, {key: start_text})
                 if isinstance(normalized_event.part, ToolCall):
                     tool_index = len(tool_indices)
                     tool_indices[normalized_event.index] = tool_index

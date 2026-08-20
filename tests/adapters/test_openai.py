@@ -488,7 +488,19 @@ async def test_responses_projection_generates_prefixed_item_ids(
             Thinking(content="", summary=""),
             {"role": "assistant", "content": None, "reasoning_content": ""},
         ),
+        (
+            Thinking(content="Raw thought", summary=""),
+            {"role": "assistant", "content": None, "reasoning_content": "Raw thought"},
+        ),
+        (
+            Thinking(content="", summary="Summarized thought"),
+            {"role": "assistant", "content": None, "reasoning_content": "Summarized thought"},
+        ),
         (TextOutput(content=""), {"role": "assistant", "content": "", "refusal": None}),
+        (
+            TextOutput(content="Ready answer"),
+            {"role": "assistant", "content": "Ready answer", "refusal": None},
+        ),
         (
             ToolCall(tool_name="First", args="{}", tool_call_id="call_one"),
             {"role": "assistant", "content": None, "refusal": None},
@@ -509,6 +521,34 @@ async def test_chat_projection_initial_chunk_matches_first_part(
     ]
 
     assert events[0].choices[0].delta.model_dump(exclude_unset=True) == expected_delta
+
+
+async def test_chat_projection_preserves_non_empty_later_part_starts() -> None:
+    # A non-initial part start may already carry text; preserve it as its own
+    # chunk instead of waiting for deltas that may not exist.
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _CHAT_START,
+                PartStartEvent(index=0, part=TextOutput(content="First")),
+                PartEndEvent(index=0, part=TextOutput(content="First")),
+                PartStartEvent(index=1, part=Thinking(content="", summary="Second thought")),
+                PartEndEvent(index=1, part=Thinking(content="", summary="Second thought")),
+                PartStartEvent(index=2, part=TextOutput(content="Second")),
+                PartEndEvent(index=2, part=TextOutput(content="Second")),
+            ),
+            request,
+        )
+    ]
+
+    assert [event.choices[0].delta.model_dump(exclude_unset=True) for event in events] == [
+        {"role": "assistant", "content": "First", "refusal": None},
+        {"reasoning_content": "Second thought"},
+        {"content": "Second"},
+    ]
 
 
 async def test_chat_projection_skips_empty_thinking_delta() -> None:

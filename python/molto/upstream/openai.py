@@ -116,15 +116,20 @@ def _function_call_part(item: Any) -> ToolCall:
     )
 
 
+def _reasoning_part(item: Any) -> Thinking:
+    """Project a Responses reasoning item snapshot into a normalized part."""
+    return Thinking(
+        content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
+        summary="".join(part.text for part in item.summary if part.type == "summary_text"),
+        id=item.id,
+        signature=item.encrypted_content,
+    )
+
+
 def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
-    """Project a just-added Responses output item into an empty normalized part."""
+    """Project a just-added Responses output item into its initial normalized part."""
     if item.type == "reasoning":
-        return Thinking(
-            content="",
-            summary="",
-            id=item.id,
-            signature=item.encrypted_content,
-        )
+        return _reasoning_part(item)
     if item.type == "message":
         return TextOutput(content="", id=item.id)
     if item.type == "function_call":
@@ -136,14 +141,7 @@ def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
 def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     """Project a completed Responses output item into its normalized part."""
     if item.type == "reasoning":
-        return Thinking(
-            content="".join(
-                part.text for part in item.content or [] if part.type == "reasoning_text"
-            ),
-            summary="".join(part.text for part in item.summary if part.type == "summary_text"),
-            id=item.id,
-            signature=item.encrypted_content,
-        )
+        return _reasoning_part(item)
     if item.type == "message":
         return TextOutput(
             content="".join(part.text for part in item.content if part.type == "output_text"),
@@ -356,11 +354,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
-        # Only a reasoning item that starts completely empty is deferred: if no
-        # content, summary, or signature ever arrives, its part lifecycle is
-        # omitted from the IR entirely. An item that already carries encrypted
-        # state at `added` starts immediately, so a stalled or failed stream
-        # cannot lose the observed opaque state.
+        # Only a reasoning item whose `added` snapshot is completely empty (no
+        # content, summary, or encrypted state) is deferred: if nothing ever
+        # arrives, its part lifecycle is omitted from the IR entirely. An item
+        # that already carries content or encrypted state at `added` starts
+        # immediately, so a stalled or failed stream cannot lose it.
         pending_reasoning: dict[int, Thinking] = {}
         # Source output indices map to dense normalized indices so an omitted
         # reasoning item cannot leave a gap for downstream projections.
@@ -390,7 +388,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 )
             elif event_type == "response.output_item.added":
                 part = _started_output_item(event.item)
-                if isinstance(part, Thinking) and part.signature is None:
+                if (
+                    isinstance(part, Thinking)
+                    and not part.content
+                    and not part.summary
+                    and part.signature is None
+                ):
                     pending_reasoning[event.output_index] = part
                 else:
                     yield start_part(event.output_index, part)
@@ -422,8 +425,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 start = pending_reasoning.pop(event.output_index, None)
                 part = _completed_output_item(event.item)
                 if isinstance(part, Thinking):
-                    # Deferred items always start unsigned, so the part is
-                    # omitted when it also completes without content or state.
+                    # Deferred items always start empty, so the part is omitted
+                    # when it also completes without content or state.
                     if (
                         start is not None
                         and not part.content

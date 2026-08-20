@@ -11,6 +11,7 @@ from molto.types.normalized import (
     ModelResponseStreamEvent,
     OutputTokenDetails,
     PartDeltaEvent,
+    PartEndEvent,
     PartStartEvent,
     ResponseEndEvent,
     ResponseStartEvent,
@@ -274,6 +275,37 @@ async def test_projection_skips_empty_thinking_delta() -> None:
     ]
 
     assert [event.type for event in events] == ["message_start", "content_block_start"]
+
+
+async def test_projection_preserves_non_empty_part_starts() -> None:
+    # A part start may already carry an initial snapshot; the content block
+    # preserves it instead of waiting for deltas that may not exist.
+    adapter, request = _adapter()
+
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(
+                    index=0,
+                    part=Thinking(content="", summary="Preface", signature="sig-1"),
+                ),
+                PartEndEvent(
+                    index=0,
+                    part=Thinking(content="", summary="Preface", signature="sig-1"),
+                ),
+                PartStartEvent(index=1, part=TextOutput(content="Answer")),
+                PartEndEvent(index=1, part=TextOutput(content="Answer")),
+            ),
+            request,
+        )
+    ]
+
+    starts = [event for event in events if event.type == "content_block_start"]
+    assert starts[0].content_block.thinking == "Preface"
+    assert starts[0].content_block.signature == "sig-1"
+    assert starts[1].content_block.text == "Answer"
 
 
 @pytest.mark.parametrize(

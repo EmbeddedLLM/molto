@@ -310,14 +310,18 @@ class AnthropicMessagesAdapter(
                     }
                 )
             elif isinstance(normalized_event, PartStartEvent):
+                # A part start may already carry an initial snapshot; preserve it
+                # in the block instead of waiting for deltas that may not exist.
                 if isinstance(normalized_event.part, Thinking):
                     content_block = {
                         "type": "thinking",
-                        "thinking": "",
+                        "thinking": (
+                            normalized_event.part.content or normalized_event.part.summary
+                        ),
                         "signature": normalized_event.part.signature or "",
                     }
                 elif isinstance(normalized_event.part, TextOutput):
-                    content_block = {"type": "text", "text": ""}
+                    content_block = {"type": "text", "text": normalized_event.part.content}
                 elif isinstance(normalized_event.part, ToolCall):
                     content_block = {
                         "type": "tool_use",
