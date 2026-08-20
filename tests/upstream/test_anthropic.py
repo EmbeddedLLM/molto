@@ -312,6 +312,85 @@ async def _collect_client_events(
         ]
 
 
+@pytest.mark.parametrize(
+    ("content_block", "expected_part"),
+    [
+        (
+            {"type": "thinking", "thinking": "", "signature": "initial-state"},
+            Thinking(content="", summary="", signature="initial-state"),
+        ),
+        (
+            {"type": "thinking", "thinking": "Preface", "signature": ""},
+            Thinking(content="Preface", summary="", signature=""),
+        ),
+    ],
+)
+async def test_client_starts_non_empty_thinking_block_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    content_block: dict,
+    expected_part: Thinking,
+) -> None:
+    # A thinking block that already carries text or a signature must not wait
+    # for deltas that may never arrive if the stream stalls or fails.
+    async def stub_native_events(
+        native_request: AnthropicMessagesCreateRequest,
+    ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
+        yield AnthropicMessagesStreamEventAdapter.validate_python(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": content_block,
+            }
+        )
+
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        stream = client.events(
+            NormalizedRequest(
+                input=[UserInput(content=[TextInput(content="Hello")])],
+                max_output_tokens=10,
+                model="model",
+                stream=True,
+            )
+        )
+        first = await anext(stream)
+        await stream.aclose()
+
+    assert first == PartStartEvent(index=0, part=expected_part)
+
+
+async def test_client_defers_completely_empty_thinking_block_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only a completely empty thinking block is deferred; with no further events
+    # it produces nothing at all.
+    async def stub_native_events(
+        native_request: AnthropicMessagesCreateRequest,
+    ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
+        yield AnthropicMessagesStreamEventAdapter.validate_python(
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+            }
+        )
+
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        stream = client.events(
+            NormalizedRequest(
+                input=[UserInput(content=[TextInput(content="Hello")])],
+                max_output_tokens=10,
+                model="model",
+                stream=True,
+            )
+        )
+        with pytest.raises(StopAsyncIteration):
+            await anext(stream)
+
+
 async def test_client_omits_completely_empty_thinking_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

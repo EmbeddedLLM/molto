@@ -1196,6 +1196,67 @@ async def test_responses_events_preserve_encrypted_only_reasoning_part(
     ]
 
 
+async def test_responses_events_start_signed_reasoning_part_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The signed start carries meaningful opaque state; it must not wait for
+    # later events that may never arrive if the stream stalls or fails.
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        yield _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "rs_123",
+                    "type": "reasoning",
+                    "content": [],
+                    "summary": [],
+                    "encrypted_content": "initial-state",
+                },
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        stream = client.events(NormalizedRequest(model="m"))
+        first = await anext(stream)
+        await stream.aclose()
+
+    assert first == PartStartEvent(
+        index=0,
+        part=Thinking(content="", summary="", id="rs_123", signature="initial-state"),
+    )
+
+
+async def test_responses_events_defer_completely_empty_reasoning_part_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Only a completely empty reasoning item is deferred; with no further events
+    # it produces nothing at all.
+    async def stub_native_events(
+        native_request: OpenAIResponsesCreateRequest,
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
+        yield _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": {"id": "rs_123", "type": "reasoning", "content": [], "summary": []},
+                "output_index": 0,
+                "sequence_number": 0,
+            }
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        stream = client.events(NormalizedRequest(model="m"))
+        with pytest.raises(StopAsyncIteration):
+            await anext(stream)
+
+
 async def test_responses_events_complete_reasoning_part_without_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

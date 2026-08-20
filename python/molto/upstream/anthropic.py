@@ -347,9 +347,11 @@ class AnthropicMessagesClient(
         termination_reason: TerminationReason | None = None
         stop_sequence: str | None = None
         parts: dict[int, _PartState] = {}
-        # Thinking block starts are deferred until content arrives: a thinking
-        # block with no text, signature, or deltas carries nothing to translate,
-        # so its part lifecycle is omitted from the IR entirely.
+        # Only a thinking block that starts completely empty (no text or
+        # signature) is deferred: if no deltas ever arrive, its part lifecycle is
+        # omitted from the IR entirely. A block that already carries text or a
+        # signature starts immediately, so a stalled or failed stream cannot lose
+        # the observed content.
         pending_thinking: set[int] = set()
         # Source block indices map to dense normalized indices so an omitted
         # thinking block cannot leave a gap for downstream projections.
@@ -403,9 +405,12 @@ class AnthropicMessagesClient(
                     )
                 else:
                     raise ValueError(f"Unsupported Anthropic output block: {block.type}")
-                if isinstance(part, Thinking):
-                    parts[event.index] = _PartState(part, block.thinking, part.signature or "")
+                if isinstance(part, Thinking) and not block.thinking and not block.signature:
+                    parts[event.index] = _PartState(part)
                     pending_thinking.add(event.index)
+                elif isinstance(part, Thinking):
+                    parts[event.index] = _PartState(part, block.thinking, part.signature or "")
+                    yield start_part(event.index, part)
                 else:
                     parts[event.index] = _PartState(
                         part, part.content if isinstance(part, TextOutput) else part.args
@@ -451,10 +456,9 @@ class AnthropicMessagesClient(
                 state = parts.get(event.index)
                 if state is None:
                     raise ValueError("Received an Anthropic block stop before its start.")
-                if (pending := pop_pending_thinking(event.index)) is not None:
-                    if not state.content and not state.signature:
-                        continue
-                    yield start_part(event.index, pending)
+                if pop_pending_thinking(event.index) is not None:
+                    # A deferred block that received no deltas stayed empty.
+                    continue
                 part = state.part
                 if isinstance(part, Thinking):
                     completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(

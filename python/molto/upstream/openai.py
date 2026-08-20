@@ -356,9 +356,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
-        # Reasoning part starts are deferred until content arrives: a reasoning
-        # item with no content, summary, signature, or deltas carries nothing to
-        # translate, so its part lifecycle is omitted from the IR entirely.
+        # Only a reasoning item that starts completely empty is deferred: if no
+        # content, summary, or signature ever arrives, its part lifecycle is
+        # omitted from the IR entirely. An item that already carries encrypted
+        # state at `added` starts immediately, so a stalled or failed stream
+        # cannot lose the observed opaque state.
         pending_reasoning: dict[int, Thinking] = {}
         # Source output indices map to dense normalized indices so an omitted
         # reasoning item cannot leave a gap for downstream projections.
@@ -388,7 +390,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 )
             elif event_type == "response.output_item.added":
                 part = _started_output_item(event.item)
-                if isinstance(part, Thinking):
+                if isinstance(part, Thinking) and part.signature is None:
                     pending_reasoning[event.output_index] = part
                 else:
                     yield start_part(event.output_index, part)
@@ -420,12 +422,13 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 start = pending_reasoning.pop(event.output_index, None)
                 part = _completed_output_item(event.item)
                 if isinstance(part, Thinking):
+                    # Deferred items always start unsigned, so the part is
+                    # omitted when it also completes without content or state.
                     if (
                         start is not None
                         and not part.content
                         and not part.summary
                         and part.signature is None
-                        and start.signature is None
                     ):
                         continue
                     if start is not None:
