@@ -108,6 +108,17 @@ When downstream and upstream use the same protocol, preserve the native protocol
 
 The bypass belongs in the relevant coordinator; transport remains in the matching upstream client.
 
+## HTTP API status errors
+
+Keep native and translated request-level errors on their corresponding protocol boundaries:
+
+- Same-protocol paths must expose the provider SDK's original `APIStatusError` subclass and must not cross the normalized representation.
+- On translated paths, an upstream client may catch only its provider SDK's `APIStatusError` and convert it to the provider-neutral HTTP status error. Do not catch connection errors, timeouts, cancellation, validation errors, or broad `Exception` values.
+- Downstream adapters project the normalized error into a valid exception from their own SDK. Keep OpenAI and Anthropic body construction and status dispatch at their protocol-specific adapter boundaries.
+- Preserve source-backed status, message, request ID, headers, and request method/URL. Preserve OpenAI `type`, `code`, and `param` only when the source provides them; never invent unavailable Anthropic equivalents.
+- A projected SDK exception must carry an attached `httpx.Response` and `httpx.Request` for public SDK behavior. Constructing those objects is error projection, not adapter-owned transport; adapters must still never issue an HTTP request.
+- Raise the downstream SDK exception from the original upstream SDK exception. Do not translate HTTP-200 in-stream error events without separate cassette-backed evidence.
+
 ## OpenAI SDK transport
 
 Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.

@@ -23,7 +23,7 @@ request_id: 01a01abd-99f3-7330-8b99-14ccbe0053b3
 response:
   body:
     error:
-      message: 'model: kimi-k3'
+      message: Model not found kimi-k3
       type: not_found_error
     request_id: req_011CeCP64jsNZAdKChKbE6kp
     type: error

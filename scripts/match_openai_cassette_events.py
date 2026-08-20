@@ -30,6 +30,7 @@ metadata are intentionally left unchanged.
 from __future__ import annotations
 
 import argparse
+import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,65 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(request_body, dict):
         raise ValueError("Cassette request.body must be an object.")
     return request_body
+
+
+def _response(cassette: dict[str, Any], protocol: str) -> dict[str, Any]:
+    response = cassette.get("response")
+    if not isinstance(response, dict):
+        raise ValueError(f"{protocol} cassette must contain a response object.")
+    status_code = response.get("status_code")
+    if not isinstance(status_code, int):
+        raise ValueError(f"{protocol} response.status_code must be an integer.")
+    return response
+
+
+def _error_body(response: dict[str, Any], protocol: str) -> tuple[dict[str, Any], bool]:
+    body = response.get("body")
+    serialized = isinstance(body, str)
+    if serialized:
+        try:
+            body = json_loads(body)
+        except ValueError as exc:
+            raise ValueError(f"{protocol} response.body must contain valid JSON.") from exc
+    if not isinstance(body, dict):
+        raise ValueError(
+            f"{protocol} error response.body must be an object or JSON object string."
+        )
+    if not isinstance(body.get("error"), dict):
+        raise ValueError(f"{protocol} error response.body must contain an error object.")
+    return body, serialized
+
+
+def _serialize_error_body(body: dict[str, Any], serialized: bool) -> dict[str, Any] | str:
+    if not serialized:
+        return body
+    return f"{json.dumps(body, indent=4)}\n"
+
+
+def _match_error_response(
+    chat_response: dict[str, Any], responses_response: dict[str, Any]
+) -> None:
+    responses_body, _ = _error_body(responses_response, "Responses")
+    canonical_error = responses_body["error"]
+    message = canonical_error.get("message")
+    error_type = canonical_error.get("type")
+    param = canonical_error.get("param")
+    code = canonical_error.get("code")
+    if not isinstance(message, str):
+        raise ValueError("Responses error.message must be a string.")
+    if not isinstance(error_type, str):
+        raise ValueError("Responses error.type must be a string.")
+    if param is not None and not isinstance(param, str):
+        raise ValueError("Responses error.param must be a string or null.")
+    if code is not None and not isinstance(code, str):
+        raise ValueError("Responses error.code must be a string or null.")
+
+    chat_body, serialized = _error_body(chat_response, "Chat Completions")
+    chat_body["error"].update(
+        {"code": code, "message": message, "param": param, "type": error_type}
+    )
+    chat_response["status_code"] = responses_response["status_code"]
+    chat_response["body"] = _serialize_error_body(chat_body, serialized)
 
 
 def _response_message_content(
@@ -620,6 +680,22 @@ def match_chat_completions_events(
 ) -> None:
     """Rewrite CC SSE events into the canonical input for Responses parity."""
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
+    chat_response = _response(chat_cassette, "Chat Completions")
+    responses_response = _response(responses_cassette, "Responses")
+    chat_success = 200 <= chat_response["status_code"] < 300
+    responses_success = 200 <= responses_response["status_code"] < 300
+    if chat_success != responses_success:
+        raise ValueError(
+            "Cannot match Chat Completions status "
+            f"{chat_response['status_code']} with Responses status "
+            f"{responses_response['status_code']}: one response is successful and the other "
+            "is an error."
+        )
+    if not responses_success:
+        _match_request_history(chat_cassette, responses_cassette)
+        _match_error_response(chat_response, responses_response)
+        return
+
     indexed_chat_events = _data_events(chat_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
 

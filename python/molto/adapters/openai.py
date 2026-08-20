@@ -11,6 +11,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
+import httpx
+import openai
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
@@ -19,6 +21,7 @@ from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
     ModelResponseStreamEvent,
+    NormalizedAPIStatusError,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -56,6 +59,65 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "stop_sequence": "stop",
     "tool_call": "tool_calls",
 }
+
+
+def _openai_error_type(error: NormalizedAPIStatusError) -> str:
+    if error.source_protocol == "openai" and error.source_type is not None:
+        return error.source_type
+    if error.category == "rate_limit":
+        return "rate_limit_error"
+    if error.category in {"overloaded", "server"}:
+        return "server_error"
+    return "invalid_request_error"
+
+
+def _openai_api_status_error(error: NormalizedAPIStatusError) -> openai.APIStatusError:
+    error_body = {
+        "message": error.message,
+        "type": _openai_error_type(error),
+        "param": error.param,
+        "code": error.code,
+    }
+    envelope = {"error": error_body}
+    headers = httpx.Headers(error.response_headers)
+    for header in ("content-encoding", "content-length", "transfer-encoding"):
+        if header in headers:
+            del headers[header]
+    if "request-id" in headers:
+        del headers["request-id"]
+    if error.request_id is not None:
+        headers["x-request-id"] = error.request_id
+    request = httpx.Request(error.request_method, error.request_url)
+    response = httpx.Response(
+        error.status_code,
+        headers=headers,
+        json=envelope,
+        request=request,
+    )
+    exception_type: type[openai.APIStatusError]
+    if error.status_code == 400:
+        exception_type = openai.BadRequestError
+    elif error.status_code == 401:
+        exception_type = openai.AuthenticationError
+    elif error.status_code == 403:
+        exception_type = openai.PermissionDeniedError
+    elif error.status_code == 404:
+        exception_type = openai.NotFoundError
+    elif error.status_code == 409:
+        exception_type = openai.ConflictError
+    elif error.status_code == 422:
+        exception_type = openai.UnprocessableEntityError
+    elif error.status_code == 429:
+        exception_type = openai.RateLimitError
+    elif error.status_code >= 500:
+        exception_type = openai.InternalServerError
+    else:
+        exception_type = openai.APIStatusError
+    return exception_type(
+        f"Error code: {error.status_code} - {envelope}",
+        response=response,
+        body=error_body,
+    )
 
 
 def _responses_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
@@ -139,6 +201,9 @@ class OpenAIResponsesAdapter(
     BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> openai.APIStatusError:
+        return _openai_api_status_error(error)
 
     def _normalize_message(
         self,
@@ -704,6 +769,9 @@ class OpenAIChatCompletionsAdapter(
     BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
 ):
     """Translate Chat Completions requests and normalized response events."""
+
+    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> openai.APIStatusError:
+        return _openai_api_status_error(error)
 
     def _normalize_message(
         self,

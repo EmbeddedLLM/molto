@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
-from anthropic import AsyncAnthropic, AsyncStream
+from anthropic import APIStatusError, AsyncAnthropic, AsyncStream
 from anthropic.types import (
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
@@ -27,6 +27,7 @@ from molto.types.normalized import (
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
+    NormalizedAPIStatusError,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -60,6 +61,39 @@ _TERMINATION_REASONS: dict[str, TerminationReason] = {
     "stop_sequence": "stop_sequence",
     "tool_use": "tool_call",
 }
+
+
+def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusError:
+    body = error.body
+    error_body = body.get("error") if isinstance(body, Mapping) else None
+    message = error_body.get("message") if isinstance(error_body, Mapping) else None
+    source_type = error_body.get("type") if isinstance(error_body, Mapping) else None
+    body_request_id = body.get("request_id") if isinstance(body, Mapping) else None
+    request = error.response.request
+    return NormalizedAPIStatusError(
+        message if isinstance(message, str) else error.message,
+        status_code=error.status_code,
+        source_protocol="anthropic",
+        source_type=source_type if isinstance(source_type, str) else None,
+        code=None,
+        param=None,
+        request_id=(
+            error.request_id or (body_request_id if isinstance(body_request_id, str) else None)
+        ),
+        response_headers=dict(error.response.headers),
+        request_method=request.method,
+        request_url=str(request.url),
+    )
+
+
+async def _normalized_status_events[EventT](
+    events: AsyncIterator[EventT],
+) -> AsyncIterator[EventT]:
+    try:
+        async for event in events:
+            yield event
+    except APIStatusError as error:
+        raise _normalized_api_status_error(error) from error
 
 
 def _is_current_or_future_adaptive_claude(model: str) -> bool:
@@ -320,7 +354,7 @@ class AnthropicMessagesClient(
         parts: dict[int, tuple[Thinking | TextOutput | ToolCall, str, str]] = {}
 
         native_request = AnthropicMessagesCreateRequest.model_validate(self._request_body(request))
-        async for event in self.native_events(native_request):
+        async for event in _normalized_status_events(self.native_events(native_request)):
             if isinstance(event, RawMessageStartEvent):
                 message = event.message
                 metadata = ResponseStartEvent(

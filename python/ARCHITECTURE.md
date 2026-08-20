@@ -161,6 +161,14 @@ Molto validates the request and relies on the SDK's native event models. Passthr
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
+## HTTP API status errors
+
+Request-level non-success responses follow the same native-versus-translated boundary as successful streams. A same-protocol route leaves the provider SDK in complete control, so callers receive the original OpenAI or Anthropic `APIStatusError` subclass and body without normalization.
+
+On a translated route, the upstream client catches only its SDK's `APIStatusError` while consuming the lazy native iterator. It raises a provider-neutral normalized exception containing the status, semantic error fields, source request ID, response headers, and upstream request provenance. Connection failures, client timeouts, cancellation, validation failures, ordinary Molto exceptions, and HTTP-200 in-stream error events do not enter this path.
+
+The downstream adapter catches that normalized exception and projects it into the status-specific exception class owned by the downstream SDK. OpenAI projection constructs a valid OpenAI error envelope; Messages projection constructs a valid Anthropic error envelope and omits OpenAI-only `code` and `param` fields. Each projected exception contains an `httpx.Response` and attached `httpx.Request` for SDK compatibility, but the adapter performs no HTTP transport: it uses the real upstream status and URL as provenance and constructs only the destination protocol's public exception object. The original upstream SDK exception remains the projected exception's cause.
+
 ## Responses through Chat Completions
 
 When `endpoint="chat/completions"`, Molto uses the normalized representation:

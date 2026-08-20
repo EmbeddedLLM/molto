@@ -25,9 +25,9 @@ request:
   query_params: {}
 request_id: 01a01abd-43f4-7d92-8241-97b8528232bf
 response:
-  body: "{\n    \"error\": {\n        \"message\": \"The model `kimi-k3` does not\
-    \ exist or you do not have access to it.\",\n        \"type\": \"invalid_request_error\"\
-    ,\n        \"param\": null,\n        \"code\": \"model_not_found\"\n    }\n}\n"
+  body: "{\n    \"error\": {\n        \"message\": \"Model not found kimi-k3\",\n\
+    \        \"type\": \"invalid_request_error\",\n        \"param\": \"model\",\n\
+    \        \"code\": null\n    }\n}\n"
   headers:
     connection: keep-alive
     content-type: application/json; charset=utf-8

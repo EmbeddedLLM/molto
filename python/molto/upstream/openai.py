@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any, Literal
 
-from openai import AsyncStream
+from openai import APIStatusError, AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
@@ -11,6 +11,7 @@ from molto.types.normalized import (
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
+    NormalizedAPIStatusError,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -45,6 +46,37 @@ _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
     "stop": "stop",
     "tool_calls": "tool_call",
 }
+
+
+def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusError:
+    body = error.body
+    message = body.get("message") if isinstance(body, Mapping) else None
+    source_type = body.get("type") if isinstance(body, Mapping) else None
+    code = body.get("code") if isinstance(body, Mapping) else None
+    param = body.get("param") if isinstance(body, Mapping) else None
+    request = error.response.request
+    return NormalizedAPIStatusError(
+        message if isinstance(message, str) else error.message,
+        status_code=error.status_code,
+        source_protocol="openai",
+        source_type=source_type if isinstance(source_type, str) else None,
+        code=code if isinstance(code, str) else None,
+        param=param if isinstance(param, str) else None,
+        request_id=error.request_id,
+        response_headers=dict(error.response.headers),
+        request_method=request.method,
+        request_url=str(request.url),
+    )
+
+
+async def _normalized_status_events[EventT](
+    events: AsyncIterator[EventT],
+) -> AsyncIterator[EventT]:
+    try:
+        async for event in events:
+            yield event
+    except APIStatusError as error:
+        raise _normalized_api_status_error(error) from error
 
 
 def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -244,7 +276,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
-        async for event in self.native_events(native_request):
+        async for event in _normalized_status_events(self.native_events(native_request)):
             event_type = event.type
 
             if event_type == "response.created":
@@ -574,7 +606,7 @@ class OpenAIChatCompletionsClient(
         native_request = OpenAIChatCompletionsCreateRequest.model_validate(
             self._request_body(request)
         )
-        async for chunk in self.native_events(native_request):
+        async for chunk in _normalized_status_events(self.native_events(native_request)):
             if response_metadata is None:
                 response_metadata = ResponseStartEvent(
                     id=chunk.id,

@@ -6,6 +6,67 @@ from pydantic import Discriminator, Field
 
 from molto.types.base import ExtraModel, ZeroIfNoneInt
 
+APIErrorCategory: TypeAlias = Literal[
+    "api",
+    "authentication",
+    "billing",
+    "conflict",
+    "invalid_request",
+    "not_found",
+    "overloaded",
+    "permission",
+    "rate_limit",
+    "request_too_large",
+    "server",
+    "unprocessable",
+]
+
+
+def _api_error_category(status_code: int) -> APIErrorCategory:
+    return {
+        400: "invalid_request",
+        401: "authentication",
+        402: "billing",
+        403: "permission",
+        404: "not_found",
+        409: "conflict",
+        413: "request_too_large",
+        422: "unprocessable",
+        429: "rate_limit",
+        529: "overloaded",
+    }.get(status_code, "server" if status_code >= 500 else "api")
+
+
+class NormalizedAPIStatusError(Exception):
+    """Provider-neutral request-level HTTP API failure."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        source_protocol: Literal["anthropic", "openai"],
+        source_type: str | None,
+        code: str | None,
+        param: str | None,
+        request_id: str | None,
+        response_headers: dict[str, str],
+        request_method: str,
+        request_url: str,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.category = _api_error_category(status_code)
+        self.source_protocol = source_protocol
+        self.source_type = source_type
+        self.code = code
+        self.param = param
+        self.request_id = request_id
+        self.response_headers = response_headers
+        self.request_method = request_method
+        self.request_url = request_url
+
 
 class SystemPrompt(ExtraModel):
     """A system prompt, generally written by the application developer."""
