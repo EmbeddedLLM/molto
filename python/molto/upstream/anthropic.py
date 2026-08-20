@@ -351,12 +351,24 @@ class AnthropicMessagesClient(
         # block with no text, signature, or deltas carries nothing to translate,
         # so its part lifecycle is omitted from the IR entirely.
         pending_thinking: set[int] = set()
+        # Source block indices map to dense normalized indices so an omitted
+        # thinking block cannot leave a gap for downstream projections.
+        part_indices: dict[int, int] = {}
 
-        def pop_thinking_start(index: int) -> PartStartEvent | None:
+        def pop_pending_thinking(index: int) -> Thinking | None:
             if index not in pending_thinking:
                 return None
             pending_thinking.discard(index)
-            return PartStartEvent(index=index, part=parts[index].part)
+            part = parts[index].part
+            return part if isinstance(part, Thinking) else None
+
+        def start_part(
+            source_index: int, part: Thinking | TextOutput | ToolCall
+        ) -> PartStartEvent:
+            # Assign the dense index only when the start is actually emitted, so
+            # an omitted thinking block never consumes a normalized index.
+            part_indices[source_index] = len(part_indices)
+            return PartStartEvent(index=part_indices[source_index], part=part)
 
         native_request = AnthropicMessagesCreateRequest.model_validate(self._request_body(request))
         async for event in self.native_events(native_request):
@@ -398,39 +410,39 @@ class AnthropicMessagesClient(
                     parts[event.index] = _PartState(
                         part, part.content if isinstance(part, TextOutput) else part.args
                     )
-                    yield PartStartEvent(index=event.index, part=part)
+                    yield start_part(event.index, part)
             elif isinstance(event, RawContentBlockDeltaEvent):
                 delta = event.delta
                 state = parts.get(event.index)
                 part = state.part if state is not None else None
                 if delta.type == "thinking_delta" and isinstance(part, Thinking):
-                    if (start := pop_thinking_start(event.index)) is not None:
-                        yield start
+                    if (pending := pop_pending_thinking(event.index)) is not None:
+                        yield start_part(event.index, pending)
                     state.content += delta.thinking
                     yield PartDeltaEvent(
-                        index=event.index,
+                        index=part_indices[event.index],
                         delta=self._classify_thinking_delta(delta.thinking),
                     )
                 elif delta.type == "signature_delta" and isinstance(part, Thinking):
-                    if (start := pop_thinking_start(event.index)) is not None:
-                        yield start
+                    if (pending := pop_pending_thinking(event.index)) is not None:
+                        yield start_part(event.index, pending)
                     # Anthropic defines signature_delta as the complete replacement
                     # signature for the block, not an append-only fragment.
                     state.signature = delta.signature
                     yield PartDeltaEvent(
-                        index=event.index,
+                        index=part_indices[event.index],
                         delta=ThinkingDelta(signature_delta=delta.signature),
                     )
                 elif delta.type == "text_delta" and isinstance(part, TextOutput):
                     state.content += delta.text
                     yield PartDeltaEvent(
-                        index=event.index,
+                        index=part_indices[event.index],
                         delta=TextDelta(content_delta=delta.text),
                     )
                 elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
                     state.content += delta.partial_json
                     yield PartDeltaEvent(
-                        index=event.index,
+                        index=part_indices[event.index],
                         delta=ToolCallDelta(args_delta=delta.partial_json),
                     )
                 else:
@@ -439,10 +451,10 @@ class AnthropicMessagesClient(
                 state = parts.get(event.index)
                 if state is None:
                     raise ValueError("Received an Anthropic block stop before its start.")
-                if (start := pop_thinking_start(event.index)) is not None:
+                if (pending := pop_pending_thinking(event.index)) is not None:
                     if not state.content and not state.signature:
                         continue
-                    yield start
+                    yield start_part(event.index, pending)
                 part = state.part
                 if isinstance(part, Thinking):
                     completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
@@ -456,7 +468,7 @@ class AnthropicMessagesClient(
                     )
                 else:
                     completed_part = TextOutput(content=state.content)
-                yield PartEndEvent(index=event.index, part=completed_part)
+                yield PartEndEvent(index=part_indices[event.index], part=completed_part)
             elif isinstance(event, RawMessageDeltaEvent):
                 if event.delta.stop_reason is not None:
                     try:

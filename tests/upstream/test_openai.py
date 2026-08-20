@@ -1030,69 +1030,90 @@ async def test_responses_events_normalize_explicit_reasoning_summary(
     ]
 
 
-async def test_responses_events_omit_completely_empty_reasoning_part(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # A reasoning item with no content, summary, signature, or deltas carries
-    # nothing to translate, so its part lifecycle is omitted from the IR.
-    reasoning_item = {
-        "id": "rs_123",
-        "type": "reasoning",
-        "content": [],
-        "summary": [],
-    }
-    native_events = [
-        _response_event(
-            {
-                "type": "response.output_item.added",
-                "item": reasoning_item,
-                "output_index": 0,
-                "sequence_number": 0,
-            }
-        ),
-        _response_event(
-            {
-                "type": "response.output_item.done",
-                "item": reasoning_item,
-                "output_index": 0,
-                "sequence_number": 1,
-            }
-        ),
+def _message_item_events(
+    item_id: str, text: str, output_index: int, sequence_number: int
+) -> list[OpenAIResponsesStreamEvent]:
+    return [
         _response_event(
             {
                 "type": "response.output_item.added",
                 "item": {
-                    "id": "msg_123",
+                    "id": item_id,
                     "type": "message",
                     "role": "assistant",
                     "status": "in_progress",
                     "content": [],
                 },
-                "output_index": 1,
-                "sequence_number": 2,
+                "output_index": output_index,
+                "sequence_number": sequence_number,
+            }
+        ),
+        _response_event(
+            {
+                "type": "response.output_text.delta",
+                "content_index": 0,
+                "delta": text,
+                "item_id": item_id,
+                "logprobs": [],
+                "output_index": output_index,
+                "sequence_number": sequence_number + 1,
             }
         ),
         _response_event(
             {
                 "type": "response.output_item.done",
                 "item": {
-                    "id": "msg_123",
+                    "id": item_id,
                     "type": "message",
                     "role": "assistant",
                     "status": "completed",
                     "content": [
                         {
                             "type": "output_text",
-                            "text": "",
+                            "text": text,
                             "annotations": [],
                             "logprobs": [],
                         }
                     ],
                 },
+                "output_index": output_index,
+                "sequence_number": sequence_number + 2,
+            }
+        ),
+    ]
+
+
+async def test_responses_events_omit_completely_empty_reasoning_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A reasoning item with no content, summary, signature, or deltas carries
+    # nothing to translate, so its part lifecycle is omitted from the IR and the
+    # surviving parts are reindexed to stay dense.
+    empty_reasoning_item = {
+        "id": "rs_123",
+        "type": "reasoning",
+        "content": [],
+        "summary": [],
+    }
+    native_events = [
+        *_message_item_events("msg_a", "Hi", 0, 0),
+        _response_event(
+            {
+                "type": "response.output_item.added",
+                "item": empty_reasoning_item,
                 "output_index": 1,
                 "sequence_number": 3,
             }
         ),
+        _response_event(
+            {
+                "type": "response.output_item.done",
+                "item": empty_reasoning_item,
+                "output_index": 1,
+                "sequence_number": 4,
+            }
+        ),
+        *_message_item_events("msg_b", "Bye", 2, 5),
     ]
 
     async def stub_native_events(
@@ -1106,10 +1127,13 @@ async def test_responses_events_omit_completely_empty_reasoning_part(
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
-    # The empty reasoning part is omitted; the empty message part is still reported.
     assert events == [
-        PartStartEvent(index=1, part=TextOutput(content="", id="msg_123")),
-        PartEndEvent(index=1, part=TextOutput(content="", id="msg_123")),
+        PartStartEvent(index=0, part=TextOutput(content="", id="msg_a")),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="Hi")),
+        PartEndEvent(index=0, part=TextOutput(content="Hi", id="msg_a")),
+        PartStartEvent(index=1, part=TextOutput(content="", id="msg_b")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Bye")),
+        PartEndEvent(index=1, part=TextOutput(content="Bye", id="msg_b")),
     ]
 
 

@@ -44,12 +44,11 @@ class Molto:
 
     @staticmethod
     def _resolve_provider(endpoint: Endpoint, provider: Provider | None) -> Provider:
-        if provider is not None:
-            return provider
-        try:
-            return DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.") from exc
+        # Validate the endpoint before any adapter normalization so an unknown
+        # endpoint cannot surface as an unrelated translation error.
+        if endpoint not in DEFAULT_PROVIDER_BY_ENDPOINT:
+            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
+        return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
 
     async def responses(
         self,

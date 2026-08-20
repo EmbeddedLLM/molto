@@ -360,6 +360,20 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
         # item with no content, summary, signature, or deltas carries nothing to
         # translate, so its part lifecycle is omitted from the IR entirely.
         pending_reasoning: dict[int, Thinking] = {}
+        # Source output indices map to dense normalized indices so an omitted
+        # reasoning item cannot leave a gap for downstream projections.
+        part_indices: dict[int, int] = {}
+
+        def start_part(
+            source_index: int, part: Thinking | TextOutput | ToolCall
+        ) -> PartStartEvent:
+            part_indices[source_index] = len(part_indices)
+            return PartStartEvent(index=part_indices[source_index], part=part)
+
+        def part_index(source_index: int) -> int:
+            # A delta or completion can reference an item whose start was never
+            # seen; keep its source index rather than inventing a dense one.
+            return part_indices.get(source_index, source_index)
 
         async for event in self.native_events(native_request):
             event_type = event.type
@@ -377,29 +391,29 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 if isinstance(part, Thinking):
                     pending_reasoning[event.output_index] = part
                 else:
-                    yield PartStartEvent(index=event.output_index, part=part)
+                    yield start_part(event.output_index, part)
             elif event_type == "response.reasoning_text.delta":
                 if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                    yield PartStartEvent(index=event.output_index, part=start)
+                    yield start_part(event.output_index, start)
                 yield PartDeltaEvent(
-                    index=event.output_index,
+                    index=part_index(event.output_index),
                     delta=ThinkingDelta(content_delta=event.delta),
                 )
             elif event_type == "response.reasoning_summary_text.delta":
                 if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                    yield PartStartEvent(index=event.output_index, part=start)
+                    yield start_part(event.output_index, start)
                 yield PartDeltaEvent(
-                    index=event.output_index,
+                    index=part_index(event.output_index),
                     delta=ThinkingDelta(summary_delta=event.delta),
                 )
             elif event_type == "response.output_text.delta":
                 yield PartDeltaEvent(
-                    index=event.output_index,
+                    index=part_index(event.output_index),
                     delta=TextDelta(content_delta=event.delta),
                 )
             elif event_type == "response.function_call_arguments.delta":
                 yield PartDeltaEvent(
-                    index=event.output_index,
+                    index=part_index(event.output_index),
                     delta=ToolCallDelta(args_delta=event.delta),
                 )
             elif event_type == "response.output_item.done":
@@ -415,13 +429,13 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     ):
                         continue
                     if start is not None:
-                        yield PartStartEvent(index=event.output_index, part=start)
+                        yield start_part(event.output_index, start)
                     if part.signature is not None:
                         yield PartDeltaEvent(
-                            index=event.output_index,
+                            index=part_index(event.output_index),
                             delta=ThinkingDelta(signature_delta=part.signature),
                         )
-                yield PartEndEvent(index=event.output_index, part=part)
+                yield PartEndEvent(index=part_index(event.output_index), part=part)
             elif event_type in {"response.completed", "response.incomplete"}:
                 metadata = event.response
                 if event_type == "response.completed":

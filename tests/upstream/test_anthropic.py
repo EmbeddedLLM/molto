@@ -316,26 +316,38 @@ async def test_client_omits_completely_empty_thinking_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A thinking block with no text, signature, or deltas carries nothing to
-    # translate, so its part lifecycle is omitted from the IR.
+    # translate, so its part lifecycle is omitted from the IR and the surviving
+    # parts are reindexed to stay dense.
     native_events = [
         _MESSAGE_START,
         {
             "type": "content_block_start",
             "index": 0,
-            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+            "content_block": {"type": "text", "text": ""},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "Hi"},
         },
         {"type": "content_block_stop", "index": 0},
         {
             "type": "content_block_start",
             "index": 1,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {"type": "content_block_stop", "index": 1},
+        {
+            "type": "content_block_start",
+            "index": 2,
             "content_block": {"type": "text", "text": ""},
         },
         {
             "type": "content_block_delta",
-            "index": 1,
-            "delta": {"type": "text_delta", "text": "Hi"},
+            "index": 2,
+            "delta": {"type": "text_delta", "text": "Bye"},
         },
-        {"type": "content_block_stop", "index": 1},
+        {"type": "content_block_stop", "index": 2},
         *_MESSAGE_END_EVENTS,
     ]
 
@@ -347,9 +359,12 @@ async def test_client_omits_completely_empty_thinking_block(
         if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
     ]
     assert part_events == [
+        PartStartEvent(index=0, part=TextOutput(content="")),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="Hi")),
+        PartEndEvent(index=0, part=TextOutput(content="Hi")),
         PartStartEvent(index=1, part=TextOutput(content="")),
-        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Hi")),
-        PartEndEvent(index=1, part=TextOutput(content="Hi")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Bye")),
+        PartEndEvent(index=1, part=TextOutput(content="Bye")),
     ]
 
 

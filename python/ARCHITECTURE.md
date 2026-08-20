@@ -287,7 +287,7 @@ For the text, reasoning, and function-tool paths:
 - `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
 - `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
 
-A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends. Recorded providers never produce such parts.
+A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends, and surviving parts are reindexed so normalized indices stay dense. Recorded providers never produce such parts.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Reasoning and text may interleave, so each transition between them — in either direction — ends the active part and starts a new one. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 

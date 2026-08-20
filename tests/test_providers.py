@@ -107,3 +107,28 @@ async def test_coordinators_reject_unsupported_endpoints(
             provider=provider,
         )
     await client.close()
+
+
+async def test_coordinators_validate_endpoint_before_request_normalization() -> None:
+    # The body below fails adapter normalization (namespaced function call), but
+    # the unsupported endpoint must be reported first, not the translation error.
+    client = Molto(http_client=httpx.AsyncClient())
+    with pytest.raises(ValueError, match="Unsupported endpoint: 'bogus'"):
+        await client.responses(
+            body={
+                "input": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_123",
+                        "name": "lookup",
+                        "arguments": "{}",
+                        "namespace": "tools",
+                    }
+                ],
+                "model": "m",
+                "stream": True,
+            },
+            endpoint="bogus",
+            provider="openai",
+        )
+    await client.close()
