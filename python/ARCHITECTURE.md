@@ -289,7 +289,7 @@ For the text, reasoning, and function-tool paths:
 
 A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends. Recorded providers never produce such parts.
 
-Chat's role chunk starts the first part but its empty content is not emitted as a delta. Transitioning from reasoning to text ends the reasoning part and starts the text part. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+Chat's role chunk starts the first part but its empty content is not emitted as a delta. Reasoning and text may interleave, so each transition between them — in either direction — ends the active part and starts a new one. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 
 Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
 

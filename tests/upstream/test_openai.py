@@ -1902,15 +1902,20 @@ async def test_chat_completions_events_omit_empty_reasoning_part(
     ]
 
 
-@pytest.mark.parametrize("reasoning_delta", ["", "Late thought"])
-async def test_chat_completions_events_reject_reasoning_after_text(
+async def test_chat_completions_events_interleave_reasoning_and_text(
     monkeypatch: pytest.MonkeyPatch,
-    reasoning_delta: str,
 ) -> None:
+    # Models may emit text in between reasoning. Each kind switch ends the
+    # active part and starts a new one; empty reasoning chunks are no-ops and
+    # never split a text part.
     native_chunks = [
-        _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"content": "Answer"}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": reasoning_delta}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": "R1"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"content": "T1"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": ""}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"content": "T2"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": "R2"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}]),
     ]
 
     async def stub_native_events(
@@ -1922,9 +1927,30 @@ async def test_chat_completions_events_reject_reasoning_after_text(
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
-        with pytest.raises(ValueError, match="reasoning after text"):
-            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
+    assert events == [
+        ResponseStartEvent(
+            id="chatcmpl_123", created_at=2, model="reasoning-model", service_tier="default"
+        ),
+        PartStartEvent(index=0, part=Thinking(content="", summary="")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="R1")),
+        PartEndEvent(index=0, part=Thinking(content="R1", summary="")),
+        PartStartEvent(index=1, part=TextOutput(content="")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="T1")),
+        PartDeltaEvent(index=1, delta=TextDelta(content_delta="T2")),
+        PartEndEvent(index=1, part=TextOutput(content="T1T2")),
+        PartStartEvent(index=2, part=Thinking(content="", summary="")),
+        PartDeltaEvent(index=2, delta=ThinkingDelta(content_delta="R2")),
+        PartEndEvent(index=2, part=Thinking(content="R2", summary="")),
+        ResponseEndEvent(
+            id="chatcmpl_123",
+            created_at=2,
+            model="reasoning-model",
+            service_tier="default",
+            termination_reason="stop",
+        ),
+    ]
 
 
 async def test_chat_completions_events_reject_empty_native_stream(

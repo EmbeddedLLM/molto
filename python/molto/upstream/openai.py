@@ -591,8 +591,7 @@ class OpenAIChatCompletionsClient(
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
-        thinking_text = ""
-        text_content = ""
+        part_text = ""
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
@@ -604,18 +603,19 @@ class OpenAIChatCompletionsClient(
         active_tool_call_index: int | None = None
 
         def start_part(part: Thinking | TextOutput) -> PartStartEvent:
-            nonlocal active_part, active_part_index, next_part_index
+            nonlocal active_part, active_part_index, next_part_index, part_text
             active_part = "thinking" if isinstance(part, Thinking) else "text"
             active_part_index = next_part_index
             next_part_index += 1
+            part_text = ""
             return PartStartEvent(index=active_part_index, part=part)
 
         def end_active_part() -> PartEndEvent | None:
             nonlocal active_part
             if active_part == "thinking":
-                part: Thinking | TextOutput = self._classify_thinking(thinking_text)
+                part: Thinking | TextOutput = self._classify_thinking(part_text)
             elif active_part == "text":
-                part = TextOutput(content=text_content)
+                part = TextOutput(content=part_text)
             else:
                 return None
             active_part = None
@@ -648,14 +648,17 @@ class OpenAIChatCompletionsClient(
             if chunk.choices:
                 choice = chunk.choices[0]
                 reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                if reasoning_delta is not None and active_part not in (None, "thinking"):
-                    raise ValueError("Received reasoning after text output started.")
-                # An empty reasoning chunk carries nothing: a thinking part only
-                # starts once actual reasoning text arrives.
+                # Reasoning and text may interleave: a non-empty reasoning chunk
+                # ends an active text part and starts a new thinking part. Empty
+                # reasoning chunks carry nothing and never start or switch parts.
                 if reasoning_delta:
+                    if active_part == "text":
+                        ended_part = end_active_part()
+                        if ended_part is not None:
+                            yield ended_part
                     if active_part is None:
                         yield start_part(Thinking(content="", summary=""))
-                    thinking_text += reasoning_delta
+                    part_text += reasoning_delta
                     yield PartDeltaEvent(
                         index=active_part_index,
                         delta=self._classify_thinking_delta(reasoning_delta),
@@ -673,7 +676,7 @@ class OpenAIChatCompletionsClient(
                         if active_part is None:
                             yield start_part(TextOutput(content=""))
                         if choice.delta.content:
-                            text_content += choice.delta.content
+                            part_text += choice.delta.content
                             yield PartDeltaEvent(
                                 index=active_part_index,
                                 delta=TextDelta(content_delta=choice.delta.content),
