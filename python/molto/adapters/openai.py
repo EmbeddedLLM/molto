@@ -174,14 +174,20 @@ class OpenAIResponsesAdapter(
             _validate_responses_function_metadata(message, statuses={None, "completed"})
             output = message["output"]
             if isinstance(output, list):
-                unsupported = [
-                    part.get("type") for part in output if part.get("type") != "input_text"
-                ]
-                if unsupported:
-                    raise ValueError(
-                        f"Unsupported Responses function output content: {unsupported}."
-                    )
-                content = [TextInput(content=part["text"]) for part in output]
+                content: list[TextInput | ImageUrlInput] = []
+                for part in output:
+                    part_type = part.get("type") if isinstance(part, dict) else None
+                    if part_type == "input_text":
+                        content.append(TextInput(content=part["text"]))
+                    elif part_type == "input_image":
+                        image_url = part.get("image_url")
+                        if image_url is None:
+                            raise ValueError("Responses input_image requires image_url.")
+                        content.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
+                    else:
+                        raise ValueError(
+                            f"Unsupported Responses function output content: {part_type}."
+                        )
             else:
                 content = [TextInput(content=output)]
             return [
@@ -731,6 +737,12 @@ class OpenAIChatCompletionsAdapter(
             if isinstance(content, str):
                 tool_content = [TextInput(content=content)]
             elif isinstance(content, list):
+                if any(
+                    isinstance(part, dict) and part.get("type") == "image_url" for part in content
+                ):
+                    raise ValueError(
+                        "Chat Completions cannot represent image tool result content."
+                    )
                 text_parts = [
                     part.get("text")
                     for part in content
