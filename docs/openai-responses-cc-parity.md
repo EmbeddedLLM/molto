@@ -118,6 +118,8 @@ The implemented result path covers response metadata, text, raw reasoning, reaso
 
 Responses distinguishes raw reasoning (`response.reasoning_text.*`) from summaries (`response.reasoning_summary_*`). Chat Completions `reasoning_content` does not. The upstream Chat client therefore classifies that field with `ProviderCapabilities.thinking`:
 
+A Responses reasoning item uses exactly one textual representation: raw reasoning content or a reasoning summary. It must not contain both representations or switch between them across its added, delta, and completed snapshots. An opaque encrypted signature may accompany either representation.
+
 | Source                      | Provider capability | Normalized representation            | Responses projection           |
 | --------------------------- | ------------------- | ------------------------------------ | ------------------------------ |
 | Chat `reasoning_content`    | `raw`               | `Thinking.content` / `content_delta` | `response.reasoning_text.*`    |

@@ -94,6 +94,8 @@ Preserve chunk boundaries when they are observable and covered by parity tests. 
 
 Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly and must not be reclassified by a provider profile. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous; classify them with `ProviderCapabilities.thinking`. When projecting to Chat Completions or Messages, collapse either normalized representation into that protocol's single reasoning field.
 
+A Responses reasoning item must use raw reasoning content or a reasoning summary, never both. Preserve that representation across its start, delta, and end snapshots; do not combine representations within one event or switch representations during the part lifecycle. Opaque signature state may accompany either representation.
+
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 
 Map usage semantically and construct the public usage payload explicitly. This prevents internal `extra_fields` containers and source-only usage details from leaking into the target protocol.
