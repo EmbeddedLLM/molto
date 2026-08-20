@@ -143,23 +143,13 @@ class AnthropicMessagesAdapter(
             items.append(UserInput(content=user_parts))
         return items
 
-    @staticmethod
-    def _normalize_tool_result(block: dict[str, Any]) -> ToolReturn:
+    def _normalize_tool_result(self, block: dict[str, Any]) -> ToolReturn:
         content = block.get("content", "")
         if isinstance(content, str):
             normalized_content = [TextInput(content=content)]
         else:
             parts = list(content)
-            unsupported = [
-                part.get("type")
-                for part in parts
-                if not isinstance(part, dict) or part.get("type") != "text"
-            ]
-            if unsupported:
-                raise ValueError(
-                    f"Unsupported Anthropic tool result content blocks: {unsupported}"
-                )
-            normalized_content = [TextInput(content=part["text"]) for part in parts]
+            normalized_content = [self._normalize_user_block(part) for part in parts]
         return ToolReturn(
             content=normalized_content,
             tool_call_id=block["tool_use_id"],

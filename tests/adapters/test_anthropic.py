@@ -7,6 +7,7 @@ from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.normalized import (
     FunctionToolChoice,
+    ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
     OutputTokenDetails,
@@ -128,7 +129,7 @@ def test_rejects_tool_result_after_user_content():
         _normalize(request, _CAPABILITIES)
 
 
-def test_rejects_non_text_tool_result_content():
+def test_normalizes_image_tool_result_content():
     request = _request(
         messages=[
             {
@@ -150,8 +151,17 @@ def test_rejects_non_text_tool_result_content():
         ]
     )
 
-    with pytest.raises(ValueError, match=r"tool result content blocks: \['image'\]"):
-        _normalize(request, _CAPABILITIES)
+    normalized = _normalize(request, _CAPABILITIES)
+
+    assert normalized.input == [
+        ToolReturn(
+            content=[
+                TextInput(content="ok"),
+                ImageUrlInput(url="https://example.test/a.png"),
+            ],
+            tool_call_id="c1",
+        )
+    ]
 
 
 def test_normalizes_tool_result_before_user_content():
