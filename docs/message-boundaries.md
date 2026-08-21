@@ -116,6 +116,8 @@ Projection to Chat emits every `SystemPrompt` as `developer`. A `Thinking` value
 
 Chat Completions `tool` messages accept only text content. When an upstream Chat request receives a normalized image tool result, Molto keeps a text notice in the `tool` message and injects the image as a later `user` prompt, following [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). Every `tool` message responding to an assistant's `tool_calls` must appear contiguously and immediately after that assistant message, before any other role. Molto therefore emits the complete tool-response block before any relocated image prompts, including for parallel tool calls.
 
+This remapping applies only in the upstream Chat client. The downstream Chat Completions adapter still rejects native Chat `tool` messages containing image parts rather than normalizing them into image tool results.
+
 There is also a local schema issue with the pinned SDK: valid system or developer content-part arrays can validate but serialize as empty arrays because only the user-message wrapper replaces the SDK's iterable annotation with a concrete list. This behavior is not covered by a regression test.
 
 ### Streaming boundaries
