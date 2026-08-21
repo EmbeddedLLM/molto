@@ -11,6 +11,11 @@ from scripts.match_openai_cassette_events import main, match_chat_completions_ev
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
 RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai-responses-stream-00.yaml"
+ERROR_SCENARIOS = (
+    "error-model_not_found",
+    "error-invalid_api_key",
+    "error-bad_request",
+)
 REASONING_CASSETTES = [
     (
         CASSETTES / "reasoning_raw" / f"vllm-chat_completions-stream-{index:02d}.yaml",
@@ -107,6 +112,67 @@ def _response_message_text(item: dict[str, Any]) -> str:
     if isinstance(content, str):
         return content
     return "".join(part["text"] for part in content)
+
+
+@pytest.mark.parametrize("scenario", ERROR_SCENARIOS)
+def test_matches_error_cassettes_without_rewriting_native_response(scenario: str) -> None:
+    scenario_dir = CASSETTES / scenario
+    chat_cassette = read_yaml(str(scenario_dir / "openai-chat_completions-stream.yaml"))
+    responses_cassette = read_yaml(str(scenario_dir / "openai-responses-stream.yaml"))
+    original_chat_response = deepcopy(chat_cassette["response"])
+    original_responses = deepcopy(responses_cassette)
+    responses_request = responses_cassette["request"]["body"]
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+    matched_once = deepcopy(chat_cassette)
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    input_value = responses_request["input"]
+    if isinstance(input_value, str):
+        expected_messages = [{"content": input_value, "role": "user"}]
+    else:
+        expected_messages = [
+            {
+                "content": [
+                    {"text": part["text"], "type": "text"} for part in input_value[0]["content"]
+                ],
+                "role": "user",
+            }
+        ]
+    expected_stream_options = {"include_usage": True}
+    if "stream_options" in responses_request:
+        expected_stream_options["include_obfuscation"] = responses_request["stream_options"][
+            "include_obfuscation"
+        ]
+
+    assert chat_cassette == matched_once
+    assert responses_cassette == original_responses
+    assert chat_cassette["response"] == original_chat_response
+    assert chat_cassette["request"]["body"] == {
+        "max_completion_tokens": responses_request["max_output_tokens"],
+        "messages": expected_messages,
+        "model": responses_request["model"],
+        "stream": responses_request["stream"],
+        "stream_options": expected_stream_options,
+    }
+
+
+@pytest.mark.parametrize(
+    ("body", "match"),
+    [
+        ("not json", "Chat Completions response.body must contain valid JSON"),
+        ([], "Chat Completions error response.body must be an object"),
+        ({}, "Chat Completions error response.body must contain an error object"),
+    ],
+)
+def test_rejects_malformed_chat_error_bodies(body: Any, match: str) -> None:
+    scenario_dir = CASSETTES / "error-model_not_found"
+    chat_cassette = read_yaml(str(scenario_dir / "openai-chat_completions-stream.yaml"))
+    responses_cassette = read_yaml(str(scenario_dir / "openai-responses-stream.yaml"))
+    chat_cassette["response"]["body"] = body
+
+    with pytest.raises(ValueError, match=match):
+        match_chat_completions_events(chat_cassette, responses_cassette)
 
 
 def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:

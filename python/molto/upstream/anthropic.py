@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from anthropic import APIStatusError, AsyncAnthropic, AsyncStream
+from anthropic import (
+    APIConnectionError,
+    APIError,
+    APIResponseValidationError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncAnthropic,
+    AsyncStream,
+)
 from anthropic.types import (
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
@@ -29,7 +37,11 @@ from molto.types.normalized import (
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
+    NormalizedAPIConnectionError,
+    NormalizedAPIError,
+    NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
+    NormalizedAPITimeoutError,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -85,17 +97,53 @@ def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusEr
         response_headers=dict(error.response.headers),
         request_method=request.method,
         request_url=str(request.url),
+        body=error.body,
     )
 
 
-async def _normalized_status_events[EventT](
+def _normalized_api_error(error: APIError) -> NormalizedAPIError:
+    if isinstance(error, APIStatusError):
+        return _normalized_api_status_error(error)
+
+    request = error.request
+    common = {
+        "message": error.message,
+        "source_protocol": "anthropic",
+        "request_method": request.method,
+        "request_url": str(request.url),
+        "body": error.body,
+    }
+    if isinstance(error, APIResponseValidationError):
+        return NormalizedAPIResponseValidationError(
+            **common,
+            status_code=error.status_code,
+            response_headers=dict(error.response.headers),
+        )
+    if isinstance(error, APITimeoutError):
+        return NormalizedAPITimeoutError(**common)
+    if isinstance(error, APIConnectionError):
+        return NormalizedAPIConnectionError(**common)
+    return NormalizedAPIError(**common)
+
+
+async def _normalized_api_events[EventT](
     events: AsyncIterator[EventT],
 ) -> AsyncIterator[EventT]:
     try:
         async for event in events:
             yield event
-    except APIStatusError as error:
-        raise _normalized_api_status_error(error) from error
+    except APIError as error:
+        raise _normalized_api_error(error) from error
+
+
+async def _open_normalized_api_events[EventT](
+    events: Awaitable[AsyncIterator[EventT]],
+) -> AsyncIterator[EventT]:
+    try:
+        native_events = await events
+    except APIError as error:
+        raise _normalized_api_error(error) from error
+    return _normalized_api_events(native_events)
 
 
 def _is_current_or_future_adaptive_claude(model: str) -> bool:
@@ -267,9 +315,13 @@ class AnthropicMessagesClient(
         stream = await sdk_client.messages.create(**request.model_dump())
         if not isinstance(stream, AsyncStream):
             raise TypeError("Messages request did not return a stream.")
-        async with stream:
-            async for event in stream:
-                yield event
+
+        async def iter_events() -> AsyncIterator[AnthropicMessagesStreamEvent]:
+            async with stream:
+                async for event in stream:
+                    yield event
+
+        return iter_events()
 
     @staticmethod
     def _request_parts(
@@ -407,6 +459,16 @@ class AnthropicMessagesClient(
         return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        native_request = AnthropicMessagesCreateRequest.model_validate(
+            self._request_body(request, capabilities=self._capabilities)
+        )
+        native_events = await _open_normalized_api_events(self.native_events(native_request))
+        return self._events(native_events)
+
+    async def _events(
+        self,
+        native_events: AsyncIterator[AnthropicMessagesStreamEvent],
+    ) -> AsyncIterator[ModelResponseStreamEvent]:
         metadata: ResponseStartEvent | None = None
         input_tokens = 0
         cache_creation = 0
@@ -440,10 +502,7 @@ class AnthropicMessagesClient(
             part_indices[source_index] = len(part_indices)
             return PartStartEvent(index=part_indices[source_index], part=part)
 
-        native_request = AnthropicMessagesCreateRequest.model_validate(
-            self._request_body(request, capabilities=self._capabilities)
-        )
-        async for event in _normalized_status_events(self.native_events(native_request)):
+        async for event in native_events:
             if isinstance(event, RawMessageStartEvent):
                 message = event.message
                 metadata = ResponseStartEvent(

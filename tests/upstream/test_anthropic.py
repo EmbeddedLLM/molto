@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from time import time
 
 import httpx
@@ -37,6 +37,15 @@ from molto.types.normalized import (
 from molto.upstream.anthropic import AnthropicMessagesClient
 
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
+
+
+def _open_stream[**P, EventT](
+    stream: Callable[P, AsyncIterator[EventT]],
+) -> Callable[P, Awaitable[AsyncIterator[EventT]]]:
+    async def open_stream(*args: P.args, **kwargs: P.kwargs) -> AsyncIterator[EventT]:
+        return stream(*args, **kwargs)
+
+    return open_stream
 
 
 @pytest.mark.parametrize(
@@ -131,10 +140,10 @@ async def test_events_merge_start_usage_without_mutating_started_parts(
     before = int(time())
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[UserInput(content=[TextInput(content="Hello")])],
                     max_output_tokens=10,
@@ -236,10 +245,10 @@ async def test_client_maps_streamed_signatures_to_ir(
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=capabilities)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[UserInput(content=[TextInput(content="Hello")])],
                     max_output_tokens=10,
@@ -311,10 +320,10 @@ async def _collect_client_events(
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=capabilities)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         return [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[UserInput(content=[TextInput(content="Hello")])],
                     max_output_tokens=10,
@@ -361,8 +370,8 @@ async def test_client_starts_non_empty_thinking_block_immediately(
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=capabilities)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        stream = client.events(
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        stream = await client.events(
             NormalizedRequest(
                 input=[UserInput(content=[TextInput(content="Hello")])],
                 max_output_tokens=10,
@@ -394,8 +403,8 @@ async def test_client_defers_completely_empty_thinking_block_start(
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        stream = client.events(
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        stream = await client.events(
             NormalizedRequest(
                 input=[UserInput(content=[TextInput(content="Hello")])],
                 max_output_tokens=10,
@@ -1109,10 +1118,10 @@ async def test_client_forwards_same_provider_opaque_reasoning_state(
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[
                         Thinking(content="Prior thought", summary=""),
@@ -1499,10 +1508,10 @@ async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPa
 
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[UserInput(content=[TextInput(content="Run it.")])],
                     max_output_tokens=10,

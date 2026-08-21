@@ -23,7 +23,11 @@ from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
     ModelResponseStreamEvent,
+    NormalizedAPIConnectionError,
+    NormalizedAPIError,
+    NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
+    NormalizedAPITimeoutError,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -146,6 +150,29 @@ def _anthropic_api_status_error(error: NormalizedAPIStatusError) -> anthropic.AP
     )
 
 
+def _anthropic_api_error(error: NormalizedAPIError) -> anthropic.APIError:
+    if isinstance(error, NormalizedAPIStatusError):
+        return _anthropic_api_status_error(error)
+
+    request = httpx.Request(error.request_method, error.request_url)
+    if isinstance(error, NormalizedAPITimeoutError):
+        return anthropic.APITimeoutError(request)
+    if isinstance(error, NormalizedAPIConnectionError):
+        return anthropic.APIConnectionError(message=error.message, request=request)
+    if isinstance(error, NormalizedAPIResponseValidationError):
+        headers = httpx.Headers(error.response_headers)
+        for header in ("content-encoding", "content-length", "transfer-encoding"):
+            if header in headers:
+                del headers[header]
+        response = httpx.Response(error.status_code, headers=headers, request=request)
+        return anthropic.APIResponseValidationError(
+            response,
+            error.body,
+            message=error.message,
+        )
+    return anthropic.APIError(error.message, request, body=error.body)
+
+
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (1024, "minimal"),
     (2048, "low"),
@@ -193,10 +220,8 @@ class AnthropicMessagesAdapter(
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
 
-    def _project_api_status_error(
-        self, error: NormalizedAPIStatusError
-    ) -> anthropic.APIStatusError:
-        return _anthropic_api_status_error(error)
+    def _project_api_error(self, error: NormalizedAPIError) -> anthropic.APIError:
+        return _anthropic_api_error(error)
 
     @staticmethod
     def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:

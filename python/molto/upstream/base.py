@@ -66,11 +66,11 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         )
 
     @abstractmethod
-    def native_events(self, request: NativeRequestT) -> AsyncIterator[NativeEventT]:
-        """Stream events using the provider's native protocol."""
+    async def native_events(self, request: NativeRequestT) -> AsyncIterator[NativeEventT]:
+        """Open a provider-native stream without consuming its first event."""
         raise NotImplementedError
 
     @abstractmethod
-    def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
-        """Stream provider events translated to normalized events."""
+    async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Open a normalized stream without consuming its first event."""
         raise NotImplementedError

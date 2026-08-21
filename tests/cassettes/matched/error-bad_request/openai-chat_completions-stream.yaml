@@ -3,10 +3,15 @@ request:
   body:
     max_completion_tokens: 0
     messages:
-    - content: Reply with one word.
+    - content:
+      - text: Reply with one word.
+        type: text
       role: user
     model: gpt-4o-mini-2024-07-18
     stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
   headers:
     accept: application/json
     accept-encoding: gzip, deflate

@@ -26,10 +26,12 @@ Do not treat an endpoint or URL hostname as evidence about provider behavior. A 
 
 Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
 
-Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement both streaming paths:
+Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement both async stream-opening paths:
 
-- `native_events()` accepts the validated upstream-native request and yields native SDK events;
-- `events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`.
+- `native_events()` accepts the validated upstream-native request, opens the SDK stream, and returns its native event iterator;
+- `events()` accepts a `NormalizedRequest`, awaits `native_events()`, and returns a normalized event iterator.
+
+Opening a stream must not consume an event. Callers must await these methods before iterating the returned stream so request-level errors have one consistent boundary.
 
 Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
 
@@ -46,7 +48,7 @@ assert OpenAIChatCompletionsStreamChunk is ChatCompletionChunk
 
 For the Responses event union, compare the wrapped union members with the SDK union rather than asserting that the event classes are Molto-owned.
 
-Do not recreate or expose SDK infrastructure objects such as `AsyncStream`. Context-manage returned SDK streams for cleanup and yield SDK-native models through Molto's iterator.
+Do not recreate or expose SDK infrastructure objects such as `AsyncStream`. Acquire returned SDK streams in the awaited coordinator call without consuming or buffering events. Context-manage the SDK stream once iteration begins; event parsing remains lazy.
 
 The exact OpenAI SDK pin in `pyproject.toml` is the schema source of truth. When it changes, recheck request-signature parity, response aliases, event union members, field mappings, and cassette-backed parity.
 
@@ -112,22 +114,23 @@ When downstream and upstream use the same protocol, preserve the native protocol
 
 The bypass belongs in the relevant coordinator; transport remains in the matching upstream client.
 
-## HTTP API status errors
+## Portable SDK API errors
 
 Keep native and translated request-level errors on their corresponding protocol boundaries:
 
-- Same-protocol paths must expose the provider SDK's original `APIStatusError` subclass and must not cross the normalized representation.
-- On translated paths, an upstream client may catch only its provider SDK's `APIStatusError` and convert it to the provider-neutral HTTP status error. Do not catch connection errors, timeouts, cancellation, validation errors, or broad `Exception` values.
-- Downstream adapters project the normalized error into a valid exception from their own SDK. Keep OpenAI and Anthropic body construction and status dispatch at their protocol-specific adapter boundaries.
-- Preserve source-backed status, message, request ID, headers, and request method/URL. Preserve OpenAI `type`, `code`, and `param` only when the source provides them; never invent unavailable Anthropic equivalents.
-- A projected SDK exception must carry an attached `httpx.Response` and `httpx.Request` for public SDK behavior. Constructing those objects is error projection, not adapter-owned transport; adapters must still never issue an HTTP request.
-- Raise the downstream SDK exception from the original upstream SDK exception. Do not translate HTTP-200 in-stream error events without separate cassette-backed evidence.
+- Same-protocol paths must expose the provider SDK's original exception object and must not cross the normalized error representation.
+- On translated paths, upstream clients normalize portable SDK API errors: status errors, connection errors, timeouts, response-validation errors, and generic `APIError` fallbacks. Catch only explicit SDK API error bases; do not catch Python cancellation, local request validation, ordinary Molto exceptions, provider-specific non-API exceptions, or broad `Exception` values.
+- Downstream adapters project the normalized error into the nearest corresponding exception class from their own SDK. Keep provider-specific exception construction, body construction, and status dispatch at the protocol-specific adapter boundary.
+- Preserve every source-backed field the destination can represent, including message, status, body, request ID, headers, request method/URL, and underlying transport details. Preserve `type`, `code`, and `param` only when the source provides them; never invent unavailable equivalents.
+- Projected status and response-validation exceptions must carry the response and attached request objects required for destination SDK behavior. Constructing them is error projection, not adapter-owned transport; adapters must still never issue an HTTP request.
+- Raise the downstream SDK exception from the original upstream SDK exception.
+- Translate SDK API exceptions raised during lazy stream iteration through the same normalized path. Keep protocol-native failure event models on the event path rather than converting them into request-level exceptions.
 
 ## OpenAI SDK transport
 
 Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.
 
-Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.close()` closes that client.
+Acquire every returned SDK stream during the awaited coordinator call so startup errors surface there, without consuming its first event. Context-manage the SDK stream once iteration begins. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.close()` closes that client.
 
 Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception types. Do not add compatibility wrappers for the previous `httpx` errors.
 
@@ -164,6 +167,8 @@ Treat each cassette as authoritative native wire data for its own downstream pro
 When Responses exposes `added`, `done`, and terminal encrypted snapshots but Messages exposes only a start signature and a later delta, preserve `added` and `done`. Do not buffer a stream solely to retrofit the separately observed terminal ciphertext. A deliberately curated continuation may use the prior turn's `done` snapshot in both native request fixtures when testing this cross-protocol policy; document and test that exception explicitly.
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
+
+Use matched cassettes to prove status-error request and exception parity across every downstream/upstream protocol combination. Portable connection, timeout, response-validation, and generic API errors may use synthetic tests until representative cassettes are available; future fixtures must preserve native exception identity and assert destination-SDK projection on translated routes.
 
 Responses assistant-message `phase` is source-backed native metadata, not a default that can be recovered from a Chat Completions result. Preserve it on native Responses paths. For Chat-to-Responses event parity, remove it from both sides of the reconstructible comparison; never infer `commentary` or `final_answer` from reasoning presence, message order, or text content.
 

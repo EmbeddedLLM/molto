@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import httpx
 import pytest
@@ -42,6 +42,15 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
+
+
+def _open_stream[**P, EventT](
+    stream: Callable[P, AsyncIterator[EventT]],
+) -> Callable[P, Awaitable[AsyncIterator[EventT]]]:
+    async def open_stream(*args: P.args, **kwargs: P.kwargs) -> AsyncIterator[EventT]:
+        return stream(*args, **kwargs)
+
+    return open_stream
 
 
 def _unexpected_http(request: httpx.Request) -> httpx.Response:
@@ -913,11 +922,11 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(input=[UserInput(content=[TextInput(content="Hi")])], model="m")
             )
         ]
@@ -1018,8 +1027,8 @@ async def test_responses_events_normalize_explicit_reasoning_summary(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
@@ -1131,8 +1140,8 @@ async def test_responses_events_omit_completely_empty_reasoning_part(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         PartStartEvent(index=0, part=TextOutput(content="", id="msg_a")),
@@ -1187,8 +1196,8 @@ async def test_responses_events_preserve_encrypted_only_reasoning_part(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         PartStartEvent(
@@ -1228,8 +1237,8 @@ async def test_responses_events_start_signed_reasoning_part_immediately(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        stream = client.events(NormalizedRequest(model="m"))
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        stream = await client.events(NormalizedRequest(model="m"))
         first = await anext(stream)
         await stream.aclose()
 
@@ -1285,8 +1294,8 @@ async def test_responses_events_preserve_reasoning_added_snapshot(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=capabilities)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        stream = client.events(NormalizedRequest(model="m"))
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        stream = await client.events(NormalizedRequest(model="m"))
         first = await anext(stream)
         await stream.aclose()
 
@@ -1315,9 +1324,9 @@ async def test_responses_events_reject_reasoning_outside_capability(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         with pytest.raises(ValueError, match="cannot contain raw text"):
-            await anext(client.events(NormalizedRequest(model="m")))
+            await anext(await client.events(NormalizedRequest(model="m")))
 
 
 def test_responses_client_rejects_unsigned_summary_history() -> None:
@@ -1382,8 +1391,8 @@ async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         PartStartEvent(index=0, part=Thinking(content="Initial", summary="", id="rs_123")),
@@ -1411,8 +1420,8 @@ async def test_responses_events_defer_completely_empty_reasoning_part_start(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        stream = client.events(NormalizedRequest(model="m"))
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        stream = await client.events(NormalizedRequest(model="m"))
         with pytest.raises(StopAsyncIteration):
             await anext(stream)
 
@@ -1454,8 +1463,8 @@ async def test_responses_events_complete_reasoning_part_without_deltas(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
@@ -1724,8 +1733,8 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
             transport=httpx.MockTransport(_unexpected_http)
         ) as http_client:
             client = OpenAIResponsesClient(http_client, capabilities=capabilities)
-            monkeypatch.setattr(client, "native_events", stub_native_events)
-            return [event async for event in client.events(NormalizedRequest(model="m"))]
+            monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+            return [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     events = [
         *(await collect(native_events[:3], VLLM_CAPABILITIES)),
@@ -1810,8 +1819,8 @@ async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == []
 
@@ -1830,10 +1839,10 @@ async def test_responses_events_forward_same_provider_opaque_reasoning_state(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[
                         Thinking(
@@ -1916,9 +1925,9 @@ async def test_responses_events_ignore_native_sdk_events(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
-        assert [event async for event in client.events(NormalizedRequest())] == []
+        assert [event async for event in await client.events(NormalizedRequest())] == []
 
 
 async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.MonkeyPatch):
@@ -1954,8 +1963,8 @@ async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.Mon
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
     assert response_end.termination_reason == "max_output_tokens"
@@ -2021,9 +2030,9 @@ async def test_responses_events_translate_function_call_lifecycle(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         ResponseStartEvent(
@@ -2075,10 +2084,10 @@ async def test_responses_events_reject_programmatic_function_call(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
         with pytest.raises(ValueError, match="Only direct"):
-            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
+            _ = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
 
 async def test_chat_completions_events_preserve_multiple_tool_call_indices(
@@ -2163,8 +2172,8 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         ResponseStartEvent(
@@ -2230,10 +2239,10 @@ async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
         with pytest.raises(ValueError, match="must be contiguous by index"):
-            _ = [event async for event in client.events(NormalizedRequest(model="m"))]
+            _ = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
 
 @pytest.mark.parametrize(
@@ -2284,11 +2293,11 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=capabilities)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
         events = [
             event
-            async for event in client.events(
+            async for event in await client.events(
                 NormalizedRequest(
                     input=[UserInput(content=[TextInput(content="Hi")])], model="m", stream=True
                 )
@@ -2360,8 +2369,8 @@ async def test_chat_completions_events_omit_empty_reasoning_part(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         ResponseStartEvent(
@@ -2401,8 +2410,8 @@ async def test_chat_completions_events_interleave_reasoning_and_text(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     assert events == [
         ResponseStartEvent(
@@ -2439,13 +2448,13 @@ async def test_chat_completions_events_reject_empty_native_stream(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
 
         with pytest.raises(
             ValueError,
             match="Chat Completions stream did not contain a response chunk",
         ):
-            [event async for event in client.events(NormalizedRequest(model="m"))]
+            [event async for event in await client.events(NormalizedRequest(model="m"))]
 
 
 async def test_chat_completions_events_retain_finish_reason(
@@ -2464,8 +2473,8 @@ async def test_chat_completions_events_retain_finish_reason(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+        monkeypatch.setattr(client, "native_events", _open_stream(stub_native_events))
+        events = [event async for event in await client.events(NormalizedRequest(model="m"))]
 
     response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
     assert response_end.termination_reason == "max_output_tokens"
@@ -2522,7 +2531,7 @@ async def test_chat_completions_sdk_consumes_terminal_marker():
         request = OpenAIChatCompletionsCreateRequest(
             messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
         )
-        events = [event async for event in client.native_events(request)]
+        events = [event async for event in await client.native_events(request)]
 
     assert len(events) == 1
     assert type(events[0]) is OpenAIChatCompletionsStreamChunk
@@ -2604,7 +2613,7 @@ async def test_native_events_use_openai_sdk_errors():
         )
         request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
         with pytest.raises(AuthenticationError) as exc_info:
-            [event async for event in client.native_events(request)]
+            [event async for event in await client.native_events(request)]
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "invalid_api_key"

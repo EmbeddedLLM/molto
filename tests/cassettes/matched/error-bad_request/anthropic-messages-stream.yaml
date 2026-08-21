@@ -7,7 +7,7 @@ request:
       - text: Reply with one word.
         type: text
       role: user
-    model: claude-sonnet-5
+    model: gpt-4o-mini-2024-07-18
     stream: true
   headers:
     accept: application/json

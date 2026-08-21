@@ -22,7 +22,11 @@ from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
     ModelResponseStreamEvent,
+    NormalizedAPIConnectionError,
+    NormalizedAPIError,
+    NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
+    NormalizedAPITimeoutError,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -119,6 +123,30 @@ def _openai_api_status_error(error: NormalizedAPIStatusError) -> openai.APIStatu
         response=response,
         body=error_body,
     )
+
+
+def _openai_api_error(error: NormalizedAPIError) -> openai.APIError:
+    if isinstance(error, NormalizedAPIStatusError):
+        return _openai_api_status_error(error)
+
+    request = httpx.Request(error.request_method, error.request_url)
+    if isinstance(error, NormalizedAPITimeoutError):
+        return openai.APITimeoutError(request)
+    if isinstance(error, NormalizedAPIConnectionError):
+        return openai.APIConnectionError(message=error.message, request=request)
+    if isinstance(error, NormalizedAPIResponseValidationError):
+        headers = httpx.Headers(error.response_headers)
+        for header in ("content-encoding", "content-length", "transfer-encoding"):
+            if header in headers:
+                del headers[header]
+        response = httpx.Response(error.status_code, headers=headers, request=request)
+        return openai.APIResponseValidationError(
+            response,
+            error.body,
+            message=error.message,
+        )
+    return openai.APIError(error.message, request, body=error.body)
+
 
 def _function_tool(function: dict[str, Any]) -> FunctionTool:
     """Normalize one protocol's function definition shape."""
@@ -271,8 +299,8 @@ class OpenAIResponsesAdapter(
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
 
-    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> openai.APIStatusError:
-        return _openai_api_status_error(error)
+    def _project_api_error(self, error: NormalizedAPIError) -> openai.APIError:
+        return _openai_api_error(error)
 
     def _normalize_message(
         self,
@@ -802,8 +830,8 @@ class OpenAIChatCompletionsAdapter(
 ):
     """Translate Chat Completions requests and normalized response events."""
 
-    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> openai.APIStatusError:
-        return _openai_api_status_error(error)
+    def _project_api_error(self, error: NormalizedAPIError) -> openai.APIError:
+        return _openai_api_error(error)
 
     def _normalize_message(
         self,

@@ -4,6 +4,8 @@ from itertools import pairwise, product
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import anthropic
+import openai
 import pytest
 from anthropic import AsyncAnthropic
 from anthropic import AsyncStream as AnthropicAsyncStream
@@ -20,7 +22,7 @@ from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateReque
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
+from molto.utils.io import dumps_sse, json_dumps, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
     reconstructable_anthropic_event,
@@ -117,50 +119,55 @@ def _get_http_client(
         cassette_name = cassette_names.pop(0)
         cassette = _read_cassette(_cassette_path(upstream, cassette_name, matched=matched))
         request_body = json_loads(request.content)
-        try:
-            assert request.method == cassette["request"]["method"]
-            origin = (
-                "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com"
+        assert request.method == cassette["request"]["method"]
+        origin = (
+            "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com"
+        )
+        assert str(request.url) == f"{origin}{cassette['request']['path']}"
+        assert request.url.path == cassette["request"]["path"]
+        expected_body = cassette["request"]["body"]
+        if (
+            matched
+            and translated
+            and upstream == "responses"
+            and Path(cassette_name).name.partition("-")[0] in ENCRYPTED_REASONING_SCENARIOS
+        ):
+            _assert_reconstructable_encrypted_responses_request(
+                request_body,
+                expected_body,
             )
-            assert str(request.url) == f"{origin}{cassette['request']['path']}"
-            assert request.url.path == cassette["request"]["path"]
-            expected_body = cassette["request"]["body"]
-            if (
-                matched
-                and translated
-                and upstream == "responses"
-                and Path(cassette_name).name.partition("-")[0] in ENCRYPTED_REASONING_SCENARIOS
-            ):
-                _assert_reconstructable_encrypted_responses_request(
-                    request_body,
-                    expected_body,
-                )
-            elif (
-                matched
-                and translated
-                and upstream == "responses"
-                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
-            ):
-                _assert_reconstructable_tool_responses_request(request_body, expected_body)
-            elif (
-                matched
-                and translated
-                and upstream == "chat/completions"
-                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
-            ):
-                _assert_reconstructable_tool_chat_request(request_body, expected_body)
-            else:
-                assert request_body == expected_body
-        except AssertionError as e:
+        elif (
+            matched
+            and translated
+            and upstream == "responses"
+            and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
+        ):
+            _assert_reconstructable_tool_responses_request(request_body, expected_body)
+        elif (
+            matched
+            and translated
+            and upstream == "chat/completions"
+            and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
+        ):
+            _assert_reconstructable_tool_chat_request(request_body, expected_body)
+        else:
+            assert request_body == expected_body
+        cassette_response = cassette["response"]
+        if "sse" in cassette_response:
             return Response(
-                400,
-                content=f"Bad request: {repr(e)}".encode(),
-                headers={"content-type": "text/plain; charset=utf-8"},
+                cassette_response["status_code"],
+                content="".join(cassette_response["sse"]).encode(),
+                headers={"content-type": "text/event-stream; charset=utf-8"},
             )
+        response_body = cassette_response["body"]
         return Response(
-            cassette["response"]["status_code"],
-            content="".join(cassette["response"]["sse"]).encode(),
-            headers={"content-type": "text/event-stream; charset=utf-8"},
+            cassette_response["status_code"],
+            content=(
+                response_body.encode()
+                if isinstance(response_body, str)
+                else json_dumps(response_body).encode()
+            ),
+            headers=cassette_response["headers"],
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
@@ -375,6 +382,169 @@ async def test_native_stream_matches_provider_sdk(
     assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
         event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
     ]
+
+
+def _error_cassette_name(protocol: Protocol, cassette_directory: str) -> str:
+    provider = "anthropic" if protocol == "messages" else "openai"
+    return str(
+        Path("matched") / cassette_directory / f"{provider}-{_protocol_name(protocol)}-stream.yaml"
+    )
+
+
+def _error_body(cassette: dict[str, Any]) -> dict[str, Any]:
+    body = cassette["response"]["body"]
+    parsed_body = json_loads(body) if isinstance(body, str) else body
+    assert isinstance(parsed_body, dict)
+    return parsed_body
+
+
+def _source_error_details(
+    cassette: dict[str, Any], protocol: Protocol
+) -> tuple[dict[str, Any], str, str | None]:
+    body = _error_body(cassette)
+    if protocol == "messages":
+        error_body = body["error"]
+        return error_body, error_body["message"], body.get("request_id")
+    error_body = body["error"]
+    return error_body, error_body["message"], None
+
+
+def _translated_error_body(
+    downstream: Protocol,
+    upstream: Protocol,
+    source_error_body: dict[str, Any],
+    message: str,
+    request_id: str | None,
+    *,
+    anthropic_error_type: str,
+) -> dict[str, Any]:
+    if downstream == "messages":
+        error_type = source_error_body["type"] if upstream == "messages" else anthropic_error_type
+        body: dict[str, Any] = {
+            "type": "error",
+            "error": {"type": error_type, "message": message},
+        }
+        if request_id is not None:
+            body["request_id"] = request_id
+        return body
+
+    return {
+        "message": message,
+        "type": (source_error_body["type"] if upstream != "messages" else "invalid_request_error"),
+        "param": source_error_body.get("param"),
+        "code": source_error_body.get("code"),
+    }
+
+
+async def _assert_error_cassette_translation(
+    downstream: Protocol,
+    upstream: Protocol,
+    *,
+    cassette_directory: str,
+    openai_error_type: type[Exception],
+    anthropic_error_type: type[Exception],
+    anthropic_error_body_type: str,
+) -> None:
+    downstream_name = _error_cassette_name(downstream, cassette_directory)
+    upstream_name = _error_cassette_name(upstream, cassette_directory)
+    downstream_cassette = _read_cassette(_cassette_path(downstream, downstream_name))
+    upstream_cassette = _read_cassette(_cassette_path(upstream, upstream_name))
+    source_error_body, source_message, source_request_id = _source_error_details(
+        upstream_cassette, upstream
+    )
+    async with _get_http_client([upstream_name], upstream) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        expected_error_type = (
+            anthropic_error_type if downstream == "messages" else openai_error_type
+        )
+        with pytest.raises(expected_error_type) as exc_info:
+            await coordinator(
+                body=deepcopy(downstream_cassette["request"]["body"]),
+                endpoint=upstream,
+                provider=_provider_from_cassette_path(_cassette_path(upstream, upstream_name)),
+                api_key="test-api-key",
+            )
+
+    error = exc_info.value
+    assert type(error) is expected_error_type
+    assert error.status_code == upstream_cassette["response"]["status_code"]
+    assert error.request.method == upstream_cassette["request"]["method"]
+    assert error.request.url.path == upstream_cassette["request"]["path"]
+
+    if downstream == upstream:
+        expected_body = (
+            _error_body(upstream_cassette) if upstream == "messages" else source_error_body
+        )
+        assert error.body == expected_body
+        assert error.__cause__ is None
+        return
+
+    expected_source_error_type = (
+        anthropic_error_type if upstream == "messages" else openai_error_type
+    )
+    assert type(error.__cause__) is expected_source_error_type
+    assert error.__cause__.body == (
+        _error_body(upstream_cassette) if upstream == "messages" else source_error_body
+    )
+    assert error.request_id == source_request_id
+    assert error.body == _translated_error_body(
+        downstream,
+        upstream,
+        source_error_body,
+        source_message,
+        source_request_id,
+        anthropic_error_type=anthropic_error_body_type,
+    )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_model_not_found_error_translation(
+    downstream: Protocol,
+    upstream: Protocol,
+) -> None:
+    await _assert_error_cassette_translation(
+        downstream,
+        upstream,
+        cassette_directory="error-model_not_found",
+        openai_error_type=openai.NotFoundError,
+        anthropic_error_type=anthropic.NotFoundError,
+        anthropic_error_body_type="not_found_error",
+    )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_invalid_api_key_error_translation(
+    downstream: Protocol,
+    upstream: Protocol,
+) -> None:
+    await _assert_error_cassette_translation(
+        downstream,
+        upstream,
+        cassette_directory="error-invalid_api_key",
+        openai_error_type=openai.AuthenticationError,
+        anthropic_error_type=anthropic.AuthenticationError,
+        anthropic_error_body_type="authentication_error",
+    )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_bad_request_error_translation(
+    downstream: Protocol,
+    upstream: Protocol,
+) -> None:
+    await _assert_error_cassette_translation(
+        downstream,
+        upstream,
+        cassette_directory="error-bad_request",
+        openai_error_type=openai.BadRequestError,
+        anthropic_error_type=anthropic.BadRequestError,
+        anthropic_error_body_type="invalid_request_error",
+    )
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)

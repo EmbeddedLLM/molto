@@ -46,7 +46,7 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
 ) -> None:
     captured: dict[str, object] = {}
 
-    def stub_events(
+    async def stub_events(
         client: AnthropicMessagesClient,
         request: NormalizedRequest,
     ) -> AsyncIterator[ModelResponseStreamEvent]:

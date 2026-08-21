@@ -99,7 +99,7 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 
 `BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. Same-protocol passthrough does not instantiate an adapter and is unaffected by this lifecycle.
 
-`BaseClient[NativeRequestT, NativeEventT]` defines two abstract streaming paths while preserving the concrete upstream-native types. `native_events()` accepts a validated request in the upstream protocol and yields that protocol's native SDK events. `events()` accepts a `NormalizedRequest`, invokes the native path, and yields `ModelResponseStreamEvent` values. Concrete clients own both transformations and the provider transport required by those methods.
+`BaseClient[NativeRequestT, NativeEventT]` defines two async stream-opening paths while preserving the concrete upstream-native types. `native_events()` accepts a validated request in the upstream protocol, opens the SDK stream, and returns its native event iterator. `events()` accepts a `NormalizedRequest`, awaits the native path, and returns a `ModelResponseStreamEvent` iterator. Neither method consumes an event while opening the stream. Concrete clients own both transformations and the provider transport required by those methods.
 
 ## Orchestration facade and coordinators
 
@@ -124,11 +124,12 @@ Each implemented coordinator performs the following work:
 3. Resolve `provider` and its capability profile independently of `base_url`.
 4. Resolve the API key and injected or default HTTP client.
 5. Select the upstream path from `endpoint`.
-6. Return an async iterator of the same downstream protocol's SDK event models.
+6. Acquire the upstream SDK stream, so request-level SDK errors are raised by the awaited coordinator call.
+7. Return an async iterator of the same downstream protocol's SDK event models.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
-`Molto` owns the injected or default `httpx.AsyncClient`. Short-lived `AsyncOpenAI` wrappers borrow that client and are not closed independently. Each returned SDK stream is context-managed so its response is released on completion or early termination; `Molto.close()` remains the only operation that closes the shared HTTP client.
+Stream acquisition does not consume or buffer an event. Event parsing remains lazy and starts only when the caller iterates. Once iteration begins, the upstream iterator context-manages the SDK stream. `Molto` owns the injected or default `httpx.AsyncClient`; short-lived SDK wrappers borrow that client and are not closed independently, and `Molto.close()` remains the only operation that closes the shared HTTP client.
 
 ## Native protocol passthrough
 
@@ -161,13 +162,13 @@ Molto validates the request and relies on the SDK's native event models. Passthr
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
-## HTTP API status errors
+## Portable SDK API errors
 
-Request-level non-success responses follow the same native-versus-translated boundary as successful streams. A same-protocol route leaves the provider SDK in complete control, so callers receive the original OpenAI or Anthropic `APIStatusError` subclass and body without normalization.
+Request-level SDK errors follow the same native-versus-translated boundary as successful streams. A same-protocol route leaves the provider SDK in complete control, so callers receive the original OpenAI or Anthropic exception object without normalization.
 
-On a translated route, the upstream client catches only its SDK's `APIStatusError` while consuming the lazy native iterator. It raises a provider-neutral normalized exception containing the status, semantic error fields, source request ID, response headers, and upstream request provenance. Connection failures, client timeouts, cancellation, validation failures, ordinary Molto exceptions, and HTTP-200 in-stream error events do not enter this path.
+On a translated route, the upstream client normalizes the portable SDK error categories: HTTP status errors, connection errors, timeouts, response-validation errors, and the SDK's generic `APIError` fallback. The normalized error retains the semantic details available from the source, such as its message, status, body, request ID, headers, request provenance, or underlying transport error. The downstream adapter then constructs the nearest corresponding exception class owned by its SDK. Status projection constructs a valid destination error envelope, preserving `code` and `param` only when the source supplies them. The original upstream SDK exception remains the projected exception's cause.
 
-The downstream adapter catches that normalized exception and projects it into the status-specific exception class owned by the downstream SDK. OpenAI projection constructs a valid OpenAI error envelope; Messages projection constructs a valid Anthropic error envelope and omits OpenAI-only `code` and `param` fields. Each projected exception contains an `httpx.Response` and attached `httpx.Request` for SDK compatibility, but the adapter performs no HTTP transport: it uses the real upstream status and URL as provenance and constructs only the destination protocol's public exception object. The original upstream SDK exception remains the projected exception's cause.
+This error representation is separate from the request and event IR: native routes never cross it, and adapters still perform no transport. Python cancellation, local request-model validation, ordinary Molto exceptions, and provider-specific non-API exceptions remain unchanged. SDK API errors raised after a stream opens follow the same translation path during lazy iteration. Protocol-native failure event models remain events and are not converted into request-level exceptions.
 
 ## Responses through Chat Completions
 
@@ -393,7 +394,7 @@ An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI o
 
 The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Molto accepts the SDK retry policy and OpenAI exceptions rather than wrapping them as the previous `httpx` behavior. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
-SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.close()` owns that client's lifetime. Adapters never access `httpx`.
+SDK streams are acquired by the awaited coordinator call but are not read until iteration. Once iteration begins, the upstream iterator context-manages the SDK stream. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.close()` owns that client's lifetime. Adapters use `httpx` objects only when constructing SDK-compatible projected errors and never perform HTTP transport.
 
 ## Replay and parity testing
 
@@ -436,6 +437,8 @@ Parity differs by path:
 - same-protocol routes assert exact request bodies and parsed SDK stream events;
 - Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, generated IDs, and function-call identity;
 - Responses to Chat Completions compares ordered text, reasoning, and function-argument deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
+
+Matched error cassettes prove status-error translation across every downstream/upstream protocol combination. Other portable SDK error categories may use synthetic tests until representative cassettes are added; adding those fixtures must follow the same native-identity and translated-destination-exception contract.
 
 ## Current limitations and extension path
 

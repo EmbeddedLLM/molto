@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
+from typing import NoReturn
 
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
 from molto.types.normalized import (
     ModelResponseStreamEvent,
-    NormalizedAPIStatusError,
+    NormalizedAPIError,
     NormalizedRequest,
     Thinking,
 )
@@ -40,24 +41,39 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         """Translate normalized response events into downstream events."""
         if self.native_request is None:
             raise RuntimeError("normalize_request() must be called before project_events().")
-        return self._project_events(self._project_status_errors(events), request)
+        return self._project_events(self._project_api_errors(events), request)
 
-    async def _project_status_errors(
+    async def open_projected_events(
+        self,
+        events: Awaitable[AsyncIterator[ModelResponseStreamEvent]],
+        request: NormalizedRequest,
+    ) -> AsyncIterator[NativeEventT]:
+        """Open and project a translated stream without consuming an event."""
+        try:
+            opened_events = await events
+        except NormalizedAPIError as error:
+            self._raise_projected_api_error(error)
+        return self.project_events(opened_events, request)
+
+    async def _project_api_errors(
         self,
         events: AsyncIterator[ModelResponseStreamEvent],
     ) -> AsyncIterator[ModelResponseStreamEvent]:
         try:
             async for event in events:
                 yield event
-        except NormalizedAPIStatusError as error:
-            projected_error = self._project_api_status_error(error)
-            if error.__cause__ is None:
-                raise projected_error from error
-            raise projected_error from error.__cause__
+        except NormalizedAPIError as error:
+            self._raise_projected_api_error(error)
+
+    def _raise_projected_api_error(self, error: NormalizedAPIError) -> NoReturn:
+        projected_error = self._project_api_error(error)
+        if error.__cause__ is None:
+            raise projected_error from error
+        raise projected_error from error.__cause__
 
     @abstractmethod
-    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> Exception:
-        """Construct the downstream SDK exception for a normalized HTTP failure."""
+    def _project_api_error(self, error: NormalizedAPIError) -> Exception:
+        """Construct the downstream SDK exception for a normalized API failure."""
         raise NotImplementedError
 
     @abstractmethod

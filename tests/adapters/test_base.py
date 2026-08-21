@@ -10,7 +10,7 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.normalized import (
     ModelResponseStreamEvent,
-    NormalizedAPIStatusError,
+    NormalizedAPIError,
     NormalizedRequest,
     PartDeltaEvent,
     PartEndEvent,
@@ -42,7 +42,7 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
         del request
         return events
 
-    def _project_api_status_error(self, error: NormalizedAPIStatusError) -> Exception:
+    def _project_api_error(self, error: NormalizedAPIError) -> Exception:
         return RuntimeError(error.message)
 
 

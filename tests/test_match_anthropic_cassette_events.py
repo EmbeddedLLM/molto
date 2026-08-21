@@ -30,6 +30,11 @@ ENCRYPTED_REASONING_CASSETTES = (
 TOOL_CALL_ENCRYPTED_REASONING_CASSETTES = (
     Path(__file__).parent / "cassettes" / "matched" / "tool_call_with_reasoning_encrypted"
 )
+ERROR_SCENARIOS = (
+    "error-model_not_found",
+    "error-invalid_api_key",
+    "error-bad_request",
+)
 
 
 def _sse_unit(event: dict[str, Any]) -> list[str]:
@@ -38,6 +43,59 @@ def _sse_unit(event: dict[str, Any]) -> list[str]:
         f"data: {json_dumps(event)}\n\n",
         "\n",
     ]
+
+
+@pytest.mark.parametrize("scenario", ERROR_SCENARIOS)
+def test_matches_error_cassettes_without_rewriting_native_response(scenario: str) -> None:
+    scenario_dir = MATCHED_CASSETTES / scenario
+    messages_cassette = read_yaml(str(scenario_dir / "anthropic-messages-stream.yaml"))
+    responses_cassette = read_yaml(str(scenario_dir / "openai-responses-stream.yaml"))
+    original_messages_response = deepcopy(messages_cassette["response"])
+    original_responses = deepcopy(responses_cassette)
+    responses_request = responses_cassette["request"]["body"]
+
+    match_messages_events(messages_cassette, responses_cassette)
+    matched_once = deepcopy(messages_cassette)
+    match_messages_events(messages_cassette, responses_cassette)
+
+    input_value = responses_request["input"]
+    if isinstance(input_value, str):
+        text = input_value
+    else:
+        text = input_value[0]["content"][0]["text"]
+
+    assert messages_cassette == matched_once
+    assert responses_cassette == original_responses
+    assert messages_cassette["response"] == original_messages_response
+    assert messages_cassette["request"]["body"] == {
+        "max_tokens": responses_request["max_output_tokens"],
+        "messages": [
+            {
+                "content": [{"text": text, "type": "text"}],
+                "role": "user",
+            }
+        ],
+        "model": responses_request["model"],
+        "stream": responses_request["stream"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("body", "match"),
+    [
+        ("not json", "Messages response.body must contain valid JSON"),
+        ([], "Messages error response.body must be an object"),
+        ({}, "Messages error response.body must contain an error object"),
+    ],
+)
+def test_rejects_malformed_messages_error_bodies(body: Any, match: str) -> None:
+    scenario_dir = MATCHED_CASSETTES / "error-model_not_found"
+    messages_cassette = read_yaml(str(scenario_dir / "anthropic-messages-stream.yaml"))
+    responses_cassette = read_yaml(str(scenario_dir / "openai-responses-stream.yaml"))
+    messages_cassette["response"]["body"] = body
+
+    with pytest.raises(ValueError, match=match):
+        match_messages_events(messages_cassette, responses_cassette)
 
 
 def _messages_cassette(

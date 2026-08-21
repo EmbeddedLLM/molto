@@ -47,6 +47,31 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
+def _response(cassette: dict[str, Any], protocol: str) -> dict[str, Any]:
+    response = cassette.get("response")
+    if not isinstance(response, dict):
+        raise ValueError(f"{protocol} cassette must contain a response object.")
+    status_code = response.get("status_code")
+    if not isinstance(status_code, int):
+        raise ValueError(f"{protocol} response.status_code must be an integer.")
+    return response
+
+
+def _validate_error_body(response: dict[str, Any], protocol: str) -> None:
+    body = response.get("body")
+    if isinstance(body, str):
+        try:
+            body = json_loads(body)
+        except ValueError as exc:
+            raise ValueError(f"{protocol} response.body must contain valid JSON.") from exc
+    if not isinstance(body, dict):
+        raise ValueError(
+            f"{protocol} error response.body must be an object or JSON object string."
+        )
+    if not isinstance(body.get("error"), dict):
+        raise ValueError(f"{protocol} error response.body must contain an error object.")
+
+
 def _response_message_content(
     content: Any, *, preserve_parts: bool = False
 ) -> str | list[dict[str, str]]:
@@ -158,6 +183,40 @@ def _match_request_history(
         return
 
     chat_request["messages"] = _chat_messages_from_response_input(response_input)
+
+
+def _match_error_request(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> None:
+    chat_request = _request_body(chat_cassette)
+    responses_request = _request_body(responses_cassette)
+    model = responses_request.get("model")
+    stream = responses_request.get("stream")
+    if not isinstance(model, str):
+        raise ValueError("Responses request must contain a string model.")
+    if not isinstance(stream, bool):
+        raise ValueError("Responses request must contain a boolean stream field.")
+
+    chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
+    chat_request["model"] = model
+    chat_request["stream"] = stream
+
+    max_output_tokens = responses_request.get("max_output_tokens")
+    if max_output_tokens is None:
+        chat_request.pop("max_completion_tokens", None)
+    else:
+        chat_request["max_completion_tokens"] = max_output_tokens
+
+    stream_options: dict[str, Any] = {"include_usage": True} if stream else {}
+    responses_stream_options = responses_request.get("stream_options")
+    if isinstance(responses_stream_options, dict):
+        include_obfuscation = responses_stream_options.get("include_obfuscation")
+        if include_obfuscation is not None:
+            stream_options["include_obfuscation"] = include_obfuscation
+    if stream_options:
+        chat_request["stream_options"] = stream_options
+    else:
+        chat_request.pop("stream_options", None)
 
 
 def _parse_data_event(sse_entry: str) -> dict[str, Any] | None:
@@ -620,6 +679,23 @@ def match_chat_completions_events(
 ) -> None:
     """Rewrite CC SSE events into the canonical input for Responses parity."""
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
+    chat_response = _response(chat_cassette, "Chat Completions")
+    responses_response = _response(responses_cassette, "Responses")
+    chat_success = 200 <= chat_response["status_code"] < 300
+    responses_success = 200 <= responses_response["status_code"] < 300
+    if chat_success != responses_success:
+        raise ValueError(
+            "Cannot match Chat Completions status "
+            f"{chat_response['status_code']} with Responses status "
+            f"{responses_response['status_code']}: one response is successful and the other "
+            "is an error."
+        )
+    if not responses_success:
+        _validate_error_body(chat_response, "Chat Completions")
+        _validate_error_body(responses_response, "Responses")
+        _match_error_request(chat_cassette, responses_cassette)
+        return
+
     indexed_chat_events = _data_events(chat_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
 

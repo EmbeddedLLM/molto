@@ -1,10 +1,16 @@
 filename: 2026-08-21-01a022b0-50b4-7972-8f3b-8e723039c788
 request:
   body:
-    input: Reply with one word.
-    max_output_tokens: 1
+    input:
+    - content:
+      - text: Reply with one word.
+        type: input_text
+      role: user
+    max_output_tokens: 0
     model: gpt-4o-mini-2024-07-18
     stream: true
+    stream_options:
+      include_obfuscation: false
   headers:
     accept: application/json
     accept-encoding: gzip, deflate
@@ -22,7 +28,7 @@ response:
     error:
       code: integer_below_min_value
       message: 'Invalid ''max_output_tokens'': integer below minimum value. Expected
-        a value >= 16, but got 1 instead.'
+        a value >= 16, but got 0 instead.'
       param: max_output_tokens
       type: invalid_request_error
   headers:

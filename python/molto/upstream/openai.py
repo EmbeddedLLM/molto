@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from openai import APIStatusError, AsyncStream
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIResponseValidationError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncStream,
+)
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
 from molto.types.normalized import (
@@ -15,7 +22,11 @@ from molto.types.normalized import (
     ImageUrlInput,
     InputTokenDetails,
     ModelResponseStreamEvent,
+    NormalizedAPIConnectionError,
+    NormalizedAPIError,
+    NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
+    NormalizedAPITimeoutError,
     NormalizedRequest,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -70,17 +81,53 @@ def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusEr
         response_headers=dict(error.response.headers),
         request_method=request.method,
         request_url=str(request.url),
+        body=error.body,
     )
 
 
-async def _normalized_status_events[EventT](
+def _normalized_api_error(error: APIError) -> NormalizedAPIError:
+    if isinstance(error, APIStatusError):
+        return _normalized_api_status_error(error)
+
+    request = error.request
+    common = {
+        "message": error.message,
+        "source_protocol": "openai",
+        "request_method": request.method,
+        "request_url": str(request.url),
+        "body": error.body,
+    }
+    if isinstance(error, APIResponseValidationError):
+        return NormalizedAPIResponseValidationError(
+            **common,
+            status_code=error.status_code,
+            response_headers=dict(error.response.headers),
+        )
+    if isinstance(error, APITimeoutError):
+        return NormalizedAPITimeoutError(**common)
+    if isinstance(error, APIConnectionError):
+        return NormalizedAPIConnectionError(**common)
+    return NormalizedAPIError(**common)
+
+
+async def _normalized_api_events[EventT](
     events: AsyncIterator[EventT],
 ) -> AsyncIterator[EventT]:
     try:
         async for event in events:
             yield event
-    except APIStatusError as error:
-        raise _normalized_api_status_error(error) from error
+    except APIError as error:
+        raise _normalized_api_error(error) from error
+
+
+async def _open_normalized_api_events[EventT](
+    events: Awaitable[AsyncIterator[EventT]],
+) -> AsyncIterator[EventT]:
+    try:
+        native_events = await events
+    except APIError as error:
+        raise _normalized_api_error(error) from error
+    return _normalized_api_events(native_events)
 
 
 def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
@@ -276,15 +323,22 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
         stream = await sdk_client.responses.create(**request.model_dump())
         if not isinstance(stream, AsyncStream):
             raise TypeError("Responses request did not return a stream.")
-        async with stream:
-            async for event in stream:
-                if isinstance(event, ResponseCompletedEvent):
-                    usage = event.response.usage
-                    if usage is not None and usage.input_tokens_details.cache_write_tokens is None:
-                        usage.input_tokens_details.cache_write_tokens = 0
-                # The SDK already constructs ResponseStreamEvent instances. Apart from
-                # the provider omission above, avoid validating every event twice.
-                yield event
+
+        async def iter_events() -> AsyncIterator[ResponseStreamEvent]:
+            async with stream:
+                async for event in stream:
+                    if isinstance(event, ResponseCompletedEvent):
+                        usage = event.response.usage
+                        if (
+                            usage is not None
+                            and usage.input_tokens_details.cache_write_tokens is None
+                        ):
+                            usage.input_tokens_details.cache_write_tokens = 0
+                    # The SDK already constructs ResponseStreamEvent instances. Apart
+                    # from the provider omission above, avoid validating every event twice.
+                    yield event
+
+        return iter_events()
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -407,6 +461,13 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        native_events = await _open_normalized_api_events(self.native_events(native_request))
+        return self._events(native_events)
+
+    async def _events(
+        self,
+        native_events: AsyncIterator[ResponseStreamEvent],
+    ) -> AsyncIterator[ModelResponseStreamEvent]:
         # Only a reasoning item whose `added` snapshot is completely empty (no
         # content, summary, or encrypted state) is deferred: if nothing ever
         # arrives, its part lifecycle is omitted from the IR entirely. An item
@@ -428,7 +489,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             # seen; keep its source index rather than inventing a dense one.
             return part_indices.get(source_index, source_index)
 
-        async for event in _normalized_status_events(self.native_events(native_request)):
+        async for event in native_events:
             event_type = event.type
 
             if event_type == "response.created":
@@ -578,11 +639,15 @@ class OpenAIChatCompletionsClient(
         stream = await sdk_client.chat.completions.create(**request.model_dump())
         if not isinstance(stream, AsyncStream):
             raise TypeError("Chat Completions request did not return a stream.")
-        async with stream:
-            async for chunk in stream:
-                # The SDK already constructs ChatCompletionChunk instances. Trust that
-                # boundary to avoid serializing and validating every streaming chunk twice.
-                yield chunk
+
+        async def iter_events() -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+            async with stream:
+                async for chunk in stream:
+                    # The SDK already constructs ChatCompletionChunk instances. Trust that
+                    # boundary to avoid serializing and validating every streaming chunk twice.
+                    yield chunk
+
+        return iter_events()
 
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
@@ -707,6 +772,16 @@ class OpenAIChatCompletionsClient(
         return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        native_request = OpenAIChatCompletionsCreateRequest.model_validate(
+            self._request_body(request)
+        )
+        native_events = await _open_normalized_api_events(self.native_events(native_request))
+        return self._events(native_events)
+
+    async def _events(
+        self,
+        native_events: AsyncIterator[OpenAIChatCompletionsStreamChunk],
+    ) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
         usage: Usage | None = None
@@ -749,10 +824,7 @@ class OpenAIChatCompletionsClient(
                 ),
             )
 
-        native_request = OpenAIChatCompletionsCreateRequest.model_validate(
-            self._request_body(request)
-        )
-        async for chunk in _normalized_status_events(self.native_events(native_request)):
+        async for chunk in native_events:
             if response_metadata is None:
                 response_metadata = ResponseStartEvent(
                     id=chunk.id,

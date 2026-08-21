@@ -21,6 +21,8 @@ APIErrorCategory: TypeAlias = Literal[
     "unprocessable",
 ]
 
+APIErrorSource: TypeAlias = Literal["anthropic", "openai"]
+
 
 def _api_error_category(status_code: int) -> APIErrorCategory:
     return {
@@ -37,7 +39,60 @@ def _api_error_category(status_code: int) -> APIErrorCategory:
     }.get(status_code, "server" if status_code >= 500 else "api")
 
 
-class NormalizedAPIStatusError(Exception):
+class NormalizedAPIError(Exception):
+    """Provider-neutral SDK API failure."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_protocol: APIErrorSource,
+        request_method: str,
+        request_url: str,
+        body: object | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.source_protocol = source_protocol
+        self.request_method = request_method
+        self.request_url = request_url
+        self.body = body
+
+
+class NormalizedAPIConnectionError(NormalizedAPIError):
+    """Provider-neutral SDK connection failure."""
+
+
+class NormalizedAPITimeoutError(NormalizedAPIConnectionError):
+    """Provider-neutral SDK timeout failure."""
+
+
+class NormalizedAPIResponseValidationError(NormalizedAPIError):
+    """Provider-neutral failure to validate an API response."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        source_protocol: APIErrorSource,
+        response_headers: dict[str, str],
+        request_method: str,
+        request_url: str,
+        body: object | None,
+    ) -> None:
+        super().__init__(
+            message,
+            source_protocol=source_protocol,
+            request_method=request_method,
+            request_url=request_url,
+            body=body,
+        )
+        self.status_code = status_code
+        self.response_headers = response_headers
+
+
+class NormalizedAPIStatusError(NormalizedAPIError):
     """Provider-neutral request-level HTTP API failure."""
 
     def __init__(
@@ -45,7 +100,7 @@ class NormalizedAPIStatusError(Exception):
         message: str,
         *,
         status_code: int,
-        source_protocol: Literal["anthropic", "openai"],
+        source_protocol: APIErrorSource,
         source_type: str | None,
         code: str | None,
         param: str | None,
@@ -53,19 +108,22 @@ class NormalizedAPIStatusError(Exception):
         response_headers: dict[str, str],
         request_method: str,
         request_url: str,
+        body: object | None = None,
     ) -> None:
-        super().__init__(message)
-        self.message = message
+        super().__init__(
+            message,
+            source_protocol=source_protocol,
+            request_method=request_method,
+            request_url=request_url,
+            body=body,
+        )
         self.status_code = status_code
         self.category = _api_error_category(status_code)
-        self.source_protocol = source_protocol
         self.source_type = source_type
         self.code = code
         self.param = param
         self.request_id = request_id
         self.response_headers = response_headers
-        self.request_method = request_method
-        self.request_url = request_url
 
 
 class SystemPrompt(ExtraModel):
