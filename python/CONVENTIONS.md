@@ -92,7 +92,11 @@ When non-streaming support is added, derive it with a generic collector over the
 
 Preserve chunk boundaries when they are observable and covered by parity tests. Do not turn an empty role-establishment chunk into a text delta.
 
-Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly and must not be reclassified by a provider profile. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous; classify them with `ProviderCapabilities.thinking`. When projecting to Chat Completions or Messages, collapse either normalized representation into that protocol's single reasoning field.
+Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly; preserve that label and require it to match `ProviderCapabilities.thinking`. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so classify them with the same capability. Project only the matching normalized representation into each protocol's reasoning field.
+
+A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
+
+Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 

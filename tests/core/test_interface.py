@@ -43,6 +43,10 @@ ENCRYPTED_REASONING_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
 ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
     product(ENCRYPTED_REASONING_PROTOCOLS, repeat=2)
 )
+RESPONSES_MESSAGES_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
+RESPONSES_MESSAGES_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
+    product(RESPONSES_MESSAGES_PROTOCOLS, repeat=2)
+)
 # Scenarios whose Responses streams carry encrypted reasoning. Messages has no
 # equivalents for Responses include/stream options or item IDs, so these routes
 # compare reconstructible requests and events instead of exact wire values.
@@ -54,6 +58,7 @@ ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
 TOOL_CALL_SCENARIOS: tuple[str, ...] = (
     "tool_call",
     "tool_call_choice",
+    "tool_call_image_result_parallel",
     "tool_call_parallel",
     "tool_call_with_reasoning_encrypted",
 )
@@ -792,7 +797,7 @@ async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
 async def test_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
 
@@ -802,7 +807,12 @@ async def test_input_image_base64_stream(downstream: Protocol, upstream: Protoco
     await _assert_matched_stream_events("input_image_base64", downstream, upstream)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
+async def test_input_image_remote_url_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("input_image_remote_url", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
 async def test_input_image_with_reasoning_encrypted_stream(
     downstream: Protocol, upstream: Protocol
 ):
@@ -821,12 +831,17 @@ async def test_tool_call_choice_stream(downstream: Protocol, upstream: Protocol)
     await _assert_matched_stream_events("tool_call_choice", downstream, upstream)
 
 
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
+async def test_tool_call_image_result_parallel_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events("tool_call_image_result_parallel", downstream, upstream)
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_tool_call_parallel_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call_parallel", downstream, upstream)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ENCRYPTED_REASONING_ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
 async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call_with_reasoning_encrypted", downstream, upstream)
 
