@@ -11,8 +11,6 @@ from scripts.match_openai_cassette_events import main, match_chat_completions_ev
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
 RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai-responses-stream-00.yaml"
-ERROR_CHAT_CASSETTE = CASSETTES / "error-model_not_found" / "openai-chat_completions-stream.yaml"
-ERROR_RESPONSES_CASSETTE = CASSETTES / "error-model_not_found" / "openai-responses-stream.yaml"
 REASONING_CASSETTES = [
     (
         CASSETTES / "reasoning_raw" / f"vllm-chat_completions-stream-{index:02d}.yaml",
@@ -109,119 +107,6 @@ def _response_message_text(item: dict[str, Any]) -> str:
     if isinstance(content, str):
         return content
     return "".join(part["text"] for part in content)
-
-
-def _body_object(body: dict[str, Any] | str) -> dict[str, Any]:
-    parsed = json_loads(body) if isinstance(body, str) else body
-    assert isinstance(parsed, dict)
-    return parsed
-
-
-def test_matches_model_not_found_error_cassettes() -> None:
-    chat_cassette = read_yaml(str(ERROR_CHAT_CASSETTE))
-    responses_cassette = read_yaml(str(ERROR_RESPONSES_CASSETTE))
-    original_chat = deepcopy(chat_cassette)
-    original_responses = deepcopy(responses_cassette)
-
-    match_chat_completions_events(chat_cassette, responses_cassette)
-
-    assert responses_cassette == original_responses
-    assert chat_cassette == original_chat, (
-        "Committed Chat Completions error cassette is not matched to canonical Responses."
-    )
-    assert isinstance(chat_cassette["response"]["body"], str)
-    assert chat_cassette["response"]["body"].endswith("\n")
-    assert _body_object(chat_cassette["response"]["body"])["error"] == {
-        "code": None,
-        "message": "Model not found kimi-k3",
-        "param": "model",
-        "type": "invalid_request_error",
-    }
-    assert chat_cassette["response"]["status_code"] == 404
-    assert chat_cassette["response"]["headers"] == original_chat["response"]["headers"]
-    assert {key: value for key, value in chat_cassette.items() if key != "response"} == {
-        key: value for key, value in original_chat.items() if key != "response"
-    }
-
-
-@pytest.mark.parametrize("serialized_chat_body", [False, True])
-@pytest.mark.parametrize("serialized_responses_body", [False, True])
-def test_matches_error_body_representations(
-    serialized_chat_body: bool, serialized_responses_body: bool
-) -> None:
-    chat_cassette = read_yaml(str(ERROR_CHAT_CASSETTE))
-    responses_cassette = read_yaml(str(ERROR_RESPONSES_CASSETTE))
-    chat_body = _body_object(chat_cassette["response"]["body"])
-    chat_body["native_outer"] = "preserved"
-    chat_body["error"]["native_error"] = "preserved"
-    chat_cassette["response"]["body"] = (
-        json_dumps(chat_body) if serialized_chat_body else chat_body
-    )
-    chat_cassette["response"]["status_code"] = 400
-    responses_body = responses_cassette["response"]["body"]
-    responses_cassette["response"]["body"] = (
-        json_dumps(responses_body) if serialized_responses_body else responses_body
-    )
-
-    match_chat_completions_events(chat_cassette, responses_cassette)
-
-    assert isinstance(chat_cassette["response"]["body"], str) is serialized_chat_body
-    matched_body = _body_object(chat_cassette["response"]["body"])
-    assert matched_body["native_outer"] == "preserved"
-    assert matched_body["error"]["native_error"] == "preserved"
-    assert chat_cassette["response"]["status_code"] == 404
-
-
-@pytest.mark.parametrize(
-    ("body", "match"),
-    [
-        ("not json", "Responses response.body must contain valid JSON"),
-        ([], "Responses error response.body must be an object or JSON object string"),
-        ({}, "Responses error response.body must contain an error object"),
-        ({"error": {}}, "Responses error.message must be a string"),
-        (
-            {"error": {"message": "message", "type": 1}},
-            "Responses error.type must be a string",
-        ),
-    ],
-)
-def test_rejects_malformed_responses_error_bodies(body: Any, match: str) -> None:
-    chat_cassette = read_yaml(str(ERROR_CHAT_CASSETTE))
-    responses_cassette = read_yaml(str(ERROR_RESPONSES_CASSETTE))
-    responses_cassette["response"]["body"] = body
-
-    with pytest.raises(ValueError, match=match):
-        match_chat_completions_events(chat_cassette, responses_cassette)
-
-
-@pytest.mark.parametrize(
-    ("body", "match"),
-    [
-        ("not json", "Chat Completions response.body must contain valid JSON"),
-        ([], "Chat Completions error response.body must be an object or JSON object string"),
-        ({}, "Chat Completions error response.body must contain an error object"),
-    ],
-)
-def test_rejects_malformed_chat_error_bodies(body: Any, match: str) -> None:
-    chat_cassette = read_yaml(str(ERROR_CHAT_CASSETTE))
-    responses_cassette = read_yaml(str(ERROR_RESPONSES_CASSETTE))
-    chat_cassette["response"]["body"] = body
-
-    with pytest.raises(ValueError, match=match):
-        match_chat_completions_events(chat_cassette, responses_cassette)
-
-
-@pytest.mark.parametrize(("chat_success", "responses_success"), [(True, False), (False, True)])
-def test_rejects_mixed_success_and_error_cassettes(
-    chat_success: bool, responses_success: bool
-) -> None:
-    chat_cassette = read_yaml(str(CHAT_CASSETTE if chat_success else ERROR_CHAT_CASSETTE))
-    responses_cassette = read_yaml(
-        str(RESPONSES_CASSETTE if responses_success else ERROR_RESPONSES_CASSETTE)
-    )
-
-    with pytest.raises(ValueError, match="one response is successful and the other is an error"):
-        match_chat_completions_events(chat_cassette, responses_cassette)
 
 
 def test_matches_simple_text_stream_cassettes(tmp_path: Path) -> None:

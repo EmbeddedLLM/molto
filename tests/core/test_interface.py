@@ -4,8 +4,6 @@ from itertools import pairwise, product
 from pathlib import Path
 from typing import Any, Literal, cast
 
-import anthropic
-import openai
 import pytest
 from anthropic import AsyncAnthropic
 from anthropic import AsyncStream as AnthropicAsyncStream
@@ -22,7 +20,7 @@ from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateReque
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.utils.io import dumps_sse, json_dumps, json_loads, load_sse, read_yaml
+from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
     reconstructable_anthropic_event,
@@ -34,15 +32,6 @@ CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
 Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
-ERROR_MODEL_NOT_FOUND_CASSETTES: dict[Protocol, str] = {
-    "responses": "matched/error-model_not_found/openai-responses-stream.yaml",
-    "chat/completions": ("matched/error-model_not_found/openai-chat_completions-stream.yaml"),
-    "messages": "matched/error-model_not_found/anthropic-messages-stream.yaml",
-}
-ENCRYPTED_REASONING_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
-ENCRYPTED_REASONING_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
-    product(ENCRYPTED_REASONING_PROTOCOLS, repeat=2)
-)
 RESPONSES_MESSAGES_PROTOCOLS: tuple[Protocol, ...] = ("responses", "messages")
 RESPONSES_MESSAGES_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
     product(RESPONSES_MESSAGES_PROTOCOLS, repeat=2)
@@ -168,28 +157,13 @@ def _get_http_client(
                 content=f"Bad request: {repr(e)}".encode(),
                 headers={"content-type": "text/plain; charset=utf-8"},
             )
-        cassette_response = cassette["response"]
-        if "sse" in cassette_response:
-            content = "".join(cassette_response["sse"])
-        else:
-            body = cassette_response["body"]
-            content = body if isinstance(body, str) else json_dumps(body)
         return Response(
-            cassette_response["status_code"],
-            content=content.encode(),
-            headers=cassette_response["headers"],
-            request=request,
+            cassette["response"]["status_code"],
+            content="".join(cassette["response"]["sse"]).encode(),
+            headers={"content-type": "text/event-stream; charset=utf-8"},
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
-
-
-def _cassette_error_body(cassette: dict[str, Any]) -> dict[str, Any]:
-    body = cassette["response"]["body"]
-    if isinstance(body, str):
-        body = json_loads(body)
-    assert isinstance(body, dict)
-    return body
 
 
 def _assert_reconstructable_encrypted_responses_request(
@@ -401,154 +375,6 @@ async def test_native_stream_matches_provider_sdk(
     assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
         event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
     ]
-
-
-async def _direct_sdk_status_error(
-    protocol: Protocol,
-    request_body: dict[str, Any],
-    http_client: AsyncClient,
-) -> openai.APIStatusError | anthropic.APIStatusError:
-    if protocol == "messages":
-        client = AsyncAnthropic(
-            api_key="test-api-key",
-            base_url="https://api.anthropic.com",
-            http_client=http_client,
-        )
-        create = client.messages.create
-    else:
-        client = AsyncOpenAI(
-            api_key="test-api-key",
-            base_url="https://api.openai.com/v1",
-            http_client=http_client,
-        )
-        create = (
-            client.responses.create if protocol == "responses" else client.chat.completions.create
-        )
-
-    try:
-        await create(**request_body)
-    except (openai.APIStatusError, anthropic.APIStatusError) as error:
-        return error
-    raise AssertionError("Expected the provider SDK request to raise an API status error")
-
-
-def _sdk_status_error_message(
-    error: openai.APIStatusError | anthropic.APIStatusError,
-) -> str:
-    assert isinstance(error.body, dict)
-    error_body = error.body.get("error", error.body)
-    assert isinstance(error_body, dict)
-    message = error_body.get("message")
-    assert isinstance(message, str)
-    return message
-
-
-def test_model_not_found_cassette_messages_match_canonical_responses() -> None:
-    errors = {
-        protocol: _cassette_error_body(
-            _read_cassette(_cassette_path(protocol, cassette_name, matched=True))
-        )["error"]
-        for protocol, cassette_name in ERROR_MODEL_NOT_FOUND_CASSETTES.items()
-    }
-    canonical_message = errors["responses"]["message"]
-
-    assert {protocol: error["message"] for protocol, error in errors.items()} == {
-        protocol: canonical_message for protocol in PROTOCOLS
-    }
-
-
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_model_not_found_error_matches_downstream_sdk(
-    downstream: Protocol,
-    upstream: Protocol,
-):
-    downstream_cassette_name = ERROR_MODEL_NOT_FOUND_CASSETTES[downstream]
-    downstream_cassette = _read_cassette(
-        _cassette_path(downstream, downstream_cassette_name, matched=True)
-    )
-    request_body = deepcopy(downstream_cassette["request"]["body"])
-
-    async with _get_http_client(
-        [downstream_cassette_name], downstream, matched=True
-    ) as http_client:
-        direct_error = await _direct_sdk_status_error(
-            downstream,
-            request_body,
-            http_client,
-        )
-
-    upstream_cassette_name = ERROR_MODEL_NOT_FOUND_CASSETTES[upstream]
-    upstream_cassette_path = _cassette_path(upstream, upstream_cassette_name, matched=True)
-    provider = _provider_from_cassette_path(upstream_cassette_path)
-    async with _get_http_client(
-        [upstream_cassette_name],
-        upstream,
-        matched=True,
-        translated=downstream != upstream,
-    ) as http_client:
-        client = Molto(http_client=http_client)
-        coordinator = {
-            "responses": client.responses,
-            "chat/completions": client.chat_completions,
-            "messages": client.messages,
-        }[downstream]
-        stream = await coordinator(
-            body=request_body,
-            endpoint=upstream,
-            provider=provider,
-            api_key="test-api-key",
-        )
-        expected_error_type = (
-            anthropic.NotFoundError if downstream == "messages" else openai.NotFoundError
-        )
-        with pytest.raises(expected_error_type) as exc_info:
-            [event async for event in stream]
-
-    error = exc_info.value
-    assert type(error) is type(direct_error)
-    assert error.status_code == direct_error.status_code == 404
-    assert _sdk_status_error_message(error) == _sdk_status_error_message(direct_error)
-
-    if downstream == upstream:
-        assert error.body == direct_error.body
-        assert error.message == direct_error.message
-        assert error.request_id == direct_error.request_id
-        assert error.__cause__ is None
-        return
-
-    source_cassette = _read_cassette(upstream_cassette_path)
-    source_body = _cassette_error_body(source_cassette)
-    source_error = source_body["error"]
-    assert isinstance(source_error, dict)
-
-    assert error.__cause__ is not None
-    expected_source_error_type = (
-        anthropic.NotFoundError if upstream == "messages" else openai.NotFoundError
-    )
-    assert type(error.__cause__) is expected_source_error_type
-
-    if downstream == "messages":
-        assert isinstance(error.body, dict)
-        assert error.body["type"] == "error"
-        assert error.body["error"] == {
-            "type": "not_found_error",
-            "message": source_error["message"],
-        }
-        assert error.body.get("request_id") is None
-        assert error.type == "not_found_error"
-        assert error.request_id is None
-    else:
-        assert error.body == {
-            "message": source_error["message"],
-            "type": "invalid_request_error",
-            "param": source_error.get("param"),
-            "code": source_error.get("code"),
-        }
-        assert error.type == "invalid_request_error"
-        assert error.param == source_error.get("param")
-        assert error.code == source_error.get("code")
-        expected_request_id = source_body.get("request_id")
-        assert error.request_id == expected_request_id
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)

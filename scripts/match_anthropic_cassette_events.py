@@ -45,7 +45,6 @@ native, and all transport metadata is intentionally left unchanged.
 from __future__ import annotations
 
 import argparse
-import json
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -104,71 +103,6 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(request_body, dict):
         raise ValueError("Cassette request.body must be an object.")
     return request_body
-
-
-def _response(cassette: dict[str, Any], protocol: str) -> dict[str, Any]:
-    response = cassette.get("response")
-    if not isinstance(response, dict):
-        raise ValueError(f"{protocol} cassette must contain a response object.")
-    status_code = response.get("status_code")
-    if not isinstance(status_code, int):
-        raise ValueError(f"{protocol} response.status_code must be an integer.")
-    return response
-
-
-def _error_body(response: dict[str, Any], protocol: str) -> tuple[dict[str, Any], bool]:
-    body = response.get("body")
-    serialized = isinstance(body, str)
-    if serialized:
-        try:
-            body = json_loads(body)
-        except ValueError as exc:
-            raise ValueError(f"{protocol} response.body must contain valid JSON.") from exc
-    if not isinstance(body, dict):
-        raise ValueError(
-            f"{protocol} error response.body must be an object or JSON object string."
-        )
-    if not isinstance(body.get("error"), dict):
-        raise ValueError(f"{protocol} error response.body must contain an error object.")
-    return body, serialized
-
-
-def _serialize_error_body(body: dict[str, Any], serialized: bool) -> dict[str, Any] | str:
-    if not serialized:
-        return body
-    return f"{json.dumps(body, indent=4)}\n"
-
-
-def _anthropic_error_type(status_code: int) -> str:
-    if status_code in {400, 422}:
-        return "invalid_request_error"
-    return {
-        401: "authentication_error",
-        402: "billing_error",
-        403: "permission_error",
-        404: "not_found_error",
-        409: "conflict_error",
-        413: "request_too_large",
-        429: "rate_limit_error",
-        504: "timeout_error",
-        529: "overloaded_error",
-    }.get(status_code, "api_error")
-
-
-def _match_error_response(
-    messages_response: dict[str, Any], responses_response: dict[str, Any]
-) -> None:
-    responses_body, _ = _error_body(responses_response, "Responses")
-    canonical_error = responses_body["error"]
-    message = canonical_error.get("message")
-    if not isinstance(message, str):
-        raise ValueError("Responses error.message must be a string.")
-
-    messages_body, serialized = _error_body(messages_response, "Messages")
-    status_code = responses_response["status_code"]
-    messages_body["error"].update({"message": message, "type": _anthropic_error_type(status_code)})
-    messages_response["status_code"] = status_code
-    messages_response["body"] = _serialize_error_body(messages_body, serialized)
 
 
 def _image_content(image_url: Any) -> dict[str, Any]:
@@ -1049,21 +983,6 @@ def match_messages_events(
     messages_request = _request_body(messages_cassette)
     responses_request = _request_body(responses_cassette)
     matched_request = _matched_request_body(messages_request, responses_request)
-
-    messages_response = _response(messages_cassette, "Messages")
-    responses_response = _response(responses_cassette, "Responses")
-    messages_success = 200 <= messages_response["status_code"] < 300
-    responses_success = 200 <= responses_response["status_code"] < 300
-    if messages_success != responses_success:
-        raise ValueError(
-            f"Cannot match Messages status {messages_response['status_code']} with Responses "
-            f"status {responses_response['status_code']}: one response is successful and the "
-            "other is an error."
-        )
-    if not responses_success:
-        messages_cassette["request"]["body"] = matched_request
-        _match_error_response(messages_response, responses_response)
-        return
 
     prefix, message_units = _message_event_units(messages_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
