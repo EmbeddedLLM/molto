@@ -315,6 +315,197 @@ def test_chat_completions_client_preserves_user_message_and_part_boundaries():
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
     request = NormalizedRequest(
         input=[
+            UserInput(content=[TextInput(content="Call all tools.")]),
+            Thinking(content="", summary="I should call all tools in parallel."),
+            ToolCall(
+                tool_call_id="call_a",
+                tool_name="read_image",
+                args='{"file_path": "a.png"}',
+            ),
+            ToolCall(
+                tool_call_id="call_b",
+                tool_name="read_image",
+                args='{"file_path": "b.png"}',
+            ),
+            ToolCall(
+                tool_call_id="call_c",
+                tool_name="read_text",
+                args='{"file_path": "c.txt"}',
+            ),
+            ToolCall(
+                tool_call_id="call_d",
+                tool_name="read_image",
+                args='{"file_path": "d.png"}',
+            ),
+            ToolReturn(
+                tool_call_id="call_a",
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
+            ),
+            ToolReturn(
+                tool_call_id="call_b",
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
+            ),
+            ToolReturn(
+                tool_call_id="call_c",
+                content=[TextInput(content="Text from c.txt")],
+            ),
+            ToolReturn(
+                tool_call_id="call_d",
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
+            ),
+            UserInput(content=[TextInput(content="Summarize all results.")]),
+        ],
+        model="m",
+    )
+    messages = OpenAIChatCompletionsClient._request_body(request)["messages"]
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "tool",
+        "user",
+        "user",
+        "user",
+        "user",
+    ]
+    assert messages == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Call all tools."}],
+        },
+        {
+            "role": "assistant",
+            "reasoning_content": "I should call all tools in parallel.",
+            "tool_calls": [
+                {
+                    "id": "call_a",
+                    "type": "function",
+                    "function": {
+                        "name": "read_image",
+                        "arguments": '{"file_path": "a.png"}',
+                    },
+                },
+                {
+                    "id": "call_b",
+                    "type": "function",
+                    "function": {
+                        "name": "read_image",
+                        "arguments": '{"file_path": "b.png"}',
+                    },
+                },
+                {
+                    "id": "call_c",
+                    "type": "function",
+                    "function": {
+                        "name": "read_text",
+                        "arguments": '{"file_path": "c.txt"}',
+                    },
+                },
+                {
+                    "id": "call_d",
+                    "type": "function",
+                    "function": {
+                        "name": "read_image",
+                        "arguments": '{"file_path": "d.png"}',
+                    },
+                },
+            ],
+        },
+        {
+            "role": "tool",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "The image result of tool call 'call_a' will be attached as user prompt "
+                        "after all tool responses."
+                    ),
+                }
+            ],
+            "tool_call_id": "call_a",
+        },
+        {
+            "role": "tool",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "The image result of tool call 'call_b' will be attached as user prompt "
+                        "after all tool responses."
+                    ),
+                }
+            ],
+            "tool_call_id": "call_b",
+        },
+        {
+            "role": "tool",
+            "content": [{"type": "text", "text": "Text from c.txt"}],
+            "tool_call_id": "call_c",
+        },
+        {
+            "role": "tool",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "The image result of tool call 'call_d' will be attached as user prompt "
+                        "after all tool responses."
+                    ),
+                }
+            ],
+            "tool_call_id": "call_d",
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Image returned by tool call 'call_a':",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Image returned by tool call 'call_b':",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Image returned by tool call 'call_d':",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Summarize all results."}],
+        },
+    ]
+
+
+def test_chat_completions_client_flushes_image_results_before_later_assistant_history():
+    request = NormalizedRequest(
+        input=[
             UserInput(content=[TextInput(content="Call both tools.")]),
             Thinking(content="", summary="I should call both tools in parallel."),
             ToolCall(
@@ -335,6 +526,17 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
                 tool_call_id="call_b",
                 content=[TextInput(content="Text from b.txt")],
             ),
+            Thinking(content="", summary="Let me try again."),
+            ToolCall(
+                tool_call_id="call_c",
+                tool_name="read_image",
+                args='{"file_path": "c.png"}',
+            ),
+            ToolReturn(
+                tool_call_id="call_c",
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
+            ),
+            TextOutput(content="Assistant reply."),
             UserInput(content=[TextInput(content="Summarize both results.")]),
         ],
         model="m",
@@ -346,6 +548,10 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
         "tool",
         "tool",
         "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
         "user",
     ]
     assert messages == [
@@ -380,7 +586,10 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
             "content": [
                 {
                     "type": "text",
-                    "text": "The image will be attached as user prompt after all tool responses.",
+                    "text": (
+                        "The image result of tool call 'call_a' will be attached as user prompt "
+                        "after all tool responses."
+                    ),
                 }
             ],
             "tool_call_id": "call_a",
@@ -395,13 +604,57 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
             "content": [
                 {
                     "type": "text",
-                    "text": "Image returned by read_image(file_path='a.png'), tool_call_id='call_a':",
+                    "text": "Image returned by tool call 'call_a':",
                 },
                 {
                     "type": "image_url",
                     "image_url": {"url": "data:image/png;base64,AA=="},
                 },
             ],
+        },
+        {
+            "role": "assistant",
+            "reasoning_content": "Let me try again.",
+            "tool_calls": [
+                {
+                    "id": "call_c",
+                    "type": "function",
+                    "function": {
+                        "name": "read_image",
+                        "arguments": '{"file_path": "c.png"}',
+                    },
+                },
+            ],
+        },
+        {
+            "role": "tool",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "The image result of tool call 'call_c' will be attached as user prompt "
+                        "after all tool responses."
+                    ),
+                }
+            ],
+            "tool_call_id": "call_c",
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Image returned by tool call 'call_c':",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": "Assistant reply.",
         },
         {
             "role": "user",

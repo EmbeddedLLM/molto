@@ -41,7 +41,6 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
-from molto.utils.io import json_loads
 
 _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
     "content_filter": "content_filter",
@@ -557,7 +556,6 @@ class OpenAIChatCompletionsClient(
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_message: dict[str, Any] | None = None
-        tool_calls: dict[str, ToolCall] = {}
         # Chat requires the complete tool-response block immediately after the
         # assistant, so image-bearing user messages wait until that block ends.
         deferred_image_messages: list[dict[str, Any]] = []
@@ -614,7 +612,6 @@ class OpenAIChatCompletionsClient(
                 message["content"] = item.content
             elif isinstance(item, ToolCall):
                 message = pending_assistant()
-                tool_calls[item.tool_call_id] = item
                 message.setdefault("tool_calls", []).append(
                     {
                         "id": item.tool_call_id,
@@ -646,29 +643,10 @@ class OpenAIChatCompletionsClient(
                         {
                             "type": "text",
                             "text": (
-                                "The image will be attached as user prompt after all tool "
-                                "responses."
+                                f"The image result of tool call {item.tool_call_id!r} will be "
+                                "attached as user prompt after all tool responses."
                             ),
                         }
-                    )
-                    tool_call = tool_calls.get(item.tool_call_id)
-                    tool_name = item.tool_name or (
-                        tool_call.tool_name if tool_call is not None else None
-                    )
-                    arguments = tool_call.args if tool_call is not None else None
-                    argument_text = arguments or ""
-                    if arguments:
-                        try:
-                            parsed_arguments = json_loads(arguments)
-                        except Exception:
-                            pass
-                        else:
-                            if isinstance(parsed_arguments, dict):
-                                argument_text = ", ".join(
-                                    f"{name}={value!r}" for name, value in parsed_arguments.items()
-                                )
-                    invocation = (
-                        f"{tool_name}({argument_text})" if tool_name is not None else "tool call"
                     )
                     deferred_image_messages.append(
                         {
@@ -676,10 +654,7 @@ class OpenAIChatCompletionsClient(
                             "content": [
                                 {
                                     "type": "text",
-                                    "text": (
-                                        f"Image returned by {invocation}, "
-                                        f"tool_call_id={item.tool_call_id!r}:"
-                                    ),
+                                    "text": f"Image returned by tool call {item.tool_call_id!r}:",
                                 },
                                 *image_content,
                             ],
