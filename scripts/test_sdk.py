@@ -78,9 +78,26 @@ async def responses():
             stream_options=dict(include_obfuscation=False),
             max_output_tokens=4096,
         )
+        current_output = output_type = None
         completed_output = []
         async for event in response:
-            if event.type == "response.output_text.delta":
+            if event.type == "response.reasoning_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[94m{event.delta}\033[0m", end="", flush=True)
+            elif event.type == "response.reasoning_summary_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[90m{event.delta}\033[0m", end="", flush=True)
+            elif event.type == "response.output_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
                 print(f"\033[97m{event.delta}\033[0m", end="", flush=True)
             elif event.type == "response.completed":
                 completed_output = event.response.output
@@ -141,6 +158,8 @@ async def chat_completions():
             stream_options=dict(include_obfuscation=False, include_usage=True),
             max_completion_tokens=4096,
         )
+        current_output = output_type = None
+        reasoning_content = ""
         content = ""
         tool_calls = {}
         async for event in response:
@@ -148,7 +167,18 @@ async def chat_completions():
                 continue
 
             delta = event.choices[0].delta
-            if delta.content:
+            if reasoning_delta := getattr(delta, "reasoning_content", None):
+                output_type = "reasoning"
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[94m{reasoning_delta}\033[0m", end="", flush=True)
+                reasoning_content += reasoning_delta
+            elif delta.content:
+                output_type = "text"
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
                 print(f"\033[97m{delta.content}\033[0m", end="", flush=True)
                 content += delta.content
 
@@ -248,12 +278,31 @@ async def messages():
             # output_config={"effort": "high"},
             thinking={"type": "disabled"},
         ) as response:
+            current_output = None
+            thinking = ""
+            signature = ""
+            text = ""
             async for event in response:
+                # print(event)
                 if event.type != "content_block_delta":
                     continue
                 delta = event.delta
-                if delta.type == "text_delta":
+                if delta.type == "thinking_delta":
+                    output_type = "thinking"
+                    if current_output is not None and current_output != output_type:
+                        print("", flush=True)
+                    current_output = output_type
+                    print(f"\033[94m{delta.thinking}\033[0m", end="", flush=True)
+                    thinking += delta.thinking
+                elif delta.type == "signature_delta":
+                    signature += delta.signature
+                elif delta.type == "text_delta":
+                    output_type = "text"
+                    if current_output is not None and current_output != output_type:
+                        print("", flush=True)
+                    current_output = output_type
                     print(f"\033[97m{delta.text}\033[0m", end="", flush=True)
+                    text += delta.text
             message = await response.get_final_message()
 
         print("\n" + "---" * 6, flush=True)
