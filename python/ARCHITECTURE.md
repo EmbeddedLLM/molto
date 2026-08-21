@@ -245,7 +245,7 @@ Assistant conversation history uses `TextOutput`, not user-message metadata. Thi
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
 
-Tool results follow the same canonical-part rule. `ToolReturn.content` is always an ordered `TextInput` list. Adapters wrap a native scalar result in one text part, while upstream clients always project the list form supported by Responses, Chat Completions, and Messages.
+Tool results follow the same canonical-part rule. `ToolReturn.content` is an ordered list of `TextInput` and `ImageUrlInput` parts. Adapters wrap a native scalar result in one text part. Responses and Messages project both part types directly. Chat Completions tool messages accept only text content, so its upstream client leaves text in the tool message and relocates images into subsequent user messages. It emits every tool response for an assistant's tool-call block contiguously before those user messages.
 
 User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 

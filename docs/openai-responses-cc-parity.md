@@ -89,7 +89,11 @@ Client-defined function tools map Responses `name`, `description`, `parameters`,
 
 Conversation history maps Responses `function_call` items to assistant `tool_calls` and `function_call_output` items to `tool` messages. The portable identifier is Responses `call_id` / Chat `tool_calls[].id`; Responses' enclosing output-item `id` has no Chat equivalent and is omitted when history is reconstructed.
 
-Normalized tool results always contain an ordered list of text parts. A native scalar result is wrapped in one part; translated requests always emit Responses `input_text` output parts or Chat `text` tool-message parts rather than reverting to scalar shorthand.
+Normalized tool results contain an ordered list of text and image parts. A native scalar result is wrapped in one text part. Responses emits `input_text` and `input_image` output parts directly.
+
+OpenAI Chat Completions `tool` messages accept only text content, so the upstream Chat client cannot place a normalized `ImageUrlInput` in its original tool result. It emits a text notice in the `tool` message and injects the image as a following `user` prompt, using a text label to retain the tool name, arguments, and call ID. This follows the approach discussed in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922).
+
+Chat Completions also requires every `tool` message responding to an assistant's `tool_calls` to appear contiguously and immediately after that assistant message, before any other role. For parallel calls, Molto therefore emits all text-only tool responses first and defers all image-bearing user prompts until the complete tool-response block has been emitted. The valid order is `assistant, tool A, tool B, user image A, user image B`; interleaving a user image before tool B violates the request contract.
 
 ### Fields that require transformation
 

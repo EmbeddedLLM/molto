@@ -41,6 +41,7 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.base import BaseClient
+from molto.utils.io import json_loads
 
 _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
     "content_filter": "content_filter",
@@ -556,6 +557,10 @@ class OpenAIChatCompletionsClient(
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_message: dict[str, Any] | None = None
+        tool_calls: dict[str, ToolCall] = {}
+        # Chat requires the complete tool-response block immediately after the
+        # assistant, so image-bearing user messages wait until that block ends.
+        deferred_image_messages: list[dict[str, Any]] = []
 
         def pending_assistant() -> dict[str, Any]:
             nonlocal assistant_message
@@ -576,7 +581,14 @@ class OpenAIChatCompletionsClient(
             messages.append(assistant_message)
             assistant_message = None
 
+        def flush_deferred_images() -> None:
+            if deferred_image_messages:
+                messages.extend(deferred_image_messages)
+                deferred_image_messages.clear()
+
         for item in request.input or []:
+            if not isinstance(item, ToolReturn):
+                flush_deferred_images()
             if isinstance(item, SystemPrompt):
                 flush_assistant()
                 messages.append({"role": "developer", "content": item.content})
@@ -602,6 +614,7 @@ class OpenAIChatCompletionsClient(
                 message["content"] = item.content
             elif isinstance(item, ToolCall):
                 message = pending_assistant()
+                tool_calls[item.tool_call_id] = item
                 message.setdefault("tool_calls", []).append(
                     {
                         "id": item.tool_call_id,
@@ -619,13 +632,59 @@ class OpenAIChatCompletionsClient(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
                 content: list[dict[str, Any]] = []
+                image_content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
                         content.append({"type": "text", "text": part.content})
                     elif isinstance(part, ImageUrlInput):
-                        raise ValueError(
-                            "Chat Completions does not support image tool result content."
-                        )
+                        image_url = {"url": part.url}
+                        if part.detail is not None:
+                            image_url["detail"] = part.detail
+                        image_content.append({"type": "image_url", "image_url": image_url})
+                if image_content:
+                    content.append(
+                        {
+                            "type": "text",
+                            "text": (
+                                "The image will be attached as user prompt after all tool "
+                                "responses."
+                            ),
+                        }
+                    )
+                    tool_call = tool_calls.get(item.tool_call_id)
+                    tool_name = item.tool_name or (
+                        tool_call.tool_name if tool_call is not None else None
+                    )
+                    arguments = tool_call.args if tool_call is not None else None
+                    argument_text = arguments or ""
+                    if arguments:
+                        try:
+                            parsed_arguments = json_loads(arguments)
+                        except Exception:
+                            pass
+                        else:
+                            if isinstance(parsed_arguments, dict):
+                                argument_text = ", ".join(
+                                    f"{name}={value!r}" for name, value in parsed_arguments.items()
+                                )
+                    invocation = (
+                        f"{tool_name}({argument_text})" if tool_name is not None else "tool call"
+                    )
+                    deferred_image_messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": (
+                                        f"Image returned by {invocation}, "
+                                        f"tool_call_id={item.tool_call_id!r}:"
+                                    ),
+                                },
+                                *image_content,
+                            ],
+                        }
+                    )
                 messages.append(
                     {
                         "role": "tool",
@@ -636,6 +695,7 @@ class OpenAIChatCompletionsClient(
             else:
                 raise ValueError(f"Unsupported Chat Completions input item: {type(item)}")
         flush_assistant()
+        flush_deferred_images()
         return messages
 
     @classmethod

@@ -11,6 +11,7 @@ from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
+    ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -308,6 +309,104 @@ def test_chat_completions_client_preserves_user_message_and_part_boundaries():
         },
         {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
         {"role": "assistant", "content": "Answer"},
+    ]
+
+
+def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
+    request = NormalizedRequest(
+        input=[
+            UserInput(content=[TextInput(content="Call both tools.")]),
+            Thinking(content="", summary="I should call both tools in parallel."),
+            ToolCall(
+                tool_call_id="call_a",
+                tool_name="read_image",
+                args='{"file_path": "a.png"}',
+            ),
+            ToolCall(
+                tool_call_id="call_b",
+                tool_name="read_text",
+                args='{"file_path": "b.txt"}',
+            ),
+            ToolReturn(
+                tool_call_id="call_a",
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
+            ),
+            ToolReturn(
+                tool_call_id="call_b",
+                content=[TextInput(content="Text from b.txt")],
+            ),
+            UserInput(content=[TextInput(content="Summarize both results.")]),
+        ],
+        model="m",
+    )
+    messages = OpenAIChatCompletionsClient._request_body(request)["messages"]
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "tool",
+        "tool",
+        "user",
+        "user",
+    ]
+    assert messages == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Call both tools."}],
+        },
+        {
+            "role": "assistant",
+            "reasoning_content": "I should call both tools in parallel.",
+            "tool_calls": [
+                {
+                    "id": "call_a",
+                    "type": "function",
+                    "function": {
+                        "name": "read_image",
+                        "arguments": '{"file_path": "a.png"}',
+                    },
+                },
+                {
+                    "id": "call_b",
+                    "type": "function",
+                    "function": {
+                        "name": "read_text",
+                        "arguments": '{"file_path": "b.txt"}',
+                    },
+                },
+            ],
+        },
+        {
+            "role": "tool",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "The image will be attached as user prompt after all tool responses.",
+                }
+            ],
+            "tool_call_id": "call_a",
+        },
+        {
+            "role": "tool",
+            "content": [{"type": "text", "text": "Text from b.txt"}],
+            "tool_call_id": "call_b",
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Image returned by read_image(file_path='a.png'), tool_call_id='call_a':",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Summarize both results."}],
+        },
     ]
 
 
