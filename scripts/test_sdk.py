@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
@@ -218,30 +217,23 @@ async def chat_completions():
             {
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
-                "content": "The image will be attached as user prompt after all tool responses.",
+                "content": (
+                    f"The image result of tool call {tool_call['id']!r} will be attached as "
+                    "user prompt after all tool responses."
+                ),
             }
             for tool_call in ordered_tool_calls
         )
         # Chat tool messages cannot contain images. Keep every tool response
         # contiguous, then relocate image content after the complete tool block.
         for tool_call in ordered_tool_calls:
-            try:
-                file_path = json.loads(tool_call["function"]["arguments"])["file_path"]
-            except (json.JSONDecodeError, KeyError, TypeError) as error:
-                raise RuntimeError("read_image did not provide a file_path") from error
-            if not isinstance(file_path, str):
-                raise RuntimeError("read_image file_path must be a string")
-
             messages.append(
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": (
-                                f"Image returned by read_image(file_path={file_path!r}), "
-                                f"tool_call_id={tool_call['id']!r}:"
-                            ),
+                            "text": f"Image returned by tool call {tool_call['id']!r}:",
                         },
                         {"type": "image_url", "image_url": {"url": IMAGE_URL}},
                     ],
