@@ -1,0 +1,33 @@
+filename: 2026-08-21-01a022b0-50b4-7972-8f3b-8e723039c788
+request:
+  body:
+    input: Reply with one word.
+    max_output_tokens: 1
+    model: gpt-4o-mini-2024-07-18
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '101'
+    content-type: application/json
+    user-agent: OpenAI/Python 2.48.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a022b0-50b4-7972-8f3b-8e723039c788
+response:
+  body:
+    error:
+      code: integer_below_min_value
+      message: 'Invalid ''max_output_tokens'': integer below minimum value. Expected
+        a value >= 16, but got 1 instead.'
+      param: max_output_tokens
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '248'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-08-21T04:59:35.476640+00:00'

@@ -1,0 +1,37 @@
+filename: 2026-08-21-01a022b0-8266-7603-aa31-1423dc2823c6
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Reply with one word.
+        type: text
+      role: user
+    model: gpt-4o-mini-2024-07-18
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '110'
+    content-type: application/json
+    user-agent: OpenAI/Python 2.48.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a022b0-8266-7603-aa31-1423dc2823c6
+response:
+  body: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided: dsa.\
+    \ You can find your API key at https://platform.openai.com/account/api-keys.\"\
+    ,\n        \"type\": \"invalid_request_error\",\n        \"param\": null,\n  \
+    \      \"code\": \"invalid_api_key\"\n    }\n}\n"
+  headers:
+    connection: keep-alive
+    content-length: '253'
+    content-type: application/json; charset=utf-8
+  status_code: 401
+timestamp: '2026-08-21T04:59:48.198527+00:00'

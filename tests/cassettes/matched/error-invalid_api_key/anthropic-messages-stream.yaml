@@ -1,0 +1,34 @@
+filename: 2026-08-21-01a022b4-ef22-7303-bd62-63acbbb940a0
+request:
+  body:
+    max_tokens: 16
+    messages:
+    - content:
+      - text: Reply with one word.
+        type: text
+      role: user
+    model: gpt-4o-mini-2024-07-18
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '144'
+    content-type: application/json
+    user-agent: Anthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a022b4-ef22-7303-bd62-63acbbb940a0
+response:
+  body:
+    error:
+      message: 'Incorrect API key provided: dsa. You can find your API key at https://platform.openai.com/account/api-keys.'
+      type: authentication_error
+    request_id: req_011CeFJwxty1WEVThbjwLynL
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 401
+timestamp: '2026-08-21T05:04:38.178506+00:00'
