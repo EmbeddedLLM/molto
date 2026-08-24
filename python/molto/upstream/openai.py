@@ -653,6 +653,9 @@ class OpenAIChatCompletionsClient(
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_message: dict[str, Any] | None = None
+        # Chat requires the complete tool-response block immediately after the
+        # assistant, so image-bearing user messages wait until that block ends.
+        deferred_image_messages: list[dict[str, Any]] = []
 
         def pending_assistant() -> dict[str, Any]:
             nonlocal assistant_message
@@ -673,7 +676,14 @@ class OpenAIChatCompletionsClient(
             messages.append(assistant_message)
             assistant_message = None
 
+        def flush_deferred_images() -> None:
+            if deferred_image_messages:
+                messages.extend(deferred_image_messages)
+                deferred_image_messages.clear()
+
         for item in request.input or []:
+            if not isinstance(item, ToolReturn):
+                flush_deferred_images()
             if isinstance(item, SystemPrompt):
                 flush_assistant()
                 messages.append({"role": "developer", "content": item.content})
@@ -716,13 +726,37 @@ class OpenAIChatCompletionsClient(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
                 content: list[dict[str, Any]] = []
+                image_content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
                         content.append({"type": "text", "text": part.content})
                     elif isinstance(part, ImageUrlInput):
-                        raise ValueError(
-                            "Chat Completions does not support image tool result content."
-                        )
+                        image_url = {"url": part.url}
+                        if part.detail is not None:
+                            image_url["detail"] = part.detail
+                        image_content.append({"type": "image_url", "image_url": image_url})
+                if image_content:
+                    content.append(
+                        {
+                            "type": "text",
+                            "text": (
+                                f"The image result of tool call {item.tool_call_id!r} will be "
+                                "attached as user prompt after all tool responses."
+                            ),
+                        }
+                    )
+                    deferred_image_messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"Image returned by tool call {item.tool_call_id!r}:",
+                                },
+                                *image_content,
+                            ],
+                        }
+                    )
                 messages.append(
                     {
                         "role": "tool",
@@ -733,6 +767,7 @@ class OpenAIChatCompletionsClient(
             else:
                 raise ValueError(f"Unsupported Chat Completions input item: {type(item)}")
         flush_assistant()
+        flush_deferred_images()
         return messages
 
     @classmethod

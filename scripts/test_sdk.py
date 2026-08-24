@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
@@ -78,9 +77,26 @@ async def responses():
             stream_options=dict(include_obfuscation=False),
             max_output_tokens=4096,
         )
+        current_output = output_type = None
         completed_output = []
         async for event in response:
-            if event.type == "response.output_text.delta":
+            if event.type == "response.reasoning_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[94m{event.delta}\033[0m", end="", flush=True)
+            elif event.type == "response.reasoning_summary_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[90m{event.delta}\033[0m", end="", flush=True)
+            elif event.type == "response.output_text.delta":
+                output_type = event.type
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
                 print(f"\033[97m{event.delta}\033[0m", end="", flush=True)
             elif event.type == "response.completed":
                 completed_output = event.response.output
@@ -141,6 +157,8 @@ async def chat_completions():
             stream_options=dict(include_obfuscation=False, include_usage=True),
             max_completion_tokens=4096,
         )
+        current_output = output_type = None
+        reasoning_content = ""
         content = ""
         tool_calls = {}
         async for event in response:
@@ -148,7 +166,18 @@ async def chat_completions():
                 continue
 
             delta = event.choices[0].delta
-            if delta.content:
+            if reasoning_delta := getattr(delta, "reasoning_content", None):
+                output_type = "reasoning"
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
+                print(f"\033[94m{reasoning_delta}\033[0m", end="", flush=True)
+                reasoning_content += reasoning_delta
+            elif delta.content:
+                output_type = "text"
+                if current_output is not None and current_output != output_type:
+                    print("", flush=True)
+                current_output = output_type
                 print(f"\033[97m{delta.content}\033[0m", end="", flush=True)
                 content += delta.content
 
@@ -188,30 +217,23 @@ async def chat_completions():
             {
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
-                "content": "The image will be attached as user prompt after all tool responses.",
+                "content": (
+                    f"The image result of tool call {tool_call['id']!r} will be attached as "
+                    "user prompt after all tool responses."
+                ),
             }
             for tool_call in ordered_tool_calls
         )
         # Chat tool messages cannot contain images. Keep every tool response
         # contiguous, then relocate image content after the complete tool block.
         for tool_call in ordered_tool_calls:
-            try:
-                file_path = json.loads(tool_call["function"]["arguments"])["file_path"]
-            except (json.JSONDecodeError, KeyError, TypeError) as error:
-                raise RuntimeError("read_image did not provide a file_path") from error
-            if not isinstance(file_path, str):
-                raise RuntimeError("read_image file_path must be a string")
-
             messages.append(
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": (
-                                f"Image returned by read_image(file_path={file_path!r}), "
-                                f"tool_call_id={tool_call['id']!r}:"
-                            ),
+                            "text": f"Image returned by tool call {tool_call['id']!r}:",
                         },
                         {"type": "image_url", "image_url": {"url": IMAGE_URL}},
                     ],
@@ -248,12 +270,31 @@ async def messages():
             # output_config={"effort": "high"},
             thinking={"type": "disabled"},
         ) as response:
+            current_output = None
+            thinking = ""
+            signature = ""
+            text = ""
             async for event in response:
+                # print(event)
                 if event.type != "content_block_delta":
                     continue
                 delta = event.delta
-                if delta.type == "text_delta":
+                if delta.type == "thinking_delta":
+                    output_type = "thinking"
+                    if current_output is not None and current_output != output_type:
+                        print("", flush=True)
+                    current_output = output_type
+                    print(f"\033[94m{delta.thinking}\033[0m", end="", flush=True)
+                    thinking += delta.thinking
+                elif delta.type == "signature_delta":
+                    signature += delta.signature
+                elif delta.type == "text_delta":
+                    output_type = "text"
+                    if current_output is not None and current_output != output_type:
+                        print("", flush=True)
+                    current_output = output_type
                     print(f"\033[97m{delta.text}\033[0m", end="", flush=True)
+                    text += delta.text
             message = await response.get_final_message()
 
         print("\n" + "---" * 6, flush=True)
