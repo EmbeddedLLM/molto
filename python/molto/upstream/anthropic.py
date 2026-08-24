@@ -574,9 +574,9 @@ class AnthropicMessagesClient(
                     usage=usage,
                 )
 
-    def _handle_error(self, request: NormalizedRequest, error: Exception) -> NoReturn:
-        del request
+    def _handle_error(self, error: Exception) -> NoReturn:
+
         if isinstance(error, APIStatusError):
             if error.status_code == 404 and "model" in error.message:
-                raise ModelNotFoundError(error.message) from error
+                raise ModelNotFoundError(error.message, error.response, error.body) from error
         raise error

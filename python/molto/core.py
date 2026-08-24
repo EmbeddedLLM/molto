@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Self
 
 from httpx import AsyncClient
 from pydantic import BaseModel
@@ -22,20 +22,47 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 VLLM_DUMMY_API_KEY = "EMPTY"
 
 
+class _PrefetchedStream[EventT](AsyncIterator[EventT]):
+    """Replay prefetched events and manage the source stream lifecycle."""
+
+    def __init__(self, events: list[EventT], stream: AsyncIterator[EventT]) -> None:
+        self._events = events
+        self._stream = stream
+        self._closed = False
+
+    def __aiter__(self) -> AsyncIterator[EventT]:
+        return self
+
+    async def __anext__(self) -> EventT:
+        if self._closed:
+            raise StopAsyncIteration
+        if self._events:
+            return self._events.pop()
+        return await anext(self._stream)
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._events.clear()
+        close = getattr(self._stream, "aclose", None)
+        if close is not None:
+            await close()
+
+
 async def _prefetch_stream[EventT](stream: AsyncIterator[EventT]) -> AsyncIterator[EventT]:
     """Start a stream now so setup failures are raised by the coordinator await."""
     try:
         first_event = await anext(stream)
     except StopAsyncIteration:
-        return stream
-
-    # return _PrefetchedStream(first_event, stream)
-    async def agen():
-        yield first_event
-        async for event in stream:
-            yield event
-
-    return agen()
+        return _PrefetchedStream([], stream)
+    return _PrefetchedStream([first_event], stream)
 
 
 class Molto:

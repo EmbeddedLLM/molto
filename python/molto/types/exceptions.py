@@ -1,5 +1,7 @@
 from functools import wraps
 
+import httpx
+
 
 def docstring_message(cls):
     """
@@ -20,6 +22,12 @@ def docstring_message(cls):
 @docstring_message
 class MoltoException(Exception):
     """Base exception class for Molto errors."""
+
+    def __init__(self, message: str, *, response: httpx.Response, body: object | None) -> None:
+        super().__init__()
+        self.message = message
+        self.response = response
+        self.body = body
 
 
 @docstring_message

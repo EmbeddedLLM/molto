@@ -77,7 +77,7 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
             async for event in self._events(request):
                 yield event
         except Exception as error:
-            self._handle_error(request, error)
+            self._handle_error(error)
 
     @abstractmethod
     def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
@@ -85,6 +85,6 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _handle_error(self, request: NormalizedRequest, error: Exception) -> NoReturn:
+    def _handle_error(self, error: Exception) -> NoReturn:
         """Translate or re-raise an error raised while streaming normalized events."""
         raise NotImplementedError

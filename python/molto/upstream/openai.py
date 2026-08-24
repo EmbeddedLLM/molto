@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
-from openai import AsyncStream
+from openai import APIStatusError, AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -373,7 +374,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             body["stream_options"] = request.stream_options.model_dump(exclude={"extra_fields"})
         return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
 
-    async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+    async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
         # Only a reasoning item whose `added` snapshot is completely empty (no
         # content, summary, or encrypted state) is deferred: if nothing ever
@@ -530,6 +531,12 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 continue
             else:
                 raise ValueError(f"Unsupported Responses stream event: {event_type}")
+
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, APIStatusError):
+            if error.status_code == 404 and error.code == "model_not_found":
+                raise ModelNotFoundError(error.message, error.response, error.body) from error
+        raise error
 
 
 class OpenAIChatCompletionsClient(
@@ -709,7 +716,7 @@ class OpenAIChatCompletionsClient(
             body["top_p"] = request.top_p
         return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
 
-    async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+    async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
         usage: Usage | None = None
@@ -902,3 +909,7 @@ class OpenAIChatCompletionsClient(
             termination_reason=termination_reason,
             usage=usage,
         )
+
+    def _handle_error(self, request: NormalizedRequest, error: Exception) -> NoReturn:
+        del request
+        raise error
