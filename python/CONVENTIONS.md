@@ -24,14 +24,15 @@ Do not treat an endpoint or URL hostname as evidence about provider behavior. A 
 
 ## Adapter and client base classes
 
-Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`; do not override the public lifecycle methods or bypass their state handling.
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling.
 
-Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement both streaming paths:
+Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement its native path, normalized path, and error translation:
 
 - `native_events()` accepts the validated upstream-native request and yields native SDK events;
-- `events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`.
+- `_events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`; and
+- `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
-Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
+The public `events()` wrapper owns error interception; do not override it. Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
 
 ## OpenAI SDK schemas
 

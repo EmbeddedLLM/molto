@@ -736,7 +736,11 @@ class OpenAIResponsesAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, ModelNotFoundError):
-            raise APIStatusError(error.message, error.response, error.body) from error
+            raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
         raise error
 
 
@@ -1086,3 +1090,12 @@ class OpenAIChatCompletionsAdapter(
                     ],
                     usage=usage,
                 )
+
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, ModelNotFoundError):
+            raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        raise error

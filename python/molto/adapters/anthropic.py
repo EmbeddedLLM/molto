@@ -7,7 +7,9 @@ semantics, compatibility mappings, and matched-cassette policy.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, NoReturn
+
+from anthropic import APIStatusError
 
 from molto.adapters.base import BaseAdapter
 from molto.types.anthropic_messages import (
@@ -15,6 +17,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -489,3 +492,12 @@ class AnthropicMessagesAdapter(
                     }
                 )
                 yield event({"type": "message_stop"})
+
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, ModelNotFoundError):
+            raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        raise error

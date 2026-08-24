@@ -1,4 +1,6 @@
+import inspect
 from collections.abc import AsyncIterator
+from typing import NoReturn
 
 import pytest
 from pydantic import BaseModel
@@ -41,13 +43,16 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
         del request
         return events
 
+    def _handle_error(self, error: Exception) -> NoReturn:
+        raise RuntimeError("Native projection failed.") from error
+
 
 class EmptyEvents(AsyncIterator[ModelResponseStreamEvent]):
     async def __anext__(self) -> ModelResponseStreamEvent:
         raise StopAsyncIteration
 
 
-def test_adapter_remembers_native_request_before_projecting_events():
+async def test_adapter_remembers_native_request_before_projecting_events():
     adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
     native_request = NativeRequest(value="hello")
     normalized_request = adapter.normalize_request(native_request)
@@ -55,7 +60,7 @@ def test_adapter_remembers_native_request_before_projecting_events():
 
     assert adapter.native_request is native_request
     assert normalized_request.input == [UserInput(content=[TextInput(content="hello")])]
-    assert adapter.project_events(events, normalized_request) is events
+    assert [event async for event in adapter.project_events(events, normalized_request)] == []
 
 
 def test_adapter_rejects_event_projection_before_request_normalization():
@@ -65,9 +70,30 @@ def test_adapter_rejects_event_projection_before_request_normalization():
         adapter.project_events(EmptyEvents(), NormalizedRequest())
 
 
-def test_base_adapter_cannot_be_instantiated():
-    with pytest.raises(TypeError, match="abstract"):
-        BaseAdapter()
+def test_base_adapter_defines_abstract_translation_contract():
+    assert inspect.isabstract(BaseAdapter)
+    assert BaseAdapter.__abstractmethods__ == {
+        "_handle_error",
+        "_normalize_request",
+        "_project_events",
+    }
+    assert not inspect.isabstract(OpenAIResponsesAdapter)
+    assert not inspect.isabstract(OpenAIChatCompletionsAdapter)
+    assert not inspect.isabstract(AnthropicMessagesAdapter)
+
+
+async def test_adapter_translates_projection_errors() -> None:
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
+
+    async def events() -> AsyncIterator[ModelResponseStreamEvent]:
+        raise ValueError("Invalid IR stream.")
+        yield
+
+    with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
+        await anext(adapter.project_events(events(), normalized_request))
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 async def _projected(
