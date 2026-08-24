@@ -128,7 +128,7 @@ Each implemented coordinator performs the following work:
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
-`Molto` owns the injected or default `httpx.AsyncClient`. Short-lived `AsyncOpenAI` wrappers borrow that client and are not closed independently. Each returned SDK stream is context-managed so its response is released on completion or early termination; `Molto.close()` remains the only operation that closes the shared HTTP client.
+`Molto` owns the injected or default `httpx.AsyncClient`. Short-lived `AsyncOpenAI` wrappers borrow that client and are not closed independently. Each returned SDK stream is context-managed so its response is released on completion or early termination; `Molto.aclose()` remains the only operation that closes the shared HTTP client.
 
 ## Native protocol passthrough
 
@@ -385,7 +385,7 @@ An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI o
 
 The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Molto accepts the SDK retry policy and OpenAI exceptions rather than wrapping them as the previous `httpx` behavior. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
-SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.close()` owns that client's lifetime. Adapters never access `httpx`.
+SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters never access `httpx`.
 
 ## Replay and parity testing
 

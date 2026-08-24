@@ -20,8 +20,8 @@ from molto import Molto
 
 
 async def main() -> None:
-    molto = Molto()
-    try:
+    # Using context managers
+    async with Molto() as molto:
         async with await molto.responses(
             body={
                 "model": "claude-sonnet-5",
@@ -34,8 +34,27 @@ async def main() -> None:
         ) as stream:
             async for event in stream:
                 print(event)  # Native OpenAI Responses event
+
+    # Manual cleanup
+    molto = Molto()
+    try:
+        stream = await molto.responses(
+            body={
+                "model": "claude-sonnet-5",
+                "input": "Hello!",
+                "max_output_tokens": 1024,
+                "stream": True,
+            },
+            endpoint="messages",
+            provider="anthropic",
+        )
+        try:
+            async for event in stream:
+                print(event)  # Native OpenAI Responses event
+        finally:
+            await stream.aclose()
     finally:
-        await molto.close()
+        await molto.aclose()
 
 
 asyncio.run(main())

@@ -117,7 +117,7 @@ The bypass belongs in the relevant coordinator; transport remains in the matchin
 
 Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.
 
-Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.close()` closes that client.
+Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.aclose()` closes that client.
 
 Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception types. Do not add compatibility wrappers for the previous `httpx` errors.
 
