@@ -88,10 +88,12 @@ def _cassette_path(
     if not matched:
         return CASSETTE_DIR / "openai" / protocol_name / "test_interface" / cassette_name
 
-    scenario, separator, variant = cassette_name.partition("-")
+    scenario, separator, variant = cassette_name.partition("-stream")
     if not separator:
-        raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    matches = list((CASSETTE_DIR / "matched" / scenario).glob(f"*-{protocol_name}-{variant}"))
+        raise ValueError(f"Matched cassette name must include '-stream': {cassette_name}")
+    matches = list(
+        (CASSETTE_DIR / "matched" / scenario).glob(f"*-{protocol_name}-stream{variant}")
+    )
     if len(matches) != 1:
         raise ValueError(
             f"Expected one matched {protocol!r} cassette for {cassette_name!r}, "
@@ -384,13 +386,6 @@ async def test_native_stream_matches_provider_sdk(
     ]
 
 
-def _error_cassette_name(protocol: Protocol, cassette_directory: str) -> str:
-    provider = "anthropic" if protocol == "messages" else "openai"
-    return str(
-        Path("matched") / cassette_directory / f"{provider}-{_protocol_name(protocol)}-stream.yaml"
-    )
-
-
 def _error_body(cassette: dict[str, Any]) -> dict[str, Any]:
     body = cassette["response"]["body"]
     parsed_body = json_loads(body) if isinstance(body, str) else body
@@ -440,19 +435,18 @@ async def _assert_error_cassette_translation(
     downstream: Protocol,
     upstream: Protocol,
     *,
-    cassette_directory: str,
+    cassette_name: str,
     openai_error_type: type[Exception],
     anthropic_error_type: type[Exception],
     anthropic_error_body_type: str,
 ) -> None:
-    downstream_name = _error_cassette_name(downstream, cassette_directory)
-    upstream_name = _error_cassette_name(upstream, cassette_directory)
-    downstream_cassette = _read_cassette(_cassette_path(downstream, downstream_name))
-    upstream_cassette = _read_cassette(_cassette_path(upstream, upstream_name))
+    downstream_cassette = _read_cassette(_cassette_path(downstream, cassette_name, matched=True))
+    upstream_path = _cassette_path(upstream, cassette_name, matched=True)
+    upstream_cassette = _read_cassette(upstream_path)
     source_error_body, source_message, source_request_id = _source_error_details(
         upstream_cassette, upstream
     )
-    async with _get_http_client([upstream_name], upstream) as http_client:
+    async with _get_http_client([cassette_name], upstream, matched=True) as http_client:
         client = Molto(http_client=http_client)
         coordinator = {
             "responses": client.responses,
@@ -466,7 +460,7 @@ async def _assert_error_cassette_translation(
             await coordinator(
                 body=deepcopy(downstream_cassette["request"]["body"]),
                 endpoint=upstream,
-                provider=_provider_from_cassette_path(_cassette_path(upstream, upstream_name)),
+                provider=_provider_from_cassette_path(upstream_path),
                 api_key="test-api-key",
             )
 
@@ -510,7 +504,7 @@ async def test_model_not_found_error_translation(
     await _assert_error_cassette_translation(
         downstream,
         upstream,
-        cassette_directory="error-model_not_found",
+        cassette_name="error-model_not_found-stream.yaml",
         openai_error_type=openai.NotFoundError,
         anthropic_error_type=anthropic.NotFoundError,
         anthropic_error_body_type="not_found_error",
@@ -525,7 +519,7 @@ async def test_invalid_api_key_error_translation(
     await _assert_error_cassette_translation(
         downstream,
         upstream,
-        cassette_directory="error-invalid_api_key",
+        cassette_name="error-invalid_api_key-stream.yaml",
         openai_error_type=openai.AuthenticationError,
         anthropic_error_type=anthropic.AuthenticationError,
         anthropic_error_body_type="authentication_error",
@@ -540,7 +534,7 @@ async def test_bad_request_error_translation(
     await _assert_error_cassette_translation(
         downstream,
         upstream,
-        cassette_directory="error-bad_request",
+        cassette_name="error-bad_request-stream.yaml",
         openai_error_type=openai.BadRequestError,
         anthropic_error_type=anthropic.BadRequestError,
         anthropic_error_body_type="invalid_request_error",
