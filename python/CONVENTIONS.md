@@ -2,7 +2,7 @@
 
 ## Layer ownership
 
-`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and future `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
+`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
