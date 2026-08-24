@@ -72,7 +72,7 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
         "capabilities": PROVIDER_CAPABILITIES[provider],
         "base_url": base_url,
     }
-    await client.close()
+    await client.aclose()
 
 
 _STREAMING_BODIES = {
@@ -106,7 +106,7 @@ async def test_coordinators_reject_unsupported_endpoints(
             endpoint="bogus",
             provider=provider,
         )
-    await client.close()
+    await client.aclose()
 
 
 async def test_coordinators_validate_endpoint_before_request_normalization() -> None:
@@ -131,4 +131,4 @@ async def test_coordinators_validate_endpoint_before_request_normalization() -> 
             endpoint="bogus",
             provider="openai",
         )
-    await client.close()
+    await client.aclose()

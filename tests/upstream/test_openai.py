@@ -2850,7 +2850,7 @@ async def test_vllm_uses_explicit_url_and_dummy_credential(
     assert requests[0].headers["authorization"] == f"Bearer {VLLM_DUMMY_API_KEY}"
     assert "openai-organization" not in requests[0].headers
     assert "openai-project" not in requests[0].headers
-    await client.close()
+    await client.aclose()
 
 
 async def test_chat_completions_sdk_consumes_terminal_marker():
@@ -2926,7 +2926,7 @@ async def test_early_stop_closes_stream_but_keeps_shared_client_usable():
     assert [event.id async for event in second_events] == ["second"]
     assert not http_client.is_closed
 
-    await client.close()
+    await client.aclose()
     assert http_client.is_closed
 
 

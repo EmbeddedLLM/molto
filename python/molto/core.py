@@ -72,7 +72,13 @@ class Molto:
     ) -> None:
         self._http_client = http_client or AsyncClient()
 
-    async def close(self) -> None:
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
         await self._http_client.aclose()
 
     @staticmethod
