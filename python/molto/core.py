@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Self
 
 from httpx import AsyncClient
 from pydantic import BaseModel
@@ -20,6 +20,49 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 VLLM_DUMMY_API_KEY = "EMPTY"
+
+
+class _PrefetchedStream[EventT](AsyncIterator[EventT]):
+    """Replay prefetched events and manage the source stream lifecycle."""
+
+    def __init__(self, events: list[EventT], stream: AsyncIterator[EventT]) -> None:
+        self._events = events
+        self._stream = stream
+        self._closed = False
+
+    def __aiter__(self) -> AsyncIterator[EventT]:
+        return self
+
+    async def __anext__(self) -> EventT:
+        if self._closed:
+            raise StopAsyncIteration
+        if self._events:
+            return self._events.pop()
+        return await anext(self._stream)
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._events.clear()
+        close = getattr(self._stream, "aclose", None)
+        if close is not None:
+            await close()
+
+
+async def _prefetch_stream[EventT](stream: AsyncIterator[EventT]) -> AsyncIterator[EventT]:
+    """Start a stream now so setup failures are raised by the coordinator await."""
+    try:
+        first_event = await anext(stream)
+    except StopAsyncIteration:
+        return _PrefetchedStream([], stream)
+    return _PrefetchedStream([first_event], stream)
 
 
 class Molto:
@@ -86,7 +129,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -106,7 +149,9 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )
 
     async def chat_completions(
         self,
@@ -138,7 +183,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -158,7 +203,9 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )
 
     async def messages(
         self,
@@ -188,7 +235,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -208,4 +255,6 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import NoReturn
 
 from httpx import AsyncClient
 from openai import AsyncOpenAI, omit
@@ -70,7 +71,20 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         """Stream events using the provider's native protocol."""
         raise NotImplementedError
 
+    async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Stream provider events translated to normalized events with error handling."""
+        try:
+            async for event in self._events(request):
+                yield event
+        except Exception as error:
+            self._handle_error(error)
+
     @abstractmethod
-    def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+    def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream provider events translated to normalized events."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _handle_error(self, error: Exception) -> NoReturn:
+        """Translate or re-raise an error raised while streaming normalized events."""
         raise NotImplementedError

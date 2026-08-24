@@ -8,13 +8,15 @@ compatibility mappings, and testing policy.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, NoReturn
 from uuid import uuid4
 
+from openai import APIStatusError
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -732,6 +734,15 @@ class OpenAIResponsesAdapter(
                     }
                 )
 
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, ModelNotFoundError):
+            raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        raise error
+
 
 class OpenAIChatCompletionsAdapter(
     BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
@@ -1079,3 +1090,12 @@ class OpenAIChatCompletionsAdapter(
                     ],
                     usage=usage,
                 )
+
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, ModelNotFoundError):
+            raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        raise error

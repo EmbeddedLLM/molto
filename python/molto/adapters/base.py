@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import NoReturn
 
 from pydantic import BaseModel
 
@@ -39,7 +40,20 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         """Translate normalized response events into downstream events."""
         if self.native_request is None:
             raise RuntimeError("normalize_request() must be called before project_events().")
-        return self._project_events(events, request)
+        # Keep this method synchronous so it returns an AsyncIterator directly and callers
+        # can write `async for event in adapter.project_events(...)` without awaiting it.
+        return self._project_events_with_error_handling(events, request)
+
+    async def _project_events_with_error_handling(
+        self,
+        events: AsyncIterator[ModelResponseStreamEvent],
+        request: NormalizedRequest,
+    ) -> AsyncIterator[NativeEventT]:
+        try:
+            async for event in self._project_events(events, request):
+                yield event
+        except Exception as error:
+            self._handle_error(error)
 
     @abstractmethod
     def _project_events(
@@ -48,6 +62,11 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         request: NormalizedRequest,
     ) -> AsyncIterator[NativeEventT]:
         """Implement downstream event projection."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _handle_error(self, error: Exception) -> NoReturn:
+        """Translate or re-raise an error raised while projecting normalized events."""
         raise NotImplementedError
 
     def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:

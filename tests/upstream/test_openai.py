@@ -2917,9 +2917,8 @@ async def test_early_stop_closes_stream_but_keeps_shared_client_usable():
     body = {"messages": [{"role": "user", "content": "Hi"}], "model": "m", "stream": True}
 
     first_response_stream = response_streams[0]
-    first_events = await client.chat_completions(body=body, api_key="test-api-key")
-    assert (await anext(first_events)).id == "first"
-    await first_events.aclose()  # type: ignore[attr-defined]
+    async with await client.chat_completions(body=body, api_key="test-api-key") as first_events:
+        assert (await anext(first_events)).id == "first"
     assert first_response_stream.closed
     assert not http_client.is_closed
 

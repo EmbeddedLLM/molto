@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NoReturn
 
-from anthropic import AsyncAnthropic, AsyncStream
+from anthropic import APIStatusError, AsyncAnthropic, AsyncStream
 from anthropic.types import (
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
@@ -24,6 +24,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesStreamEvent,
 )
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
@@ -372,7 +373,7 @@ class AnthropicMessagesClient(
             body["top_p"] = request.top_p
         return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
 
-    async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+    async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         metadata: ResponseStartEvent | None = None
         input_tokens = 0
         cache_creation = 0
@@ -572,3 +573,13 @@ class AnthropicMessagesClient(
                     stop_sequence=stop_sequence,
                     usage=usage,
                 )
+
+    def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, APIStatusError):
+            if error.status_code == 404 and "model" in error.message:
+                raise ModelNotFoundError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+        raise error
