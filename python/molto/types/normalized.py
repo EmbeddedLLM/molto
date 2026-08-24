@@ -6,38 +6,6 @@ from pydantic import Discriminator, Field, model_validator
 
 from molto.types.base import ExtraModel, ZeroIfNoneInt
 
-APIErrorCategory: TypeAlias = Literal[
-    "api",
-    "authentication",
-    "billing",
-    "conflict",
-    "invalid_request",
-    "not_found",
-    "overloaded",
-    "permission",
-    "rate_limit",
-    "request_too_large",
-    "server",
-    "unprocessable",
-]
-
-APIErrorSource: TypeAlias = Literal["anthropic", "openai"]
-
-
-def _api_error_category(status_code: int) -> APIErrorCategory:
-    return {
-        400: "invalid_request",
-        401: "authentication",
-        402: "billing",
-        403: "permission",
-        404: "not_found",
-        409: "conflict",
-        413: "request_too_large",
-        422: "unprocessable",
-        429: "rate_limit",
-        529: "overloaded",
-    }.get(status_code, "server" if status_code >= 500 else "api")
-
 
 class NormalizedAPIError(Exception):
     """Provider-neutral SDK API failure."""
@@ -46,14 +14,12 @@ class NormalizedAPIError(Exception):
         self,
         message: str,
         *,
-        source_protocol: APIErrorSource,
         request_method: str,
         request_url: str,
         body: object | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
-        self.source_protocol = source_protocol
         self.request_method = request_method
         self.request_url = request_url
         self.body = body
@@ -75,7 +41,6 @@ class NormalizedAPIResponseValidationError(NormalizedAPIError):
         message: str,
         *,
         status_code: int,
-        source_protocol: APIErrorSource,
         response_headers: dict[str, str],
         request_method: str,
         request_url: str,
@@ -83,7 +48,6 @@ class NormalizedAPIResponseValidationError(NormalizedAPIError):
     ) -> None:
         super().__init__(
             message,
-            source_protocol=source_protocol,
             request_method=request_method,
             request_url=request_url,
             body=body,
@@ -100,10 +64,6 @@ class NormalizedAPIStatusError(NormalizedAPIError):
         message: str,
         *,
         status_code: int,
-        source_protocol: APIErrorSource,
-        source_type: str | None,
-        code: str | None,
-        param: str | None,
         request_id: str | None,
         response_headers: dict[str, str],
         request_method: str,
@@ -112,18 +72,53 @@ class NormalizedAPIStatusError(NormalizedAPIError):
     ) -> None:
         super().__init__(
             message,
-            source_protocol=source_protocol,
             request_method=request_method,
             request_url=request_url,
             body=body,
         )
         self.status_code = status_code
-        self.category = _api_error_category(status_code)
-        self.source_type = source_type
-        self.code = code
-        self.param = param
         self.request_id = request_id
         self.response_headers = response_headers
+
+
+class NormalizedBadRequestError(NormalizedAPIStatusError):
+    """Provider-neutral bad-request failure."""
+
+
+class NormalizedAuthenticationError(NormalizedAPIStatusError):
+    """Provider-neutral authentication failure."""
+
+
+class NormalizedPermissionDeniedError(NormalizedAPIStatusError):
+    """Provider-neutral permission failure."""
+
+
+class NormalizedNotFoundError(NormalizedAPIStatusError):
+    """Provider-neutral missing-resource failure."""
+
+
+class NormalizedConflictError(NormalizedAPIStatusError):
+    """Provider-neutral conflict failure."""
+
+
+class NormalizedUnprocessableEntityError(NormalizedAPIStatusError):
+    """Provider-neutral unprocessable-entity failure."""
+
+
+class NormalizedRateLimitError(NormalizedAPIStatusError):
+    """Provider-neutral rate-limit failure."""
+
+
+class NormalizedInternalServerError(NormalizedAPIStatusError):
+    """Provider-neutral server failure."""
+
+
+class NormalizedRequestTooLargeError(NormalizedAPIStatusError):
+    """Provider-neutral request-too-large failure."""
+
+
+class NormalizedOverloadedError(NormalizedAPIStatusError):
+    """Provider-neutral overloaded-service failure."""
 
 
 class SystemPrompt(ExtraModel):

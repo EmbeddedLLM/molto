@@ -1,6 +1,5 @@
 import asyncio
 from collections.abc import AsyncIterator
-from itertools import product
 from typing import Any, Literal
 
 import anthropic
@@ -14,8 +13,15 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 
 Protocol = Literal["responses", "chat/completions", "messages"]
 SDKErrorKind = Literal["connection", "timeout", "response_validation", "api"]
-PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
-ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
+# The cassette parity tests cover every endpoint permutation. These mock tests
+# only need one native route per endpoint and one cross-SDK route per direction.
+ERROR_ROUTES: tuple[tuple[Protocol, Protocol], ...] = (
+    ("responses", "responses"),
+    ("chat/completions", "chat/completions"),
+    ("messages", "messages"),
+    ("responses", "messages"),
+    ("messages", "responses"),
+)
 SDK_ERROR_KINDS: tuple[SDKErrorKind, ...] = (
     "connection",
     "timeout",
@@ -100,7 +106,7 @@ async def _call_molto(client: Molto, downstream: Protocol, upstream: Protocol):
     )
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), ERROR_ROUTES)
 @pytest.mark.parametrize("kind", SDK_ERROR_KINDS)
 async def test_sdk_errors_are_raised_eagerly_and_translated(
     monkeypatch: pytest.MonkeyPatch,
@@ -117,12 +123,13 @@ async def test_sdk_errors_are_raised_eagerly_and_translated(
 
     async with httpx.AsyncClient() as http_client:
         client = Molto(http_client=http_client)
-        with pytest.raises(_expected_error_type(downstream, kind)) as exc_info:
+        expected_type = _expected_error_type(downstream, kind)
+        with pytest.raises(expected_type) as exc_info:
             await _call_molto(client, downstream, upstream)
 
     error = exc_info.value
-    assert type(error) is _expected_error_type(downstream, kind)
-    if downstream == upstream:
+    assert type(error) is expected_type
+    if _sdk(downstream) is _sdk(upstream):
         assert error is source_error
         assert error.__cause__ is None
         return
@@ -138,7 +145,7 @@ async def test_sdk_errors_are_raised_eagerly_and_translated(
         assert error.status_code == source_error.status_code
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), ERROR_ROUTES)
 async def test_cancelled_error_is_never_translated(
     monkeypatch: pytest.MonkeyPatch,
     downstream: Protocol,
@@ -179,7 +186,7 @@ class _FailingIterator(_CountingIterator):
         raise self.error
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), ERROR_ROUTES)
 async def test_eager_stream_does_not_consume_first_event(
     monkeypatch: pytest.MonkeyPatch,
     downstream: Protocol,
@@ -204,7 +211,7 @@ async def test_eager_stream_does_not_consume_first_event(
     assert source_stream.next_calls == 0
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream"), ERROR_ROUTES)
 async def test_sdk_api_error_during_iteration_is_translated(
     monkeypatch: pytest.MonkeyPatch,
     downstream: Protocol,
@@ -225,7 +232,7 @@ async def test_sdk_api_error_during_iteration_is_translated(
             await anext(stream)
 
     error = exc_info.value
-    if downstream == upstream:
+    if _sdk(downstream) is _sdk(upstream):
         assert error is source_error
         assert error.__cause__ is None
     else:

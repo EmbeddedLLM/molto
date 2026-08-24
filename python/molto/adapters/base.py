@@ -16,6 +16,8 @@ from molto.types.normalized import (
 class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
     """Translate the downstream protocol to and from normalized IR."""
 
+    _native_api_error_type: type[BaseException] | tuple[type[BaseException], ...] = ()
+
     def __init__(
         self,
         capabilities: ProviderCapabilities,
@@ -66,10 +68,14 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
             self._raise_projected_api_error(error)
 
     def _raise_projected_api_error(self, error: NormalizedAPIError) -> NoReturn:
+        source_error = error.__cause__
+        if isinstance(source_error, self._native_api_error_type):
+            raise source_error from source_error.__cause__
+
         projected_error = self._project_api_error(error)
-        if error.__cause__ is None:
+        if source_error is None:
             raise projected_error from error
-        raise projected_error from error.__cause__
+        raise projected_error from source_error
 
     @abstractmethod
     def _project_api_error(self, error: NormalizedAPIError) -> Exception:

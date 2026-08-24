@@ -27,7 +27,16 @@ from molto.types.normalized import (
     NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
     NormalizedAPITimeoutError,
+    NormalizedAuthenticationError,
+    NormalizedBadRequestError,
+    NormalizedConflictError,
+    NormalizedInternalServerError,
+    NormalizedNotFoundError,
+    NormalizedOverloadedError,
+    NormalizedPermissionDeniedError,
+    NormalizedRateLimitError,
     NormalizedRequest,
+    NormalizedUnprocessableEntityError,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -66,22 +75,38 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
 }
 
 
-def _openai_error_type(error: NormalizedAPIStatusError) -> str:
-    if error.source_protocol == "openai" and error.source_type is not None:
-        return error.source_type
-    if error.category == "rate_limit":
-        return "rate_limit_error"
-    if error.category in {"overloaded", "server"}:
-        return "server_error"
-    return "invalid_request_error"
+_OPENAI_STATUS_ERRORS: dict[
+    type[NormalizedAPIStatusError],
+    tuple[type[openai.APIStatusError], str],
+] = {
+    NormalizedBadRequestError: (openai.BadRequestError, "invalid_request_error"),
+    NormalizedAuthenticationError: (openai.AuthenticationError, "invalid_request_error"),
+    NormalizedPermissionDeniedError: (
+        openai.PermissionDeniedError,
+        "invalid_request_error",
+    ),
+    NormalizedNotFoundError: (openai.NotFoundError, "invalid_request_error"),
+    NormalizedConflictError: (openai.ConflictError, "invalid_request_error"),
+    NormalizedUnprocessableEntityError: (
+        openai.UnprocessableEntityError,
+        "invalid_request_error",
+    ),
+    NormalizedRateLimitError: (openai.RateLimitError, "rate_limit_error"),
+    NormalizedOverloadedError: (openai.InternalServerError, "server_error"),
+    NormalizedInternalServerError: (openai.InternalServerError, "server_error"),
+}
 
 
 def _openai_api_status_error(error: NormalizedAPIStatusError) -> openai.APIStatusError:
+    exception_type, error_type = _OPENAI_STATUS_ERRORS.get(
+        type(error),
+        (openai.APIStatusError, "api_error"),
+    )
     error_body = {
         "message": error.message,
-        "type": _openai_error_type(error),
-        "param": error.param,
-        "code": error.code,
+        "type": error_type,
+        "param": None,
+        "code": None,
     }
     envelope = {"error": error_body}
     headers = httpx.Headers(error.response_headers)
@@ -99,25 +124,6 @@ def _openai_api_status_error(error: NormalizedAPIStatusError) -> openai.APIStatu
         json=envelope,
         request=request,
     )
-    exception_type: type[openai.APIStatusError]
-    if error.status_code == 400:
-        exception_type = openai.BadRequestError
-    elif error.status_code == 401:
-        exception_type = openai.AuthenticationError
-    elif error.status_code == 403:
-        exception_type = openai.PermissionDeniedError
-    elif error.status_code == 404:
-        exception_type = openai.NotFoundError
-    elif error.status_code == 409:
-        exception_type = openai.ConflictError
-    elif error.status_code == 422:
-        exception_type = openai.UnprocessableEntityError
-    elif error.status_code == 429:
-        exception_type = openai.RateLimitError
-    elif error.status_code >= 500:
-        exception_type = openai.InternalServerError
-    else:
-        exception_type = openai.APIStatusError
     return exception_type(
         f"Error code: {error.status_code} - {envelope}",
         response=response,
@@ -298,6 +304,8 @@ class OpenAIResponsesAdapter(
     BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    _native_api_error_type = openai.APIError
 
     def _project_api_error(self, error: NormalizedAPIError) -> openai.APIError:
         return _openai_api_error(error)
@@ -829,6 +837,8 @@ class OpenAIChatCompletionsAdapter(
     BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
 ):
     """Translate Chat Completions requests and normalized response events."""
+
+    _native_api_error_type = openai.APIError
 
     def _project_api_error(self, error: NormalizedAPIError) -> openai.APIError:
         return _openai_api_error(error)

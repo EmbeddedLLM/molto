@@ -28,7 +28,17 @@ from molto.types.normalized import (
     NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
     NormalizedAPITimeoutError,
+    NormalizedAuthenticationError,
+    NormalizedBadRequestError,
+    NormalizedConflictError,
+    NormalizedInternalServerError,
+    NormalizedNotFoundError,
+    NormalizedOverloadedError,
+    NormalizedPermissionDeniedError,
+    NormalizedRateLimitError,
     NormalizedRequest,
+    NormalizedRequestTooLargeError,
+    NormalizedUnprocessableEntityError,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -61,48 +71,47 @@ _STOP_REASONS: dict[TerminationReason, str] = {
     "tool_call": "tool_use",
 }
 
-_ANTHROPIC_ERROR_TYPES = {
-    "api_error",
-    "authentication_error",
-    "billing_error",
-    "conflict_error",
-    "invalid_request_error",
-    "not_found_error",
-    "overloaded_error",
-    "permission_error",
-    "rate_limit_error",
-    "request_too_large",
-    "timeout_error",
+_ANTHROPIC_STATUS_ERRORS: dict[
+    type[NormalizedAPIStatusError],
+    tuple[type[anthropic.APIStatusError], str],
+] = {
+    NormalizedBadRequestError: (anthropic.BadRequestError, "invalid_request_error"),
+    NormalizedAuthenticationError: (
+        anthropic.AuthenticationError,
+        "authentication_error",
+    ),
+    NormalizedPermissionDeniedError: (
+        anthropic.PermissionDeniedError,
+        "permission_error",
+    ),
+    NormalizedNotFoundError: (anthropic.NotFoundError, "not_found_error"),
+    NormalizedConflictError: (anthropic.ConflictError, "conflict_error"),
+    NormalizedRequestTooLargeError: (
+        anthropic.RequestTooLargeError,
+        "request_too_large",
+    ),
+    NormalizedUnprocessableEntityError: (
+        anthropic.UnprocessableEntityError,
+        "invalid_request_error",
+    ),
+    NormalizedRateLimitError: (anthropic.RateLimitError, "rate_limit_error"),
+    NormalizedOverloadedError: (anthropic.OverloadedError, "overloaded_error"),
+    NormalizedInternalServerError: (anthropic.InternalServerError, "api_error"),
 }
 
 
-def _anthropic_error_type(error: NormalizedAPIStatusError) -> str:
-    if error.source_protocol == "anthropic" and error.source_type in _ANTHROPIC_ERROR_TYPES:
-        return error.source_type
-    return {
-        "authentication": "authentication_error",
-        "billing": "billing_error",
-        "conflict": "conflict_error",
-        "not_found": "not_found_error",
-        "overloaded": "overloaded_error",
-        "permission": "permission_error",
-        "rate_limit": "rate_limit_error",
-        "request_too_large": "request_too_large",
-        "server": "api_error",
-        "unprocessable": "invalid_request_error",
-    }.get(error.category, "invalid_request_error")
-
-
 def _anthropic_api_status_error(error: NormalizedAPIStatusError) -> anthropic.APIStatusError:
+    exception_type, error_type = _ANTHROPIC_STATUS_ERRORS.get(
+        type(error),
+        (anthropic.APIStatusError, "api_error"),
+    )
     envelope: dict[str, Any] = {
         "type": "error",
         "error": {
-            "type": _anthropic_error_type(error),
+            "type": error_type,
             "message": error.message,
         },
     }
-    if error.status_code == 504 and error.source_protocol != "anthropic":
-        envelope["error"]["type"] = "timeout_error"
     if error.request_id is not None:
         envelope["request_id"] = error.request_id
     headers = httpx.Headers(error.response_headers)
@@ -120,29 +129,6 @@ def _anthropic_api_status_error(error: NormalizedAPIStatusError) -> anthropic.AP
         json=envelope,
         request=request,
     )
-    exception_type: type[anthropic.APIStatusError]
-    if error.status_code == 400:
-        exception_type = anthropic.BadRequestError
-    elif error.status_code == 401:
-        exception_type = anthropic.AuthenticationError
-    elif error.status_code == 403:
-        exception_type = anthropic.PermissionDeniedError
-    elif error.status_code == 404:
-        exception_type = anthropic.NotFoundError
-    elif error.status_code == 409:
-        exception_type = anthropic.ConflictError
-    elif error.status_code == 413:
-        exception_type = anthropic.RequestTooLargeError
-    elif error.status_code == 422:
-        exception_type = anthropic.UnprocessableEntityError
-    elif error.status_code == 429:
-        exception_type = anthropic.RateLimitError
-    elif error.status_code == 529:
-        exception_type = anthropic.OverloadedError
-    elif error.status_code >= 500:
-        exception_type = anthropic.InternalServerError
-    else:
-        exception_type = anthropic.APIStatusError
     return exception_type(
         f"Error code: {error.status_code} - {envelope}",
         response=response,
@@ -219,6 +205,8 @@ class AnthropicMessagesAdapter(
     BaseAdapter[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    _native_api_error_type = anthropic.APIError
 
     def _project_api_error(self, error: NormalizedAPIError) -> anthropic.APIError:
         return _anthropic_api_error(error)

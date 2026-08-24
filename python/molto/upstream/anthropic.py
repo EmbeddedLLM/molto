@@ -12,6 +12,16 @@ from anthropic import (
     APITimeoutError,
     AsyncAnthropic,
     AsyncStream,
+    AuthenticationError,
+    BadRequestError,
+    ConflictError,
+    InternalServerError,
+    NotFoundError,
+    OverloadedError,
+    PermissionDeniedError,
+    RateLimitError,
+    RequestTooLargeError,
+    UnprocessableEntityError,
 )
 from anthropic.types import (
     RawContentBlockDeltaEvent,
@@ -42,7 +52,17 @@ from molto.types.normalized import (
     NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
     NormalizedAPITimeoutError,
+    NormalizedAuthenticationError,
+    NormalizedBadRequestError,
+    NormalizedConflictError,
+    NormalizedInternalServerError,
+    NormalizedNotFoundError,
+    NormalizedOverloadedError,
+    NormalizedPermissionDeniedError,
+    NormalizedRateLimitError,
     NormalizedRequest,
+    NormalizedRequestTooLargeError,
+    NormalizedUnprocessableEntityError,
     OutputTokenDetails,
     PartDeltaEvent,
     PartEndEvent,
@@ -76,21 +96,30 @@ _TERMINATION_REASONS: dict[str, TerminationReason] = {
     "tool_use": "tool_call",
 }
 
+_STATUS_ERROR_TYPES: dict[type[APIStatusError], type[NormalizedAPIStatusError]] = {
+    BadRequestError: NormalizedBadRequestError,
+    AuthenticationError: NormalizedAuthenticationError,
+    PermissionDeniedError: NormalizedPermissionDeniedError,
+    NotFoundError: NormalizedNotFoundError,
+    ConflictError: NormalizedConflictError,
+    RequestTooLargeError: NormalizedRequestTooLargeError,
+    UnprocessableEntityError: NormalizedUnprocessableEntityError,
+    RateLimitError: NormalizedRateLimitError,
+    OverloadedError: NormalizedOverloadedError,
+    InternalServerError: NormalizedInternalServerError,
+}
+
 
 def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusError:
     body = error.body
     error_body = body.get("error") if isinstance(body, Mapping) else None
     message = error_body.get("message") if isinstance(error_body, Mapping) else None
-    source_type = error_body.get("type") if isinstance(error_body, Mapping) else None
     body_request_id = body.get("request_id") if isinstance(body, Mapping) else None
     request = error.response.request
-    return NormalizedAPIStatusError(
+    error_type = _STATUS_ERROR_TYPES.get(type(error), NormalizedAPIStatusError)
+    return error_type(
         message if isinstance(message, str) else error.message,
         status_code=error.status_code,
-        source_protocol="anthropic",
-        source_type=source_type if isinstance(source_type, str) else None,
-        code=None,
-        param=None,
         request_id=(
             error.request_id or (body_request_id if isinstance(body_request_id, str) else None)
         ),
@@ -108,7 +137,6 @@ def _normalized_api_error(error: APIError) -> NormalizedAPIError:
     request = error.request
     common = {
         "message": error.message,
-        "source_protocol": "anthropic",
         "request_method": request.method,
         "request_url": str(request.url),
         "body": error.body,

@@ -13,6 +13,14 @@ from openai import (
     APIStatusError,
     APITimeoutError,
     AsyncStream,
+    AuthenticationError,
+    BadRequestError,
+    ConflictError,
+    InternalServerError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+    UnprocessableEntityError,
 )
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
@@ -27,7 +35,15 @@ from molto.types.normalized import (
     NormalizedAPIResponseValidationError,
     NormalizedAPIStatusError,
     NormalizedAPITimeoutError,
+    NormalizedAuthenticationError,
+    NormalizedBadRequestError,
+    NormalizedConflictError,
+    NormalizedInternalServerError,
+    NormalizedNotFoundError,
+    NormalizedPermissionDeniedError,
+    NormalizedRateLimitError,
     NormalizedRequest,
+    NormalizedUnprocessableEntityError,
     OutputTokenDetails,
     PartDeltaEvent,
     PartEndEvent,
@@ -62,21 +78,26 @@ _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
     "tool_calls": "tool_call",
 }
 
+_STATUS_ERROR_TYPES: dict[type[APIStatusError], type[NormalizedAPIStatusError]] = {
+    BadRequestError: NormalizedBadRequestError,
+    AuthenticationError: NormalizedAuthenticationError,
+    PermissionDeniedError: NormalizedPermissionDeniedError,
+    NotFoundError: NormalizedNotFoundError,
+    ConflictError: NormalizedConflictError,
+    UnprocessableEntityError: NormalizedUnprocessableEntityError,
+    RateLimitError: NormalizedRateLimitError,
+    InternalServerError: NormalizedInternalServerError,
+}
+
 
 def _normalized_api_status_error(error: APIStatusError) -> NormalizedAPIStatusError:
     body = error.body
     message = body.get("message") if isinstance(body, Mapping) else None
-    source_type = body.get("type") if isinstance(body, Mapping) else None
-    code = body.get("code") if isinstance(body, Mapping) else None
-    param = body.get("param") if isinstance(body, Mapping) else None
     request = error.response.request
-    return NormalizedAPIStatusError(
+    error_type = _STATUS_ERROR_TYPES.get(type(error), NormalizedAPIStatusError)
+    return error_type(
         message if isinstance(message, str) else error.message,
         status_code=error.status_code,
-        source_protocol="openai",
-        source_type=source_type if isinstance(source_type, str) else None,
-        code=code if isinstance(code, str) else None,
-        param=param if isinstance(param, str) else None,
         request_id=error.request_id,
         response_headers=dict(error.response.headers),
         request_method=request.method,
@@ -92,7 +113,6 @@ def _normalized_api_error(error: APIError) -> NormalizedAPIError:
     request = error.request
     common = {
         "message": error.message,
-        "source_protocol": "openai",
         "request_method": request.method,
         "request_url": str(request.url),
         "body": error.body,

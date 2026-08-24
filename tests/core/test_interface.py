@@ -63,6 +63,10 @@ def _protocol_name(protocol: Protocol) -> str:
     }[protocol]
 
 
+def _sdk(protocol: Protocol):
+    return anthropic if protocol == "messages" else openai
+
+
 def _provider_from_cassette_path(path: Path) -> Provider:
     provider, separator, _ = path.name.partition("-")
     if not separator or provider not in PROVIDER_CAPABILITIES:
@@ -470,7 +474,7 @@ async def _assert_error_cassette_translation(
     assert error.request.method == upstream_cassette["request"]["method"]
     assert error.request.url.path == upstream_cassette["request"]["path"]
 
-    if downstream == upstream:
+    if _sdk(downstream) is _sdk(upstream):
         expected_body = (
             _error_body(upstream_cassette) if upstream == "messages" else source_error_body
         )

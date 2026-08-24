@@ -119,9 +119,10 @@ The bypass belongs in the relevant coordinator; transport remains in the matchin
 Keep native and translated request-level errors on their corresponding protocol boundaries:
 
 - Same-protocol paths must expose the provider SDK's original exception object and must not cross the normalized error representation.
-- On translated paths, upstream clients normalize portable SDK API errors: status errors, connection errors, timeouts, response-validation errors, and generic `APIError` fallbacks. Catch only explicit SDK API error bases; do not catch Python cancellation, local request validation, ordinary Molto exceptions, provider-specific non-API exceptions, or broad `Exception` values.
-- Downstream adapters project the normalized error into the nearest corresponding exception class from their own SDK. Keep provider-specific exception construction, body construction, and status dispatch at the protocol-specific adapter boundary.
-- Preserve every source-backed field the destination can represent, including message, status, body, request ID, headers, request method/URL, and underlying transport details. Preserve `type`, `code`, and `param` only when the source provides them; never invent unavailable equivalents.
+- On translated paths, upstream clients normalize portable SDK API exception classes: status errors, connection errors, timeouts, response-validation errors, and generic `APIError` fallbacks. Catch only explicit SDK API error bases; do not catch Python cancellation, local request validation, ordinary Molto exceptions, provider-specific non-API exceptions, or broad `Exception` values.
+- Give each portable SDK status class a corresponding normalized exception subclass. Select it from the concrete source exception class, never from the HTTP status or provider-specific body fields.
+- When the source and downstream protocols use the same SDK, re-raise the original SDK exception object. Across SDK families, project the normalized class into the nearest destination exception class and use the generic status class when no equivalent exists.
+- Preserve portable source-backed fields, including message, status, body, request ID, headers, and request method/URL. Keep the complete source exception available as the projected exception's cause instead of inferring unavailable destination semantics.
 - Projected status and response-validation exceptions must carry the response and attached request objects required for destination SDK behavior. Constructing them is error projection, not adapter-owned transport; adapters must still never issue an HTTP request.
 - Raise the downstream SDK exception from the original upstream SDK exception.
 - Translate SDK API exceptions raised during lazy stream iteration through the same normalized path. Keep protocol-native failure event models on the event path rather than converting them into request-level exceptions.
@@ -168,7 +169,7 @@ When Responses exposes `added`, `done`, and terminal encrypted snapshots but Mes
 
 For native passthrough, compare parsed SDK events. For translated streams, compare reconstructible semantics and separately validate target-protocol lifecycle invariants. Do not require metadata or chunk placement that the source protocol cannot represent without buffering.
 
-Use matched cassettes to prove status-error request and exception parity across every downstream/upstream protocol combination. Portable connection, timeout, response-validation, and generic API errors may use synthetic tests until representative cassettes are available; future fixtures must preserve native exception identity and assert destination-SDK projection on translated routes.
+Use matched cassettes to prove status-error request and exception parity across every downstream/upstream protocol combination. Portable connection, timeout, response-validation, and generic API errors may use synthetic tests until representative cassettes are available; future fixtures must preserve exception identity within an SDK family and assert nearest-class projection across SDK families.
 
 Responses assistant-message `phase` is source-backed native metadata, not a default that can be recovered from a Chat Completions result. Preserve it on native Responses paths. For Chat-to-Responses event parity, remove it from both sides of the reconstructible comparison; never infer `commentary` or `final_answer` from reasoning presence, message order, or text content.
 
