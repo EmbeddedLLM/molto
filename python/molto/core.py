@@ -22,6 +22,22 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 VLLM_DUMMY_API_KEY = "EMPTY"
 
 
+async def _prefetch_stream[EventT](stream: AsyncIterator[EventT]) -> AsyncIterator[EventT]:
+    """Start a stream now so setup failures are raised by the coordinator await."""
+    try:
+        first_event = await anext(stream)
+    except StopAsyncIteration:
+        return stream
+
+    # return _PrefetchedStream(first_event, stream)
+    async def agen():
+        yield first_event
+        async for event in stream:
+            yield event
+
+    return agen()
+
+
 class Molto:
     def __init__(
         self,
@@ -86,7 +102,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -106,7 +122,9 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )
 
     async def chat_completions(
         self,
@@ -138,7 +156,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -158,7 +176,9 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )
 
     async def messages(
         self,
@@ -188,7 +208,7 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return upstream.native_events(request)
+            return await _prefetch_stream(upstream.native_events(request))
 
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -208,4 +228,6 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return adapter.project_events(upstream.events(normalized_request), normalized_request)
+        return await _prefetch_stream(
+            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        )
