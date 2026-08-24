@@ -11,27 +11,34 @@ See [Molto Architecture](python/ARCHITECTURE.md) for the translation and native-
 
 ## Quickstart
 
-Use the method for the protocol your application speaks and select the upstream protocol with `endpoint`. Inside an async function, with `ANTHROPIC_API_KEY` set, this accepts an OpenAI Responses request and sends it to an Anthropic Messages endpoint:
+Use the method for the protocol your application speaks and select the upstream protocol with `endpoint`. With `ANTHROPIC_API_KEY` set, this accepts an OpenAI Responses request and sends it to an Anthropic Messages endpoint:
 
 ```python
+import asyncio
+
 from molto import Molto
 
-molto = Molto()
-stream = await molto.responses(
-    body={
-        "model": "claude-sonnet-5",
-        "input": "Hello!",
-        "max_output_tokens": 1024,
-        "stream": True,
-    },
-    endpoint="messages",
-    provider="anthropic",
-)
 
-async for event in stream:
-    print(event)  # Native OpenAI Responses event
+async def main() -> None:
+    molto = Molto()
+    try:
+        async with await molto.responses(
+            body={
+                "model": "claude-sonnet-5",
+                "input": "Hello!",
+                "max_output_tokens": 1024,
+                "stream": True,
+            },
+            endpoint="messages",
+            provider="anthropic",
+        ) as stream:
+            async for event in stream:
+                print(event)  # Native OpenAI Responses event
+    finally:
+        await molto.close()
 
-await molto.close()
+
+asyncio.run(main())
 ```
 
 `endpoint` selects the upstream wire protocol, `provider` selects the serving implementation and its capabilities, and `base_url` selects only the HTTP destination. These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough.
