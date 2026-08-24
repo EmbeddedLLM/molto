@@ -13,8 +13,6 @@ See [Molto Architecture](python/ARCHITECTURE.md) for the translation and native-
 
 Use the method for the protocol your application speaks and select the upstream protocol with `endpoint`. With `ANTHROPIC_API_KEY` set, this accepts an OpenAI Responses request and sends it to an Anthropic Messages endpoint:
 
-### Context managers
-
 ```python
 import asyncio
 
@@ -22,6 +20,7 @@ from molto import Molto
 
 
 async def main() -> None:
+    # Using context managers
     async with Molto() as molto:
         async with await molto.responses(
             body={
@@ -36,19 +35,7 @@ async def main() -> None:
             async for event in stream:
                 print(event)  # Native OpenAI Responses event
 
-
-asyncio.run(main())
-```
-
-### Manual cleanup
-
-```python
-import asyncio
-
-from molto import Molto
-
-
-async def main() -> None:
+    # Manual cleanup
     molto = Molto()
     try:
         stream = await molto.responses(
