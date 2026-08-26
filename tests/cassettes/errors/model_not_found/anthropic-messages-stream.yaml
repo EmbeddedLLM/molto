@@ -1,0 +1,34 @@
+filename: 2026-08-26-01a03d22-8eb1-7500-8455-e24f1fd6a91c
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: Hi
+        type: text
+      role: user
+    model: kimi
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '117'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a03d22-8eb1-7500-8455-e24f1fd6a91c
+response:
+  body:
+    error:
+      message: 'model: kimi'
+      type: not_found_error
+    request_id: req_011CeR2UHKt3eifrQEh3nJdc
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 404
+timestamp: '2026-08-26T08:14:30.065802+00:00'

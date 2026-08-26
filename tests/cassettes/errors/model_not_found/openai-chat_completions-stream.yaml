@@ -1,0 +1,35 @@
+filename: 2026-08-26-01a03d21-eeef-7c32-8bd5-460b426c894b
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Hi
+        type: text
+      role: user
+    model: kimi
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '196'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a03d21-eeef-7c32-8bd5-460b426c894b
+response:
+  body: "{\n    \"error\": {\n        \"message\": \"The model `kimi` does not exist\
+    \ or you do not have access to it.\",\n        \"type\": \"invalid_request_error\"\
+    ,\n        \"param\": null,\n        \"code\": \"model_not_found\"\n    }\n}\n"
+  headers:
+    connection: keep-alive
+    content-type: application/json; charset=utf-8
+  status_code: 404
+timestamp: '2026-08-26T08:13:49.167827+00:00'
