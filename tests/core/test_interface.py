@@ -7,8 +7,10 @@ from typing import Any, Literal, cast
 import pytest
 from anthropic import AsyncAnthropic
 from anthropic import AsyncStream as AnthropicAsyncStream
+from anthropic import BadRequestError as AnthropicBadRequestError
 from httpx import AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI, AsyncStream
+from openai import BadRequestError as OpenAIBadRequestError
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
@@ -666,45 +668,36 @@ async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, u
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_error(downstream: Protocol, upstream: Protocol):
     scenario = "error-invalid_request_error"
-    downstream_paths = _matched_cassette_paths(scenario, downstream)
-    upstream_paths = _matched_cassette_paths(scenario, upstream)
-    assert downstream_paths, f"No matched {downstream!r} cassettes found in {scenario!r}"
-    assert downstream_paths.keys() == upstream_paths.keys(), (
-        f"Mismatched cassette variants for {scenario!r}: "
-        f"{downstream!r} has {sorted(downstream_paths)}, "
-        f"{upstream!r} has {sorted(upstream_paths)}"
-    )
-    cassette_path_pairs = [
-        (downstream_paths[variant], upstream_paths[variant])
-        for variant in sorted(downstream_paths)
-    ]
-    first_downstream_path, first_upstream_path = cassette_path_pairs[0]
-    scenario = first_downstream_path.parent.name
-    provider = (
-        _provider_from_cassette_path(first_upstream_path)
-        if first_upstream_path.is_relative_to(MATCHED_CASSETTE_DIR)
-        else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
-    )
-    print(cassette_path_pairs)
+    variant = "stream-00.yaml"
+    downstream_path = _matched_cassette_path(scenario, downstream, variant)
+    upstream_path = _matched_cassette_path(scenario, upstream, variant)
+    downstream_cassette = _read_cassette(downstream_path)
+    upstream_cassette = _read_cassette(upstream_path)
+    expected_response = upstream_cassette["response"]
+    error_type = AnthropicBadRequestError if upstream == "messages" else OpenAIBadRequestError
+
     async with _get_http_client(
-        [upstream_path for _, upstream_path in cassette_path_pairs],
+        [upstream_path],
         upstream,
         translated=downstream != upstream,
     ) as http_client:
         client = Molto(http_client=http_client)
-        for downstream_path, _ in cassette_path_pairs:
-            cassette = _read_cassette(downstream_path)
-            coordinator = {
-                "responses": client.responses,
-                "chat/completions": client.chat_completions,
-                "messages": client.messages,
-            }[downstream]
-            response = await coordinator(
-                body=deepcopy(cassette["request"]["body"]),
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        with pytest.raises(error_type) as exc_info:
+            await coordinator(
+                body=deepcopy(downstream_cassette["request"]["body"]),
                 endpoint=upstream,
-                provider=provider,
+                provider=_provider_from_cassette_path(upstream_path),
                 api_key="test-api-key",
             )
+
+    assert exc_info.value.status_code == expected_response["status_code"]
+    assert expected_response["body"]["error"] in exc_info.value.message
+    assert exc_info.value.response.json() == expected_response["body"]
 
 
 async def test_instructions_stream():

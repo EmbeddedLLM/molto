@@ -7,7 +7,7 @@ request:
       - text: Hi
         type: text
       role: user
-    model: claude-sonnet-5
+    model: gpt-5.6-luna
     stream: true
   headers:
     accept: application/json
