@@ -117,11 +117,11 @@ downstream SDK exception
 
 The currently implemented normalized error is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
-| Upstream protocol       | Upstream SDK exception     | Recognition rule                                     |
-| ----------------------- | -------------------------- | ---------------------------------------------------- |
-| OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`         |
-| OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`         |
-| Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model` |
+| Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
+| ----------------------- | -------------------------- | ----------------------------------------------------- |
+| OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
+| OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
+| Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
 
 The downstream adapter then raises `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet fully translated into the target protocol's HTTP contract. Its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic remains status `404` when projected through the Responses API, even though OpenAI Responses normally reports that condition as status `400`. The reverse route through Messages retains the upstream Responses status `400` and OpenAI-shaped body.
 
