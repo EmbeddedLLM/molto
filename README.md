@@ -61,3 +61,26 @@ asyncio.run(main())
 ```
 
 `endpoint` selects the upstream wire protocol, `provider` selects the serving implementation and its capabilities, and `base_url` selects only the HTTP destination. These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough.
+
+## Error handling
+
+Same-protocol routes preserve the upstream SDK exception. On translated routes, Molto recognizes selected provider errors and raises them in the downstream SDK namespace. This translation is semantic, not a rewrite of the provider's HTTP response: the status code, message, response, and body still come from the upstream protocol.
+
+For example, Anthropic reports a missing model with status `404`, while OpenAI Responses reports it with status `400`. An Anthropic Messages upstream routed through the OpenAI Responses downstream therefore raises an OpenAI `APIStatusError` whose status remains `404` and whose body remains Anthropic-shaped.
+
+The translated exception's cause identifies the normalized error more precisely:
+
+```python
+import openai
+
+from molto.types.exceptions import ModelNotFoundError
+
+try:
+    async for event in stream:
+        ...
+except openai.APIStatusError as error:
+    if isinstance(error.__cause__, ModelNotFoundError):
+        print("The upstream provider does not recognize this model.")
+```
+
+The normalized error in turn retains the original upstream SDK exception as its cause. Native passthrough and unrecognized errors do not receive this normalized cause. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.

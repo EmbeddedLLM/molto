@@ -1,0 +1,36 @@
+filename: 2026-08-26-01a03d1d-bdb1-7de1-903c-5911aedfad3a
+request:
+  body:
+    max_tokens: 0
+    messages:
+    - content:
+      - text: Hi
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '125'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a03d1d-bdb1-7de1-903c-5911aedfad3a
+response:
+  body:
+    error:
+      code: integer_below_min_value
+      message: 'Invalid ''max_output_tokens'': integer below minimum value. Expected
+        a value >= 16, but got 0 instead.'
+      param: max_output_tokens
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '248'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-08-26T08:09:14.417980+00:00'

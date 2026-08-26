@@ -1,13 +1,13 @@
-filename: 2026-08-19-01a01abc-e006-75e2-b585-cb5501a1fe8f
+filename: 2026-08-26-01a03d1e-d2cf-70a3-a6e1-7fe70a197954
 request:
   body:
     input:
     - content:
-      - text: hi
+      - text: Hi
         type: input_text
       role: user
-    max_output_tokens: 4096
-    model: kimi-k3
+    max_output_tokens: 0
+    model: gpt-5.6-luna
     stream: true
     stream_options:
       include_obfuscation: false
@@ -16,22 +16,24 @@ request:
     accept-encoding: gzip, deflate
     authorization: Bearer ***
     connection: keep-alive
-    content-length: '177'
+    content-length: '179'
     content-type: application/json
     user-agent: AsyncOpenAI/Python 2.53.0
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 01a01abc-e006-75e2-b585-cb5501a1fe8f
+request_id: 01a03d1e-d2cf-70a3-a6e1-7fe70a197954
 response:
   body:
     error:
-      code: null
-      message: Model not found kimi-k3
-      param: model
+      code: integer_below_min_value
+      message: 'Invalid ''max_output_tokens'': integer below minimum value. Expected
+        a value >= 16, but got 0 instead.'
+      param: max_output_tokens
       type: invalid_request_error
   headers:
     connection: keep-alive
+    content-length: '248'
     content-type: application/json
-  status_code: 404
-timestamp: '2026-08-19T15:56:20.870967+00:00'
+  status_code: 400
+timestamp: '2026-08-26T08:10:25.359781+00:00'

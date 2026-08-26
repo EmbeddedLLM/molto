@@ -1,0 +1,38 @@
+filename: 2026-08-26-01a03d21-e98b-7972-99b1-afec2dd992cd
+request:
+  body:
+    input:
+    - content:
+      - text: Hi
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: kimi
+    stream: true
+    stream_options:
+      include_obfuscation: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '174'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a03d21-e98b-7972-99b1-afec2dd992cd
+response:
+  body:
+    error:
+      code: model_not_found
+      message: The requested model 'kimi' does not exist.
+      param: model
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '170'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-08-26T08:13:47.787811+00:00'
