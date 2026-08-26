@@ -736,6 +736,11 @@ class OpenAIResponsesAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, ModelNotFoundError):
+            # Changing these without changing error message is confusing to users
+            # error.body["error"]["code"] = "model_not_found"
+            # error.body["error"]["param"] = "model"
+            # error.body["error"]["type"] = "invalid_request_error"
+            # error.response.status_code = 400
             raise APIStatusError(
                 error.message,
                 response=error.response,
