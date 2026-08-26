@@ -20,11 +20,6 @@ Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
 
-NATIVE_ERROR_TYPES = {
-    "responses": OpenAIBadRequestError,
-    "chat/completions": OpenAINotFoundError,
-    "messages": AnthropicNotFoundError,
-}
 DOWNSTREAM_ERROR_TYPES = {
     "responses": OpenAIAPIStatusError,
     "chat/completions": OpenAIAPIStatusError,
@@ -51,6 +46,7 @@ def _response_body(cassette: dict[str, Any]) -> dict[str, Any]:
 
 
 def _get_http_client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Request]]:
+    # This is useful to assert retries
     requests: list[Request] = []
 
     def cassette_handler(request: Request) -> Response:
@@ -80,12 +76,17 @@ def _get_http_client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Reques
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     scenario = "model_not_found"
+    native_error_types = {
+        "responses": OpenAIBadRequestError,
+        "chat/completions": OpenAINotFoundError,
+        "messages": AnthropicNotFoundError,
+    }
     downstream_cassette = _read_cassette(scenario, downstream)
     upstream_cassette = _read_cassette(scenario, upstream)
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
     expected_error_type = (
-        NATIVE_ERROR_TYPES[upstream]
+        native_error_types[upstream]
         if downstream == upstream
         else DOWNSTREAM_ERROR_TYPES[downstream]
     )
@@ -120,7 +121,7 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert error.response.json() == expected_body
 
     if downstream == upstream:
-        assert type(error) is NATIVE_ERROR_TYPES[upstream]
+        assert type(error) is native_error_types[upstream]
         assert error.__cause__ is None
         return
 
@@ -129,4 +130,4 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body
-    assert type(normalized_error.__cause__) is NATIVE_ERROR_TYPES[upstream]
+    assert type(normalized_error.__cause__) is native_error_types[upstream]
