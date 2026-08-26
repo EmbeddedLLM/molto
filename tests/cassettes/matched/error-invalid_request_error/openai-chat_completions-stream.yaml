@@ -1,0 +1,40 @@
+filename: 2026-08-26-01a03d1e-d50c-7062-8ee7-49290c6d72f3
+request:
+  body:
+    max_completion_tokens: 0
+    messages:
+    - content:
+      - text: Hi
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '201'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a03d1e-d50c-7062-8ee7-49290c6d72f3
+response:
+  body:
+    error:
+      code: integer_below_min_value
+      message: 'Invalid ''max_completion_tokens'': integer below minimum value. Expected
+        a value >= 1, but got 0 instead.'
+      param: max_completion_tokens
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '255'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-08-26T08:10:25.932641+00:00'
