@@ -145,10 +145,17 @@ def _get_http_client(
                 content=f"Bad request: {repr(e)}".encode(),
                 headers={"content-type": "text/plain; charset=utf-8"},
             )
+        cassette_response = cassette["response"]
+        if "sse" in cassette_response:
+            return Response(
+                cassette_response["status_code"],
+                content="".join(cassette_response["sse"]).encode(),
+                headers={"content-type": "text/event-stream; charset=utf-8"},
+            )
         return Response(
-            cassette["response"]["status_code"],
-            content="".join(cassette["response"]["sse"]).encode(),
-            headers={"content-type": "text/event-stream; charset=utf-8"},
+            cassette_response["status_code"],
+            json=cassette_response["body"],
+            headers={"content-type": "application/json"},
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
@@ -654,6 +661,50 @@ async def test_tool_call_parallel_stream(downstream: Protocol, upstream: Protoco
 @pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
 async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("tool_call_with_reasoning_encrypted", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_error(downstream: Protocol, upstream: Protocol):
+    scenario = "error-invalid_request_error"
+    downstream_paths = _matched_cassette_paths(scenario, downstream)
+    upstream_paths = _matched_cassette_paths(scenario, upstream)
+    assert downstream_paths, f"No matched {downstream!r} cassettes found in {scenario!r}"
+    assert downstream_paths.keys() == upstream_paths.keys(), (
+        f"Mismatched cassette variants for {scenario!r}: "
+        f"{downstream!r} has {sorted(downstream_paths)}, "
+        f"{upstream!r} has {sorted(upstream_paths)}"
+    )
+    cassette_path_pairs = [
+        (downstream_paths[variant], upstream_paths[variant])
+        for variant in sorted(downstream_paths)
+    ]
+    first_downstream_path, first_upstream_path = cassette_path_pairs[0]
+    scenario = first_downstream_path.parent.name
+    provider = (
+        _provider_from_cassette_path(first_upstream_path)
+        if first_upstream_path.is_relative_to(MATCHED_CASSETTE_DIR)
+        else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
+    )
+    print(cassette_path_pairs)
+    async with _get_http_client(
+        [upstream_path for _, upstream_path in cassette_path_pairs],
+        upstream,
+        translated=downstream != upstream,
+    ) as http_client:
+        client = Molto(http_client=http_client)
+        for downstream_path, _ in cassette_path_pairs:
+            cassette = _read_cassette(downstream_path)
+            coordinator = {
+                "responses": client.responses,
+                "chat/completions": client.chat_completions,
+                "messages": client.messages,
+            }[downstream]
+            response = await coordinator(
+                body=deepcopy(cassette["request"]["body"]),
+                endpoint=upstream,
+                provider=provider,
+                api_key="test-api-key",
+            )
 
 
 async def test_instructions_stream():
