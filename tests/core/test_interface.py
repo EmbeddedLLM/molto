@@ -29,6 +29,7 @@ from molto.utils.test import (
 )
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
+MATCHED_CASSETTE_DIR = CASSETTE_DIR / "matched"
 Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
@@ -68,34 +69,32 @@ def _provider_from_cassette_path(path: Path) -> Provider:
     return cast(Provider, provider)
 
 
-def _cassette_path(
-    protocol: Protocol,
-    cassette_name: str,
-    *,
-    matched: bool = False,
-) -> Path:
-    relative_path = Path(cassette_name)
-    if len(relative_path.parts) > 1:
-        if relative_path.is_absolute() or ".." in relative_path.parts:
-            raise ValueError(
-                f"Cassette path must be relative to the cassette directory: {cassette_name}"
-            )
-        return CASSETTE_DIR / relative_path
+def _recorded_cassette_path(protocol: Protocol, cassette_name: str) -> Path:
+    return CASSETTE_DIR / "openai" / _protocol_name(protocol) / "test_interface" / cassette_name
 
+
+def _matched_cassette_paths(scenario: str, protocol: Protocol) -> dict[str, Path]:
     protocol_name = _protocol_name(protocol)
-    if not matched:
-        return CASSETTE_DIR / "openai" / protocol_name / "test_interface" / cassette_name
+    filename_marker = f"-{protocol_name}-"
+    cassette_paths: dict[str, Path] = {}
+    for path in sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*{filename_marker}stream-*.yaml")):
+        variant = path.name.partition(filename_marker)[2]
+        if variant in cassette_paths:
+            raise ValueError(
+                f"Expected one matched {protocol!r} cassette for {scenario!r}/{variant!r}"
+            )
+        cassette_paths[variant] = path
+    return cassette_paths
 
-    scenario, separator, variant = cassette_name.partition("-")
-    if not separator:
-        raise ValueError(f"Matched cassette name must include a scenario: {cassette_name}")
-    matches = list((CASSETTE_DIR / "matched" / scenario).glob(f"*-{protocol_name}-{variant}"))
-    if len(matches) != 1:
+
+def _matched_cassette_path(scenario: str, protocol: Protocol, variant: str) -> Path:
+    cassette_paths = _matched_cassette_paths(scenario, protocol)
+    try:
+        return cassette_paths[variant]
+    except KeyError as error:
         raise ValueError(
-            f"Expected one matched {protocol!r} cassette for {cassette_name!r}, "
-            f"found {len(matches)}"
-        )
-    return matches[0]
+            f"No matched {protocol!r} cassette for {scenario!r}/{variant!r}"
+        ) from error
 
 
 @lru_cache(maxsize=5)
@@ -105,17 +104,17 @@ def _read_cassette(path: Path) -> dict[str, Any]:
 
 
 def _get_http_client(
-    cassette_names: list[str],
+    cassette_paths: list[Path],
     upstream: Protocol = "responses",
     *,
-    matched: bool = False,
     translated: bool = False,
 ) -> AsyncClient:
-    cassette_names = cassette_names.copy()
+    cassette_paths = cassette_paths.copy()
 
     def cassette_handler(request: Request) -> Response:
-        cassette_name = cassette_names.pop(0)
-        cassette = _read_cassette(_cassette_path(upstream, cassette_name, matched=matched))
+        cassette_path = cassette_paths.pop(0)
+        cassette = _read_cassette(cassette_path)
+        scenario = cassette_path.parent.name
         request_body = json_loads(request.content)
         try:
             assert request.method == cassette["request"]["method"]
@@ -126,28 +125,17 @@ def _get_http_client(
             assert request.url.path == cassette["request"]["path"]
             expected_body = cassette["request"]["body"]
             if (
-                matched
-                and translated
+                translated
                 and upstream == "responses"
-                and Path(cassette_name).name.partition("-")[0] in ENCRYPTED_REASONING_SCENARIOS
+                and scenario in ENCRYPTED_REASONING_SCENARIOS
             ):
                 _assert_reconstructable_encrypted_responses_request(
                     request_body,
                     expected_body,
                 )
-            elif (
-                matched
-                and translated
-                and upstream == "responses"
-                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
-            ):
+            elif translated and upstream == "responses" and scenario in TOOL_CALL_SCENARIOS:
                 _assert_reconstructable_tool_responses_request(request_body, expected_body)
-            elif (
-                matched
-                and translated
-                and upstream == "chat/completions"
-                and Path(cassette_name).name.partition("-")[0] in TOOL_CALL_SCENARIOS
-            ):
+            elif translated and upstream == "chat/completions" and scenario in TOOL_CALL_SCENARIOS:
                 _assert_reconstructable_tool_chat_request(request_body, expected_body)
             else:
                 assert request_body == expected_body
@@ -299,15 +287,13 @@ def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
 
 
 async def test_extra_inputs():
-    cassette_names = [
-        "simple_text-stream-00.yaml",
-    ]
+    cassette_path = _matched_cassette_path("simple_text", "responses", "stream-00.yaml")
 
-    async with _get_http_client(cassette_names, matched=True) as http_client:
+    async with _get_http_client([cassette_path]) as http_client:
         client = Molto(http_client=http_client)
 
         # --- Extra inputs --- #
-        cassette = _read_cassette(_cassette_path("responses", cassette_names[0], matched=True))
+        cassette = _read_cassette(cassette_path)
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
                 body=dict(
@@ -321,22 +307,24 @@ async def test_extra_inputs():
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
 @pytest.mark.parametrize(
-    "cassette_name",
+    ("scenario", "variant"),
     [
-        "simple_text-stream-00.yaml",
-        "tool_call-stream-00.yaml",
-        "tool_call-stream-01.yaml",
-        "tool_call-stream-02.yaml",
+        ("simple_text", "stream-00.yaml"),
+        ("tool_call", "stream-00.yaml"),
+        ("tool_call", "stream-01.yaml"),
+        ("tool_call", "stream-02.yaml"),
     ],
 )
 async def test_native_stream_matches_provider_sdk(
     protocol: Protocol,
-    cassette_name: str,
+    scenario: str,
+    variant: str,
 ):
-    cassette = _read_cassette(_cassette_path(protocol, cassette_name, matched=True))
+    cassette_path = _matched_cassette_path(scenario, protocol, variant)
+    cassette = _read_cassette(cassette_path)
     request_body = deepcopy(cassette["request"]["body"])
 
-    async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
+    async with _get_http_client([cassette_path], protocol) as http_client:
         if protocol == "messages":
             sdk_client = AsyncAnthropic(
                 api_key="test-api-key",
@@ -359,7 +347,7 @@ async def test_native_stream_matches_provider_sdk(
         async with sdk_stream:
             sdk_events = [event async for event in sdk_stream]
 
-    async with _get_http_client([cassette_name], protocol, matched=True) as http_client:
+    async with _get_http_client([cassette_path], protocol) as http_client:
         client = Molto(http_client=http_client)
         coordinator = {
             "responses": client.responses,
@@ -379,24 +367,25 @@ async def test_native_stream_matches_provider_sdk(
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 @pytest.mark.parametrize(
-    "cassette_name",
+    ("scenario", "variant"),
     [
-        "simple_text-stream-00.yaml",
-        "reasoning_raw-stream-00.yaml",
-        "reasoning_raw-stream-01.yaml",
-        "tool_call-stream-00.yaml",
-        "tool_call-stream-01.yaml",
-        "tool_call-stream-02.yaml",
+        ("simple_text", "stream-00.yaml"),
+        ("reasoning_raw", "stream-00.yaml"),
+        ("reasoning_raw", "stream-01.yaml"),
+        ("tool_call", "stream-00.yaml"),
+        ("tool_call", "stream-01.yaml"),
+        ("tool_call", "stream-02.yaml"),
     ],
 )
 def test_matched_request_body_matches_across_protocols(
     downstream: Protocol,
     upstream: Protocol,
-    cassette_name: str,
+    scenario: str,
+    variant: str,
 ):
-    downstream_body = deepcopy(
-        _read_cassette(_cassette_path(downstream, cassette_name, matched=True))["request"]["body"]
-    )
+    downstream_path = _matched_cassette_path(scenario, downstream, variant)
+    upstream_path = _matched_cassette_path(scenario, upstream, variant)
+    downstream_body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
     request_type = {
         "responses": OpenAIResponsesCreateRequest,
         "chat/completions": OpenAIChatCompletionsCreateRequest,
@@ -407,7 +396,6 @@ def test_matched_request_body_matches_across_protocols(
     if downstream == upstream:
         actual_body = request.model_dump()
     else:
-        upstream_path = _cassette_path(upstream, cassette_name, matched=True)
         capabilities = PROVIDER_CAPABILITIES[_provider_from_cassette_path(upstream_path)]
         adapter = {
             "responses": OpenAIResponsesAdapter(capabilities),
@@ -422,25 +410,19 @@ def test_matched_request_body_matches_across_protocols(
         }[upstream]
         actual_body = project_request(normalized_request)
 
-    expected_body = _read_cassette(_cassette_path(upstream, cassette_name, matched=True))[
-        "request"
-    ]["body"]
-    if (
-        cassette_name.startswith("tool_call-")
-        and upstream == "responses"
-        and downstream != upstream
-    ):
+    expected_body = _read_cassette(upstream_path)["request"]["body"]
+    if scenario == "tool_call" and upstream == "responses" and downstream != upstream:
         _assert_reconstructable_tool_responses_request(actual_body, expected_body)
     else:
         assert actual_body == expected_body
 
 
 async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
-    cassette_name = "reasoning_raw-stream-00.yaml"
-    cassette = _read_cassette(_cassette_path("responses", cassette_name, matched=True))
+    cassette_path = _matched_cassette_path("reasoning_raw", "responses", "stream-00.yaml")
+    cassette = _read_cassette(cassette_path)
     request_body = deepcopy(cassette["request"]["body"])
 
-    async with _get_http_client([cassette_name], "responses", matched=True) as http_client:
+    async with _get_http_client([cassette_path], "responses") as http_client:
         client = Molto(http_client=http_client)
         stream = await client.responses(
             body=request_body,
@@ -456,30 +438,25 @@ async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
 
 
 async def _assert_stream_events(
-    cassette_names: list[str],
+    cassette_path_pairs: list[tuple[Path, Path]],
     downstream: Protocol,
     upstream: Protocol,
-    *,
-    matched: bool = False,
 ) -> None:
-    num_turns = len(cassette_names)
-    scenario = Path(cassette_names[0]).name.partition("-")[0]
+    first_downstream_path, first_upstream_path = cassette_path_pairs[0]
+    scenario = first_downstream_path.parent.name
     provider = (
-        _provider_from_cassette_path(_cassette_path(upstream, cassette_names[0], matched=True))
-        if matched
+        _provider_from_cassette_path(first_upstream_path)
+        if first_upstream_path.is_relative_to(MATCHED_CASSETTE_DIR)
         else DEFAULT_PROVIDER_BY_ENDPOINT[upstream]
     )
     async with _get_http_client(
-        cassette_names,
+        [upstream_path for _, upstream_path in cassette_path_pairs],
         upstream,
-        matched=matched,
         translated=downstream != upstream,
     ) as http_client:
         client = Molto(http_client=http_client)
-        for _ in range(num_turns):
-            cassette = _read_cassette(
-                _cassette_path(downstream, cassette_names.pop(0), matched=matched)
-            )
+        for downstream_path, _ in cassette_path_pairs:
+            cassette = _read_cassette(downstream_path)
             coordinator = {
                 "responses": client.responses,
                 "chat/completions": client.chat_completions,
@@ -585,32 +562,39 @@ async def _assert_stream_events(
 async def _assert_responses_events(
     cassette_names: list[str],
     upstream: Protocol = "responses",
-    *,
-    matched: bool = False,
 ) -> None:
+    cassette_path_pairs = [
+        (
+            _recorded_cassette_path("responses", cassette_name),
+            _recorded_cassette_path(upstream, cassette_name),
+        )
+        for cassette_name in cassette_names
+    ]
     await _assert_stream_events(
-        cassette_names,
+        cassette_path_pairs,
         downstream="responses",
         upstream=upstream,
-        matched=matched,
     )
 
 
 async def _assert_matched_stream_events(
-    cassette_dir: str,
+    scenario: str,
     downstream: Protocol,
     upstream: Protocol,
 ) -> None:
-    protocol_name = _protocol_name(downstream)
-    filename_marker = f"-{protocol_name}-"
-    cassette_names = [
-        f"{cassette_dir}-{path.name.partition(filename_marker)[2]}"
-        for path in sorted(
-            (CASSETTE_DIR / "matched" / cassette_dir).glob(f"*{filename_marker}stream-*.yaml")
-        )
+    downstream_paths = _matched_cassette_paths(scenario, downstream)
+    upstream_paths = _matched_cassette_paths(scenario, upstream)
+    assert downstream_paths, f"No matched {downstream!r} cassettes found in {scenario!r}"
+    assert downstream_paths.keys() == upstream_paths.keys(), (
+        f"Mismatched cassette variants for {scenario!r}: "
+        f"{downstream!r} has {sorted(downstream_paths)}, "
+        f"{upstream!r} has {sorted(upstream_paths)}"
+    )
+    cassette_path_pairs = [
+        (downstream_paths[variant], upstream_paths[variant])
+        for variant in sorted(downstream_paths)
     ]
-    assert cassette_names, f"No matched cassettes found in {cassette_dir!r}"
-    await _assert_stream_events(cassette_names, downstream, upstream, matched=True)
+    await _assert_stream_events(cassette_path_pairs, downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
