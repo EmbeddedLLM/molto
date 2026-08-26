@@ -40,6 +40,12 @@ The Messages adapter accepts text, thinking, direct client `tool_use`, and text-
 
 Official Anthropic thinking history requires its original signature. Molto's local Messages request schema also accepts a missing signature for compatible providers such as vLLM, whose raw-reasoning fixtures do not provide one. That permissive schema does not establish support for unsigned history against the official Anthropic API; official continuation support requires cassette coverage with Anthropic-issued signatures.
 
+## Error Translation
+
+OpenAI Responses and Anthropic Messages use different native error contracts. In particular, a missing model is status `400` in the current Responses contract and status `404` in Messages.
+
+Molto recognizes both as `ModelNotFoundError` on translated routes and raises the error in the downstream SDK namespace, but it does not yet rewrite the complete HTTP error. An Anthropic upstream projected through Responses therefore raises an OpenAI `APIStatusError` with the upstream status `404` and Anthropic-shaped body. A Responses upstream projected through Messages raises an Anthropic `APIStatusError` with the upstream status `400` and OpenAI-shaped body. The downstream exception's `__cause__` is the normalized `ModelNotFoundError`, whose cause is the original upstream SDK exception. Callers should inspect that cause when they need a protocol-independent category. See the architecture's [error translation contract](../python/ARCHITECTURE.md#error-translation) for the exact recognition rules.
+
 ## Formats at a Glance
 
 | Concern               | OpenAI Responses                                    | Anthropic Messages                         |

@@ -12,6 +12,16 @@ Recorded headers are informational. In particular, `content-length` is not guara
 
 Treat these files as provider evidence. Do not edit a recorded value merely to make an implementation pass a test. If a committed recording is demonstrably wrong, document the correction and review its diff explicitly.
 
+## Error cassettes
+
+The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
+
+```text
+errors/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
+```
+
+Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Error replay covers same-protocol SDK passthrough and every translated route, including the normalized cause chain and preservation of the upstream response.
+
 ## Matched cassettes
 
 The cassettes under `matched/` are deliberately edited fixtures, not untouched recordings. Each scenario contains semantically equivalent native requests and responses for multiple protocols. A correct translator should be able to translate between any pair while preserving every representable semantic value and generating protocol-required structure according to the documented parity policy.

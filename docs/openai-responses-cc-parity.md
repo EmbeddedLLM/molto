@@ -34,6 +34,12 @@ Refusals, hosted tools, failed tool-result semantics, multiple choices, moderati
 
 Fields accepted by the SDK-compatible request wrappers but absent from the supported list above may currently be retained only as extra data or omitted by an upstream request constructor. Treat them as unsupported until they have an explicit mapping or rejection and cassette-backed parity coverage.
 
+## Error Translation
+
+Responses and Chat Completions use the OpenAI SDK namespace, but they do not always assign the same HTTP status to an equivalent error. A missing model is status `400` in the current Responses contract and status `404` in Chat Completions.
+
+On translated routes, Molto categorizes either form as `ModelNotFoundError` and then raises an OpenAI `APIStatusError` for the downstream protocol. This is not yet a complete wire-error translation: the status code, message, response, and body remain those of the upstream protocol. The downstream exception's `__cause__` is the normalized `ModelNotFoundError`, whose cause is the original upstream SDK exception. See the architecture's [error translation contract](../python/ARCHITECTURE.md#error-translation) for the exact recognition rules.
+
 ## Formats at a Glance
 
 | Concern             | Responses                                           | Chat Completions                                              |

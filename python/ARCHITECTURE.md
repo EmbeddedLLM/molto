@@ -101,6 +101,40 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 
 `BaseClient[NativeRequestT, NativeEventT]` preserves the concrete upstream-native types across both streaming paths. `native_events()` accepts a validated request in the upstream protocol and yields that protocol's native SDK events. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to `_handle_error()` so upstream-native exceptions can be normalized before downstream projection. Concrete clients own both transformations and the provider transport required by those methods.
 
+## Error translation
+
+Same-protocol passthrough preserves the upstream SDK exception without crossing the normalized representation. A translated route instead uses two stages for errors with a known protocol-independent meaning:
+
+```text
+upstream SDK exception
+        |
+        v
+normalized Molto exception
+        |
+        v
+downstream SDK exception
+```
+
+The currently implemented normalized error is `ModelNotFoundError`. Upstream clients recognize it as follows:
+
+| Upstream protocol       | Upstream SDK exception     | Recognition rule                                     |
+| ----------------------- | -------------------------- | ---------------------------------------------------- |
+| OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`         |
+| OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`         |
+| Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model` |
+
+The downstream adapter then raises `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet fully translated into the target protocol's HTTP contract. Its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic remains status `404` when projected through the Responses API, even though OpenAI Responses normally reports that condition as status `400`. The reverse route through Messages retains the upstream Responses status `400` and OpenAI-shaped body.
+
+Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
+
+```text
+downstream APIStatusError
+        caused by ModelNotFoundError
+        caused by upstream SDK exception
+```
+
+This preserves the native provider evidence while exposing a stable semantic classification. Native passthrough exceptions have no Molto-added cause, and unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+
 ## Orchestration facade and coordinators
 
 `Molto` is expected to expose one coordinator method per downstream protocol:
@@ -383,7 +417,7 @@ Each OpenAI upstream client constructs a short-lived `AsyncOpenAI` wrapper with:
 
 An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI organization and project environment settings are suppressed so compatible-provider requests cannot leak OpenAI account metadata.
 
-The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Molto accepts the SDK retry policy and OpenAI exceptions rather than wrapping them as the previous `httpx` behavior. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
+The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Native passthrough and unknown translated errors preserve the OpenAI exception rather than wrapping it as the previous `httpx` behavior; translated errors with a known semantic equivalent follow the [error translation](#error-translation) contract. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
 SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters never access `httpx`.
 
