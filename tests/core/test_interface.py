@@ -696,7 +696,7 @@ async def test_error(downstream: Protocol, upstream: Protocol):
             )
 
     assert exc_info.value.status_code == expected_response["status_code"]
-    assert expected_response["body"]["error"] in exc_info.value.message
+    assert expected_response["body"]["error"]["message"] in exc_info.value.message
     assert exc_info.value.response.json() == expected_response["body"]
 
 

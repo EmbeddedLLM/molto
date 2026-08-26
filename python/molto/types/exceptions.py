@@ -1,6 +1,6 @@
 from functools import wraps
 
-import httpx
+from httpx import Response
 
 
 def docstring_message(cls):
@@ -23,8 +23,12 @@ def docstring_message(cls):
 class MoltoException(Exception):
     """Base exception class for Molto errors."""
 
-    def __init__(self, message: str, *, response: httpx.Response, body: object | None) -> None:
+    def __init__(self, message: str, *, response: Response, body: dict | None) -> None:
         super().__init__(message)
+        if not isinstance(response, Response):
+            raise TypeError(f"Expected `httpx.Response`, got {type(response)}")
+        if body is not None and not isinstance(body, dict):
+            raise TypeError(f"Expected `dict`, got {type(body)}")
         self.message = message
         self.response = response
         self.body = body
