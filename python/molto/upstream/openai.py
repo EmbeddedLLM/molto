@@ -915,4 +915,11 @@ class OpenAIChatCompletionsClient(
         )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, APIStatusError):
+            if error.status_code == 404 and error.code == "model_not_found":
+                raise ModelNotFoundError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
         raise error
