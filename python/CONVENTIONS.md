@@ -1,6 +1,12 @@
 # Conventions
 
-Use single backticks for inline code references in Python docstrings, not double backticks.
+## General style
+
+- Keep implementations simple and flat.
+- Follow the existing style in the file being changed.
+- Prefer standard-library or existing project functionality over new abstractions.
+- Use built-in collection types such as `list`, `dict`, `set`, and `tuple` in annotations. Use `typing` for constructs such as `Annotated`, `Literal`, `Protocol`, and `TypeVar`.
+- Use single backticks for inline code references in Python docstrings, not double backticks.
 
 ## Layer ownership
 
