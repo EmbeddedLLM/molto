@@ -21,11 +21,17 @@ from openai.types.chat.chat_completion_content_part_param import ChatCompletionC
 from openai.types.chat.chat_completion_content_part_text_param import (
     ChatCompletionContentPartTextParam,
 )
+from openai.types.chat.chat_completion_developer_message_param import (
+    ChatCompletionDeveloperMessageParam,
+)
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_prediction_content_param import (
     ChatCompletionPredictionContentParam,
 )
 from openai.types.chat.chat_completion_stream_options_param import ChatCompletionStreamOptionsParam
+from openai.types.chat.chat_completion_system_message_param import (
+    ChatCompletionSystemMessageParam,
+)
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
@@ -63,6 +69,22 @@ class ChatCompletionUserMessageListParam(TypedDict):
     name: NotRequired[str]
 
 
+class ChatCompletionSystemMessageListParam(TypedDict):
+    """System message with eagerly validated, repeatable content parts."""
+
+    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    role: Required[Literal["system"]]
+    name: NotRequired[str]
+
+
+class ChatCompletionDeveloperMessageListParam(TypedDict):
+    """Developer message with eagerly validated, repeatable content parts."""
+
+    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    role: Required[Literal["developer"]]
+    name: NotRequired[str]
+
+
 class ChatCompletionToolMessageListParam(TypedDict):
     """Tool message with eagerly validated, repeatable text content parts."""
 
@@ -74,9 +96,17 @@ class ChatCompletionToolMessageListParam(TypedDict):
 _RETAINED_CHAT_MESSAGE_PARAMS = tuple(
     item
     for item in get_args(ChatCompletionMessageParam)
-    if item not in {ChatCompletionUserMessageParam, ChatCompletionToolMessageParam}
+    if item
+    not in {
+        ChatCompletionDeveloperMessageParam,
+        ChatCompletionSystemMessageParam,
+        ChatCompletionToolMessageParam,
+        ChatCompletionUserMessageParam,
+    }
 )
 OpenAIChatCompletionMessageParam: TypeAlias = Union[
+    ChatCompletionDeveloperMessageListParam,
+    ChatCompletionSystemMessageListParam,
     ChatCompletionUserMessageListParam,
     ChatCompletionToolMessageListParam,
     ChatCompletionAssistantMessageWithReasoningParam,

@@ -91,7 +91,7 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest`, calls the OpenAI SDK's `chat.completions.create()`, and yields its `ChatCompletionChunk` objects directly. The request and result do not cross Molto's normalized representation.
 
-This path preserves native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exceptions. Requests still pass through Molto's local validated wrapper and its serialization behavior, including the system/developer content-array limitation documented below. Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
+This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exceptions. Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
 ## When the application speaks Chat Completions
 
@@ -119,7 +119,7 @@ The translated path currently maps these request semantics:
 
 One user message becomes one normalized user input. Ordered text and image parts remain ordered, and consecutive user messages remain separate. Scalar user text becomes one text part.
 
-System and developer messages both become role-less instructions. Their sequence position is retained while targeting Responses or Chat, but their original role identity is lost. A later Chat projection emits every normalized instruction as `developer`. A Messages upstream additionally hoists all instructions into its top-level `system` value, losing mid-conversation placement and instruction boundaries.
+System and developer messages with string content both become role-less instructions. Their sequence position is retained while targeting Responses or Chat, but their original role identity is lost. Text-part arrays serialize correctly and remain available on native passthrough, but the translated downstream adapter currently rejects non-string instruction content. A later Chat projection emits every normalized instruction as `developer`. A Messages upstream additionally hoists all instructions into its top-level `system` value, losing mid-conversation placement and instruction boundaries.
 
 Assistant history is flattened into adjacent reasoning, text, and tool-call items. The enclosing assistant-message boundary is not represented. The adapter accepts assistant string content, optional string `reasoning_content`, and function tool calls; assistant content-part arrays are not supported on translated routes.
 
@@ -264,18 +264,18 @@ These are implementation gaps rather than inherent claims about the Chat protoco
 - Only streaming requests are supported.
 - An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
 - Translated reasoning through Chat currently supports only unsigned raw reasoning, such as the `vllm` provider profile. Summary profiles fail at the target protocol's signature boundary in either direction.
+- System and developer text-part arrays are preserved on native Chat routes, but translated Chat input currently supports only string instruction content.
 - Translated assistant input supports string content, reasoning text, and function tool calls, but not assistant content-part arrays.
 - Refusals, hosted tools, moderation, annotations, audio, prediction output, and log probabilities are not carried through the normalized path.
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and normalized terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
 - Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, prompt-cache settings, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
-- With the pinned OpenAI SDK, valid system or developer content-part arrays can validate but serialize as empty arrays. Only the local user-message wrapper currently replaces the SDK iterable annotation with a concrete list. This behavior affects native and translated Chat routes and has no focused regression coverage; use string instruction content.
 - There is no focused regression coverage for role-preserving instruction round trips, mid-sequence instructions, multipart instruction messages, adjacent assistant-message boundaries, multiple choices, or model-template-specific role rewriting.
 
 ## Compatibility and references
 
-The pinned OpenAI SDK in `pyproject.toml` is the schema source of truth. Molto's request wrapper mirrors the SDK method parameters, while streamed results are aliases of the SDK's `ChatCompletionChunk`; changing the SDK requires reviewing request parity, extension fields, result mappings, and cassette-backed behavior.
+The pinned OpenAI SDK in `pyproject.toml` is the schema source of truth. Molto's request wrapper mirrors the SDK method parameters, while streamed results are aliases of the SDK's `ChatCompletionChunk`. Local compatibility message types replace the SDK's iterable annotations with concrete lists for system, developer, user, and tool content arrays, keeping nested validation eager and serialization repeatable. Changing the SDK requires reviewing request parity, extension fields, result mappings, and cassette-backed behavior.
 
 Same-protocol tests compare validated SDK chunks. Translated tests assert the upstream request body and compare reconstructible ordered chunks, including delta boundaries, finish state, semantic usage, and target-default tier. A finish-and-usage chunk is considered semantically equivalent to separate finish and usage chunks because upstream protocols expose usage at different lifecycle points. Tests always replay committed cassettes and never record during normal verification.
 

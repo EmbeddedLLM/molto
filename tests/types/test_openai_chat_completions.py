@@ -38,6 +38,46 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
+@pytest.mark.parametrize("role", ["system", "developer"])
+def test_request_dump_preserves_instruction_content_part_lists(role):
+    body = OpenAIChatCompletionsCreateRequest(
+        messages=[
+            {
+                "role": role,
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            }
+        ],
+        model="gpt-4o-mini",
+    )
+
+    expected = {
+        "messages": [
+            {
+                "role": role,
+                "content": [
+                    {"type": "text", "text": "Part one"},
+                    {"type": "text", "text": "Part two"},
+                ],
+            }
+        ],
+        "model": "gpt-4o-mini",
+    }
+    assert body.model_dump() == expected
+    assert body.model_dump() == expected
+
+
+@pytest.mark.parametrize("role", ["system", "developer"])
+def test_request_rejects_malformed_instruction_content_parts(role):
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": role, "content": [{"type": "text"}]}],
+            model="gpt-4o-mini",
+        )
+
+
 def test_request_dump_preserves_user_content_part_lists():
     body = OpenAIChatCompletionsCreateRequest(
         messages=[
