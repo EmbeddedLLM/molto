@@ -38,8 +38,8 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
-@pytest.mark.parametrize("role", ["system", "developer"])
-def test_request_dump_preserves_instruction_content_part_lists(role):
+@pytest.mark.parametrize("role", ["system", "developer", "user"])
+def test_request_dump_preserves_content_part_lists(role):
     body = OpenAIChatCompletionsCreateRequest(
         messages=[
             {
@@ -48,7 +48,11 @@ def test_request_dump_preserves_instruction_content_part_lists(role):
                     {"type": "text", "text": "Part one"},
                     {"type": "text", "text": "Part two"},
                 ],
-            }
+            },
+            {
+                "role": role,
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
         ],
         model="gpt-4o-mini",
     )
@@ -61,7 +65,11 @@ def test_request_dump_preserves_instruction_content_part_lists(role):
                     {"type": "text", "text": "Part one"},
                     {"type": "text", "text": "Part two"},
                 ],
-            }
+            },
+            {
+                "role": role,
+                "content": [{"type": "text", "text": "Follow-up"}],
+            },
         ],
         "model": "gpt-4o-mini",
     }
@@ -76,44 +84,6 @@ def test_request_rejects_malformed_instruction_content_parts(role):
             messages=[{"role": role, "content": [{"type": "text"}]}],
             model="gpt-4o-mini",
         )
-
-
-def test_request_dump_preserves_user_content_part_lists():
-    body = OpenAIChatCompletionsCreateRequest(
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Part one"},
-                    {"type": "text", "text": "Part two"},
-                ],
-            },
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": "Follow-up"}],
-            },
-        ],
-        model="gpt-4o-mini",
-    )
-
-    expected = {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Part one"},
-                    {"type": "text", "text": "Part two"},
-                ],
-            },
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": "Follow-up"}],
-            },
-        ],
-        "model": "gpt-4o-mini",
-    }
-    assert body.model_dump() == expected
-    assert body.model_dump() == expected
 
 
 def test_request_dump_preserves_tool_content_part_lists():
