@@ -42,7 +42,7 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
             raise RuntimeError("normalize_request() must be called before project_events().")
         # Keep this method synchronous so it returns an AsyncIterator directly and callers
         # can write `async for event in adapter.project_events(...)` without awaiting it.
-        return self._project_with_error_handling(self._project_events(events, request))
+        return self._stream_with_error_handling(self._project_events(events, request))
 
     def project_native_events(
         self,
@@ -55,9 +55,9 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         error by the upstream client are projected to a downstream-native
         exception so every route exposes the same cause chain.
         """
-        return self._project_with_error_handling(events)
+        return self._stream_with_error_handling(events)
 
-    async def _project_with_error_handling(
+    async def _stream_with_error_handling(
         self,
         events: AsyncIterator[NativeEventT],
     ) -> AsyncIterator[NativeEventT]:
@@ -85,7 +85,7 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
 
     @abstractmethod
     def _handle_error(self, error: Exception) -> NoReturn:
-        """Translate or re-raise an error raised while projecting normalized events."""
+        """Translate or re-raise an error raised while streaming downstream events."""
         raise NotImplementedError
 
     def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:
