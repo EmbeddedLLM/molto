@@ -1,5 +1,7 @@
 # Conventions
 
+Use single backticks for inline code references in Python docstrings, not double backticks.
+
 ## Layer ownership
 
 `Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
