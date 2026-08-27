@@ -42,18 +42,37 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
             raise RuntimeError("normalize_request() must be called before project_events().")
         # Keep this method synchronous so it returns an AsyncIterator directly and callers
         # can write `async for event in adapter.project_events(...)` without awaiting it.
-        return self._project_events_with_error_handling(events, request)
+        return self._project_with_error_handling(self._project_events(events, request))
 
-    async def _project_events_with_error_handling(
+    def project_native_events(
         self,
-        events: AsyncIterator[ModelResponseStreamEvent],
-        request: NormalizedRequest,
+        events: AsyncIterator[NativeEventT],
+    ) -> AsyncIterator[NativeEventT]:
+        """Pass same-protocol events through, translating known IR failures.
+
+        Native passthrough skips request and event translation, but shares the
+        translated path's error contract: failures already normalized to an IR
+        error by the upstream client are projected to a downstream-native
+        exception so every route exposes the same cause chain.
+        """
+        return self._project_with_error_handling(events)
+
+    async def _project_with_error_handling(
+        self,
+        events: AsyncIterator[NativeEventT],
     ) -> AsyncIterator[NativeEventT]:
         try:
-            async for event in self._project_events(events, request):
+            async for event in events:
                 yield event
         except Exception as error:
             self._handle_error(error)
+        finally:
+            # An `async for` loop does not close its iterator when this generator
+            # is closed early; propagate closure so the SDK stream is released
+            # deterministically instead of relying on garbage collection.
+            close = getattr(events, "aclose", None)
+            if close is not None:
+                await close()
 
     @abstractmethod
     def _project_events(

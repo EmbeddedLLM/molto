@@ -20,7 +20,7 @@ The cassettes under `errors/{scenario}/` preserve the native request and error r
 errors/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
-Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Error replay covers same-protocol SDK passthrough and every translated route, including the normalized cause chain and preservation of the upstream response.
+Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Error replay covers same-protocol SDK passthrough and every translated route, asserting the normalized cause chain and preservation of the upstream response on all of them.
 
 ## Matched cassettes
 

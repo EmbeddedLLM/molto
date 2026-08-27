@@ -233,7 +233,7 @@ Translated Chat chunks always use target-default `service_tier="default"`; an up
 
 ## Errors
 
-Native Chat passthrough preserves the upstream OpenAI SDK exception. On a translated route, Molto currently recognizes one portable error category:
+Molto currently recognizes one portable error category, on native passthrough and translated routes alike:
 
 - A Chat upstream `openai.APIStatusError` with status `404` and `code == "model_not_found"` becomes `ModelNotFoundError` internally.
 - A normalized missing-model error projected to Chat becomes an `openai.APIStatusError` for the application.

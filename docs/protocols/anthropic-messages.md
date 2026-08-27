@@ -291,7 +291,7 @@ Cache-creation TTL breakdowns, `inference_geo`, and `server_tool_use` have no cu
 
 ## Errors
 
-Same-protocol passthrough preserves the Anthropic SDK exception. On a translated route, Molto uses this cause chain for a recognized error:
+Molto uses this cause chain for a recognized error, on same-protocol passthrough and translated routes alike:
 
 ```text
 downstream SDK APIStatusError

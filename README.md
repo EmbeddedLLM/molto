@@ -64,7 +64,7 @@ asyncio.run(main())
 
 ## Error handling
 
-Same-protocol routes preserve the upstream SDK exception. On translated routes, Molto recognizes selected provider errors and raises them in the downstream SDK namespace. This translation is semantic, not a rewrite of the provider's HTTP response: the status code, message, response, and body still come from the upstream protocol.
+On every route, Molto recognizes selected provider errors and raises them in the downstream SDK namespace. This translation is semantic, not a rewrite of the provider's HTTP response: the status code, message, response, and body still come from the upstream protocol.
 
 For example, Anthropic reports a missing model with status `404`, while OpenAI Responses reports it with status `400`. An Anthropic Messages upstream routed through the OpenAI Responses downstream therefore raises an OpenAI `APIStatusError` whose status remains `404` and whose body remains Anthropic-shaped.
 
@@ -83,4 +83,4 @@ except openai.APIStatusError as error:
         print("The upstream provider does not recognize this model.")
 ```
 
-The normalized error in turn retains the original upstream SDK exception as its cause. Native passthrough and unrecognized errors do not receive this normalized cause. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.
+The normalized error in turn retains the original upstream SDK exception as its cause. Native passthrough routes receive the same normalized cause, so classification works identically for every upstream; only unrecognized errors do not receive it. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.

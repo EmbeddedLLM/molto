@@ -85,11 +85,7 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     upstream_cassette = _read_cassette(scenario, upstream)
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
-    expected_error_type = (
-        native_error_types[upstream]
-        if downstream == upstream
-        else DOWNSTREAM_ERROR_TYPES[downstream]
-    )
+    expected_error_type = DOWNSTREAM_ERROR_TYPES[downstream]
     http_client, requests = _get_http_client(upstream_cassette)
 
     async with http_client:
@@ -120,11 +116,10 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert expected_body["error"]["message"] in error.message
     assert error.response.json() == expected_body
 
-    if downstream == upstream:
-        assert type(error) is native_error_types[upstream]
-        assert error.__cause__ is None
-        return
-
+    # Native and translated routes share one error contract: the outward
+    # exception is the downstream SDK namespace, caused by the normalized IR
+    # error, which in turn preserves the original upstream SDK exception.
+    assert type(error) is expected_error_type
     normalized_error = error.__cause__
     assert isinstance(normalized_error, ModelNotFoundError)
     assert normalized_error.message == error.message

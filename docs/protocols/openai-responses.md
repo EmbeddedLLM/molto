@@ -311,7 +311,7 @@ Molto retains the more specific source reason in the normalized stream. The coer
 
 ## Errors
 
-Native passthrough preserves the OpenAI SDK exception. On translated routes, Molto normalizes only recognized errors with a protocol-independent meaning and then raises them in the downstream OpenAI SDK namespace. Unknown errors are re-raised unchanged.
+Molto normalizes only recognized errors with a protocol-independent meaning and then raises them in the downstream OpenAI SDK namespace, on native passthrough and translated routes alike. Unknown errors are re-raised unchanged as the original SDK exception.
 
 Model-not-found is currently recognized as:
 
