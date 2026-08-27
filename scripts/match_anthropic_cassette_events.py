@@ -7,24 +7,24 @@ text, or tool-input delta for every equivalent Responses delta, in the same orde
 and with the same content. It also synchronizes fields that can pass through the
 conversion, including request history, the request model, response ID and model,
 tool call IDs and names, same-provider opaque reasoning state, and terminal usage.
-Compatible function definitions are mapped from Responses ``tools`` into Messages
-``tools``. Responses tool selection and ``parallel_tool_calls`` are represented by
-Messages ``tool_choice`` and its inverse ``disable_parallel_tool_use`` flag.
+Compatible function definitions are mapped from Responses `tools` into Messages
+`tools`. Responses tool selection and `parallel_tool_calls` are represented by
+Messages `tool_choice` and its inverse `disable_parallel_tool_use` flag.
 Translated Messages responses use the target default service tier
-``standard`` because OpenAI tier labels have no faithful Anthropic equivalent.
-Responses normal completion maps to Messages ``end_turn``, or ``tool_use`` when
+`standard` because OpenAI tier labels have no faithful Anthropic equivalent.
+Responses normal completion maps to Messages `end_turn`, or `tool_use` when
 the response contains tool calls. An incomplete output-token limit maps to
-``max_tokens``. A Responses content-filter limit is coerced to ``end_turn``
+`max_tokens`. A Responses content-filter limit is coerced to `end_turn`
 because Messages has no corresponding stop reason.
 Matched reasoning requests use adaptive summarized thinking and carry normalized
-reasoning effort in ``output_config.effort``; reasoning history defaults that
-effort to ``high`` when the canonical request omits it.
+reasoning effort in `output_config.effort`; reasoning history defaults that
+effort to `high` when the canonical request omits it.
 
 The matched fixtures assume OpenAI serves both the Responses and Messages
-endpoints. Under that same-provider contract, Responses ``encrypted_content``
-and Messages thinking ``signature`` carry the same OpenAI-issued opaque state.
-The matcher maps the ``response.output_item.added`` snapshot to the Messages
-thinking-block start signature and the ``response.output_item.done`` snapshot to
+endpoints. Under that same-provider contract, Responses `encrypted_content`
+and Messages thinking `signature` carry the same OpenAI-issued opaque state.
+The matcher maps the `response.output_item.added` snapshot to the Messages
+thinking-block start signature and the `response.output_item.done` snapshot to
 the later replacement signature. Messages has no third lifecycle slot for the
 terminal response-output snapshot, so matching intentionally preserves the first
 two snapshots rather than buffering for terminal byte parity. This mapping must

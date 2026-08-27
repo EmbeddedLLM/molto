@@ -3,21 +3,21 @@
 
 The Responses cassette is the canonical expected output. This script rewrites the
 Chat Completions SSE stream so a converter receives one corresponding CC delta for
-every ``response.output_text.delta`` and ``response.reasoning_text.delta`` event,
+every `response.output_text.delta` and `response.reasoning_text.delta` event,
 and one corresponding tool-call argument delta for every
-``response.function_call_arguments.delta`` event, in the same order and with the
+`response.function_call_arguments.delta` event, in the same order and with the
 same content. It also synchronizes fields that can pass through the conversion,
 including the response ID, creation time, model, target-default service tier, tool
 calls, and usage.
 
 Matched reasoning requests carry the canonical Responses effort as
-``reasoning_effort``. When a continuation contains reasoning history but omits a
-current reasoning configuration, the matcher uses ``high`` to match the default
+`reasoning_effort`. When a continuation contains reasoning history but omits a
+current reasoning configuration, the matcher uses `high` to match the default
 used by the normalized Anthropic thinking policy.
 
 The Responses terminal lifecycle controls the matched Chat finish reason:
-``response.completed`` maps to ``stop``, while incomplete output-token and
-content-filter limits map to ``length`` and ``content_filter`` respectively.
+`response.completed` maps to `stop`, while incomplete output-token and
+content-filter limits map to `length` and `content_filter` respectively.
 
 The result remains a Chat Completions wire-format cassette. Responses-only envelope
 fields such as message item IDs, sequence numbers, and a distinct completion time

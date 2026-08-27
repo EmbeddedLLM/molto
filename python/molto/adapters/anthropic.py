@@ -1,7 +1,7 @@
 """Translate Anthropic Messages at Molto's downstream protocol boundary.
 
-See ``docs/openai-responses-anthropic-messages-parity.md`` for supported
-semantics, compatibility mappings, and matched-cassette policy.
+See `docs/protocols/anthropic-messages.md` for supported semantics and
+compatibility mappings.
 """
 
 from __future__ import annotations

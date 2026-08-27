@@ -57,7 +57,7 @@ class AnthropicMessageParam(ExcludeNoneModel):
 
 
 class AnthropicMessagesCreateRequest(ExcludeNoneModel):
-    """The JSON parameters accepted by ``AsyncAnthropic.messages.create``."""
+    """The JSON parameters accepted by `AsyncAnthropic.messages.create`."""
 
     max_tokens: Annotated[int, Field(description="The maximum number of output tokens.")]
     messages: Annotated[
