@@ -1,4 +1,4 @@
-"""Pydantic models for ``AsyncOpenAI.chat.completions.create``.
+"""Pydantic models for `AsyncOpenAI.chat.completions.create`.
 
 The nested parameter and result types come from the pinned OpenAI SDK. They are
 generated from OpenAI's API schema and preserve the SDK's discriminated unions,
@@ -85,7 +85,7 @@ OpenAIChatCompletionMessageParam: TypeAlias = Union[
 
 
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
-    """The JSON parameters accepted by ``AsyncOpenAI.chat.completions.create``."""
+    """The JSON parameters accepted by `AsyncOpenAI.chat.completions.create`."""
 
     messages: Annotated[
         list[OpenAIChatCompletionMessageParam],

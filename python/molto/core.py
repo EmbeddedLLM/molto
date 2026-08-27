@@ -169,8 +169,8 @@ class Molto:
     ) -> AsyncIterator[BaseModel]:
         """Consume a Chat Completions request using any supported upstream protocol.
 
-        ``endpoint`` selects the wire protocol, ``provider`` selects the serving
-        implementation and its capabilities, and ``base_url`` selects only the
+        `endpoint` selects the wire protocol, `provider` selects the serving
+        implementation and its capabilities, and `base_url` selects only the
         HTTP destination.
         """
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
@@ -223,8 +223,8 @@ class Molto:
     ) -> AsyncIterator[BaseModel]:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
-        ``endpoint`` selects the wire protocol, ``provider`` selects the serving
-        implementation and its capabilities, and ``base_url`` selects only the
+        `endpoint` selects the wire protocol, `provider` selects the serving
+        implementation and its capabilities, and `base_url` selects only the
         HTTP destination.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)

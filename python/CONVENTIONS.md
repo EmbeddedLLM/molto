@@ -2,7 +2,7 @@
 
 ## Layer ownership
 
-`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and future `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
+`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
@@ -105,7 +105,7 @@ Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Sto
 
 A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
 
-Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models.
+Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models. Current cross-protocol paths through Chat therefore support only unsigned raw reasoning; reject summaries rather than discarding required opaque state.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 

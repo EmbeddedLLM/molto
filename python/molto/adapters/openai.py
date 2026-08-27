@@ -1,8 +1,8 @@
 """Translate OpenAI Responses and Chat Completions protocol boundaries.
 
-See ``docs/openai-responses-cc-parity.md`` and
-``docs/openai-responses-anthropic-messages-parity.md`` for supported semantics,
-compatibility mappings, and testing policy.
+See `docs/protocols/openai-responses.md` and
+`docs/protocols/openai-chat-completions.md` for supported semantics and
+compatibility mappings.
 """
 
 from __future__ import annotations

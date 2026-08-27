@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
 
 ## Route configuration
 
@@ -260,7 +260,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative.
+`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through Chat: Responses and Messages require a signature for completed summaries, while Chat has no signature field.
 
 ## Normalized request model
 
@@ -455,7 +455,7 @@ tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 
 Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
 
-Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
+Shared translation policies live in the [documentation overview](../docs/README.md). Protocol-specific contracts live in the [Responses](../docs/protocols/openai-responses.md), [Chat Completions](../docs/protocols/openai-chat-completions.md), and [Anthropic Messages](../docs/protocols/anthropic-messages.md) guides.
 
 Parity differs by path:
 
@@ -465,7 +465,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 

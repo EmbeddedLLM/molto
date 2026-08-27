@@ -60,7 +60,10 @@ The detailed contracts are documented in:
 
 - [Python conventions](../../python/CONVENTIONS.md#matched-cassettes), including naming, maintenance, and verification rules;
 - [Python architecture](../../python/ARCHITECTURE.md#replay-and-parity-testing), including how parity assertions differ by route;
-- [Responses and Chat Completions parity](../../docs/openai-responses-cc-parity.md#wire-representation); and
-- [Responses and Anthropic Messages parity](../../docs/openai-responses-anthropic-messages-parity.md#opaque-reasoning-lifecycle), including the encrypted-reasoning lifecycle policy.
+- the [shared translation contract](../../docs/README.md#translation-contract);
+- the [Responses fidelity contract](../../docs/protocols/openai-responses.md#fidelity) and [Chat Completions fidelity contract](../../docs/protocols/openai-chat-completions.md#fidelity); and
+- the [Anthropic Messages opaque thinking policy](../../docs/protocols/anthropic-messages.md#opaque-thinking-state), including the encrypted-reasoning lifecycle policy.
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` for deterministic alignment. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
+
+When a matcher changes an SSE payload discriminator, update the corresponding `event:` header as part of the same change. Keep JSON key order and whitespace stable unless the changed value requires reserialization; this keeps fixture diffs focused on intentional semantic alignment.
