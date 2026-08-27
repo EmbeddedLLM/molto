@@ -12,11 +12,13 @@ from typing import Any, NoReturn
 from uuid import uuid4
 
 from openai import APIStatusError
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import NotFoundError as OpenAINotFoundError
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -735,6 +737,12 @@ class OpenAIResponsesAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, AuthenticationError):
+            raise OpenAIAuthenticationError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
         if isinstance(error, ModelNotFoundError):
             # Changing these without changing error message is confusing to users
             # error.body["error"]["code"] = "model_not_found"
@@ -742,6 +750,12 @@ class OpenAIResponsesAdapter(
             # error.body["error"]["type"] = "invalid_request_error"
             # error.response.status_code = 400
             raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        if isinstance(error, NotFoundError):
+            raise OpenAINotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,
@@ -1097,8 +1111,20 @@ class OpenAIChatCompletionsAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, AuthenticationError):
+            raise OpenAIAuthenticationError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
         if isinstance(error, ModelNotFoundError):
             raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        if isinstance(error, NotFoundError):
+            raise OpenAINotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,

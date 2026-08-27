@@ -10,6 +10,8 @@ from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 
 from anthropic import APIStatusError
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import NotFoundError as AnthropicNotFoundError
 
 from molto.adapters.base import BaseAdapter
 from molto.types.anthropic_messages import (
@@ -17,7 +19,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -494,8 +496,20 @@ class AnthropicMessagesAdapter(
                 yield event({"type": "message_stop"})
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, AuthenticationError):
+            raise AnthropicAuthenticationError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
         if isinstance(error, ModelNotFoundError):
             raise APIStatusError(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        if isinstance(error, NotFoundError):
+            raise AnthropicNotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,

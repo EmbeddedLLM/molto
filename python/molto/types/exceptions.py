@@ -15,13 +15,17 @@ class MoltoException(Exception):
         self.body = body
 
 
-class ExternalAuthError(MoltoException):
-    """Authentication with external provider failed (401)"""
+class AuthenticationError(MoltoException):
+    """Authentication failed (401)"""
 
 
 class InsufficientCreditsError(MoltoException):
     """Insufficient credits (403)"""
 
 
-class ModelNotFoundError(MoltoException):
+class NotFoundError(MoltoException):
+    """Requested resource was not found (404)"""
+
+
+class ModelNotFoundError(NotFoundError):
     """Model not found (400 or 404)"""

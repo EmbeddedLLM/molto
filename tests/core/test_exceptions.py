@@ -1,18 +1,22 @@
+from collections.abc import Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 from typing import Any, Literal
 
 import pytest
 from anthropic import APIStatusError as AnthropicAPIStatusError
+from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import NotFoundError as AnthropicNotFoundError
 from httpx import AsyncClient, MockTransport, Request, Response
 from openai import APIStatusError as OpenAIAPIStatusError
+from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
 
 from molto import Molto
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, MoltoException
 from molto.utils.io import json_loads, read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
@@ -20,11 +24,47 @@ Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
 
-DOWNSTREAM_ERROR_TYPES = {
+DOWNSTREAM_ERROR_TYPES: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]] = {
     "responses": OpenAIAPIStatusError,
     "chat/completions": OpenAIAPIStatusError,
     "messages": AnthropicAPIStatusError,
 }
+
+
+@dataclass(frozen=True)
+class ErrorScenario:
+    """A downstream provider error and the normalized Molto exception it maps to."""
+
+    name: str
+    normalized_error: type[MoltoException]
+    native_errors: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]]
+
+
+# New scenarios: record cassettes under tests/cassettes/errors/<name>/ and append here.
+ERROR_SCENARIOS: tuple[ErrorScenario, ...] = (
+    ErrorScenario(
+        name="model_not_found",
+        normalized_error=ModelNotFoundError,
+        native_errors={
+            "responses": OpenAIBadRequestError,
+            "chat/completions": OpenAINotFoundError,
+            "messages": AnthropicNotFoundError,
+        },
+    ),
+    ErrorScenario(
+        name="invalid_api_key",
+        normalized_error=AuthenticationError,
+        native_errors={
+            "responses": OpenAIAuthenticationError,
+            "chat/completions": OpenAIAuthenticationError,
+            "messages": AnthropicAuthenticationError,
+        },
+    ),
+)
+
+
+def scenario_ids(scenarios: Sequence[ErrorScenario]) -> list[str]:
+    return [scenario.name for scenario in scenarios]
 
 
 def _cassette_path(scenario: str, protocol: Protocol) -> Path:
@@ -74,19 +114,14 @@ def _get_http_client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Reques
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_model_not_found(downstream: Protocol, upstream: Protocol):
-    scenario = "model_not_found"
-    native_error_types = {
-        "responses": OpenAIBadRequestError,
-        "chat/completions": OpenAINotFoundError,
-        "messages": AnthropicNotFoundError,
-    }
-    downstream_cassette = _read_cassette(scenario, downstream)
-    upstream_cassette = _read_cassette(scenario, upstream)
+@pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
+async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, upstream: Protocol):
+    downstream_cassette = _read_cassette(scenario.name, downstream)
+    upstream_cassette = _read_cassette(scenario.name, upstream)
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
     expected_error_type = (
-        native_error_types[upstream]
+        scenario.native_errors[upstream]
         if downstream == upstream
         else DOWNSTREAM_ERROR_TYPES[downstream]
     )
@@ -121,13 +156,13 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert error.response.json() == expected_body
 
     if downstream == upstream:
-        assert type(error) is native_error_types[upstream]
+        assert type(error) is scenario.native_errors[upstream]
         assert error.__cause__ is None
         return
 
     normalized_error = error.__cause__
-    assert isinstance(normalized_error, ModelNotFoundError)
+    assert isinstance(normalized_error, scenario.normalized_error)
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body
-    assert type(normalized_error.__cause__) is native_error_types[upstream]
+    assert type(normalized_error.__cause__) is scenario.native_errors[upstream]

@@ -9,7 +9,7 @@ from typing import Any, Literal, NoReturn
 from openai import APIStatusError, AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -534,8 +534,20 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, APIStatusError):
+            if error.status_code == 401:
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             if error.status_code == 400 and error.code == "model_not_found":
                 raise ModelNotFoundError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if error.status_code == 404:
+                raise NotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
@@ -916,8 +928,20 @@ class OpenAIChatCompletionsClient(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, APIStatusError):
+            if error.status_code == 401:
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             if error.status_code == 404 and error.code == "model_not_found":
                 raise ModelNotFoundError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if error.status_code == 404:
+                raise NotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
