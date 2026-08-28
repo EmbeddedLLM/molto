@@ -95,7 +95,7 @@ kind: Annotated[
 
 Keep all field default assignments outside `Annotated`; do not pass defaults such as `default=None` to `Field`.
 
-Models used as API request bodies inherit from `ExcludeNoneModel`. Call `model_dump()` instead of `BaseModel.model_dump()` so unset and `None` values do not become unintended provider parameters.
+Models used as API request bodies inherit from `ExcludeNoneModel`, which rejects unknown fields. Call `model_dump()` instead of `BaseModel.model_dump()` so unset and `None` values do not become unintended provider parameters.
 
 The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
 
@@ -103,7 +103,7 @@ The cross-protocol contract is: Molto is strict during input validation but leni
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-Normalized request-only models inherit from `StrictModel` and reject unknown fields independently of environment configuration. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when they are validated through `InputItem`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
+Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when they are validated through `InputItem`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
 
 Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
 

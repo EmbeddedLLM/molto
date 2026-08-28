@@ -70,7 +70,7 @@ Cross-protocol translation follows one governing principle: Molto is strict duri
 
 The sole exception to lossless-or-rejected input handling is an optional Responses output-item ID. It is behavior-neutral identity metadata: Responses preserves it, while Chat Completions and Messages may omit it because they have no equivalent field. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
-Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Output and event validation errors are not `UnsupportedInput`.
+Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
 
 The following design rules continue to guide the implementation:
 
