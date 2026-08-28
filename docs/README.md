@@ -286,6 +286,13 @@ For Responses, vLLM converts input and output items into chat messages before re
 
 The Hugging Face renderer has a developer compatibility fallback. If a template does not explicitly support `developer`, vLLM converts developer messages to system messages and may consolidate all system messages at the beginning. A Messages conversion can similarly extract and merge inline system messages when a template requires system-first ordering. These transformations sacrifice instruction role, placement, and message boundaries for template compatibility.
 
+Tool-result images are also constrained by the server's Chat Completions substrate. Both vLLM and SGLang implement the Anthropic Messages `/v1/messages` endpoint as a conversion to their own Chat Completions protocol, and OpenAI Chat `tool` messages carry only text content, so a `tool_result` that returns an image has no native Chat representation. The two servers resolve this differently:
+
+- vLLM keeps the text in the `tool` message and remaps the image parts into a later `user` content array, converting base64 sources to data URIs. A returned image therefore reaches the model as a follow-up user prompt. This is the same relocation that Molto's Chat-carrying routes perform. Older vLLM silently discarded such images (it stringified the content list); current vLLM preserves them, but still relocates because native Chat `tool` messages with `image_url` parts remain unsupported by at least some renderers.
+- SGLang instead embeds the `image_url` parts inside the `tool` message's own content array next to the text, because its Chat backend accepts multimodal content arrays in tool messages. A tool-result image therefore stays tied to its tool call instead of being moved to a user turn.
+
+Molto's Chat-carrying route always uses the vLLM-style form (a text notice in the `tool` message and the image relocated to a later user message), which is compatible with both servers: vLLM expects relocated images, and SGLang also accepts images in user messages.
+
 Model-specific behavior includes:
 
 - Kimi K3 uses vLLM's dedicated XTML renderer. It preserves ordinary conversation order but may reorder consecutive tool results to match the preceding assistant tool-call order. A distinct developer instruction level is not documented.
@@ -322,6 +329,8 @@ The protocol-specific contracts are:
 - [vLLM OpenAI-compatible server](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/)
 - [vLLM Responses conversion utilities](https://docs.vllm.ai/en/latest/api/vllm/entrypoints/openai/responses/utils/)
 - [vLLM Anthropic serving conversion](https://docs.vllm.ai/en/latest/api/vllm/entrypoints/anthropic/serving/)
+- [SGLang Anthropic-compatible API](https://docs.sglang.io/docs/basic_usage/anthropic_api)
+- [SGLang OpenAI-compatible Chat Completions](https://docs.sglang.io/docs/basic_usage/openai_api_completions)
 - [vLLM Hugging Face renderer](https://docs.vllm.ai/en/latest/api/vllm/renderers/hf/)
 - [vLLM Kimi K3 renderer](https://docs.vllm.ai/en/latest/api/vllm/renderers/kimi_k3/)
 - [Qwen chat-template concepts](https://github.com/QwenLM/Qwen3/blob/main/docs/source/getting_started/concepts.md#chat-template)

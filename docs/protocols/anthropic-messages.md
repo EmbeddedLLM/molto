@@ -358,3 +358,4 @@ External protocol references:
 - [Anthropic streaming Messages](https://platform.claude.com/docs/en/build-with-claude/streaming)
 - [Anthropic mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
 - [vLLM Anthropic serving conversion](https://docs.vllm.ai/en/latest/api/vllm/entrypoints/anthropic/serving/)
+- [SGLang Anthropic-compatible API](https://docs.sglang.io/docs/basic_usage/anthropic_api)

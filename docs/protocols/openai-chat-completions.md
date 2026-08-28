@@ -163,6 +163,8 @@ assistant, tool A, tool B, user image A, user image B
 
 Interleaving `user image A` before `tool B` would violate Chat's tool-response ordering contract. Non-successful tool outcomes are rejected because OpenAI protocols cannot preserve that semantic distinction.
 
+This relocation matches how vLLM itself handles a `tool_result` image through its Anthropic Messages endpoint, which is likewise a conversion to Chat: text stays in `tool` and the image is remapped to a later `user` prompt. SGLang's Messages-to-Chat conversion instead embeds the `image_url` parts inside the `tool` message's content array. See [Provider and model renderers](../README.md#provider-and-model-renderers).
+
 ### Upstream stream normalization
 
 The client reads only `choices[0]`. Non-empty `reasoning_content` and text deltas are preserved for that choice, while an empty role-establishment content chunk does not become a text delta. A transition between reasoning and text closes one normalized part and opens another; later reasoning can open a new thinking part. Tool-call deltas must be contiguous by tool index, and their first chunk must provide the call ID and function name.
