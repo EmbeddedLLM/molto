@@ -8,8 +8,9 @@ from typing import Any, Literal, NoReturn
 
 from openai import APIStatusError, AsyncStream
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
+from pydantic import ValidationError
 
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -282,7 +283,8 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
-                _validate_completed_responses_reasoning(item)
+                if item.summary and not item.signature:
+                    raise UnsupportedInput("A Responses reasoning summary requires a signature.")
                 reasoning_item = {
                     "type": "reasoning",
                     "status": "completed",
@@ -328,7 +330,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 items.append(function_call)
             elif isinstance(item, ToolReturn):
                 if item.outcome != "success":
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
                 output: list[dict[str, Any]] = []
@@ -351,7 +353,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     function_output["name"] = item.tool_name
                 items.append(function_output)
             else:
-                raise ValueError(f"Unsupported Responses input item: {type(item)}")
+                raise UnsupportedInput(f"Unsupported Responses input item: {type(item)}")
         return items
 
     @classmethod
@@ -381,7 +383,10 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             body["reasoning"] = request.reasoning.model_dump(exclude={"extra_fields"})
         if request.stream_options is not None:
             body["stream_options"] = request.stream_options.model_dump(exclude={"extra_fields"})
-        return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
+        try:
+            return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
+        except ValidationError as error:
+            raise UnsupportedInput(str(error)) from error
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
@@ -595,7 +600,7 @@ class OpenAIChatCompletionsClient(
                 return
             if "content" not in assistant_message:
                 if "tool_calls" not in assistant_message:
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "Chat Completions requires reasoning history with assistant output."
                     )
                 assistant_message["content"] = None
@@ -648,7 +653,7 @@ class OpenAIChatCompletionsClient(
             elif isinstance(item, ToolReturn):
                 flush_assistant()
                 if item.outcome != "success":
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
                 content: list[dict[str, Any]] = []
@@ -691,7 +696,7 @@ class OpenAIChatCompletionsClient(
                     }
                 )
             else:
-                raise ValueError(f"Unsupported Chat Completions input item: {type(item)}")
+                raise UnsupportedInput(f"Unsupported Chat Completions input item: {type(item)}")
         flush_assistant()
         flush_deferred_images()
         return messages
@@ -731,25 +736,32 @@ class OpenAIChatCompletionsClient(
             body["temperature"] = request.temperature
         if request.top_p is not None:
             body["top_p"] = request.top_p
-        return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
+        try:
+            return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
+        except ValidationError as error:
+            raise UnsupportedInput(str(error)) from error
 
     @staticmethod
     def _validate_request(request: NormalizedRequest) -> None:
         if request.max_tool_calls is not None:
-            raise ValueError("Chat Completions cannot represent max_tool_calls.")
+            raise UnsupportedInput("Chat Completions cannot represent max_tool_calls.")
         if request.reasoning is not None and request.reasoning.summary not in (
             None,
             "auto",
             "detailed",
         ):
-            raise ValueError("Chat Completions cannot represent concise reasoning summaries.")
+            raise UnsupportedInput(
+                "Chat Completions cannot represent concise reasoning summaries."
+            )
         for item in request.input or []:
             if isinstance(item, Thinking):
                 if item.signature is not None:
-                    raise ValueError("Chat Completions cannot represent thinking signatures.")
+                    raise UnsupportedInput(
+                        "Chat Completions cannot represent thinking signatures."
+                    )
             elif isinstance(item, ToolReturn):
                 if item.tool_name is not None:
-                    raise ValueError("Chat Completions cannot represent tool return names.")
+                    raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None

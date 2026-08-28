@@ -6,7 +6,7 @@ from openai import APIStatusError, BadRequestError
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     PartDeltaEvent,
@@ -124,7 +124,7 @@ def test_adapters_preserve_multimodal_input_boundaries_and_order():
 
 
 def test_responses_adapter_rejects_image_file_id():
-    with pytest.raises(ValueError, match="requires image_url"):
+    with pytest.raises(UnsupportedInput, match="requires image_url"):
         OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {
                 "role": "user",
@@ -134,7 +134,9 @@ def test_responses_adapter_rejects_image_file_id():
 
 
 def test_responses_adapter_rejects_input_file():
-    with pytest.raises(ValueError, match="Unsupported Responses user content type: input_file"):
+    with pytest.raises(
+        UnsupportedInput, match="Unsupported Responses user content type: input_file"
+    ):
         OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {
                 "role": "user",
@@ -146,7 +148,7 @@ def test_responses_adapter_rejects_input_file():
 def test_responses_adapter_rejects_untranslated_request_fields():
     request = OpenAIResponsesCreateRequest(input="Hello", model="m", metadata={"key": "value"})
 
-    with pytest.raises(ValueError, match=r"Responses request fields.*metadata"):
+    with pytest.raises(UnsupportedInput, match=r"Responses request fields.*metadata"):
         OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -169,7 +171,7 @@ def test_responses_adapter_rejects_untranslated_include_values():
         include=["message.output_text.logprobs"],
     )
 
-    with pytest.raises(ValueError, match=r"include values.*message.output_text.logprobs"):
+    with pytest.raises(UnsupportedInput, match=r"include values.*message.output_text.logprobs"):
         OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -186,7 +188,7 @@ def test_responses_adapter_rejects_untranslated_include_values():
     ids=["text", "image"],
 )
 def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
-    with pytest.raises(ValueError, match="not supported for translation"):
+    with pytest.raises(UnsupportedInput, match="not supported for translation"):
         OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {"role": "user", "content": [part]}
         )
@@ -202,7 +204,7 @@ def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
 )
 def test_chat_adapter_rejects_unsupported_user_content(content):
     adapter = OpenAIChatCompletionsAdapter(_CAPABILITIES)
-    with pytest.raises(ValueError, match="Unsupported Chat user content type"):
+    with pytest.raises(UnsupportedInput, match="Unsupported Chat user content type"):
         adapter._normalize_message({"role": "user", "content": content})
 
 
@@ -223,7 +225,7 @@ def test_chat_input_validation_rejects_image_tool_results():
         model="m",
     )
 
-    with pytest.raises(ValueError, match="cannot represent image tool result"):
+    with pytest.raises(UnsupportedInput, match="cannot represent image tool result"):
         OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -234,7 +236,7 @@ def test_chat_adapter_rejects_untranslated_request_fields():
         stop=["END"],
     )
 
-    with pytest.raises(ValueError, match=r"Chat Completions request fields.*stop"):
+    with pytest.raises(UnsupportedInput, match=r"Chat Completions request fields.*stop"):
         OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -258,7 +260,7 @@ def test_chat_adapter_rejects_conflicting_max_token_fields():
         max_tokens=20,
     )
 
-    with pytest.raises(ValueError, match="cannot set both"):
+    with pytest.raises(UnsupportedInput, match="cannot set both"):
         OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -270,7 +272,7 @@ def test_chat_adapter_rejects_disabling_usage():
         stream_options={"include_usage": False},
     )
 
-    with pytest.raises(ValueError, match="always includes usage"):
+    with pytest.raises(UnsupportedInput, match="always includes usage"):
         OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
 
 
@@ -303,7 +305,7 @@ def test_responses_adapter_validates_content_parts_by_message_role(role, part_ty
 
 
 def test_responses_adapter_rejects_wrong_content_part_for_message_role():
-    with pytest.raises(ValueError, match="assistant message content cannot be translated"):
+    with pytest.raises(UnsupportedInput, match="assistant message content cannot be translated"):
         OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {
                 "type": "message",

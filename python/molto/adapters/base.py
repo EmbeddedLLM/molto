@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import NoReturn
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from molto.providers import ProviderCapabilities
+from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -25,7 +26,12 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
     def normalize_request(self, request: NativeRequestT) -> NormalizedRequest:
         """Translate a downstream request into the normalized representation."""
         self.native_request = request
-        return self._normalize_request(request)
+        try:
+            return self._normalize_request(request)
+        except UnsupportedInput:
+            raise
+        except ValidationError as error:
+            raise UnsupportedInput(str(error)) from error
 
     @classmethod
     def reject_unsupported_request_fields(
@@ -42,7 +48,7 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
             if getattr(request, field_name, None) is not None
         )
         if unsupported_fields:
-            raise ValueError(
+            raise UnsupportedInput(
                 f"Unsupported {protocol} request fields for cross-protocol translation: "
                 f"{unsupported_fields}."
             )

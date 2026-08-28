@@ -1,6 +1,10 @@
 from httpx import Response
 
 
+class UnsupportedInput(ValueError):
+    """A cross-protocol input cannot be translated without losing its semantics."""
+
+
 class MoltoException(Exception):
     """Base exception class for Molto errors."""
 

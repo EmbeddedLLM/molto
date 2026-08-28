@@ -8,7 +8,7 @@ from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -801,7 +801,7 @@ def test_responses_adapter_rejects_nonportable_function_tool_fields(
         field: value,
     }
 
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(UnsupportedInput, match=message):
         OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
             OpenAIResponsesCreateRequest(model="m", tools=[tool])
         )
@@ -843,7 +843,7 @@ def test_responses_adapter_rejects_nonportable_function_history(
     )
     item.update(extra)
 
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(UnsupportedInput, match=message):
         OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
             OpenAIResponsesCreateRequest.model_construct(input=[item], model="m")
         )
@@ -976,7 +976,7 @@ def test_openai_clients_reject_failed_tool_results(client):
         model="m",
     )
 
-    with pytest.raises(ValueError, match="cannot preserve non-successful"):
+    with pytest.raises(UnsupportedInput, match="cannot preserve non-successful"):
         client._request_body(request)
 
 
@@ -1020,7 +1020,7 @@ def test_chat_completions_client_rejects_unrepresentable_request_fields(
     normalized_request: NormalizedRequest,
     error: str,
 ):
-    with pytest.raises(ValueError, match=error):
+    with pytest.raises(UnsupportedInput, match=error):
         OpenAIChatCompletionsClient._request_body(normalized_request)
 
 
