@@ -31,7 +31,6 @@ async def main() -> None:
                 "stream": True,
             },
             endpoint="messages",
-            provider="anthropic",
         ) as stream:
             async for event in stream:
                 print(event)  # Native OpenAI Responses event
@@ -47,7 +46,6 @@ async def main() -> None:
                 "stream": True,
             },
             endpoint="messages",
-            provider="anthropic",
         )
         try:
             async for event in stream:
@@ -61,7 +59,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-`endpoint` selects the upstream wire protocol, `provider` selects the serving implementation and its capabilities, and `base_url` selects only the HTTP destination. These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough.
+- `endpoint` selects the upstream wire protocol.
+- `provider` (optional) selects the serving implementation and its capabilities.
+- `base_url` (optional) selects only the HTTP destination.
+
+These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough.
 
 ## Error handling
 
