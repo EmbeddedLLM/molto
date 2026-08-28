@@ -114,7 +114,7 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 - delegates request serialization, authentication, HTTP, retries, SSE parsing, and OpenAI exception construction to `AsyncOpenAI.responses.create()`; and
 - yields the SDK's `ResponseStreamEvent` models directly.
 
-The stream does not cross the normalized representation and retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier. Passthrough is validated SDK transport, not an untyped HTTP proxy.
+The stream does not cross the normalized representation and retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier. Passthrough is validated SDK transport, not an untyped HTTP proxy. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors).
 
 There is one narrow compatible-provider normalization: if a completed Responses event includes usage but omits `input_tokens_details.cache_write_tokens` as `null`, Molto sets it to `0` to satisfy the pinned SDK contract. Otherwise it does not revalidate or rewrite each event.
 
@@ -311,7 +311,7 @@ Molto retains the more specific source reason in the normalized stream. The coer
 
 ## Errors
 
-Native passthrough preserves the OpenAI SDK exception. On translated routes, Molto normalizes only recognized errors with a protocol-independent meaning and then raises them in the downstream OpenAI SDK namespace. Unknown errors are re-raised unchanged.
+Molto normalizes only recognized errors with a protocol-independent meaning and then raises them in the downstream OpenAI SDK namespace, on native passthrough and translated routes alike. Unknown errors are re-raised unchanged as the original SDK exception.
 
 Model-not-found is currently recognized as:
 

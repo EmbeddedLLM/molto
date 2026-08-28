@@ -96,6 +96,27 @@ async def test_adapter_translates_projection_errors() -> None:
     assert isinstance(exc_info.value.__cause__, ValueError)
 
 
+async def test_adapter_native_passthrough_translates_only_errors() -> None:
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    event = ResponseStartEvent(id="resp_123", created_at=1, model="m")
+
+    async def native_events() -> AsyncIterator[ModelResponseStreamEvent]:
+        yield event
+
+    # Same-protocol passthrough requires no prior request normalization and
+    # forwards events unchanged.
+    assert [event async for event in adapter.project_native_events(native_events())] == [event]
+
+    async def failing_events() -> AsyncIterator[ModelResponseStreamEvent]:
+        raise ValueError("Invalid native stream.")
+        yield
+
+    with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
+        await anext(adapter.project_native_events(failing_events()))
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
 async def _projected(
     adapter: BaseAdapter,
     native_request: BaseModel,

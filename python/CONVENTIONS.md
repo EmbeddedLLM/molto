@@ -32,11 +32,11 @@ Do not treat an endpoint or URL hostname as evidence about provider behavior. A 
 
 ## Adapter and client base classes
 
-Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling.
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes the public `project_native_events()` so native failures receive the same downstream-native error projection.
 
 Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement its native path, normalized path, and error translation:
 
-- `native_events()` accepts the validated upstream-native request and yields native SDK events;
+- `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()` so the native path shares the IR error normalization;
 - `_events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`; and
 - `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
@@ -44,7 +44,7 @@ The public `events()` wrapper owns error interception; do not override it. Clien
 
 ## Error translation
 
-Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception, and a downstream adapter's `_handle_error()` must raise the downstream SDK exception from that normalized exception. Re-raise unknown errors unchanged.
+Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception, and a downstream adapter's `_handle_error()` must raise the downstream SDK exception from that normalized exception. On same-protocol passthrough the adapter instead raises a fresh instance of the original SDK exception's class to preserve the native error type; never re-raise the cause instance itself, because chaining it `from` the normalized error would make the two exceptions each other's cause. Re-raise unknown errors unchanged.
 
 Error translation is currently partial. Changing the exception into the downstream SDK namespace does not authorize inventing a target-native status, message, or body. Preserve the upstream `response` and `body` until the implementation has an explicit, documented, cassette-backed mapping for the complete downstream wire error. Callers can use the resulting cause chain for semantic classification even when providers assign different statuses to the same condition.
 
@@ -135,7 +135,7 @@ Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.As
 
 Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.aclose()` closes that client.
 
-Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception construction. Preserve its exceptions on native paths and for unknown translated errors. Map only the known semantic errors covered by the documented error translation contract; do not add compatibility wrappers for the previous `httpx` errors.
+Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception construction. Preserve the original SDK exception for unknown errors. Map only the known semantic errors covered by the documented error translation contract, on native and translated routes alike; do not add compatibility wrappers for the previous `httpx` errors.
 
 Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid duplicate serialization and validation on every event or delta. Before yielding a Responses completion event, normalize the documented compatible-provider omission where `cache_write_tokens` is `None` to `0`. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
 

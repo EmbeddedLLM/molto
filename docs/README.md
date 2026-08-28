@@ -239,7 +239,7 @@ When projecting Messages, Molto recovers uncached input by subtracting cache rea
 
 ### Errors
 
-Native routes preserve the upstream SDK exception. Translated routes use a two-stage cause chain for errors with a known protocol-independent meaning:
+Native and translated routes share a two-stage cause chain for errors with a known protocol-independent meaning:
 
 ```text
 downstream SDK exception
@@ -257,7 +257,7 @@ The implemented normalized category is `ModelNotFoundError`:
 | Chat Completions  | OpenAI status `404` and `code == "model_not_found"`             |
 | Messages          | Anthropic status `404` and an error message containing `model:` |
 
-The outward exception uses the downstream SDK namespace, but its status, message, response, and body still come from the upstream provider. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged.
+The outward exception uses the downstream SDK namespace, but its status, message, response, and body still come from the upstream provider. On same-protocol routes it is a fresh instance of the upstream SDK exception's own class; on translated routes it is the downstream SDK's base `APIStatusError`. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
 
 ## Provider and model renderers
 

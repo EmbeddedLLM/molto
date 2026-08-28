@@ -97,13 +97,13 @@ The layers have distinct ownership:
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
 
-`BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. The public projection path catches failures raised while consuming or projecting normalized events and delegates them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough does not instantiate an adapter and is unaffected by this lifecycle.
+`BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. The public projection path catches failures raised while consuming or projecting normalized events and delegates them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough skips request normalization and event projection, but still composes the adapter's `project_native_events()` around the native stream so failures reach the same `_handle_error()` contract.
 
-`BaseClient[NativeRequestT, NativeEventT]` preserves the concrete upstream-native types across both streaming paths. `native_events()` accepts a validated request in the upstream protocol and yields that protocol's native SDK events. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to `_handle_error()` so upstream-native exceptions can be normalized before downstream projection. Concrete clients own both transformations and the provider transport required by those methods.
+`BaseClient[NativeRequestT, NativeEventT]` preserves the concrete upstream-native types across both streaming paths. `native_events()` accepts a validated request in the upstream protocol, yields that protocol's native SDK events, and delegates failures to `_handle_error()`. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to the same `_handle_error()` so native and translated routes share IR error normalization before downstream projection. Concrete clients own both transformations and the provider transport required by those methods.
 
 ## Error translation
 
-Same-protocol passthrough preserves the upstream SDK exception without crossing the normalized representation. A translated route instead uses two stages for errors with a known protocol-independent meaning:
+Every route uses two stages for errors with a known protocol-independent meaning:
 
 ```text
 upstream SDK exception
@@ -114,6 +114,8 @@ normalized Molto exception
         v
 downstream SDK exception
 ```
+
+A translated route applies the first stage in the upstream client and the second in the downstream adapter around the normalized event stream. A same-protocol route composes the same two stages around the native event stream, so callers classify errors through the same cause chain regardless of the route taken.
 
 The currently implemented normalized error is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
@@ -133,7 +135,7 @@ downstream APIStatusError
         caused by upstream SDK exception
 ```
 
-This preserves the native provider evidence while exposing a stable semantic classification. Native passthrough exceptions have no Molto-added cause, and unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+This preserves the native provider evidence while exposing a stable semantic classification on every route. Translated routes raise the downstream SDK's base `APIStatusError`; a same-protocol route instead raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
 
 ## Orchestration facade and coordinators
 
@@ -191,7 +193,7 @@ Responses SDK event stream
 
 The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or native event fidelity.
 
-Molto validates the request and relies on the SDK's native event models. Passthrough means no IR translation or duplicate model validation, not untyped proxying.
+Molto validates the request and relies on the SDK's native event models. Passthrough means no IR translation or duplicate model validation, not untyped proxying. Only streaming failures still cross the IR: the upstream client normalizes a recognized error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 

@@ -135,7 +135,10 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return await _prefetch_stream(upstream.native_events(request))
+            adapter = OpenAIResponsesAdapter(capabilities)
+            return await _prefetch_stream(
+                adapter.project_native_events(upstream.native_events(request))
+            )
 
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -189,7 +192,10 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return await _prefetch_stream(upstream.native_events(request))
+            adapter = OpenAIChatCompletionsAdapter(capabilities)
+            return await _prefetch_stream(
+                adapter.project_native_events(upstream.native_events(request))
+            )
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -241,7 +247,10 @@ class Molto:
                 base_url=base_url,
                 capabilities=capabilities,
             )
-            return await _prefetch_stream(upstream.native_events(request))
+            adapter = AnthropicMessagesAdapter(capabilities)
+            return await _prefetch_stream(
+                adapter.project_native_events(upstream.native_events(request))
+            )
 
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)

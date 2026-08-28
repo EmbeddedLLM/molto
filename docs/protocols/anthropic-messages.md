@@ -142,7 +142,7 @@ The native stream may start a block with content already present in the `content
 
 `Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest`, calls `AsyncAnthropic.messages.create()`, and yields the Anthropic SDK's native stream events directly. It does not route the request or events through Molto's normalized representation.
 
-This path retains native content variants, event variants, `ping` events, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. It also preserves native Anthropic exceptions. The request is still a validated, streaming-only Molto request rather than an untyped HTTP proxy.
+This path retains native content variants, event variants, `ping` events, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. It also preserves native Anthropic exception types; a recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). The request is still a validated, streaming-only Molto request rather than an untyped HTTP proxy.
 
 ## When the application speaks Messages
 
@@ -291,7 +291,7 @@ Cache-creation TTL breakdowns, `inference_geo`, and `server_tool_use` have no cu
 
 ## Errors
 
-Same-protocol passthrough preserves the Anthropic SDK exception. On a translated route, Molto uses this cause chain for a recognized error:
+Molto uses this cause chain for a recognized error, on same-protocol passthrough and translated routes alike:
 
 ```text
 downstream SDK APIStatusError

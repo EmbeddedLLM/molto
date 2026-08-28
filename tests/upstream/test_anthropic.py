@@ -3,6 +3,7 @@ from time import time
 
 import httpx
 import pytest
+from anthropic import APIStatusError as AnthropicAPIStatusError
 from pydantic import ValidationError
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
@@ -12,6 +13,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -1573,3 +1575,34 @@ async def test_adapter_projects_tool_call_with_direct_caller():
     ] == ['{"value"', ":1}"]
     message_delta = next(event for event in events if event.type == "message_delta")
     assert message_delta.delta.stop_reason == "tool_use"
+
+
+async def test_native_events_normalize_known_sdk_errors():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404,
+            json={
+                "type": "error",
+                "error": {"type": "not_found_error", "message": "model: m"},
+                "request_id": "req_123",
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AnthropicMessagesClient(
+            http_client,
+            capabilities=PROVIDER_CAPABILITIES["anthropic"],
+            api_key="test-api-key",
+        )
+        request = AnthropicMessagesCreateRequest(
+            max_tokens=100,
+            messages=[{"role": "user", "content": "Hi"}],
+            model="m",
+            stream=True,
+        )
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            [event async for event in client.native_events(request)]
+
+    error = exc_info.value
+    assert error.response.status_code == 404
+    assert isinstance(error.__cause__, AnthropicAPIStatusError)

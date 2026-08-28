@@ -68,7 +68,11 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
 
     @abstractmethod
     def native_events(self, request: NativeRequestT) -> AsyncIterator[NativeEventT]:
-        """Stream events using the provider's native protocol."""
+        """Stream events using the provider's native protocol.
+
+        Implementations must delegate failures to `_handle_error()` so the native
+        path normalizes known errors to the same IR causes as `events()`.
+        """
         raise NotImplementedError
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
