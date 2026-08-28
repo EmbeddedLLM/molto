@@ -1,5 +1,4 @@
 import sys
-from typing import Literal
 
 from loguru import logger
 from pydantic import SecretStr
@@ -17,17 +16,12 @@ LOGURU_FORMAT = (
 
 class EnvConfig(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="molto_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
     # Config
-    log_dir: str = "logs"
-    log_level_stderr: str = "INFO"
-    log_level_file: str = "INFO"
-    log_timings: bool = False
-    types_allow_extra: bool = False
+    molto_log_level_stderr: str = "INFO"
     # External services
     anthropic_api_key: SecretStr = ""
     deepseek_api_key: SecretStr = ""
@@ -35,10 +29,6 @@ class EnvConfig(BaseSettings):
     openai_api_key: SecretStr = ""
     openrouter_api_key: SecretStr = ""
     together_ai_api_key: SecretStr = ""
-
-    @property
-    def pydantic_extra_behavior(self) -> Literal["allow", "forbid"]:
-        return "allow" if self.types_allow_extra else "forbid"
 
     @property
     def anthropic_api_key_plain(self) -> str:
@@ -72,7 +62,7 @@ def setup_logging() -> None:
     logger.remove()
     logger.add(
         sys.stderr,
-        level=ENV_CONFIG.log_level_stderr.upper(),
+        level=ENV_CONFIG.molto_log_level_stderr.upper(),
         format=LOGURU_FORMAT,
     )
 

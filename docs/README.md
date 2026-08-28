@@ -21,7 +21,7 @@ Three rules make this principle concrete:
 
 “Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. The sole deliberate exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
 
-Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model.
+Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model. Molto's local public request models always reject unknown top-level fields; this behavior is not configurable through environment settings.
 
 ## Choose a protocol
 
