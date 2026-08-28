@@ -129,13 +129,13 @@ A translated route applies the first stage in the upstream client and the second
 
 Normalized protocol-independent API errors inherit from `APIException`. The currently implemented subclass is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
-| Normalized exception  | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
-| --------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
-| `AuthenticationError` | all                     | protocol `APIStatusError`  | status `401`                                          |
-| `ModelNotFoundError`  | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
-| `ModelNotFoundError`  | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
-| `ModelNotFoundError`  | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
-| `ResourceNotFoundError` | all                   | protocol `APIStatusError`  | status `404`                                          |
+| Normalized exception    | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
+| ----------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
+| `AuthenticationError`   | all                     | protocol `APIStatusError`  | status `401`                                          |
+| `ModelNotFoundError`    | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
+| `ModelNotFoundError`    | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
+| `ModelNotFoundError`    | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
+| `ResourceNotFoundError` | all                     | protocol `APIStatusError`  | status `404`                                          |
 
 On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
 
