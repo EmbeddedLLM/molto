@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from molto.types.exceptions import (
     AuthenticationError,
     ModelNotFoundError,
-    NotFoundError,
+    ResourceNotFoundError,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -566,7 +566,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     body=error.body,
                 ) from error
             if error.status_code == 404:
-                raise NotFoundError(
+                raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
@@ -989,7 +989,7 @@ class OpenAIChatCompletionsClient(
                     body=error.body,
                 ) from error
             if error.status_code == 404:
-                raise NotFoundError(
+                raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,

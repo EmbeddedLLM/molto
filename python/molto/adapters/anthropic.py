@@ -17,7 +17,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import AuthenticationError, NotFoundError, UnsupportedInput
+from molto.types.exceptions import AuthenticationError, ResourceNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -543,7 +543,7 @@ class AnthropicMessagesAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        if isinstance(error, (AuthenticationError, NotFoundError)):
+        if isinstance(error, (AuthenticationError, ResourceNotFoundError)):
             raise APIStatusError(
                 error.message,
                 response=error.response,

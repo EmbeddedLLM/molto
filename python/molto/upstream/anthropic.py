@@ -28,7 +28,7 @@ from molto.types.anthropic_messages import (
 from molto.types.exceptions import (
     AuthenticationError,
     ModelNotFoundError,
-    NotFoundError,
+    ResourceNotFoundError,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -628,7 +628,7 @@ class AnthropicMessagesClient(
                     body=error.body,
                 ) from error
             if error.status_code == 404:
-                raise NotFoundError(
+                raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,

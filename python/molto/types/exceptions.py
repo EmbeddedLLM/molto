@@ -27,9 +27,9 @@ class InsufficientCreditsError(APIException):
     """Insufficient credits (403)"""
 
 
-class NotFoundError(APIException):
+class ResourceNotFoundError(APIException):
     """Requested resource was not found (404)"""
 
 
-class ModelNotFoundError(NotFoundError):
+class ModelNotFoundError(ResourceNotFoundError):
     """Model not found (400 or 404)"""

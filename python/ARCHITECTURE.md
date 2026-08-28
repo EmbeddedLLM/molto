@@ -135,7 +135,7 @@ Normalized protocol-independent API errors inherit from `APIException`. The curr
 | `ModelNotFoundError`  | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
 | `ModelNotFoundError`  | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
 | `ModelNotFoundError`  | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
-| `NotFoundError`       | all                     | protocol `APIStatusError`  | status `404`                                          |
+| `ResourceNotFoundError` | all                   | protocol `APIStatusError`  | status `404`                                          |
 
 On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
 

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
-from molto.types.exceptions import AuthenticationError, NotFoundError, UnsupportedInput
+from molto.types.exceptions import AuthenticationError, ResourceNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -811,7 +811,7 @@ class OpenAIResponsesAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        if isinstance(error, (AuthenticationError, NotFoundError)):
+        if isinstance(error, (AuthenticationError, ResourceNotFoundError)):
             raise APIStatusError(
                 error.message,
                 response=error.response,
@@ -1195,7 +1195,7 @@ class OpenAIChatCompletionsAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        if isinstance(error, (AuthenticationError, NotFoundError)):
+        if isinstance(error, (AuthenticationError, ResourceNotFoundError)):
             raise APIStatusError(
                 error.message,
                 response=error.response,
