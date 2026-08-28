@@ -1,8 +1,8 @@
 """Translate OpenAI Responses and Chat Completions protocol boundaries.
 
-See ``docs/openai-responses-cc-parity.md`` and
-``docs/openai-responses-anthropic-messages-parity.md`` for supported semantics,
-compatibility mappings, and testing policy.
+See `docs/protocols/openai-responses.md` and
+`docs/protocols/openai-chat-completions.md` for supported semantics and
+compatibility mappings.
 """
 
 from __future__ import annotations
@@ -12,13 +12,11 @@ from typing import Any, NoReturn
 from uuid import uuid4
 
 from openai import APIStatusError
-from openai import AuthenticationError as OpenAIAuthenticationError
-from openai import NotFoundError as OpenAINotFoundError
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
+from molto.types.exceptions import AuthenticationError, NotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -737,25 +735,23 @@ class OpenAIResponsesAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
-        if isinstance(error, AuthenticationError):
-            raise OpenAIAuthenticationError(
-                error.message,
-                response=error.response,
-                body=error.body,
+        cause = error.__cause__
+        if self.native_request is None and isinstance(cause, APIStatusError):
+            # Same-protocol passthrough: the upstream exception is already
+            # downstream-native, so preserve its SDK subclass. Reconstruct a
+            # fresh instance rather than re-raise the cause: chaining it
+            # `from error` would make the two exceptions each other's cause.
+            # This only works on errors that have a Normalized exception class in molto
+            # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
+            # has no `APIStatusError` cause and passes through unchanged until
+            # an IR recognition rule exists.
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
             ) from error
-        if isinstance(error, ModelNotFoundError):
-            # Changing these without changing error message is confusing to users
-            # error.body["error"]["code"] = "model_not_found"
-            # error.body["error"]["param"] = "model"
-            # error.body["error"]["type"] = "invalid_request_error"
-            # error.response.status_code = 400
+        if isinstance(error, (AuthenticationError, NotFoundError)):
             raise APIStatusError(
-                error.message,
-                response=error.response,
-                body=error.body,
-            ) from error
-        if isinstance(error, NotFoundError):
-            raise OpenAINotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,
@@ -1111,20 +1107,17 @@ class OpenAIChatCompletionsAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
-        if isinstance(error, AuthenticationError):
-            raise OpenAIAuthenticationError(
-                error.message,
-                response=error.response,
-                body=error.body,
+        cause = error.__cause__
+        if self.native_request is None and isinstance(cause, APIStatusError):
+            # TODO: Handle bare `APIError` (e.g. mid-stream error events); see
+            # OpenAIResponsesAdapter._handle_error for the passthrough rule.
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
             ) from error
-        if isinstance(error, ModelNotFoundError):
+        if isinstance(error, (AuthenticationError, NotFoundError)):
             raise APIStatusError(
-                error.message,
-                response=error.response,
-                body=error.body,
-            ) from error
-        if isinstance(error, NotFoundError):
-            raise OpenAINotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,

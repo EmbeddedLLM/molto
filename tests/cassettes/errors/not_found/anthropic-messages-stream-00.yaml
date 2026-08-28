@@ -1,0 +1,36 @@
+filename: 2026-08-28-01a0471e-1e7e-76a2-82f9-849f1b68457a
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: 'Write one short sentence '
+        type: text
+      - text: about the ocean.
+        type: text
+      role: user
+    model: claude-sonnet-5
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '193'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1v1/messages
+  query_params: {}
+request_id: 01a0471e-1e7e-76a2-82f9-849f1b68457a
+response:
+  body:
+    error:
+      message: Not found
+      type: not_found_error
+    request_id: req_011CeUhL3n8PaPthu6DdN5Va
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 404
+timestamp: '2026-08-28T06:45:51.358537+00:00'

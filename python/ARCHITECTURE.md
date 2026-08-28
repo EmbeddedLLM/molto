@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage.
+Only streaming requests are currently supported. Cross-protocol translation currently covers text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
 
 ## Route configuration
 
@@ -97,13 +97,13 @@ The layers have distinct ownership:
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
 
-`BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. The public projection path catches failures raised while consuming or projecting normalized events and delegates them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough does not instantiate an adapter and is unaffected by this lifecycle.
+`BaseAdapter[NativeRequestT, NativeEventT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request and event types in its interface. A coordinator creates a fresh adapter for each request and calls `normalize_request()` before `project_events()`. Normalization retains the exact validated downstream model as `native_request`, allowing event projection to consult native request fields without adding them to the normalized representation. Event projection fails if normalization has not established that state. The public projection path catches failures raised while consuming or projecting normalized events and delegates them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough skips request normalization and event projection, but still composes the adapter's `project_native_events()` around the native stream so failures reach the same `_handle_error()` contract.
 
-`BaseClient[NativeRequestT, NativeEventT]` preserves the concrete upstream-native types across both streaming paths. `native_events()` accepts a validated request in the upstream protocol and yields that protocol's native SDK events. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to `_handle_error()` so upstream-native exceptions can be normalized before downstream projection. Concrete clients own both transformations and the provider transport required by those methods.
+`BaseClient[NativeRequestT, NativeEventT]` preserves the concrete upstream-native types across both streaming paths. `native_events()` accepts a validated request in the upstream protocol, yields that protocol's native SDK events, and delegates failures to `_handle_error()`. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to the same `_handle_error()` so native and translated routes share IR error normalization before downstream projection. Concrete clients own both transformations and the provider transport required by those methods.
 
 ## Error translation
 
-Same-protocol passthrough preserves the upstream SDK exception without crossing the normalized representation. A translated route instead uses two stages for errors with a known protocol-independent meaning:
+Every route uses two stages for errors with a known protocol-independent meaning:
 
 ```text
 upstream SDK exception
@@ -115,25 +115,29 @@ normalized Molto exception
 downstream SDK exception
 ```
 
-The currently implemented normalized error is `ModelNotFoundError`. Upstream clients recognize it as follows:
+A translated route applies the first stage in the upstream client and the second in the downstream adapter around the normalized event stream. A same-protocol route composes the same two stages around the native event stream, so callers classify errors through the same cause chain regardless of the route taken.
 
-| Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
-| ----------------------- | -------------------------- | ----------------------------------------------------- |
-| OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
-| OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
-| Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
+Upstream clients recognize normalized errors as follows. The general `NotFoundError` rule is applied only after the protocol's more specific model-not-found rule.
 
-The downstream adapter then raises `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet fully translated into the target protocol's HTTP contract. Its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic remains status `404` when projected through the Responses API, even though OpenAI Responses normally reports that condition as status `400`. The reverse route through Messages retains the upstream Responses status `400` and OpenAI-shaped body.
+| Normalized exception  | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
+| --------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
+| `AuthenticationError` | all                     | protocol `APIStatusError`  | status `401`                                          |
+| `ModelNotFoundError`  | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
+| `ModelNotFoundError`  | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
+| `ModelNotFoundError`  | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
+| `NotFoundError`       | all                     | protocol `APIStatusError`  | status `404`                                          |
+
+On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
 
 Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
 
 ```text
-downstream APIStatusError
-        caused by ModelNotFoundError
+downstream SDK exception
+        caused by normalized Molto exception
         caused by upstream SDK exception
 ```
 
-This preserves the native provider evidence while exposing a stable semantic classification. Native passthrough exceptions have no Molto-added cause, and unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+This preserves the native provider evidence while exposing a stable semantic classification on every route. A same-protocol route raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
 
 ## Orchestration facade and coordinators
 
@@ -191,7 +195,7 @@ Responses SDK event stream
 
 The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or native event fidelity.
 
-Molto validates the request and relies on the SDK's native event models. Passthrough means no IR translation or duplicate model validation, not untyped proxying.
+Molto validates the request and relies on the SDK's native event models. Passthrough means no IR translation or duplicate model validation, not untyped proxying. Only streaming failures still cross the IR: the upstream client normalizes a recognized error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
@@ -260,7 +264,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative.
+`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through Chat: Responses and Messages require a signature for completed summaries, while Chat has no signature field.
 
 ## Normalized request model
 
@@ -455,7 +459,7 @@ tests/cassettes/matched/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 
 Each fixture is canonical for its own downstream protocol. Matched pairs preserve source-backed values and aligned delta boundaries so translation can be compared deterministically. Responses-only output metadata remains valid native fixture data even when Chat Completions cannot reproduce it. In particular, Chat has no assistant-message `phase` equivalent, so translated event comparison omits that field instead of inferring it from reasoning or text position.
 
-Detailed parity policies live in the [Responses and Chat Completions guide](../docs/openai-responses-cc-parity.md) and the [Responses and Anthropic Messages guide](../docs/openai-responses-anthropic-messages-parity.md).
+Shared translation policies live in the [documentation overview](../docs/README.md). Protocol-specific contracts live in the [Responses](../docs/protocols/openai-responses.md), [Chat Completions](../docs/protocols/openai-chat-completions.md), and [Anthropic Messages](../docs/protocols/anthropic-messages.md) guides.
 
 Parity differs by path:
 
@@ -465,7 +469,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries, and client-defined function tools across Responses, Chat Completions, and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 

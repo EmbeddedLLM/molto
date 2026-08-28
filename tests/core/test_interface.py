@@ -666,7 +666,7 @@ async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, u
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_error(downstream: Protocol, upstream: Protocol):
+async def test_error_matched(downstream: Protocol, upstream: Protocol):
     scenario = "error-invalid_request_error"
     variant = "stream-00.yaml"
     downstream_path = _matched_cassette_path(scenario, downstream, variant)

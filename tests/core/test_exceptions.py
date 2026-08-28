@@ -23,7 +23,6 @@ CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
 Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
-
 DOWNSTREAM_ERROR_TYPES: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]] = {
     "responses": OpenAIAPIStatusError,
     "chat/completions": OpenAIAPIStatusError,
@@ -33,11 +32,11 @@ DOWNSTREAM_ERROR_TYPES: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIS
 
 @dataclass(frozen=True)
 class ErrorScenario:
-    """A downstream provider error and the normalized Molto exception it maps to."""
+    """A normalized error and its concrete SDK type in each protocol."""
 
     name: str
     normalized_error: type[MoltoException]
-    native_errors: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]]
+    error_types: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]]
 
 
 # New scenarios: record cassettes under tests/cassettes/errors/<name>/ and append here.
@@ -45,7 +44,7 @@ ERROR_SCENARIOS: tuple[ErrorScenario, ...] = (
     ErrorScenario(
         name="model_not_found",
         normalized_error=ModelNotFoundError,
-        native_errors={
+        error_types={
             "responses": OpenAIBadRequestError,
             "chat/completions": OpenAINotFoundError,
             "messages": AnthropicNotFoundError,
@@ -54,7 +53,7 @@ ERROR_SCENARIOS: tuple[ErrorScenario, ...] = (
     ErrorScenario(
         name="invalid_api_key",
         normalized_error=AuthenticationError,
-        native_errors={
+        error_types={
             "responses": OpenAIAuthenticationError,
             "chat/completions": OpenAIAuthenticationError,
             "messages": AnthropicAuthenticationError,
@@ -120,8 +119,10 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
     upstream_cassette = _read_cassette(scenario.name, upstream)
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
+    # Native passthrough preserves the original SDK subclass. Translated routes
+    # project the normalized semantic error into the downstream SDK namespace.
     expected_error_type = (
-        scenario.native_errors[upstream]
+        scenario.error_types[upstream]
         if downstream == upstream
         else DOWNSTREAM_ERROR_TYPES[downstream]
     )
@@ -155,14 +156,18 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
     assert expected_body["error"]["message"] in error.message
     assert error.response.json() == expected_body
 
-    if downstream == upstream:
-        assert type(error) is scenario.native_errors[upstream]
-        assert error.__cause__ is None
-        return
-
+    # Native and translated routes share one error contract: the outward
+    # exception is the downstream SDK namespace, caused by the normalized IR
+    # error, which in turn preserves the original upstream SDK exception.
+    assert type(error) is expected_error_type
     normalized_error = error.__cause__
     assert isinstance(normalized_error, scenario.normalized_error)
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body
-    assert type(normalized_error.__cause__) is scenario.native_errors[upstream]
+    original_error = normalized_error.__cause__
+    assert type(original_error) is scenario.error_types[upstream]
+    # The outward exception is reconstructed, never the original instance:
+    # chaining the original `from` the normalized error would make the two
+    # exceptions each other's cause.
+    assert error is not original_error

@@ -1,8 +1,16 @@
 # Conventions
 
+## General style
+
+- Keep implementations simple and flat.
+- Follow the existing style in the file being changed.
+- Prefer standard-library or existing project functionality over new abstractions.
+- Use built-in collection types such as `list`, `dict`, `set`, and `tuple` in annotations. Use `typing` for constructs such as `Annotated`, `Literal`, `Protocol`, and `TypeVar`.
+- Use single backticks for inline code references in Python docstrings, not double backticks.
+
 ## Layer ownership
 
-`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and future `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
+`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
@@ -24,11 +32,11 @@ Do not treat an endpoint or URL hostname as evidence about provider behavior. A 
 
 ## Adapter and client base classes
 
-Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling.
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes the public `project_native_events()` so native failures receive the same downstream-native error projection.
 
 Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement its native path, normalized path, and error translation:
 
-- `native_events()` accepts the validated upstream-native request and yields native SDK events;
+- `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()` so the native path shares the IR error normalization;
 - `_events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`; and
 - `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
@@ -36,9 +44,9 @@ The public `events()` wrapper owns error interception; do not override it. Clien
 
 ## Error translation
 
-Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception, and a downstream adapter's `_handle_error()` must raise the downstream SDK exception from that normalized exception. Re-raise unknown errors unchanged.
+Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception. On translated routes, a downstream adapter must raise the downstream SDK's base `APIStatusError` from that normalized exception. On same-protocol passthrough, the adapter instead raises a fresh instance of the original SDK exception's class to preserve the native error type; never re-raise the cause instance itself, because chaining it `from` the normalized error would make the two exceptions each other's cause. Re-raise unknown errors unchanged.
 
-Error translation is currently partial. Changing the exception into the downstream SDK namespace does not authorize inventing a target-native status, message, or body. Preserve the upstream `response` and `body` until the implementation has an explicit, documented, cassette-backed mapping for the complete downstream wire error. Callers can use the resulting cause chain for semantic classification even when providers assign different statuses to the same condition.
+Error translation is currently partial. Changing the exception into the downstream SDK namespace does not authorize inventing a target-native status, message, or body. Preserve the upstream status code, message, `response`, and `body` until the implementation has an explicit, documented, cassette-backed mapping for the complete downstream wire error. Callers can use the resulting cause chain for semantic classification even when providers assign different statuses to the same condition.
 
 Document each concrete recognition rule in the architecture's [error translation table](ARCHITECTURE.md#error-translation). Cover every applicable native and translated route with provider-native error cassettes. Tests must assert the outward SDK namespace, upstream status/message/body preservation, normalized cause, and original upstream SDK cause.
 
@@ -105,7 +113,7 @@ Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Sto
 
 A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
 
-Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models.
+Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models. Current cross-protocol paths through Chat therefore support only unsigned raw reasoning; reject summaries rather than discarding required opaque state.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 
@@ -127,7 +135,7 @@ Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.As
 
 Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.aclose()` closes that client.
 
-Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception construction. Preserve its exceptions on native paths and for unknown translated errors. Map only the known semantic errors covered by the documented error translation contract; do not add compatibility wrappers for the previous `httpx` errors.
+Let the SDK own request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, non-success responses, and OpenAI exception construction. Preserve the original SDK exception for unknown errors. Map only the known semantic errors covered by the documented error translation contract, on native and translated routes alike; do not add compatibility wrappers for the previous `httpx` errors.
 
 Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid duplicate serialization and validation on every event or delta. Before yielding a Responses completion event, normalize the documented compatible-provider omission where `cache_write_tokens` is `None` to `0`. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
 

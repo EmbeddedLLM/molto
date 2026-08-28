@@ -1,0 +1,31 @@
+filename: 2026-08-28-01a046c7-5115-77c1-b536-74ca64509e97
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: 'Write one short sentence '
+        type: text
+      - text: about the ocean.
+        type: text
+      role: user
+    model: gpt-4.1-nano
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '201'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1chat/completions
+  query_params: {}
+request_id: 01a046c7-5115-77c1-b536-74ca64509e97
+response:
+  body: ''
+  headers:
+    connection: keep-alive
+  status_code: 404
+timestamp: '2026-08-28T05:11:02.677984+00:00'

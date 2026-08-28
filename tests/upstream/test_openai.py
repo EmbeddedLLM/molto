@@ -2,12 +2,14 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from openai import AuthenticationError
+from openai import APIStatusError
+from openai import AuthenticationError as OpenAIAuthenticationError
 
 from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -2930,7 +2932,7 @@ async def test_early_stop_closes_stream_but_keeps_shared_client_usable():
     assert http_client.is_closed
 
 
-async def test_native_events_use_openai_sdk_errors():
+async def test_native_events_normalize_authentication_error():
     request_count = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -2957,6 +2959,50 @@ async def test_native_events_use_openai_sdk_errors():
         with pytest.raises(AuthenticationError) as exc_info:
             [event async for event in client.native_events(request)]
 
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.code == "invalid_api_key"
+    error = exc_info.value
+    assert error.response.status_code == 401
+    assert error.body["code"] == "invalid_api_key"
+    assert type(error.__cause__) is OpenAIAuthenticationError
     assert request_count == 1
+
+
+@pytest.mark.parametrize("endpoint", ["responses", "chat/completions"])
+async def test_native_events_normalize_known_sdk_errors(endpoint: str):
+    status = 400 if endpoint == "responses" else 404
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status,
+            json={
+                "error": {
+                    "code": "model_not_found",
+                    "message": "The requested model 'm' does not exist.",
+                    "param": "model",
+                    "type": "invalid_request_error",
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        if endpoint == "responses":
+            client = OpenAIResponsesClient(
+                http_client,
+                capabilities=OPENAI_CAPABILITIES,
+                api_key="test-api-key",
+            )
+            request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+        else:
+            client = OpenAIChatCompletionsClient(
+                http_client,
+                capabilities=OPENAI_CAPABILITIES,
+                api_key="test-api-key",
+            )
+            request = OpenAIChatCompletionsCreateRequest(
+                messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
+            )
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            [event async for event in client.native_events(request)]
+
+    error = exc_info.value
+    assert error.response.status_code == status
+    assert isinstance(error.__cause__, APIStatusError)

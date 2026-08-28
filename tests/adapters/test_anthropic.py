@@ -1,10 +1,13 @@
 from collections.abc import AsyncIterator
 
+import httpx
 import pytest
+from anthropic import NotFoundError as AnthropicNotFoundError
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
@@ -458,3 +461,38 @@ async def test_projection_maps_terminal_usage() -> None:
     assert usage.output_tokens == 7
     assert usage.output_tokens_details.thinking_tokens == 4
     assert events[-1].type == "message_stop"
+
+
+async def test_native_passthrough_preserves_original_error_class() -> None:
+    body = {
+        "type": "error",
+        "error": {"type": "not_found_error", "message": "model: m"},
+        "request_id": "req_123",
+    }
+    response = httpx.Response(
+        404,
+        json=body,
+        request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+    )
+    normalized_error: ModelNotFoundError
+    try:
+        raise AnthropicNotFoundError("model: m", response=response, body=body)
+    except AnthropicNotFoundError as error:
+        try:
+            raise ModelNotFoundError(
+                error.message, response=error.response, body=error.body
+            ) from error
+        except ModelNotFoundError as caught:
+            normalized_error = caught
+
+    async def failing_events() -> AsyncIterator[ModelResponseStreamEvent]:
+        raise normalized_error
+        yield
+
+    # Native passthrough never normalizes a request.
+    adapter = AnthropicMessagesAdapter(_CAPABILITIES)
+    with pytest.raises(AnthropicNotFoundError) as exc_info:
+        [event async for event in adapter.project_native_events(failing_events())]
+
+    assert isinstance(exc_info.value.__cause__, ModelNotFoundError)
+    assert exc_info.value is not normalized_error.__cause__

@@ -38,18 +38,19 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
-def test_request_dump_preserves_user_content_part_lists():
+@pytest.mark.parametrize("role", ["system", "developer", "user"])
+def test_request_dump_preserves_content_part_lists(role):
     body = OpenAIChatCompletionsCreateRequest(
         messages=[
             {
-                "role": "user",
+                "role": role,
                 "content": [
                     {"type": "text", "text": "Part one"},
                     {"type": "text", "text": "Part two"},
                 ],
             },
             {
-                "role": "user",
+                "role": role,
                 "content": [{"type": "text", "text": "Follow-up"}],
             },
         ],
@@ -59,14 +60,14 @@ def test_request_dump_preserves_user_content_part_lists():
     expected = {
         "messages": [
             {
-                "role": "user",
+                "role": role,
                 "content": [
                     {"type": "text", "text": "Part one"},
                     {"type": "text", "text": "Part two"},
                 ],
             },
             {
-                "role": "user",
+                "role": role,
                 "content": [{"type": "text", "text": "Follow-up"}],
             },
         ],
@@ -74,6 +75,15 @@ def test_request_dump_preserves_user_content_part_lists():
     }
     assert body.model_dump() == expected
     assert body.model_dump() == expected
+
+
+@pytest.mark.parametrize("role", ["system", "developer"])
+def test_request_rejects_malformed_instruction_content_parts(role):
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": role, "content": [{"type": "text"}]}],
+            model="gpt-4o-mini",
+        )
 
 
 def test_request_dump_preserves_tool_content_part_lists():

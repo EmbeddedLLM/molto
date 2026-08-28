@@ -241,19 +241,25 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
     async def native_events(
         self, request: OpenAIResponsesCreateRequest
     ) -> AsyncIterator[ResponseStreamEvent]:
-        sdk_client = self._make_sdk_client()
-        stream = await sdk_client.responses.create(**request.model_dump())
-        if not isinstance(stream, AsyncStream):
-            raise TypeError("Responses request did not return a stream.")
-        async with stream:
-            async for event in stream:
-                if isinstance(event, ResponseCompletedEvent):
-                    usage = event.response.usage
-                    if usage is not None and usage.input_tokens_details.cache_write_tokens is None:
-                        usage.input_tokens_details.cache_write_tokens = 0
-                # The SDK already constructs ResponseStreamEvent instances. Apart from
-                # the provider omission above, avoid validating every event twice.
-                yield event
+        try:
+            sdk_client = self._make_sdk_client()
+            stream = await sdk_client.responses.create(**request.model_dump())
+            if not isinstance(stream, AsyncStream):
+                raise TypeError("Responses request did not return a stream.")
+            async with stream:
+                async for event in stream:
+                    if isinstance(event, ResponseCompletedEvent):
+                        usage = event.response.usage
+                        if (
+                            usage is not None
+                            and usage.input_tokens_details.cache_write_tokens is None
+                        ):
+                            usage.input_tokens_details.cache_write_tokens = 0
+                    # The SDK already constructs ResponseStreamEvent instances. Apart from
+                    # the provider omission above, avoid validating every event twice.
+                    yield event
+        except Exception as error:
+            self._handle_error(error)
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -565,15 +571,18 @@ class OpenAIChatCompletionsClient(
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
-        sdk_client = self._make_sdk_client()
-        stream = await sdk_client.chat.completions.create(**request.model_dump())
-        if not isinstance(stream, AsyncStream):
-            raise TypeError("Chat Completions request did not return a stream.")
-        async with stream:
-            async for chunk in stream:
-                # The SDK already constructs ChatCompletionChunk instances. Trust that
-                # boundary to avoid serializing and validating every streaming chunk twice.
-                yield chunk
+        try:
+            sdk_client = self._make_sdk_client()
+            stream = await sdk_client.chat.completions.create(**request.model_dump())
+            if not isinstance(stream, AsyncStream):
+                raise TypeError("Chat Completions request did not return a stream.")
+            async with stream:
+                async for chunk in stream:
+                    # The SDK already constructs ChatCompletionChunk instances. Trust that
+                    # boundary to avoid serializing and validating every streaming chunk twice.
+                    yield chunk
+        except Exception as error:
+            self._handle_error(error)
 
     @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:

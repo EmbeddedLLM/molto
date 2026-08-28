@@ -1,7 +1,7 @@
 """Translate Anthropic Messages at Molto's downstream protocol boundary.
 
-See ``docs/openai-responses-anthropic-messages-parity.md`` for supported
-semantics, compatibility mappings, and matched-cassette policy.
+See `docs/protocols/anthropic-messages.md` for supported semantics and
+compatibility mappings.
 """
 
 from __future__ import annotations
@@ -10,8 +10,6 @@ from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 
 from anthropic import APIStatusError
-from anthropic import AuthenticationError as AnthropicAuthenticationError
-from anthropic import NotFoundError as AnthropicNotFoundError
 
 from molto.adapters.base import BaseAdapter
 from molto.types.anthropic_messages import (
@@ -19,7 +17,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
+from molto.types.exceptions import AuthenticationError, NotFoundError
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -496,20 +494,22 @@ class AnthropicMessagesAdapter(
                 yield event({"type": "message_stop"})
 
     def _handle_error(self, error: Exception) -> NoReturn:
-        if isinstance(error, AuthenticationError):
-            raise AnthropicAuthenticationError(
-                error.message,
-                response=error.response,
-                body=error.body,
+        cause = error.__cause__
+        if self.native_request is None and isinstance(cause, APIStatusError):
+            # Same-protocol passthrough: the upstream exception is already
+            # downstream-native, so preserve its SDK subclass. Reconstruct a
+            # fresh instance rather than re-raise the cause: chaining it
+            # `from error` would make the two exceptions each other's cause.
+            # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
+            # has no `APIStatusError` cause and passes through unchanged until
+            # an IR recognition rule exists.
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
             ) from error
-        if isinstance(error, ModelNotFoundError):
+        if isinstance(error, (AuthenticationError, NotFoundError)):
             raise APIStatusError(
-                error.message,
-                response=error.response,
-                body=error.body,
-            ) from error
-        if isinstance(error, NotFoundError):
-            raise AnthropicNotFoundError(
                 error.message,
                 response=error.response,
                 body=error.body,

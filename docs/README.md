@@ -1,0 +1,309 @@
+# Molto documentation
+
+Molto is a Python library for translating between LLM API protocols without giving up native SDK compatibility. An application can speak OpenAI Responses, OpenAI Chat Completions, or Anthropic Messages while the provider exposes any of those protocols.
+
+Molto has two design goals:
+
+- Support any implemented downstream protocol through any implemented upstream protocol with one provider-neutral translation model.
+- Bypass translation when both sides use the same protocol, preserving the native SDK request, event, and error contracts.
+
+Only streaming requests are currently supported.
+
+## Choose a protocol
+
+The public method selects the protocol returned to the application. The `endpoint` argument selects the protocol sent to the provider.
+
+| Application protocol | Molto method | Native endpoint | Stream values | Guide |
+| --- | --- | --- | --- | --- |
+| OpenAI Responses | `Molto.responses()` | `responses` | OpenAI Responses SDK events | [OpenAI Responses](protocols/openai-responses.md) |
+| OpenAI Chat Completions | `Molto.chat_completions()` | `chat/completions` | OpenAI `ChatCompletionChunk` values | [OpenAI Chat Completions](protocols/openai-chat-completions.md) |
+| Anthropic Messages | `Molto.messages()` | `messages` | Anthropic Messages SDK events | [Anthropic Messages](protocols/anthropic-messages.md) |
+
+Use Responses when an application benefits from typed output items and a rich streaming lifecycle. Use Chat Completions for applications built around the widely supported `messages` and choice-delta interface. Use Messages for applications that need the Anthropic SDK contract and its content-block model. The selected upstream endpoint does not have to match that choice.
+
+## Quickstart
+
+This example accepts an OpenAI Responses request, sends an Anthropic Messages request upstream, and yields native OpenAI Responses events:
+
+```python
+import asyncio
+
+from molto import Molto
+
+
+async def main() -> None:
+    async with Molto() as molto:
+        async with await molto.responses(
+            body={
+                "model": "claude-sonnet-5",
+                "input": "Hello!",
+                "max_output_tokens": 1024,
+                "stream": True,
+            },
+            endpoint="messages",
+            provider="anthropic",
+        ) as stream:
+            async for event in stream:
+                print(event)
+
+
+asyncio.run(main())
+```
+
+Use the same protocol for the method and `endpoint` to select native passthrough. Each protocol guide includes native and translated examples.
+
+`Molto` owns its shared `httpx.AsyncClient`. A returned stream releases its response when its context exits, including after early termination. Closing `Molto`, either with `async with` or `await molto.aclose()`, closes the shared HTTP client.
+
+## Routing
+
+Four independent choices define a route:
+
+| Concept       | Responsibility                                                                    |
+| ------------- | --------------------------------------------------------------------------------- |
+| Public method | Selects the downstream request and SDK event contract exposed to the application. |
+| `endpoint`    | Selects the upstream wire protocol and upstream client.                           |
+| `provider`    | Selects the serving implementation and its immutable capability profile.          |
+| `base_url`    | Selects only the HTTP destination.                                                |
+
+Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
+
+Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.
+
+## How translation works
+
+A translated request crosses a provider-neutral intermediate representation:
+
+```text
+application protocol request
+        |
+        v
+downstream protocol adapter
+        |
+        v
+normalized request
+        |
+        v
+upstream protocol client
+        |
+        v
+provider protocol request
+
+provider protocol events
+        |
+        v
+upstream protocol client
+        |
+        v
+normalized event stream
+        |
+        v
+downstream protocol adapter
+        |
+        v
+application protocol events
+```
+
+The public `Molto` facade validates the downstream body, resolves routing and transport configuration, and composes the adapter and client. Adapters own downstream request normalization and downstream event projection. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
+
+When the application and provider protocols match, Molto skips the normalized representation. This native passthrough is an identity optimization: the request is still validated, but SDK-native events and errors are yielded without losing protocol-only structure.
+
+Streaming is the execution primitive. The normalized event grammar is:
+
+```text
+ResponseStartEvent
+PartStartEvent
+PartDeltaEvent*
+PartEndEvent
+ResponseEndEvent
+```
+
+A generic collector may eventually derive non-streaming results from this grammar. Until that collector and a normalized response model exist, every coordinator rejects non-streaming requests.
+
+## Translation contract
+
+Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
+
+| Class                      | Required behavior                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| Source-backed              | Preserve the upstream request or result value after the documented schema transformation.          |
+| Request-backed             | Retain a downstream request value when the target result contract must echo it.                    |
+| Target-default             | Emit a documented target value when source and target vocabularies are not equivalent.             |
+| Translator-generated       | Generate required target structure using a stable, internally consistent policy.                   |
+| Provider-owned             | Translate only under an explicit contract that the same provider owns both representations.        |
+| Unsupported or unavailable | Reject, omit, coerce, or expose through a documented extension; never silently claim exact parity. |
+
+Unknown values retained in a normalized model's `extra_fields` are an escape hatch, not evidence that another protocol supports them. Request constructors and event projectors map supported fields explicitly.
+
+Parsed event parity is also different from raw transport parity. Parsing and serialization may change JSON key order, omitted fields versus explicit null, number spelling, whitespace, SSE framing, and chunk placement. Request models that serialize with `exclude_none=True` cannot preserve omitted-versus-null distinctions unless they retain the original field set separately.
+
+## Boundaries and ordering
+
+Conversation behavior has three distinct kinds of boundary:
+
+1. A wire-message boundary is an element of Responses `input[]`, Chat Completions `messages[]`, or Messages `messages[]` and its content blocks.
+2. A model-visible turn is produced after a provider or model renderer applies role, merging, and chat-template rules.
+3. A streaming boundary describes generated output items, parts, blocks, choices, and deltas. It is not an arbitrary conversation-message boundary.
+
+Molto currently preserves each normalized user message and the ordered text or image parts inside it. Same-protocol passthrough retains more native structure. On translated routes, the current representation does not fully preserve:
+
+- `system` versus `developer` identity;
+- multipart instruction-message boundaries;
+- assistant-message containers;
+- valid mid-sequence instruction placement when targeting Messages;
+- Responses inner content-part indexes; or
+- Chat Completions choices beyond index zero.
+
+Wire preservation does not guarantee a distinct model-visible turn. Anthropic may combine consecutive messages with the same role, and open-model renderers may merge, move, or rewrite instructions.
+
+## Current feature support
+
+The translated path currently supports:
+
+- streaming requests;
+- string input and ordered text messages;
+- ordered mixed text and image user input using remote URLs or base64 data URLs;
+- system prompts and supported assistant history;
+- raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
+- client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
+- model, output-token limit, reasoning effort, temperature, and `top_p`;
+- response identity, model, lifecycle metadata, termination, and semantic token usage; and
+- native protocol passthrough that remains outside the normalized path.
+
+The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client map or reject them explicitly.
+
+Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
+
+## Shared field policies
+
+### Reasoning
+
+The normalized representation distinguishes raw reasoning from reasoning summaries:
+
+- `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning.
+- `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary.
+
+Responses events label those representations explicitly and must agree with the configured provider capability. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so the capability profile classifies them before normalization.
+
+A Responses reasoning lifecycle must contain raw reasoning without a summary or signature, a summary accompanied by a signature without raw reasoning, or a signature without reasoning text. A Messages thinking lifecycle follows the same pairing rule. A completely empty start may be deferred until its representation is known, and a lifecycle must not switch representations.
+
+Although a provider profile can classify Chat `reasoning_content` as a summary, Chat has no signature field. Current translated routes through Chat therefore support only unsigned raw reasoning. Summary translation through Chat fails at the Responses or Messages signature boundary rather than silently discarding required continuation state.
+
+### Opaque continuation state
+
+Responses `encrypted_content` and a Messages thinking `signature` are provider-issued continuation state. They are not generally portable across providers. Molto currently carries the value through the normalized representation without tracking or validating its issuer. Callers must not reuse translated continuation state across providers. Matched fixtures map it only under the explicit assumption that OpenAI owns both endpoints.
+
+Opaque state is represented as replacement snapshots, not append-only text. A Messages `signature_delta` replaces the block-start signature. Responses exposes three encrypted snapshots where Messages exposes two corresponding slots; translated streams preserve the Responses `added` and `done` snapshots and reuse `done` at terminal projection instead of buffering for a third value.
+
+### Service tiers
+
+Service-tier labels are not portable provider semantics. Native passthrough preserves the provider value. Translated results use target defaults:
+
+| Downstream result       | Target value |
+| ----------------------- | ------------ |
+| OpenAI Responses        | `default`    |
+| OpenAI Chat Completions | `default`    |
+| Anthropic Messages      | `standard`   |
+
+Request `service_tier` is not forwarded across protocols. Anthropic request values and response values also use different vocabularies and must not be treated as direct aliases.
+
+### Termination
+
+Molto first preserves a provider-neutral termination reason, then projects it into the target protocol:
+
+| Normalized reason               | Messages        | Chat Completions | Responses                       |
+| ------------------------------- | --------------- | ---------------- | ------------------------------- |
+| `stop`                          | `end_turn`      | `stop`           | completed                       |
+| `max_output_tokens`             | `max_tokens`    | `length`         | incomplete: `max_output_tokens` |
+| `stop_sequence`                 | `stop_sequence` | `stop`           | completed                       |
+| `tool_call`                     | `tool_use`      | `tool_calls`     | completed                       |
+| `model_context_window_exceeded` | same value      | `stop`           | completed                       |
+| `pause`                         | `pause_turn`    | `stop`           | completed                       |
+| `refusal`                       | `refusal`       | `stop`           | completed                       |
+| `content_filter`                | `end_turn`      | `content_filter` | incomplete: `content_filter`    |
+
+Values shown as normal completion for a target that lacks the source distinction are deliberate coercions. A matched Anthropic stop sequence is retained separately.
+
+### Usage
+
+Usage is mapped by meaning rather than by field spelling:
+
+| Normalized usage | Responses | Chat Completions | Messages |
+| --- | --- | --- | --- |
+| Input tokens | `input_tokens` | `prompt_tokens` | uncached + cache creation + cache read |
+| Cached input | `input_tokens_details.cached_tokens` | `prompt_tokens_details.cached_tokens` | `cache_read_input_tokens` |
+| Cache writes | `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens` | `cache_creation_input_tokens` |
+| Output tokens | `output_tokens` | `completion_tokens` | `output_tokens` |
+| Reasoning tokens | `output_tokens_details.reasoning_tokens` | `completion_tokens_details.reasoning_tokens` | `output_tokens_details.thinking_tokens` |
+
+When projecting Messages, Molto recovers uncached input by subtracting cache reads and writes from normalized total input. Terminal Messages usage is authoritative; start usage is zero when a source protocol cannot provide final counts without buffering. Unsupported provider-specific usage details are not synthesized.
+
+### Errors
+
+Native and translated routes share a two-stage cause chain for errors with a known protocol-independent meaning:
+
+```text
+downstream SDK exception
+        caused by
+normalized Molto exception
+        caused by
+upstream SDK exception
+```
+
+The implemented normalized category is `ModelNotFoundError`:
+
+| Upstream protocol | Recognition rule                                                |
+| ----------------- | --------------------------------------------------------------- |
+| Responses         | OpenAI status `400` and `code == "model_not_found"`             |
+| Chat Completions  | OpenAI status `404` and `code == "model_not_found"`             |
+| Messages          | Anthropic status `404` and an error message containing `model:` |
+
+On translated routes, the outward exception uses the downstream SDK's base `APIStatusError`, but its status, message, response, and body still come from the upstream provider. On same-protocol routes it is a fresh instance of the upstream SDK exception's concrete class. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
+
+## Provider and model renderers
+
+An endpoint schema describes accepted wire data, not necessarily the turns shown to the model. This is especially important for vLLM, whose Responses, Chat Completions, and Messages endpoints all construct a conversation for the selected model renderer.
+
+For Responses, vLLM converts input and output items into chat messages before rendering. Reasoning and tool-call items can belong to one reconstructed chat message, so Responses item boundaries are not necessarily model-turn boundaries. For Chat Completions, `openai` content mode retains structured parts inside one message, while `string` mode joins text parts with newlines and loses their individual identities.
+
+The Hugging Face renderer has a developer compatibility fallback. If a template does not explicitly support `developer`, vLLM converts developer messages to system messages and may consolidate all system messages at the beginning. A Messages conversion can similarly extract and merge inline system messages when a template requires system-first ordering. These transformations sacrifice instruction role, placement, and message boundaries for template compatibility.
+
+Model-specific behavior includes:
+
+- Kimi K3 uses vLLM's dedicated XTML renderer. It preserves ordinary conversation order but may reorder consecutive tool results to match the preceding assistant tool-call order. A distinct developer instruction level is not documented.
+- Qwen uses ChatML turn markers and documents system, user, and assistant roles. A template accepting the literal word `developer` does not prove that the model was trained to treat it as a separate instruction level. vLLM generally applies its developer-to-system fallback when the template lacks explicit support. Qwen3 does not insert a default system message, and Qwen tool results are rendered as special user messages.
+- Muse Glimmer's ATEM template has explicit system, user, tool, and assistant branches but no developer branch. Direct template application would omit an unsupported developer message, while vLLM preprocessing is expected to convert it to system and may move or merge it. If no system message exists, the template inserts a default leading system message. Supplied system messages also receive reasoning, tool-definition, and recipient metadata.
+
+For open-weight models, the selected renderer or chat template is the most authoritative description of model-visible roles and boundaries. Do not infer these capabilities from `endpoint`, `provider`, or `base_url` alone.
+
+## Compatibility and maintenance
+
+OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models. Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
+
+Responses is the canonical behavioral reference for matched cross-protocol cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
+
+Implementation and maintenance details remain canonical in:
+
+- [Python architecture](../python/ARCHITECTURE.md)
+- [Python conventions](../python/CONVENTIONS.md)
+- [Cassette policy](../tests/cassettes/README.md)
+
+The protocol-specific contracts are:
+
+- [OpenAI Responses](protocols/openai-responses.md)
+- [OpenAI Chat Completions](protocols/openai-chat-completions.md)
+- [Anthropic Messages](protocols/anthropic-messages.md)
+
+## Primary references
+
+- [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses)
+- [OpenAI Chat Completions create reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
+- [Anthropic Messages create reference](https://platform.claude.com/docs/en/api/messages/create)
+- [Anthropic mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
+- [Anthropic streaming Messages](https://platform.claude.com/docs/en/build-with-claude/streaming)
+- [vLLM OpenAI-compatible server](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/)
+- [vLLM Responses conversion utilities](https://docs.vllm.ai/en/latest/api/vllm/entrypoints/openai/responses/utils/)
+- [vLLM Anthropic serving conversion](https://docs.vllm.ai/en/latest/api/vllm/entrypoints/anthropic/serving/)
+- [vLLM Hugging Face renderer](https://docs.vllm.ai/en/latest/api/vllm/renderers/hf/)
+- [vLLM Kimi K3 renderer](https://docs.vllm.ai/en/latest/api/vllm/renderers/kimi_k3/)
+- [Qwen chat-template concepts](https://github.com/QwenLM/Qwen3/blob/main/docs/source/getting_started/concepts.md#chat-template)
+- [Muse Glimmer chat template](https://huggingface.co/meta-models/Muse-Glimmer-30B/raw/main/chat_template.jinja)
