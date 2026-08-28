@@ -10,6 +10,7 @@ from molto.adapters.base import BaseAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -47,6 +48,18 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
         raise RuntimeError("Native projection failed.") from error
 
 
+class InvalidNormalizedAdapter(Adapter):
+    def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
+        del request
+        return NormalizedRequest.model_validate({"unknown": True})
+
+
+class BrokenAdapter(Adapter):
+    def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
+        del request
+        raise ValueError("Unexpected implementation error.")
+
+
 class EmptyEvents(AsyncIterator[ModelResponseStreamEvent]):
     async def __anext__(self) -> ModelResponseStreamEvent:
         raise StopAsyncIteration
@@ -68,6 +81,18 @@ def test_adapter_rejects_event_projection_before_request_normalization():
 
     with pytest.raises(RuntimeError, match=r"normalize_request\(\).+project_events\(\)"):
         adapter.project_events(EmptyEvents(), NormalizedRequest())
+
+
+def test_adapter_classifies_only_pydantic_request_validation_errors():
+    native_request = NativeRequest(value="hello")
+
+    with pytest.raises(UnsupportedInput):
+        InvalidNormalizedAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(native_request)
+
+    with pytest.raises(ValueError, match="Unexpected implementation error") as exc_info:
+        BrokenAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(native_request)
+
+    assert type(exc_info.value) is ValueError
 
 
 def test_base_adapter_defines_abstract_translation_contract():

@@ -79,7 +79,7 @@ class ExtraModel(ExcludeNoneModel):
         Field(
             description=(
                 "Provider-specific or otherwise non-normalized fields "
-                "to preserve or pass through when constructing the upstream request."
+                "observed while handling output."
             ),
         ),
     ] = {}
@@ -94,3 +94,7 @@ class ExtraModel(ExcludeNoneModel):
             **{k: v for k, v in data.items() if k in model_fields},
             "extra_fields": {k: v for k, v in data.items() if k not in model_fields},
         }
+
+
+class StrictModel(ExcludeNoneModel):
+    model_config = ConfigDict(extra="forbid")

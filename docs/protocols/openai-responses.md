@@ -149,7 +149,7 @@ One user message remains one user message, and its ordered text and image parts 
 
 System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values. Assistant message containers are flattened: each assistant text part becomes a separate text output, and multiple reasoning parts of the same representation are joined within a normalized reasoning value. These transformations preserve supported content but lose the original instruction role, multipart instruction boundary, and enclosing assistant-message boundary.
 
-Unsupported item types, content parts, and non-successful tool outcomes in the implemented content paths are rejected. Other request-wrapper fields may be retained as extra data or omitted by an upstream constructor; they remain unsupported unless a client maps them explicitly. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint.
+Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Optional Responses output-item IDs are the sole exception: they remain valid normalized history, Responses preserves them, and Chat Completions or Messages may omit them because they do not affect model behavior. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint.
 
 ### Downstream event projection
 

@@ -17,7 +17,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -64,6 +64,22 @@ _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (32_768, "xhigh"),
 )
 
+_MESSAGES_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "max_tokens",
+        "messages",
+        "model",
+        "output_config",
+        "stream",
+        "system",
+        "temperature",
+        "thinking",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
 
 def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     return next(
@@ -74,7 +90,7 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
 
 def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
     if tool.get("type") not in {None, "custom"}:
-        raise ValueError(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
+        raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
     unsupported_fields = {
         field
         for field in (
@@ -87,7 +103,7 @@ def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
         if tool.get(field) not in (None, False, [])
     }
     if unsupported_fields:
-        raise ValueError(
+        raise UnsupportedInput(
             f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
         )
     return FunctionTool(
@@ -115,8 +131,8 @@ class AnthropicMessagesAdapter(
                 return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
             if source_type == "url":
                 return ImageUrlInput(url=source["url"])
-            raise ValueError(f"Unsupported Anthropic image source: {source_type}")
-        raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
+            raise UnsupportedInput(f"Unsupported Anthropic image source: {source_type}")
+        raise UnsupportedInput(f"Unsupported Anthropic user content block: {block_type}")
 
     @staticmethod
     def _normalize_system_blocks(content_blocks: list[dict[str, Any]]) -> list[SystemPrompt]:
@@ -124,7 +140,7 @@ class AnthropicMessagesAdapter(
             block.get("type") for block in content_blocks if block.get("type") != "text"
         ]
         if unsupported:
-            raise ValueError(f"Unsupported Anthropic system content blocks: {unsupported}")
+            raise UnsupportedInput(f"Unsupported Anthropic system content blocks: {unsupported}")
         return [SystemPrompt(content=block["text"]) for block in content_blocks]
 
     def _normalize_user_blocks(
@@ -138,9 +154,11 @@ class AnthropicMessagesAdapter(
                 user_parts.append(self._normalize_input_block(block))
                 continue
             if block_type != "tool_result":
-                raise ValueError(f"Unsupported Anthropic user content block: {block_type}")
+                raise UnsupportedInput(f"Unsupported Anthropic user content block: {block_type}")
             if user_parts:
-                raise ValueError("Anthropic tool results must precede user content in a message.")
+                raise UnsupportedInput(
+                    "Anthropic tool results must precede user content in a message."
+                )
             items.append(self._normalize_tool_result(block))
         if user_parts:
             items.append(UserInput(content=user_parts))
@@ -168,7 +186,7 @@ class AnthropicMessagesAdapter(
             if block_type == "thinking":
                 part = self._classify_thinking(block["thinking"], signature=block.get("signature"))
                 if self._capabilities.thinking == "summary" and not part.signature:
-                    raise ValueError("An Anthropic reasoning summary requires a signature.")
+                    raise UnsupportedInput("An Anthropic reasoning summary requires a signature.")
                 items.append(part)
             elif block_type == "text":
                 items.append(TextOutput(content=block["text"]))
@@ -180,7 +198,7 @@ class AnthropicMessagesAdapter(
                     else getattr(caller, "type", None)
                 )
                 if caller is not None and caller_type != "direct":
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "Only directly invoked Anthropic tool uses can be translated."
                     )
                 items.append(
@@ -191,10 +209,27 @@ class AnthropicMessagesAdapter(
                     )
                 )
             else:
-                raise ValueError(f"Unsupported Anthropic assistant content block: {block_type}")
+                raise UnsupportedInput(
+                    f"Unsupported Anthropic assistant content block: {block_type}"
+                )
         return items
 
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _MESSAGES_TRANSLATABLE_FIELDS,
+            protocol="Anthropic Messages",
+        )
+        unsupported_output_config = {
+            field
+            for field, value in (request.output_config or {}).items()
+            if field != "effort" and value is not None
+        }
+        if unsupported_output_config:
+            raise UnsupportedInput(
+                "Unsupported Anthropic output_config fields for cross-protocol translation: "
+                f"{sorted(unsupported_output_config)}."
+            )
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
         ] = []
@@ -239,7 +274,7 @@ class AnthropicMessagesAdapter(
             elif choice_type == "tool":
                 data["tool_choice"] = FunctionToolChoice(name=request.tool_choice["name"])
             else:
-                raise ValueError(f"Unsupported Anthropic tool choice: {choice_type!r}.")
+                raise UnsupportedInput(f"Unsupported Anthropic tool choice: {choice_type!r}.")
             if "disable_parallel_tool_use" in request.tool_choice:
                 data["parallel_tool_calls"] = not request.tool_choice["disable_parallel_tool_use"]
         if request.thinking is not None:
@@ -247,7 +282,7 @@ class AnthropicMessagesAdapter(
             if thinking_type == "disabled":
                 data["reasoning"] = Reasoning(effort="none")
             elif request.thinking.get("display", "summarized") != "summarized":
-                raise ValueError(
+                raise UnsupportedInput(
                     "Only Anthropic thinking with summarized display is currently supported."
                 )
             elif thinking_type in {"adaptive", "enabled"}:
@@ -263,7 +298,7 @@ class AnthropicMessagesAdapter(
                 )
                 data["reasoning"] = Reasoning(effort=effort, summary="detailed")
             else:
-                raise ValueError(f"Unsupported Anthropic thinking type: {thinking_type}")
+                raise UnsupportedInput(f"Unsupported Anthropic thinking type: {thinking_type}")
         if request.temperature is not None:
             data["temperature"] = request.temperature
         if request.top_p is not None:

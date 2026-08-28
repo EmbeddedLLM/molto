@@ -97,11 +97,19 @@ Keep all field default assignments outside `Annotated`; do not pass defaults suc
 
 Models used as API request bodies inherit from `ExcludeNoneModel`. Call `model_dump()` instead of `BaseModel.model_dump()` so unset and `None` values do not become unintended provider parameters.
 
-Normalized models inherit from `ExtraModel`. `extra_fields` is an internal escape hatch for provider-specific values, not a vendor wire field. Never blindly dump a normalized model into a provider request or response; project supported fields explicitly.
+The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
+
+- Normalized requests are closed and lossless-or-rejected.
+- Normalized outputs are open to provider extensions.
+- Retaining unknown output data does not authorize projecting it into another protocol.
+
+Normalized request-only models inherit from `StrictModel` and reject unknown fields independently of environment configuration. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when they are validated through `InputItem`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
+
+Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts, and assistant conversation history is `TextOutput`; do not encode either role in `TextInput.metadata`.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts, and assistant conversation history is `TextOutput`; do not encode roles as content-part metadata.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
@@ -142,6 +150,8 @@ Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid du
 ## Unsupported semantics
 
 Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
+
+For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics. The sole exception is an optional Responses output-item `id`, which Chat Completions and Messages may omit because it does not affect model behavior and has no target equivalent; this exception does not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks beside that client's request construction rather than in the provider-neutral normalized models.
 
 Prefer semantic normalized types over SDK parameter types. Any SDK type retained inside the normalized IR is transitional coupling and should not spread to new adapters or clients.
 

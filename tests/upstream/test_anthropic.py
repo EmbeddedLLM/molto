@@ -13,7 +13,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -25,6 +25,7 @@ from molto.types.normalized import (
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
+    StreamOptions,
     TerminationReason,
     TextDelta,
     TextInput,
@@ -890,7 +891,7 @@ def test_client_rejects_unrepresentable_image_detail(detail: str):
         stream=True,
     )
 
-    with pytest.raises(ValueError, match="cannot represent image detail"):
+    with pytest.raises(UnsupportedInput, match="cannot represent image detail"):
         AnthropicMessagesClient._request_body(request)
 
 
@@ -902,7 +903,7 @@ def test_client_rejects_non_base64_data_url_image():
         stream=True,
     )
 
-    with pytest.raises(ValueError, match="base64 data URL"):
+    with pytest.raises(UnsupportedInput, match="base64 data URL"):
         AnthropicMessagesClient._request_body(request)
 
 
@@ -981,7 +982,7 @@ def test_client_rejects_reasoning_history_outside_capability() -> None:
         stream=True,
     )
 
-    with pytest.raises(ValueError, match="does not match the provider"):
+    with pytest.raises(UnsupportedInput, match="does not match the provider"):
         AnthropicMessagesClient._request_body(request, capabilities=VLLM_CAPABILITIES)
 
 
@@ -1001,7 +1002,7 @@ def test_client_disables_thinking_without_output_effort():
 
 
 def test_client_rejects_extended_thinking_budget_at_output_limit():
-    with pytest.raises(ValueError, match="must be less than max_output_tokens"):
+    with pytest.raises(UnsupportedInput, match="must be less than max_output_tokens"):
         AnthropicMessagesClient._request_body(
             NormalizedRequest(
                 input=[UserInput(content=[TextInput(content="Hello")])],
@@ -1323,7 +1324,7 @@ def test_adapter_rejects_server_generated_tool_history():
         stream=True,
     )
 
-    with pytest.raises(ValueError, match="directly invoked"):
+    with pytest.raises(UnsupportedInput, match="directly invoked"):
         AnthropicMessagesAdapter(VLLM_CAPABILITIES).normalize_request(request)
 
 
@@ -1413,7 +1414,7 @@ def test_client_projects_function_tools_and_tool_history_without_caller():
 
 @pytest.mark.parametrize("tool_choice", ["required", FunctionToolChoice(name="First")])
 def test_client_rejects_required_tool_choice_without_tools(tool_choice):
-    with pytest.raises(ValueError, match="needs at least one tool"):
+    with pytest.raises(UnsupportedInput, match="needs at least one tool"):
         AnthropicMessagesClient._request_body(
             NormalizedRequest(model="model", tool_choice=tool_choice)
         )
@@ -1444,8 +1445,86 @@ def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
         model="model",
     )
 
-    with pytest.raises(ValueError, match="cannot preserve denied or interrupted"):
+    with pytest.raises(UnsupportedInput, match="cannot preserve denied or interrupted"):
         AnthropicMessagesClient._request_body(request)
+
+
+def test_client_accepts_disabled_stream_obfuscation():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            max_output_tokens=10,
+            model="model",
+            stream=True,
+            stream_options=StreamOptions(include_obfuscation=False),
+        )
+    )
+
+    assert body["stream"] is True
+
+
+@pytest.mark.parametrize(
+    ("normalized_request", "error"),
+    [
+        (NormalizedRequest(model="model", max_tool_calls=1), "max_tool_calls"),
+        (
+            NormalizedRequest(
+                model="model",
+                stream_options=StreamOptions(include_obfuscation=True),
+            ),
+            "stream obfuscation",
+        ),
+        (
+            NormalizedRequest(model="model", reasoning=Reasoning(summary="concise")),
+            "concise reasoning summaries",
+        ),
+        (
+            NormalizedRequest(
+                input=[
+                    ToolReturn(
+                        tool_name="lookup",
+                        content=[TextInput(content="result")],
+                        tool_call_id="call_123",
+                    )
+                ],
+                model="model",
+            ),
+            "tool return names",
+        ),
+    ],
+)
+def test_client_rejects_unrepresentable_normalized_request_fields(
+    normalized_request: NormalizedRequest,
+    error: str,
+):
+    with pytest.raises(UnsupportedInput, match=error):
+        AnthropicMessagesClient._request_body(normalized_request)
+
+
+def test_anthropic_client_ignores_responses_history_item_ids():
+    def request(item_id: str | None) -> NormalizedRequest:
+        return NormalizedRequest(
+            input=[
+                Thinking(content="thought", summary="", id=item_id),
+                TextOutput(content="answer", id=item_id),
+                ToolCall(
+                    id=item_id,
+                    tool_call_id="call_123",
+                    tool_name="lookup",
+                    args="{}",
+                ),
+                ToolReturn(
+                    id=item_id,
+                    content=[TextInput(content="result")],
+                    tool_call_id="call_123",
+                ),
+            ],
+            max_output_tokens=100,
+            model="model",
+        )
+
+    assert AnthropicMessagesClient._request_body(
+        request("responses_item_id")
+    ) == AnthropicMessagesClient._request_body(request(None))
 
 
 async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPatch):

@@ -40,8 +40,8 @@ RESPONSES_MESSAGES_ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(
     product(RESPONSES_MESSAGES_PROTOCOLS, repeat=2)
 )
 # Scenarios whose Responses streams carry encrypted reasoning. Messages has no
-# equivalents for Responses include/stream options or item IDs, so these routes
-# compare reconstructible requests and events instead of exact wire values.
+# equivalents for Responses include or stream options, so these routes compare
+# reconstructible requests and events instead of exact wire values.
 ENCRYPTED_REASONING_SCENARIOS: tuple[str, ...] = (
     "reasoning_encrypted",
     "input_image_with_reasoning_encrypted",

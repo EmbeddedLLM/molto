@@ -9,6 +9,20 @@ Molto has two design goals:
 
 Only streaming requests are currently supported.
 
+## Cross-protocol contract
+
+> For cross protocol, Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated.
+
+Three rules make this principle concrete:
+
+- Normalized requests are closed and lossless-or-rejected.
+- Normalized outputs are open to provider extensions.
+- Retaining unknown output data does not authorize projecting it into another protocol.
+
+“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. The sole deliberate exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
+
+Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model.
+
 ## Choose a protocol
 
 The public method selects the protocol returned to the application. The `endpoint` argument selects the protocol sent to the provider.
@@ -121,18 +135,23 @@ A generic collector may eventually derive non-streaming results from this gramma
 
 ## Translation contract
 
+The [cross-protocol contract](#cross-protocol-contract) governs every translated route. Input validation establishes what Molto promises to effect; output handling tolerates provider additions without turning them into portable semantics.
+
 Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
 
-| Class                      | Required behavior                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------------- |
-| Source-backed              | Preserve the upstream request or result value after the documented schema transformation.          |
-| Request-backed             | Retain a downstream request value when the target result contract must echo it.                    |
-| Target-default             | Emit a documented target value when source and target vocabularies are not equivalent.             |
-| Translator-generated       | Generate required target structure using a stable, internally consistent policy.                   |
-| Provider-owned             | Translate only under an explicit contract that the same provider owns both representations.        |
-| Unsupported or unavailable | Reject, omit, coerce, or expose through a documented extension; never silently claim exact parity. |
+| Class                | Required behavior                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.     |
+| Request-backed       | Retain a downstream request value when the target result contract must echo it.               |
+| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.        |
+| Translator-generated | Generate required target structure using a stable, internally consistent policy.              |
+| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations.   |
+| Unsupported input    | Reject before translation, except for optional Responses output-item IDs as documented below. |
+| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.   |
 
-Unknown values retained in a normalized model's `extra_fields` are an escape hatch, not evidence that another protocol supports them. Request constructors and event projectors map supported fields explicitly.
+Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped or explicitly rejected by the target client. The sole exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
+
+Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
 Parsed event parity is also different from raw transport parity. Parsing and serialization may change JSON key order, omitted fields versus explicit null, number spelling, whitespace, SSE framing, and chunk placement. Request models that serialize with `exclude_none=True` cannot preserve omitted-versus-null distinctions unless they retain the original field set separately.
 
@@ -244,12 +263,12 @@ Native and translated routes share a two-stage cause chain for errors with a kno
 ```text
 downstream SDK exception
         caused by
-normalized Molto exception
+normalized APIException
         caused by
 upstream SDK exception
 ```
 
-The implemented normalized category is `ModelNotFoundError`:
+Normalized protocol-independent API errors inherit from `molto.types.exceptions.APIException`. The implemented category is `ModelNotFoundError`:
 
 | Upstream protocol | Recognition rule                                                |
 | ----------------- | --------------------------------------------------------------- |

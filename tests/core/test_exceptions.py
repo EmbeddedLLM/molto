@@ -12,7 +12,7 @@ from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
 
 from molto import Molto
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import APIException, ModelNotFoundError
 from molto.utils.io import json_loads, read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
@@ -128,6 +128,7 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert type(error) is expected_error_type
     normalized_error = error.__cause__
     assert isinstance(normalized_error, ModelNotFoundError)
+    assert isinstance(normalized_error, APIException)
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body
