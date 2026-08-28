@@ -735,18 +735,21 @@ class OpenAIResponsesAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        cause = error.__cause__
+        if self.native_request is None and isinstance(cause, APIStatusError):
+            # Same-protocol passthrough: the upstream exception is already
+            # downstream-native, so preserve its SDK subclass. Reconstruct a
+            # fresh instance rather than re-raise the cause: chaining it
+            # `from error` would make the two exceptions each other's cause.
+            # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
+            # has no `APIStatusError` cause and passes through unchanged until
+            # an IR recognition rule exists.
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
+            ) from error
         if isinstance(error, ModelNotFoundError):
-            cause = error.__cause__
-            if self.native_request is None and isinstance(cause, APIStatusError):
-                # Same-protocol passthrough: the upstream exception is already
-                # downstream-native, so preserve its SDK subclass. Reconstruct
-                # rather than re-raise the cause instance: chaining it `from error`
-                # would make the two exceptions each other's cause.
-                raise type(cause)(
-                    error.message,
-                    response=error.response,
-                    body=error.body,
-                ) from error
             # Changing these without changing error message is confusing to users
             # error.body["error"]["code"] = "model_not_found"
             # error.body["error"]["param"] = "model"
@@ -1108,15 +1111,16 @@ class OpenAIChatCompletionsAdapter(
                 )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        cause = error.__cause__
+        if self.native_request is None and isinstance(cause, APIStatusError):
+            # TODO: Handle bare `APIError` (e.g. mid-stream error events); see
+            # OpenAIResponsesAdapter._handle_error for the passthrough rule.
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
+            ) from error
         if isinstance(error, ModelNotFoundError):
-            cause = error.__cause__
-            if self.native_request is None and isinstance(cause, APIStatusError):
-                # See OpenAIResponsesAdapter._handle_error for the passthrough rule.
-                raise type(cause)(
-                    error.message,
-                    response=error.response,
-                    body=error.body,
-                ) from error
             raise APIStatusError(
                 error.message,
                 response=error.response,
