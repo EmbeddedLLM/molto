@@ -293,25 +293,28 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                         [{"type": "reasoning_text", "text": item.content}] if item.content else []
                     ),
                 }
+                if item.id is not None:
+                    reasoning_item["id"] = item.id
                 if item.signature is not None:
                     reasoning_item["encrypted_content"] = item.signature
                 items.append(reasoning_item)
             elif isinstance(item, TextOutput):
-                items.append(
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "status": "completed",
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": item.content,
-                                "annotations": [],
-                                "logprobs": [],
-                            }
-                        ],
-                    }
-                )
+                message = {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": item.content,
+                            "annotations": [],
+                            "logprobs": [],
+                        }
+                    ],
+                }
+                if item.id is not None:
+                    message["id"] = item.id
+                items.append(message)
             elif isinstance(item, ToolCall):
                 function_call = {
                     "type": "function_call",
@@ -695,6 +698,7 @@ class OpenAIChatCompletionsClient(
 
     @classmethod
     def _request_body(cls, request: NormalizedRequest) -> dict[str, Any]:
+        cls._validate_request(request)
         stream_options: dict[str, Any] = {}
         if request.stream:
             stream_options["include_usage"] = True
@@ -728,6 +732,24 @@ class OpenAIChatCompletionsClient(
         if request.top_p is not None:
             body["top_p"] = request.top_p
         return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
+
+    @staticmethod
+    def _validate_request(request: NormalizedRequest) -> None:
+        if request.max_tool_calls is not None:
+            raise ValueError("Chat Completions cannot represent max_tool_calls.")
+        if request.reasoning is not None and request.reasoning.summary not in (
+            None,
+            "auto",
+            "detailed",
+        ):
+            raise ValueError("Chat Completions cannot represent concise reasoning summaries.")
+        for item in request.input or []:
+            if isinstance(item, Thinking):
+                if item.signature is not None:
+                    raise ValueError("Chat Completions cannot represent thinking signatures.")
+            elif isinstance(item, ToolReturn):
+                if item.tool_name is not None:
+                    raise ValueError("Chat Completions cannot represent tool return names.")
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None

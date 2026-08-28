@@ -18,6 +18,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
     TerminationReason,
@@ -289,6 +290,21 @@ def test_responses_client_projects_typed_text_history_without_phase():
     ]
 
 
+def test_responses_client_preserves_history_item_ids():
+    body = OpenAIResponsesClient._request_body(
+        NormalizedRequest(
+            input=[
+                Thinking(content="Prior thought", summary="", id="rs_123"),
+                TextOutput(content="Answer", id="msg_123"),
+            ],
+            model="m",
+        )
+    )
+
+    assert body["input"][0]["id"] == "rs_123"
+    assert body["input"][1]["id"] == "msg_123"
+
+
 def test_chat_completions_client_preserves_user_message_and_part_boundaries():
     messages = OpenAIChatCompletionsClient._messages(
         NormalizedRequest(
@@ -311,6 +327,15 @@ def test_chat_completions_client_preserves_user_message_and_part_boundaries():
         {"role": "user", "content": [{"type": "text", "text": "Follow-up"}]},
         {"role": "assistant", "content": "Answer"},
     ]
+
+
+@pytest.mark.parametrize("summary", [None, "auto", "detailed"])
+def test_chat_completions_client_maps_supported_reasoning_configuration(summary):
+    body = OpenAIChatCompletionsClient._request_body(
+        NormalizedRequest(model="m", reasoning=Reasoning(effort="high", summary=summary))
+    )
+
+    assert body["reasoning_effort"] == "high"
 
 
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
@@ -953,6 +978,76 @@ def test_openai_clients_reject_failed_tool_results(client):
 
     with pytest.raises(ValueError, match="cannot preserve non-successful"):
         client._request_body(request)
+
+
+@pytest.mark.parametrize(
+    ("normalized_request", "error"),
+    [
+        (NormalizedRequest(model="m", max_tool_calls=1), "max_tool_calls"),
+        (
+            NormalizedRequest(model="m", reasoning=Reasoning(summary="concise")),
+            "concise reasoning summaries",
+        ),
+        (
+            NormalizedRequest(
+                input=[
+                    Thinking(
+                        content="",
+                        summary="summary",
+                        signature="opaque-state",
+                    )
+                ],
+                model="m",
+            ),
+            "thinking signatures",
+        ),
+        (
+            NormalizedRequest(
+                input=[
+                    ToolReturn(
+                        tool_name="lookup",
+                        content=[TextInput(content="result")],
+                        tool_call_id="call_123",
+                    )
+                ],
+                model="m",
+            ),
+            "tool return names",
+        ),
+    ],
+)
+def test_chat_completions_client_rejects_unrepresentable_request_fields(
+    normalized_request: NormalizedRequest,
+    error: str,
+):
+    with pytest.raises(ValueError, match=error):
+        OpenAIChatCompletionsClient._request_body(normalized_request)
+
+
+def test_chat_completions_client_ignores_responses_history_item_ids():
+    def request(item_id: str | None) -> NormalizedRequest:
+        return NormalizedRequest(
+            input=[
+                Thinking(content="thought", summary="", id=item_id),
+                TextOutput(content="answer", id=item_id),
+                ToolCall(
+                    id=item_id,
+                    tool_call_id="call_123",
+                    tool_name="lookup",
+                    args="{}",
+                ),
+                ToolReturn(
+                    id=item_id,
+                    content=[TextInput(content="result")],
+                    tool_call_id="call_123",
+                ),
+            ],
+            model="m",
+        )
+
+    assert OpenAIChatCompletionsClient._request_body(
+        request("responses_item_id")
+    ) == OpenAIChatCompletionsClient._request_body(request(None))
 
 
 @pytest.mark.parametrize("termination_reason", ["content_filter", "max_output_tokens"])

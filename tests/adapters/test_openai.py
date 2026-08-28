@@ -143,6 +143,36 @@ def test_responses_adapter_rejects_input_file():
         )
 
 
+def test_responses_adapter_rejects_untranslated_request_fields():
+    request = OpenAIResponsesCreateRequest(input="Hello", model="m", metadata={"key": "value"})
+
+    with pytest.raises(ValueError, match=r"Responses request fields.*metadata"):
+        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+
+
+def test_responses_adapter_accepts_encrypted_reasoning_include():
+    request = OpenAIResponsesCreateRequest(
+        input="Hello",
+        model="m",
+        include=["reasoning.encrypted_content"],
+    )
+
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+
+    assert normalized.model == "m"
+
+
+def test_responses_adapter_rejects_untranslated_include_values():
+    request = OpenAIResponsesCreateRequest(
+        input="Hello",
+        model="m",
+        include=["message.output_text.logprobs"],
+    )
+
+    with pytest.raises(ValueError, match=r"include values.*message.output_text.logprobs"):
+        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+
+
 @pytest.mark.parametrize(
     "part",
     [
@@ -195,6 +225,66 @@ def test_chat_input_validation_rejects_image_tool_results():
 
     with pytest.raises(ValueError, match="cannot represent image tool result"):
         OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+
+
+def test_chat_adapter_rejects_untranslated_request_fields():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hello"}],
+        model="m",
+        stop=["END"],
+    )
+
+    with pytest.raises(ValueError, match=r"Chat Completions request fields.*stop"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+
+
+def test_chat_adapter_normalizes_deprecated_max_tokens():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hello"}],
+        model="m",
+        max_tokens=10,
+    )
+
+    normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+
+    assert normalized.max_output_tokens == 10
+
+
+def test_chat_adapter_rejects_conflicting_max_token_fields():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hello"}],
+        model="m",
+        max_completion_tokens=10,
+        max_tokens=20,
+    )
+
+    with pytest.raises(ValueError, match="cannot set both"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+
+
+def test_chat_adapter_rejects_disabling_usage():
+    request = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": "Hello"}],
+        model="m",
+        stream=True,
+        stream_options={"include_usage": False},
+    )
+
+    with pytest.raises(ValueError, match="always includes usage"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+
+
+def test_chat_adapter_accepts_explicit_usage():
+    normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="m",
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+    )
+
+    assert normalized.stream is True
 
 
 @pytest.mark.parametrize(

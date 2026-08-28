@@ -228,6 +228,19 @@ def test_rejects_unsupported_custom_tool_fields():
         _normalize(request, _CAPABILITIES)
 
 
+def test_rejects_untranslated_request_fields():
+    with pytest.raises(ValueError, match=r"Anthropic Messages request fields.*stop_sequences"):
+        _normalize(_request(stop_sequences=["END"]), _CAPABILITIES)
+
+
+def test_rejects_untranslated_output_config_fields():
+    with pytest.raises(ValueError, match=r"output_config fields.*format"):
+        _normalize(
+            _request(output_config={"format": {"type": "json_schema", "schema": {}}}),
+            _CAPABILITIES,
+        )
+
+
 @pytest.mark.parametrize(
     ("tool_choice", "expected_choice", "expected_parallel"),
     [

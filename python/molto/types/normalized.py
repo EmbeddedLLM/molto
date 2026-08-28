@@ -1,13 +1,14 @@
+from collections.abc import Callable
 from textwrap import dedent
 from time import time
 from typing import Annotated, Any, Literal, Self, TypeAlias
 
-from pydantic import Discriminator, Field, model_validator
+from pydantic import BeforeValidator, Discriminator, Field, model_validator
 
-from molto.types.base import ExtraModel, ZeroIfNoneInt
+from molto.types.base import ExtraModel, StrictModel, ZeroIfNoneInt
 
 
-class SystemPrompt(ExtraModel):
+class SystemPrompt(StrictModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
@@ -17,21 +18,17 @@ class SystemPrompt(ExtraModel):
     ] = "system-prompt"
 
 
-class TextInput(ExtraModel):
-    """Text content with application-only metadata."""
+class TextInput(StrictModel):
+    """Text content sent to the model."""
 
     content: Annotated[str, Field(description="The content sent to the model.")]
-    metadata: Annotated[
-        Any | None,
-        Field(description="Additional application-only metadata."),
-    ] = None
     content_type: Annotated[
         Literal["text-input"],
         Field(description="Content type identifier as a discriminator."),
     ] = "text-input"
 
 
-class ImageUrlInput(ExtraModel):
+class ImageUrlInput(StrictModel):
     """An image supplied by remote URL or data URL."""
 
     url: Annotated[str, Field(description="The remote URL or data URL of the image.")]
@@ -56,7 +53,7 @@ ToolReturnContent = Annotated[
 ]
 
 
-class UserInput(ExtraModel):
+class UserInput(StrictModel):
     """One user message containing its ordered input content parts."""
 
     content: Annotated[
@@ -193,7 +190,7 @@ class UserInput(ExtraModel):
 #     ] = "5m"
 
 
-class ToolReturn(ExtraModel):
+class ToolReturn(StrictModel):
     """Tool return parts."""
 
     id: Annotated[
@@ -317,8 +314,39 @@ OutputItem = Annotated[
 ]
 
 
+def _reject_input_extras(model_type: type[ExtraModel]) -> Callable[[Any], Any]:
+    def validate(value: Any) -> Any:
+        if isinstance(value, dict):
+            allowed_fields = model_type.model_fields.keys() - {"extra_fields"}
+            extra_fields = value.keys() - allowed_fields
+        elif isinstance(value, model_type):
+            extra_fields = value.extra_fields.keys()
+        else:
+            return value
+
+        if extra_fields:
+            raise ValueError(f"Extra request fields are not permitted: {sorted(extra_fields)}")
+        return value
+
+    return validate
+
+
+_ThinkingInput = Annotated[
+    Thinking,
+    BeforeValidator(_reject_input_extras(Thinking)),
+]
+_TextOutputInput = Annotated[
+    TextOutput,
+    BeforeValidator(_reject_input_extras(TextOutput)),
+]
+_ToolCallInput = Annotated[
+    ToolCall,
+    BeforeValidator(_reject_input_extras(ToolCall)),
+]
+
+
 InputItem = Annotated[
-    SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn,
+    SystemPrompt | UserInput | _ThinkingInput | _TextOutputInput | _ToolCallInput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
@@ -332,7 +360,7 @@ ReasoningEffort: TypeAlias = (
 )
 
 
-class Reasoning(ExtraModel):
+class Reasoning(StrictModel):
     """
     Configuration options for
     [reasoning models](https://platform.openai.com/docs/guides/reasoning).
@@ -348,7 +376,7 @@ class Reasoning(ExtraModel):
     ] = None
 
 
-class FunctionTool(ExtraModel):
+class FunctionTool(StrictModel):
     """A client-defined function available to the model."""
 
     name: Annotated[str, Field(description="The function name.")]
@@ -370,7 +398,7 @@ class FunctionTool(ExtraModel):
     ] = "function"
 
 
-class FunctionToolChoice(ExtraModel):
+class FunctionToolChoice(StrictModel):
     """Require the model to call one specific client-defined function."""
 
     name: Annotated[str, Field(description="The required function name.")]
@@ -383,7 +411,7 @@ class FunctionToolChoice(ExtraModel):
 ToolChoice: TypeAlias = Literal["none", "auto", "required"] | FunctionToolChoice
 
 
-class StreamOptions(ExtraModel):
+class StreamOptions(StrictModel):
     """Options for streaming responses. Only set this when you set `stream: true`."""
 
     include_obfuscation: Annotated[
@@ -401,7 +429,7 @@ class StreamOptions(ExtraModel):
     ] = None
 
 
-class NormalizedRequest(ExtraModel):
+class NormalizedRequest(StrictModel):
     input: Annotated[
         Input | None,
         Field(description="Text, image, or file inputs to the model."),

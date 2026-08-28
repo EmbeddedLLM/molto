@@ -6,7 +6,10 @@ from molto.types.normalized import (
     FunctionToolChoice,
     InputItem,
     NormalizedRequest,
+    PartStartEvent,
+    TextDelta,
     TextInput,
+    TextOutput,
     Thinking,
     ThinkingDelta,
     ToolCall,
@@ -67,6 +70,166 @@ def test_request_uses_provider_neutral_function_tools():
     assert request.tools == [tool]
     assert request.tool_choice == choice
     assert tool.strict is False
+
+
+@pytest.mark.parametrize(
+    "request_data",
+    [
+        {"unknown": True},
+        {"extra_fields": {}},
+        {
+            "input": [
+                {
+                    "content_type": "system-prompt",
+                    "content": "Be helpful",
+                    "unknown": True,
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "user-input",
+                    "content": [{"content_type": "text-input", "content": "Hi"}],
+                    "unknown": True,
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "user-input",
+                    "content": [
+                        {
+                            "content_type": "text-input",
+                            "content": "Hi",
+                            "metadata": {"application_field": True},
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "user-input",
+                    "content": [
+                        {
+                            "content_type": "image-url-input",
+                            "url": "https://example.com/image.png",
+                            "unknown": True,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "tool-return",
+                    "content": [{"content_type": "text-input", "content": "sunny"}],
+                    "tool_call_id": "call_1",
+                    "unknown": True,
+                }
+            ]
+        },
+        {"reasoning": {"effort": "high", "unknown": True}},
+        {
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "get_weather",
+                    "parameters": {"type": "object"},
+                    "unknown": True,
+                }
+            ]
+        },
+        {
+            "tool_choice": {
+                "type": "function",
+                "name": "get_weather",
+                "unknown": True,
+            }
+        },
+        {"stream_options": {"include_obfuscation": True, "unknown": True}},
+    ],
+)
+def test_request_rejects_extra_fields_at_every_strict_boundary(request_data: dict):
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        NormalizedRequest(**request_data)
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {
+            "content_type": "thinking",
+            "content": "",
+            "summary": "summary",
+            "provider_field": "value",
+        },
+        {
+            "content_type": "text-output",
+            "content": "Hello",
+            "provider_field": "value",
+        },
+        {
+            "content_type": "tool-call",
+            "tool_name": "get_weather",
+            "args": "{}",
+            "tool_call_id": "call_1",
+            "provider_field": "value",
+        },
+    ],
+)
+def test_request_rejects_extra_fields_on_raw_output_history(item: dict):
+    with pytest.raises(ValidationError, match="provider_field"):
+        NormalizedRequest(input=[item])
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        Thinking(content="", summary="summary", provider_field="value"),
+        TextOutput(content="Hello", provider_field="value"),
+        ToolCall(
+            tool_name="get_weather",
+            args="{}",
+            tool_call_id="call_1",
+            provider_field="value",
+        ),
+    ],
+)
+def test_request_rejects_extra_fields_on_preconstructed_output_history(item):
+    with pytest.raises(ValidationError, match="provider_field"):
+        NormalizedRequest(input=[item])
+
+
+def test_output_types_preserve_extra_fields():
+    text = TextOutput(content="Hello", provider_field="value")
+    delta = TextDelta(content_delta="Hello", provider_field="value")
+    event = PartStartEvent(index=0, part=text, provider_event_field="value")
+
+    assert text.extra_fields == {"provider_field": "value"}
+    assert delta.extra_fields == {"provider_field": "value"}
+    assert event.extra_fields == {"provider_event_field": "value"}
+    assert event.part.extra_fields == {"provider_field": "value"}
+
+
+def test_function_tool_parameters_remain_an_open_json_schema():
+    request = NormalizedRequest(
+        tools=[
+            FunctionTool(
+                name="get_weather",
+                parameters={
+                    "type": "object",
+                    "provider_keyword": {"enabled": True},
+                },
+            )
+        ]
+    )
+
+    assert request.tools[0].parameters["provider_keyword"] == {"enabled": True}
 
 
 def test_user_input_preserves_ordered_text_and_image_parts():

@@ -60,6 +60,42 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "tool_call": "tool_calls",
 }
 
+_RESPONSES_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "include",
+        "input",
+        "instructions",
+        "max_output_tokens",
+        "max_tool_calls",
+        "model",
+        "parallel_tool_calls",
+        "reasoning",
+        "stream",
+        "stream_options",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
+_CHAT_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "messages",
+        "model",
+        "max_completion_tokens",
+        "max_tokens",
+        "parallel_tool_calls",
+        "reasoning_effort",
+        "stream",
+        "stream_options",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
 
 def _function_tool(function: dict[str, Any]) -> FunctionTool:
     """Normalize one protocol's function definition shape."""
@@ -324,6 +360,17 @@ class OpenAIResponsesAdapter(
         raise ValueError(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _RESPONSES_TRANSLATABLE_FIELDS,
+            protocol="Responses",
+        )
+        unsupported_includes = set(request.include or []) - {"reasoning.encrypted_content"}
+        if unsupported_includes:
+            raise ValueError(
+                "Unsupported Responses include values for cross-protocol translation: "
+                f"{sorted(unsupported_includes)}."
+            )
         normalized_input: (
             list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn] | None
         )
@@ -346,12 +393,20 @@ class OpenAIResponsesAdapter(
                 *(normalized_input or []),
             ]
 
-        request_data = request.model_dump()
-        request_data.pop("instructions", None)
-        request_data["input"] = normalized_input
-        request_data["tools"] = _responses_tools(request.tools)
-        request_data["tool_choice"] = _responses_tool_choice(request.tool_choice)
-        return NormalizedRequest.model_validate(request_data)
+        return NormalizedRequest(
+            input=normalized_input,
+            max_output_tokens=request.max_output_tokens,
+            max_tool_calls=request.max_tool_calls,
+            model=request.model,
+            parallel_tool_calls=request.parallel_tool_calls,
+            reasoning=request.reasoning,
+            stream=request.stream,
+            stream_options=request.stream_options,
+            temperature=request.temperature,
+            tool_choice=_responses_tool_choice(request.tool_choice),
+            tools=_responses_tools(request.tools),
+            top_p=request.top_p,
+        )
 
     async def _project_events(
         self,
@@ -856,6 +911,15 @@ class OpenAIChatCompletionsAdapter(
         raise ValueError(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _CHAT_TRANSLATABLE_FIELDS,
+            protocol="Chat Completions",
+        )
+        if request.max_completion_tokens is not None and request.max_tokens is not None:
+            raise ValueError(
+                "Chat Completions cannot set both `max_completion_tokens` and `max_tokens`."
+            )
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
         ] = []
@@ -864,6 +928,8 @@ class OpenAIChatCompletionsAdapter(
 
         stream_options = request.stream_options or {}
         include_obfuscation = stream_options.get("include_obfuscation")
+        if stream_options.get("include_usage") is False:
+            raise ValueError("Cross-protocol Chat Completions always includes usage.")
         data: dict[str, Any] = {
             "input": normalized_input,
             "model": request.model,
@@ -871,8 +937,13 @@ class OpenAIChatCompletionsAdapter(
         }
         if include_obfuscation is not None:
             data["stream_options"] = {"include_obfuscation": include_obfuscation}
-        if request.max_completion_tokens is not None:
-            data["max_output_tokens"] = request.max_completion_tokens
+        max_output_tokens = (
+            request.max_completion_tokens
+            if request.max_completion_tokens is not None
+            else request.max_tokens
+        )
+        if max_output_tokens is not None:
+            data["max_output_tokens"] = max_output_tokens
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
         if request.tools is not None:

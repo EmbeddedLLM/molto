@@ -354,6 +354,7 @@ class AnthropicMessagesClient(
         *,
         capabilities: ProviderCapabilities | None = None,
     ) -> dict[str, Any]:
+        cls._validate_request(request)
         system, messages, has_thinking = cls._request_parts(request, capabilities=capabilities)
         body: dict[str, Any] = {
             "max_tokens": request.max_output_tokens,
@@ -375,6 +376,26 @@ class AnthropicMessagesClient(
         if request.top_p is not None:
             body["top_p"] = request.top_p
         return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
+
+    @staticmethod
+    def _validate_request(request: NormalizedRequest) -> None:
+        if request.max_tool_calls is not None:
+            raise ValueError("Anthropic Messages cannot represent max_tool_calls.")
+        if (
+            request.stream_options is not None
+            and request.stream_options.include_obfuscation is True
+        ):
+            raise ValueError("Anthropic Messages cannot enable stream obfuscation.")
+        if request.reasoning is not None and request.reasoning.summary not in (
+            None,
+            "auto",
+            "detailed",
+        ):
+            raise ValueError("Anthropic Messages cannot represent concise reasoning summaries.")
+        for item in request.input or []:
+            if isinstance(item, ToolReturn):
+                if item.tool_name is not None:
+                    raise ValueError("Anthropic Messages cannot represent tool return names.")
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         metadata: ResponseStartEvent | None = None

@@ -25,6 +25,7 @@ from molto.types.normalized import (
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
+    StreamOptions,
     TerminationReason,
     TextDelta,
     TextInput,
@@ -1446,6 +1447,84 @@ def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
 
     with pytest.raises(ValueError, match="cannot preserve denied or interrupted"):
         AnthropicMessagesClient._request_body(request)
+
+
+def test_client_accepts_disabled_stream_obfuscation():
+    body = AnthropicMessagesClient._request_body(
+        NormalizedRequest(
+            max_output_tokens=10,
+            model="model",
+            stream=True,
+            stream_options=StreamOptions(include_obfuscation=False),
+        )
+    )
+
+    assert body["stream"] is True
+
+
+@pytest.mark.parametrize(
+    ("normalized_request", "error"),
+    [
+        (NormalizedRequest(model="model", max_tool_calls=1), "max_tool_calls"),
+        (
+            NormalizedRequest(
+                model="model",
+                stream_options=StreamOptions(include_obfuscation=True),
+            ),
+            "stream obfuscation",
+        ),
+        (
+            NormalizedRequest(model="model", reasoning=Reasoning(summary="concise")),
+            "concise reasoning summaries",
+        ),
+        (
+            NormalizedRequest(
+                input=[
+                    ToolReturn(
+                        tool_name="lookup",
+                        content=[TextInput(content="result")],
+                        tool_call_id="call_123",
+                    )
+                ],
+                model="model",
+            ),
+            "tool return names",
+        ),
+    ],
+)
+def test_client_rejects_unrepresentable_normalized_request_fields(
+    normalized_request: NormalizedRequest,
+    error: str,
+):
+    with pytest.raises(ValueError, match=error):
+        AnthropicMessagesClient._request_body(normalized_request)
+
+
+def test_anthropic_client_ignores_responses_history_item_ids():
+    def request(item_id: str | None) -> NormalizedRequest:
+        return NormalizedRequest(
+            input=[
+                Thinking(content="thought", summary="", id=item_id),
+                TextOutput(content="answer", id=item_id),
+                ToolCall(
+                    id=item_id,
+                    tool_call_id="call_123",
+                    tool_name="lookup",
+                    args="{}",
+                ),
+                ToolReturn(
+                    id=item_id,
+                    content=[TextInput(content="result")],
+                    tool_call_id="call_123",
+                ),
+            ],
+            max_output_tokens=100,
+            model="model",
+        )
+
+    assert AnthropicMessagesClient._request_body(
+        request("responses_item_id")
+    ) == AnthropicMessagesClient._request_body(request(None))
 
 
 async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPatch):

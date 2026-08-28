@@ -27,6 +27,26 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         self.native_request = request
         return self._normalize_request(request)
 
+    @classmethod
+    def reject_unsupported_request_fields(
+        cls,
+        request: BaseModel,
+        supported_fields: frozenset[str],
+        *,
+        protocol: str,
+    ) -> None:
+        """Reject populated native fields that would be lost during normalization."""
+        unsupported_fields = sorted(
+            field_name
+            for field_name in request.model_fields_set - supported_fields
+            if getattr(request, field_name, None) is not None
+        )
+        if unsupported_fields:
+            raise ValueError(
+                f"Unsupported {protocol} request fields for cross-protocol translation: "
+                f"{unsupported_fields}."
+            )
+
     @abstractmethod
     def _normalize_request(self, request: NativeRequestT) -> NormalizedRequest:
         """Implement downstream request normalization."""

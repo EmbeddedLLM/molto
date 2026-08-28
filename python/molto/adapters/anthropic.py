@@ -64,6 +64,22 @@ _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (32_768, "xhigh"),
 )
 
+_MESSAGES_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "max_tokens",
+        "messages",
+        "model",
+        "output_config",
+        "stream",
+        "system",
+        "temperature",
+        "thinking",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
 
 def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     return next(
@@ -195,6 +211,21 @@ class AnthropicMessagesAdapter(
         return items
 
     def _normalize_request(self, request: AnthropicMessagesCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _MESSAGES_TRANSLATABLE_FIELDS,
+            protocol="Anthropic Messages",
+        )
+        unsupported_output_config = {
+            field
+            for field, value in (request.output_config or {}).items()
+            if field != "effort" and value is not None
+        }
+        if unsupported_output_config:
+            raise ValueError(
+                "Unsupported Anthropic output_config fields for cross-protocol translation: "
+                f"{sorted(unsupported_output_config)}."
+            )
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
         ] = []
