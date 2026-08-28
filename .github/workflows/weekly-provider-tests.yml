@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      MOLTO_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
       - name: Checkout main
@@ -63,8 +63,8 @@ jobs:
 
       # - name: Verify OpenAI credential is configured
       #   run: |
-      #     if [[ -z "$MOLTO_OPENAI_API_KEY" ]]; then
-      #       echo "MOLTO_OPENAI_API_KEY secret is not configured."
+      #     if [[ -z "$OPENAI_API_KEY" ]]; then
+      #       echo "OPENAI_API_KEY secret is not configured."
       #       exit 1
       #     fi
 

@@ -2,8 +2,6 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
-from molto.configs import ENV_CONFIG
-
 
 def _none_to_zero(v: int | None) -> int:
     if v is None:
@@ -16,7 +14,7 @@ ZeroIfNoneInt = Annotated[int, BeforeValidator(_none_to_zero)]
 
 class ExcludeNoneModel(BaseModel):
     model_config = ConfigDict(
-        extra=ENV_CONFIG.pydantic_extra_behavior,
+        extra="forbid",
         populate_by_name=True,
         validate_assignment=True,
         from_attributes=True,
@@ -43,34 +41,6 @@ class ExcludeNoneModel(BaseModel):
         kwargs.setdefault("exclude_none", True)
         kwargs.setdefault("mode", "json")
         return super().model_dump(*args, **kwargs)
-
-    # @classmethod
-    # def model_validate(
-    #     cls,
-    #     obj: Any,
-    #     *,
-    #     strict: bool | None = None,
-    #     extra: ExtraValues | None = None,
-    #     from_attributes: bool | None = None,
-    #     context: Any | None = None,
-    #     by_alias: bool | None = None,
-    #     by_name: bool | None = None,
-    # ):
-    #     if isinstance(obj, BaseModel):
-    #         obj = obj.model_dump()
-    #     elif isinstance(obj, dict):
-    #         pass
-    #     else:
-    #         raise ValueError(f"Expected dict or BaseModel, got {type(obj)}")
-    #     return super().model_validate(
-    #         obj,
-    #         strict=strict,
-    #         extra=extra,
-    #         from_attributes=from_attributes,
-    #         context=context,
-    #         by_alias=by_alias,
-    #         by_name=by_name,
-    #     )
 
 
 class ExtraModel(ExcludeNoneModel):
