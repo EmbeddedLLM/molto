@@ -62,6 +62,14 @@ Each downstream protocol should require one adapter and each upstream protocol s
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
+Cross-protocol translation follows one governing principle: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. This yields three architectural rules:
+
+- Normalized requests are closed and lossless-or-rejected.
+- Normalized outputs are open to provider extensions.
+- Retaining unknown output data does not authorize projecting it into another protocol.
+
+The sole exception to lossless-or-rejected input handling is an optional Responses output-item ID. It is behavior-neutral identity metadata: Responses preserves it, while Chat Completions and Messages may omit it because they have no equivalent field. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+
 The following design rules continue to guide the implementation:
 
 1. Normalize semantic concepts such as text, reasoning, tools, usage, and lifecycle state rather than mirroring a provider schema.

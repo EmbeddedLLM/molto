@@ -321,6 +321,7 @@ The Messages client currently recognizes a missing model only when Anthropic rai
 ### Inherently unavailable or lost
 
 - Messages has no `developer` instruction role or image detail control.
+- Responses output-item IDs are accepted in normalized history but omitted when Messages is the target; portable tool-call IDs remain mapped.
 - Anthropic can merge consecutive same-role wire messages and interprets a final assistant message as prefill.
 - The normalized representation does not retain the enclosing assistant message boundary.
 - Translating to Messages hoists all instructions and loses their original placement, role, priority, system block boundaries, and cache-prefix meaning.
