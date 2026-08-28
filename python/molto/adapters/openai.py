@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
-from molto.types.exceptions import AuthenticationError, NotFoundError
+from molto.types.exceptions import AuthenticationError, NotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -60,6 +60,42 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "tool_call": "tool_calls",
 }
 
+_RESPONSES_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "include",
+        "input",
+        "instructions",
+        "max_output_tokens",
+        "max_tool_calls",
+        "model",
+        "parallel_tool_calls",
+        "reasoning",
+        "stream",
+        "stream_options",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
+_CHAT_TRANSLATABLE_FIELDS = frozenset(
+    {
+        "messages",
+        "model",
+        "max_completion_tokens",
+        "max_tokens",
+        "parallel_tool_calls",
+        "reasoning_effort",
+        "stream",
+        "stream_options",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p",
+    }
+)
+
 
 def _function_tool(function: dict[str, Any]) -> FunctionTool:
     """Normalize one protocol's function definition shape."""
@@ -78,13 +114,15 @@ def _responses_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
     for tool in tools:
         tool = dict(tool)
         if tool.get("type") != "function":
-            raise ValueError(f"Unsupported Responses tool type: {tool.get('type')}")
+            raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
         if tool.get("allowed_callers") not in (None, ["direct"]):
-            raise ValueError("Only directly callable Responses function tools are supported.")
+            raise UnsupportedInput(
+                "Only directly callable Responses function tools are supported."
+            )
         if tool.get("defer_loading"):
-            raise ValueError("Deferred Responses function tools are not supported.")
+            raise UnsupportedInput("Deferred Responses function tools are not supported.")
         if tool.get("output_schema") is not None:
-            raise ValueError("Responses function output schemas are not supported.")
+            raise UnsupportedInput("Responses function output schemas are not supported.")
         normalized.append(_function_tool(tool))
     return normalized
 
@@ -94,7 +132,7 @@ def _responses_tool_choice(choice: Any) -> ToolChoice | None:
         return choice
     choice = dict(choice)
     if choice.get("type") != "function":
-        raise ValueError(f"Unsupported Responses tool choice: {choice.get('type')}")
+        raise UnsupportedInput(f"Unsupported Responses tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["name"])
 
 
@@ -105,7 +143,7 @@ def _chat_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
     for tool in tools:
         tool = dict(tool)
         if tool.get("type") != "function":
-            raise ValueError(f"Unsupported Chat Completions tool type: {tool.get('type')}")
+            raise UnsupportedInput(f"Unsupported Chat Completions tool type: {tool.get('type')}")
         normalized.append(_function_tool(dict(tool["function"])))
     return normalized
 
@@ -115,7 +153,7 @@ def _chat_tool_choice(choice: Any) -> ToolChoice | None:
         return choice
     choice = dict(choice)
     if choice.get("type") != "function":
-        raise ValueError(f"Unsupported Chat Completions tool choice: {choice.get('type')}")
+        raise UnsupportedInput(f"Unsupported Chat Completions tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["function"]["name"])
 
 
@@ -126,11 +164,13 @@ def _validate_responses_function_metadata(
 ) -> None:
     caller = item.get("caller")
     if caller is not None and caller.get("type") != "direct":
-        raise ValueError("Only direct Responses function calls are supported.")
+        raise UnsupportedInput("Only direct Responses function calls are supported.")
     if item.get("namespace") is not None:
-        raise ValueError("Namespaced Responses function calls are not supported.")
+        raise UnsupportedInput("Namespaced Responses function calls are not supported.")
     if item.get("status") not in statuses:
-        raise ValueError(f"Unsupported Responses function call status: {item.get('status')!r}.")
+        raise UnsupportedInput(
+            f"Unsupported Responses function call status: {item.get('status')!r}."
+        )
 
 
 def _reasoning_part_added(
@@ -203,7 +243,7 @@ def _reasoning_part_completed(
 
 def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
     if part.summary and not part.signature:
-        raise ValueError("A Responses reasoning summary requires a signature.")
+        raise UnsupportedInput("A Responses reasoning summary requires a signature.")
     return part
 
 
@@ -221,9 +261,9 @@ class OpenAIResponsesAdapter(
             content = message.get("content") or []
             summary = message.get("summary") or []
             if not all(part.get("type") == "reasoning_text" for part in content):
-                raise ValueError("Reasoning content should only contain `reasoning_text`.")
+                raise UnsupportedInput("Reasoning content should only contain `reasoning_text`.")
             if not all(part.get("type") == "summary_text" for part in summary):
-                raise ValueError("Reasoning summary should only contain `summary_text`.")
+                raise UnsupportedInput("Reasoning summary should only contain `summary_text`.")
             return [
                 _validate_completed_responses_reasoning(
                     Thinking(
@@ -256,10 +296,10 @@ class OpenAIResponsesAdapter(
                     elif part_type == "input_image":
                         image_url = part.get("image_url")
                         if image_url is None:
-                            raise ValueError("Responses input_image requires image_url.")
+                            raise UnsupportedInput("Responses input_image requires image_url.")
                         content.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
                     else:
-                        raise ValueError(
+                        raise UnsupportedInput(
                             f"Unsupported Responses function output content: {part_type}."
                         )
             else:
@@ -274,7 +314,7 @@ class OpenAIResponsesAdapter(
                 )
             ]
         if message_type != "message":
-            raise ValueError(f"Unsupported Responses input type: {message_type}")
+            raise UnsupportedInput(f"Unsupported Responses input type: {message_type}")
 
         role = message.get("role")
         content = message.get("content")
@@ -288,7 +328,7 @@ class OpenAIResponsesAdapter(
                         part = part.model_dump()
                     part_type = part.get("type") if isinstance(part, dict) else None
                     if isinstance(part, dict) and "prompt_cache_breakpoint" in part:
-                        raise ValueError(
+                        raise UnsupportedInput(
                             f"Responses {part_type} prompt_cache_breakpoint is not "
                             "supported for translation."
                         )
@@ -297,23 +337,25 @@ class OpenAIResponsesAdapter(
                     elif part_type == "input_image":
                         image_url = part.get("image_url")
                         if image_url is None:
-                            raise ValueError("Responses input_image requires image_url.")
+                            raise UnsupportedInput("Responses input_image requires image_url.")
                         parts.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
                     else:
-                        raise ValueError(f"Unsupported Responses user content type: {part_type}")
+                        raise UnsupportedInput(
+                            f"Unsupported Responses user content type: {part_type}"
+                        )
                 return [UserInput(content=parts)]
             if role not in {"system", "developer", "assistant"}:
-                raise ValueError(f"Unsupported Responses message role: {role}")
+                raise UnsupportedInput(f"Unsupported Responses message role: {role}")
 
             expected_part_type = "output_text" if role == "assistant" else "input_text"
             if any(
                 not isinstance(part, dict) or part.get("type") != expected_part_type
                 for part in content
             ):
-                raise ValueError(f"Responses {role} message content cannot be translated.")
+                raise UnsupportedInput(f"Responses {role} message content cannot be translated.")
             text_parts = [part["text"] for part in content]
         else:
-            raise ValueError("Responses message content must be text.")
+            raise UnsupportedInput("Responses message content must be text.")
 
         if role in {"system", "developer"}:
             return [SystemPrompt(content=text) for text in text_parts]
@@ -321,9 +363,20 @@ class OpenAIResponsesAdapter(
             return [UserInput(content=[TextInput(content=text) for text in text_parts])]
         if role == "assistant":
             return [TextOutput(content=text) for text in text_parts]
-        raise ValueError(f"Unsupported Responses message role: {role}")
+        raise UnsupportedInput(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _RESPONSES_TRANSLATABLE_FIELDS,
+            protocol="Responses",
+        )
+        unsupported_includes = set(request.include or []) - {"reasoning.encrypted_content"}
+        if unsupported_includes:
+            raise UnsupportedInput(
+                "Unsupported Responses include values for cross-protocol translation: "
+                f"{sorted(unsupported_includes)}."
+            )
         normalized_input: (
             list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn] | None
         )
@@ -337,7 +390,7 @@ class OpenAIResponsesAdapter(
                 if isinstance(item, BaseModel):
                     item = item.model_dump()
                 if not isinstance(item, dict):
-                    raise ValueError(f"Unsupported Responses input value: {type(item)}")
+                    raise UnsupportedInput(f"Unsupported Responses input value: {type(item)}")
                 normalized_input.extend(self._normalize_message(item))
 
         if request.instructions is not None:
@@ -346,12 +399,20 @@ class OpenAIResponsesAdapter(
                 *(normalized_input or []),
             ]
 
-        request_data = request.model_dump()
-        request_data.pop("instructions", None)
-        request_data["input"] = normalized_input
-        request_data["tools"] = _responses_tools(request.tools)
-        request_data["tool_choice"] = _responses_tool_choice(request.tool_choice)
-        return NormalizedRequest.model_validate(request_data)
+        return NormalizedRequest(
+            input=normalized_input,
+            max_output_tokens=request.max_output_tokens,
+            max_tool_calls=request.max_tool_calls,
+            model=request.model,
+            parallel_tool_calls=request.parallel_tool_calls,
+            reasoning=request.reasoning,
+            stream=request.stream,
+            stream_options=request.stream_options,
+            temperature=request.temperature,
+            tool_choice=_responses_tool_choice(request.tool_choice),
+            tools=_responses_tools(request.tools),
+            top_p=request.top_p,
+        )
 
     async def _project_events(
         self,
@@ -783,7 +844,7 @@ class OpenAIChatCompletionsAdapter(
                     image = part["image_url"]
                     parts.append(ImageUrlInput(url=image["url"], detail=image.get("detail")))
                 else:
-                    raise ValueError(f"Unsupported Chat user content type: {part_type}")
+                    raise UnsupportedInput(f"Unsupported Chat user content type: {part_type}")
             return [UserInput(content=parts)]
 
         if role == "tool":
@@ -793,7 +854,7 @@ class OpenAIChatCompletionsAdapter(
                 if any(
                     isinstance(part, dict) and part.get("type") == "image_url" for part in content
                 ):
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "Chat Completions cannot represent image tool result content."
                     )
                 text_parts = [
@@ -804,10 +865,10 @@ class OpenAIChatCompletionsAdapter(
                 if len(text_parts) != len(content) or not all(
                     isinstance(text, str) for text in text_parts
                 ):
-                    raise ValueError("Only text Chat Completions tool content is supported.")
+                    raise UnsupportedInput("Only text Chat Completions tool content is supported.")
                 tool_content = [TextInput(content=text) for text in text_parts]
             else:
-                raise ValueError("Chat Completions tool content must be text.")
+                raise UnsupportedInput("Chat Completions tool content must be text.")
             return [
                 ToolReturn(
                     tool_call_id=message["tool_call_id"],
@@ -817,7 +878,7 @@ class OpenAIChatCompletionsAdapter(
             ]
 
         if role != "assistant" and not isinstance(content, str):
-            raise ValueError("Only string non-user Chat Completions content is supported.")
+            raise UnsupportedInput("Only string non-user Chat Completions content is supported.")
 
         if role in {"system", "developer"}:
             return [SystemPrompt(content=content)]
@@ -825,19 +886,21 @@ class OpenAIChatCompletionsAdapter(
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             if content is not None and not isinstance(content, str):
-                raise ValueError("Only string Chat Completions assistant content is supported.")
+                raise UnsupportedInput(
+                    "Only string Chat Completions assistant content is supported."
+                )
             items: list[Thinking | TextOutput | ToolCall] = []
             reasoning_content = message.get("reasoning_content")
             if reasoning_content is not None:
                 if not isinstance(reasoning_content, str):
-                    raise ValueError("Chat Completions reasoning_content must be a string.")
+                    raise UnsupportedInput("Chat Completions reasoning_content must be a string.")
                 items.append(self._classify_thinking(reasoning_content))
             if content is not None:
                 items.append(TextOutput(content=content))
             for tool_call in message.get("tool_calls") or []:
                 tool_call = dict(tool_call)
                 if tool_call.get("type") != "function":
-                    raise ValueError(
+                    raise UnsupportedInput(
                         f"Unsupported Chat Completions tool call type: {tool_call.get('type')}"
                     )
                 function = dict(tool_call["function"])
@@ -849,9 +912,18 @@ class OpenAIChatCompletionsAdapter(
                     )
                 )
             return items
-        raise ValueError(f"Unsupported Chat Completions message role: {role}")
+        raise UnsupportedInput(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
+        self.reject_unsupported_request_fields(
+            request,
+            _CHAT_TRANSLATABLE_FIELDS,
+            protocol="Chat Completions",
+        )
+        if request.max_completion_tokens is not None and request.max_tokens is not None:
+            raise UnsupportedInput(
+                "Chat Completions cannot set both `max_completion_tokens` and `max_tokens`."
+            )
         normalized_input: list[
             SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
         ] = []
@@ -860,6 +932,8 @@ class OpenAIChatCompletionsAdapter(
 
         stream_options = request.stream_options or {}
         include_obfuscation = stream_options.get("include_obfuscation")
+        if stream_options.get("include_usage") is False:
+            raise UnsupportedInput("Cross-protocol Chat Completions always includes usage.")
         data: dict[str, Any] = {
             "input": normalized_input,
             "model": request.model,
@@ -867,8 +941,13 @@ class OpenAIChatCompletionsAdapter(
         }
         if include_obfuscation is not None:
             data["stream_options"] = {"include_obfuscation": include_obfuscation}
-        if request.max_completion_tokens is not None:
-            data["max_output_tokens"] = request.max_completion_tokens
+        max_output_tokens = (
+            request.max_completion_tokens
+            if request.max_completion_tokens is not None
+            else request.max_tokens
+        )
+        if max_output_tokens is not None:
+            data["max_output_tokens"] = max_output_tokens
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
         if request.tools is not None:

@@ -65,6 +65,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Never update uncommitted cassettes, always commit them first, and use their diff to guide your changes.
 - Compare behavior before and after the change when practical.
 - Run the applicable checks defined in the Linting Workflow.
+- Always check whether any project documentation needs updating, even when documentation was not mentioned in the task. Update all affected docs before reporting completion.
 - Keep verification proportional to the scope and risk of the change. For behavior changes, run focused relevant tests; run `pytest` for broad changes or when the full offline replay suite is required.
 
 #### Python Tests

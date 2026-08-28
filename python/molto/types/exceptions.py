@@ -1,8 +1,12 @@
 from httpx import Response
 
 
-class MoltoException(Exception):
-    """Base exception class for Molto errors."""
+class UnsupportedInput(ValueError):
+    """A cross-protocol input cannot be translated without losing its semantics."""
+
+
+class APIException(Exception):
+    """Base exception class for normalized API errors."""
 
     def __init__(self, message: str, *, response: Response, body: dict | None) -> None:
         super().__init__(message)
@@ -15,15 +19,15 @@ class MoltoException(Exception):
         self.body = body
 
 
-class AuthenticationError(MoltoException):
+class AuthenticationError(APIException):
     """Authentication failed (401)"""
 
 
-class InsufficientCreditsError(MoltoException):
+class InsufficientCreditsError(APIException):
     """Insufficient credits (403)"""
 
 
-class NotFoundError(MoltoException):
+class NotFoundError(APIException):
     """Requested resource was not found (404)"""
 
 

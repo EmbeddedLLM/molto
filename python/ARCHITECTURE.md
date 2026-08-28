@@ -62,13 +62,23 @@ Each downstream protocol should require one adapter and each upstream protocol s
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
+Cross-protocol translation follows one governing principle: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. This yields three architectural rules:
+
+- Normalized requests are closed and lossless-or-rejected.
+- Normalized outputs are open to provider extensions.
+- Retaining unknown output data does not authorize projecting it into another protocol.
+
+The sole exception to lossless-or-rejected input handling is an optional Responses output-item ID. It is behavior-neutral identity metadata: Responses preserves it, while Chat Completions and Messages may omit it because they have no equivalent field. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+
+Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
+
 The following design rules continue to guide the implementation:
 
 1. Normalize semantic concepts such as text, reasoning, tools, usage, and lifecycle state rather than mirroring a provider schema.
 2. Treat streaming as canonical. Derive complete responses by collecting the normalized stream instead of maintaining a second execution implementation.
 3. Keep adapters free of transport and clients free of downstream formatting.
 4. Keep `Molto` thin: it selects and composes components but does not translate provider fields itself.
-5. Preserve unsupported provider information through an explicit escape hatch rather than expanding the IR into a union of every provider schema.
+5. Preserve unsupported provider output through an explicit escape hatch rather than expanding the IR into a union of every provider schema.
 6. Optimize the public boundary for SDK compatibility while keeping the internal semantic model provider-neutral.
 7. Add adapters and clients, not classes such as `OpenAIToAnthropicTranslator`.
 
@@ -109,7 +119,7 @@ Every route uses two stages for errors with a known protocol-independent meaning
 upstream SDK exception
         |
         v
-normalized Molto exception
+normalized APIException
         |
         v
 downstream SDK exception
@@ -117,7 +127,7 @@ downstream SDK exception
 
 A translated route applies the first stage in the upstream client and the second in the downstream adapter around the normalized event stream. A same-protocol route composes the same two stages around the native event stream, so callers classify errors through the same cause chain regardless of the route taken.
 
-Upstream clients recognize normalized errors as follows. The general `NotFoundError` rule is applied only after the protocol's more specific model-not-found rule.
+Normalized protocol-independent API errors inherit from `APIException`. The currently implemented subclass is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
 | Normalized exception  | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
 | --------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
@@ -279,7 +289,7 @@ ChatCompletionChunk SDK stream
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
 
-Assistant conversation history uses `TextOutput`, not user-message metadata. This keeps role semantics explicit when the Chat client reconstructs messages.
+Assistant conversation history uses `TextOutput`, not a flag on `TextInput`. This keeps role semantics explicit when the Chat client reconstructs messages.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
 
@@ -289,9 +299,11 @@ User images follow the same ordered-part rule: a normalized `ImageUrlInput` hold
 
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 
-Normalized models inherit from `ExtraModel`. Unknown provider fields are retained in `extra_fields` as an escape hatch. Vendor request construction must still map supported fields explicitly; preserving a field does not imply that another protocol supports it.
+Normalized request models are strict. `NormalizedRequest` and every request-only model nested beneath it reject unknown fields. The output models inherit from `ExtraModel` and retain unknown provider fields in `extra_fields` as an escape hatch. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models remain lenient when handling output but reject extras when validated as conversation input.
 
-The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields; genuinely provider-specific capabilities remain in `extra_fields` until a portable semantic model exists.
+The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields. A downstream adapter must map every populated native input field into that representation, apply it while projecting downstream output, or reject it before it is lost. An upstream client must likewise map every populated normalized field into its target protocol or reject it explicitly, with the sole item-ID exception described below. Genuinely provider-specific output remains in `extra_fields` until a portable semantic model exists.
+
+Known normalized fields are subject to the same rule except for Responses output-item IDs. These IDs are distinct from portable tool-call IDs and do not affect model behavior: Responses preserves them when reconstructing Responses history, while Chat Completions and Messages omit them because neither protocol has an equivalent input field. Portable identifiers such as `ToolCall.tool_call_id` remain required and mapped. This is the only input field Molto may accept without effecting on every target protocol.
 
 Reasoning effort is the normalized control for Anthropic thinking. The Messages adapter records `output_config.effort` in `NormalizedRequest.reasoning`; the Anthropic client then selects adaptive thinking with explicit effort or manual extended thinking with a preset token budget according to the target model's capabilities. Thinking mode and `budget_tokens` remain provider projections rather than new IR fields.
 

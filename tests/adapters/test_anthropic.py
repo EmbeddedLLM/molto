@@ -7,7 +7,7 @@ from anthropic import NotFoundError as AnthropicNotFoundError
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
-from molto.types.exceptions import ModelNotFoundError
+from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
@@ -58,7 +58,7 @@ def test_normalization_rejects_unsigned_summary_history() -> None:
         ]
     )
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
+    with pytest.raises(UnsupportedInput, match="summary requires a signature"):
         _normalize(request, _CAPABILITIES)
 
 
@@ -111,7 +111,7 @@ def test_rejects_non_text_system_message_blocks():
         ]
     )
 
-    with pytest.raises(ValueError, match=r"system content blocks: \['image'\]"):
+    with pytest.raises(UnsupportedInput, match=r"system content blocks: \['image'\]"):
         _normalize(request, _CAPABILITIES)
 
 
@@ -125,7 +125,9 @@ def test_rejects_unsupported_user_content_block():
         ]
     )
 
-    with pytest.raises(ValueError, match="Unsupported Anthropic user content block: tool_use"):
+    with pytest.raises(
+        UnsupportedInput, match="Unsupported Anthropic user content block: tool_use"
+    ):
         _normalize(request, _CAPABILITIES)
 
 
@@ -142,7 +144,7 @@ def test_rejects_tool_result_after_user_content():
         ]
     )
 
-    with pytest.raises(ValueError, match="tool results must precede user content"):
+    with pytest.raises(UnsupportedInput, match="tool results must precede user content"):
         _normalize(request, _CAPABILITIES)
 
 
@@ -205,7 +207,7 @@ def test_normalizes_tool_result_before_user_content():
 def test_rejects_unsupported_tool_type():
     request = _request(tools=[{"type": "bash_20250124", "name": "bash"}])
 
-    with pytest.raises(ValueError, match="Unsupported Anthropic tool type: 'bash_20250124'"):
+    with pytest.raises(UnsupportedInput, match="Unsupported Anthropic tool type: 'bash_20250124'"):
         _normalize(request, _CAPABILITIES)
 
 
@@ -226,6 +228,21 @@ def test_rejects_unsupported_custom_tool_fields():
         match=r"custom tool fields: \['cache_control', 'defer_loading'\]",
     ):
         _normalize(request, _CAPABILITIES)
+
+
+def test_rejects_untranslated_request_fields():
+    with pytest.raises(
+        UnsupportedInput, match=r"Anthropic Messages request fields.*stop_sequences"
+    ):
+        _normalize(_request(stop_sequences=["END"]), _CAPABILITIES)
+
+
+def test_rejects_untranslated_output_config_fields():
+    with pytest.raises(UnsupportedInput, match=r"output_config fields.*format"):
+        _normalize(
+            _request(output_config={"format": {"type": "json_schema", "schema": {}}}),
+            _CAPABILITIES,
+        )
 
 
 @pytest.mark.parametrize(

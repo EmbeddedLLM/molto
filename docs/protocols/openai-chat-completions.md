@@ -201,7 +201,7 @@ Chat's single `reasoning_content` extension can be classified as either the norm
 
 ### Tools and tool results
 
-Function definitions preserve their portable schema fields. Named selection maps to a named target function or tool, `required` maps to Messages `any`, and parallel-call control maps to each target's native setting. Tool-call IDs are portable call identities; they must not be confused with Responses output-item IDs, which are a separate structure.
+Function definitions preserve their portable schema fields. Named selection maps to a named target function or tool, `required` maps to Messages `any`, and parallel-call control maps to each target's native setting. Tool-call IDs are portable call identities; they must not be confused with Responses output-item IDs, which are a separate structure. When Responses history is projected to Chat, those output-item IDs are accepted and omitted as the sole exception to the rule that every accepted input field must affect the target request.
 
 Successful text tool results preserve call ID, content order, and conversation order. Image results require the upstream-Chat relocation described above. Failed-result semantics, hosted tools, server tools, and general custom tool types do not have a complete cross-protocol mapping.
 
@@ -228,6 +228,8 @@ Usage maps semantically rather than by dumping provider objects:
 | Total tokens     | `total_tokens`                               |
 
 Missing cached, cache-write, and reasoning detail counts default to zero in the current normalized path. Audio usage and accepted or rejected prediction-token details have no current normalized mapping. When Messages is the source, Molto's normalized input total includes uncached input, cache creation, and cache reads before it is projected into `prompt_tokens`.
+
+Translated Chat Completions always includes terminal usage, matching the other translated protocols. A cross-protocol request may omit `stream_options.include_usage` or set it to `true`; setting it to `false` is rejected.
 
 Translated Chat chunks always use target-default `service_tier="default"`; an upstream tier label is not relabeled as a cross-provider equivalent. Request `service_tier` is not forwarded across protocols. See [Service tiers](../README.md#service-tiers) for the shared rationale.
 

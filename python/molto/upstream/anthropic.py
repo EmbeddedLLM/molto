@@ -13,6 +13,7 @@ from anthropic.types import (
     RawMessageStartEvent,
     RawMessageStopEvent,
 )
+from pydantic import ValidationError
 from pydantic_ai.profiles.anthropic import (
     ANTHROPIC_THINKING_BUDGET_MAP,
     anthropic_model_profile,
@@ -24,7 +25,12 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesStreamEvent,
 )
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, NotFoundError
+from molto.types.exceptions import (
+    AuthenticationError,
+    ModelNotFoundError,
+    NotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
@@ -140,7 +146,7 @@ def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
     if not has_tools and (
         request.tool_choice == "required" or isinstance(request.tool_choice, FunctionToolChoice)
     ):
-        raise ValueError("A required Anthropic tool choice needs at least one tool.")
+        raise UnsupportedInput("A required Anthropic tool choice needs at least one tool.")
     if request.tool_choice is not None and has_tools:
         if request.tool_choice == "auto":
             tool_choice: dict[str, Any] = {"type": "auto"}
@@ -151,7 +157,7 @@ def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
         elif isinstance(request.tool_choice, FunctionToolChoice):
             tool_choice = {"type": "tool", "name": request.tool_choice.name}
         else:
-            raise ValueError(f"Unsupported tool choice: {request.tool_choice!r}.")
+            raise UnsupportedInput(f"Unsupported tool choice: {request.tool_choice!r}.")
     elif request.parallel_tool_calls is not None and has_tools:
         # Parallel-call control rides on an explicit auto choice.
         tool_choice = {"type": "auto"}
@@ -179,7 +185,7 @@ def _thinking_configuration(request: NormalizedRequest, *, has_thinking: bool) -
     budget_tokens = _thinking_budget(effort)
     max_tokens = request.max_output_tokens
     if max_tokens is None or budget_tokens >= max_tokens:
-        raise ValueError(
+        raise UnsupportedInput(
             "Anthropic extended-thinking budget "
             f"{budget_tokens} must be less than max_output_tokens {max_tokens}."
         )
@@ -196,13 +202,15 @@ def _image_block(part: ImageUrlInput) -> dict[str, Any]:
     # Anthropic has no image-fidelity control; an explicit non-default detail
     # request would be silently lost, so it is rejected instead.
     if part.detail not in (None, "auto"):
-        raise ValueError(f"Anthropic Messages cannot represent image detail {part.detail!r}.")
+        raise UnsupportedInput(
+            f"Anthropic Messages cannot represent image detail {part.detail!r}."
+        )
     if not part.url.startswith("data:"):
         return {"type": "image", "source": {"type": "url", "url": part.url}}
     metadata, separator, data = part.url.partition(",")
     media_type = metadata.removeprefix("data:")
     if not separator or not media_type.endswith(";base64"):
-        raise ValueError("Anthropic image blocks require a base64 data URL or a remote URL.")
+        raise UnsupportedInput("Anthropic image blocks require a base64 data URL or a remote URL.")
     return {
         "type": "image",
         "source": {
@@ -289,13 +297,13 @@ class AnthropicMessagesClient(
                     else None
                 )
                 if representation == "summary" and not item.signature:
-                    raise ValueError("An Anthropic reasoning summary requires a signature.")
+                    raise UnsupportedInput("An Anthropic reasoning summary requires a signature.")
                 if (
                     representation is not None
                     and capabilities is not None
                     and representation != capabilities.thinking
                 ):
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "Anthropic thinking history does not match the provider's reasoning "
                         "representation."
                     )
@@ -313,7 +321,7 @@ class AnthropicMessagesClient(
                 flush_tool_results()
                 tool_input = {} if item.args is None else json_loads(item.args)
                 if not isinstance(tool_input, dict):
-                    raise ValueError("Anthropic tool arguments must contain a JSON object.")
+                    raise UnsupportedInput("Anthropic tool arguments must contain a JSON object.")
                 assistant_blocks.append(
                     {
                         "type": "tool_use",
@@ -325,7 +333,7 @@ class AnthropicMessagesClient(
             elif isinstance(item, ToolReturn):
                 flush_assistant()
                 if item.outcome not in {"success", "failed"}:
-                    raise ValueError(
+                    raise UnsupportedInput(
                         "Anthropic Messages cannot preserve denied or interrupted tool outcomes."
                     )
                 block = {
@@ -342,7 +350,7 @@ class AnthropicMessagesClient(
                     block["is_error"] = True
                 tool_result_blocks.append(block)
             else:
-                raise ValueError(f"Unsupported Anthropic input item: {type(item)}")
+                raise UnsupportedInput(f"Unsupported Anthropic input item: {type(item)}")
         flush_assistant()
         flush_tool_results()
         return "\n\n".join(system_parts) or None, messages, has_thinking
@@ -354,6 +362,7 @@ class AnthropicMessagesClient(
         *,
         capabilities: ProviderCapabilities | None = None,
     ) -> dict[str, Any]:
+        cls._validate_request(request)
         system, messages, has_thinking = cls._request_parts(request, capabilities=capabilities)
         body: dict[str, Any] = {
             "max_tokens": request.max_output_tokens,
@@ -374,7 +383,34 @@ class AnthropicMessagesClient(
             body["temperature"] = request.temperature
         if request.top_p is not None:
             body["top_p"] = request.top_p
-        return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
+        try:
+            return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
+        except ValidationError as error:
+            raise UnsupportedInput(str(error)) from error
+
+    @staticmethod
+    def _validate_request(request: NormalizedRequest) -> None:
+        if request.max_tool_calls is not None:
+            raise UnsupportedInput("Anthropic Messages cannot represent max_tool_calls.")
+        if (
+            request.stream_options is not None
+            and request.stream_options.include_obfuscation is True
+        ):
+            raise UnsupportedInput("Anthropic Messages cannot enable stream obfuscation.")
+        if request.reasoning is not None and request.reasoning.summary not in (
+            None,
+            "auto",
+            "detailed",
+        ):
+            raise UnsupportedInput(
+                "Anthropic Messages cannot represent concise reasoning summaries."
+            )
+        for item in request.input or []:
+            if isinstance(item, ToolReturn):
+                if item.tool_name is not None:
+                    raise UnsupportedInput(
+                        "Anthropic Messages cannot represent tool return names."
+                    )
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         metadata: ResponseStartEvent | None = None

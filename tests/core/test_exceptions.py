@@ -16,7 +16,7 @@ from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
 
 from molto import Molto
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, MoltoException
+from molto.types.exceptions import APIException, AuthenticationError, ModelNotFoundError
 from molto.utils.io import json_loads, read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
@@ -35,7 +35,7 @@ class ErrorScenario:
     """A normalized error and its concrete SDK type in each protocol."""
 
     name: str
-    normalized_error: type[MoltoException]
+    normalized_error: type[APIException]
     error_types: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]]
 
 
@@ -162,6 +162,7 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
     assert type(error) is expected_error_type
     normalized_error = error.__cause__
     assert isinstance(normalized_error, scenario.normalized_error)
+    assert isinstance(normalized_error, APIException)
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body

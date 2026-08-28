@@ -19,7 +19,6 @@ request:
       type: message
     - arguments: '{"command":"sleep 5"}'
       call_id: call_MdFqoCBvXRzjO16kvaXaSLGU
-      id: fc_0a7add5f93f55b30006a7dc436151c8198b456b940b602f404
       name: Bash
       status: completed
       type: function_call
@@ -61,7 +60,6 @@ request:
       type: message
     - arguments: '{}'
       call_id: call_moHJDZFxz30lFKNAhnfhzsMN
-      id: fc_0a7add5f93f55b30006a7dc437f2d481988e1faf79b9083250
       name: DateTime
       status: completed
       type: function_call
