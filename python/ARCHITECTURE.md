@@ -119,7 +119,7 @@ Every route uses two stages for errors with a known protocol-independent meaning
 upstream SDK exception
         |
         v
-normalized Molto exception
+normalized APIException
         |
         v
 downstream SDK exception
@@ -127,7 +127,7 @@ downstream SDK exception
 
 A translated route applies the first stage in the upstream client and the second in the downstream adapter around the normalized event stream. A same-protocol route composes the same two stages around the native event stream, so callers classify errors through the same cause chain regardless of the route taken.
 
-The currently implemented normalized error is `ModelNotFoundError`. Upstream clients recognize it as follows:
+Normalized protocol-independent API errors inherit from `APIException`. The currently implemented subclass is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
 | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
 | ----------------------- | -------------------------- | ----------------------------------------------------- |

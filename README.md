@@ -84,4 +84,4 @@ except openai.APIStatusError as error:
         print("The upstream provider does not recognize this model.")
 ```
 
-The normalized error in turn retains the original upstream SDK exception as its cause. Native passthrough routes receive the same normalized cause, so classification works identically for every upstream; only unrecognized errors do not receive it. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.
+Normalized API errors inherit from `APIException` and retain the original upstream SDK exception as their cause. Native passthrough routes receive the same normalized cause, so classification works identically for every upstream; only unrecognized errors do not receive it. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.

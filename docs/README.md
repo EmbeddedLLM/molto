@@ -263,12 +263,12 @@ Native and translated routes share a two-stage cause chain for errors with a kno
 ```text
 downstream SDK exception
         caused by
-normalized Molto exception
+normalized APIException
         caused by
 upstream SDK exception
 ```
 
-The implemented normalized category is `ModelNotFoundError`:
+Normalized protocol-independent API errors inherit from `molto.types.exceptions.APIException`. The implemented category is `ModelNotFoundError`:
 
 | Upstream protocol | Recognition rule                                                |
 | ----------------- | --------------------------------------------------------------- |

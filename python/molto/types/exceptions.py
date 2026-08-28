@@ -5,8 +5,8 @@ class UnsupportedInput(ValueError):
     """A cross-protocol input cannot be translated without losing its semantics."""
 
 
-class MoltoException(Exception):
-    """Base exception class for Molto errors."""
+class APIException(Exception):
+    """Base exception class for normalized API errors."""
 
     def __init__(self, message: str, *, response: Response, body: dict | None) -> None:
         super().__init__(message)
@@ -19,13 +19,13 @@ class MoltoException(Exception):
         self.body = body
 
 
-class ExternalAuthError(MoltoException):
+class ExternalAuthError(APIException):
     """Authentication with external provider failed (401)"""
 
 
-class InsufficientCreditsError(MoltoException):
+class InsufficientCreditsError(APIException):
     """Insufficient credits (403)"""
 
 
-class ModelNotFoundError(MoltoException):
+class ModelNotFoundError(APIException):
     """Model not found (400 or 404)"""
