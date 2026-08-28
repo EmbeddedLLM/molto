@@ -257,7 +257,7 @@ The implemented normalized category is `ModelNotFoundError`:
 | Chat Completions  | OpenAI status `404` and `code == "model_not_found"`             |
 | Messages          | Anthropic status `404` and an error message containing `model:` |
 
-The outward exception uses the downstream SDK namespace, but its status, message, response, and body still come from the upstream provider. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
+The outward exception uses the downstream SDK namespace, but its status, message, response, and body still come from the upstream provider. On same-protocol routes it is a fresh instance of the upstream SDK exception's own class; on translated routes it is the downstream SDK's base `APIStatusError`. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
 
 ## Provider and model renderers
 

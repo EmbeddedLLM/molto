@@ -91,7 +91,7 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest`, calls the OpenAI SDK's `chat.completions.create()`, and yields its `ChatCompletionChunk` objects directly. The request and result do not cross Molto's normalized representation.
 
-This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exceptions. Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
+This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exception types. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
 ## When the application speaks Chat Completions
 

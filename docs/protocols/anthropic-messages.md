@@ -142,7 +142,7 @@ The native stream may start a block with content already present in the `content
 
 `Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest`, calls `AsyncAnthropic.messages.create()`, and yields the Anthropic SDK's native stream events directly. It does not route the request or events through Molto's normalized representation.
 
-This path retains native content variants, event variants, `ping` events, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. It also preserves native Anthropic exceptions. The request is still a validated, streaming-only Molto request rather than an untyped HTTP proxy.
+This path retains native content variants, event variants, `ping` events, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. It also preserves native Anthropic exception types; a recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). The request is still a validated, streaming-only Molto request rather than an untyped HTTP proxy.
 
 ## When the application speaks Messages
 
