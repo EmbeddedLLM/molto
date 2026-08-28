@@ -736,6 +736,17 @@ class OpenAIResponsesAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, ModelNotFoundError):
+            cause = error.__cause__
+            if self.native_request is None and isinstance(cause, APIStatusError):
+                # Same-protocol passthrough: the upstream exception is already
+                # downstream-native, so preserve its SDK subclass. Reconstruct
+                # rather than re-raise the cause instance: chaining it `from error`
+                # would make the two exceptions each other's cause.
+                raise type(cause)(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             # Changing these without changing error message is confusing to users
             # error.body["error"]["code"] = "model_not_found"
             # error.body["error"]["param"] = "model"
@@ -1098,6 +1109,14 @@ class OpenAIChatCompletionsAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, ModelNotFoundError):
+            cause = error.__cause__
+            if self.native_request is None and isinstance(cause, APIStatusError):
+                # See OpenAIResponsesAdapter._handle_error for the passthrough rule.
+                raise type(cause)(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             raise APIStatusError(
                 error.message,
                 response=error.response,

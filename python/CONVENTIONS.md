@@ -44,7 +44,7 @@ The public `events()` wrapper owns error interception; do not override it. Clien
 
 ## Error translation
 
-Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception, and a downstream adapter's `_handle_error()` must raise the downstream SDK exception from that normalized exception. Re-raise unknown errors unchanged.
+Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception, and a downstream adapter's `_handle_error()` must raise the downstream SDK exception from that normalized exception. On same-protocol passthrough the adapter instead raises a fresh instance of the original SDK exception's class to preserve the native error type; never re-raise the cause instance itself, because chaining it `from` the normalized error would make the two exceptions each other's cause. Re-raise unknown errors unchanged.
 
 Error translation is currently partial. Changing the exception into the downstream SDK namespace does not authorize inventing a target-native status, message, or body. Preserve the upstream `response` and `body` until the implementation has an explicit, documented, cassette-backed mapping for the complete downstream wire error. Callers can use the resulting cause chain for semantic classification even when providers assign different statuses to the same condition.
 

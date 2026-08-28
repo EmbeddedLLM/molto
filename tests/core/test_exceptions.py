@@ -85,7 +85,13 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     upstream_cassette = _read_cassette(scenario, upstream)
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
-    expected_error_type = DOWNSTREAM_ERROR_TYPES[downstream]
+    # Native passthrough preserves the original SDK subclass; translated routes
+    # raise the downstream SDK's base APIStatusError.
+    expected_error_type = (
+        native_error_types[upstream]
+        if downstream == upstream
+        else DOWNSTREAM_ERROR_TYPES[downstream]
+    )
     http_client, requests = _get_http_client(upstream_cassette)
 
     async with http_client:
@@ -125,4 +131,9 @@ async def test_model_not_found(downstream: Protocol, upstream: Protocol):
     assert normalized_error.message == error.message
     assert normalized_error.response is error.response
     assert normalized_error.body == error.body
-    assert type(normalized_error.__cause__) is native_error_types[upstream]
+    original_error = normalized_error.__cause__
+    assert type(original_error) is native_error_types[upstream]
+    # The outward exception is reconstructed, never the original instance:
+    # chaining the original `from` the normalized error would make the two
+    # exceptions each other's cause.
+    assert error is not original_error

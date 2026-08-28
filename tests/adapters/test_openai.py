@@ -1,9 +1,12 @@
 from collections.abc import AsyncIterator
 
+import httpx
 import pytest
+from openai import APIStatusError, BadRequestError
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
+from molto.types.exceptions import ModelNotFoundError
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     PartDeltaEvent,
@@ -847,3 +850,54 @@ async def test_chat_projection_rejects_tool_delta_before_call_start() -> None:
                 request,
             )
         ]
+
+
+def _model_not_found_error() -> ModelNotFoundError:
+    body = {
+        "error": {
+            "code": "model_not_found",
+            "message": "Unknown model",
+            "param": "model",
+            "type": "invalid_request_error",
+        }
+    }
+    response = httpx.Response(
+        400,
+        json=body,
+        request=httpx.Request("POST", "https://api.openai.com/v1/responses"),
+    )
+    try:
+        raise BadRequestError("Unknown model", response=response, body=body)
+    except BadRequestError as error:
+        try:
+            raise ModelNotFoundError(
+                error.message, response=error.response, body=error.body
+            ) from error
+        except ModelNotFoundError as normalized_error:
+            return normalized_error
+
+
+async def _failing_events() -> AsyncIterator[ModelResponseStreamEvent]:
+    raise _model_not_found_error()
+    yield
+
+
+@pytest.mark.parametrize("native", [True, False], ids=["native", "translated"])
+async def test_error_projection_preserves_subclass_only_on_native_routes(native: bool) -> None:
+    if native:
+        # Native passthrough never normalizes a request.
+        adapter = OpenAIResponsesAdapter(_CAPABILITIES)
+        stream = adapter.project_native_events(_failing_events())
+    else:
+        adapter, request = _responses_adapter(_CAPABILITIES)
+        stream = adapter.project_events(_failing_events(), request)
+
+    expected_type = BadRequestError if native else APIStatusError
+    with pytest.raises(expected_type) as exc_info:
+        [event async for event in stream]
+
+    error = exc_info.value
+    assert type(error) is expected_type
+    assert isinstance(error.__cause__, ModelNotFoundError)
+    assert type(error.__cause__.__cause__) is BadRequestError
+    assert error is not error.__cause__.__cause__

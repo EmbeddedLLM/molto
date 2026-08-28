@@ -135,7 +135,7 @@ downstream APIStatusError
         caused by upstream SDK exception
 ```
 
-This preserves the native provider evidence while exposing a stable semantic classification on every route. Because the outward exception is re-projected from the normalized error, it is the downstream SDK's base `APIStatusError` even when the upstream SDK raised a status-specific subclass; that subclass instance remains available as the innermost cause. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+This preserves the native provider evidence while exposing a stable semantic classification on every route. Translated routes raise the downstream SDK's base `APIStatusError`; a same-protocol route instead raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
 
 ## Orchestration facade and coordinators
 
