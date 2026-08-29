@@ -157,9 +157,9 @@ The adapter currently applies these rules:
 - Top-level system text is placed before conversation input. Each system text block and each mid-conversation system text block becomes a role-less system prompt. The distinction between top-level and inline system instructions is lost.
 - An assistant message is flattened into adjacent thinking, text, and direct client tool-call items. Its enclosing assistant-message boundary is lost.
 - A `tool_result` becomes a tool return with ordered text or image content. `is_error=true` becomes a failed outcome.
-- `tool_use` history preserves its ID, name, and JSON input. Only direct caller metadata is translatable; server or other caller types are rejected.
+- `tool_use` history preserves its ID, name, and JSON input. Only direct caller metadata is translatable; server or other caller types are rejected. Reconstructed request-history `tool_use` blocks carry only `id`, `name`, and `input`; `caller` is omitted.
 - Custom tool definitions preserve name, description, input schema, and strict validation. Unsupported custom-tool fields and non-custom tools are rejected.
-- `tool_choice` maps `any` to required use and a named `tool` to a named function. `disable_parallel_tool_use` becomes the inverse `parallel_tool_calls` value.
+- `tool_choice` preserves `auto` and `none`, maps `any` to required use, and maps a named `tool` to a named function. `disable_parallel_tool_use` becomes the inverse `parallel_tool_calls` value.
 - `max_tokens`, model, stream mode, temperature, `top_p`, and normalized reasoning effort are retained.
 
 Within a user message, tool results must precede ordinary user content for the current normalized path. A failed Messages tool result is representable inside Molto, but OpenAI request histories have no equivalent failed outcome, so a Messages-to-OpenAI route rejects it rather than silently changing its meaning.
@@ -191,6 +191,7 @@ The client applies these Messages-specific rules:
 - Adjacent assistant thinking, text, and tool-call items are grouped into one assistant message.
 - Adjacent tool returns are grouped into one user message containing `tool_result` blocks. Successful and failed outcomes map directly; `is_error=true` represents failure. Denied and interrupted outcomes are rejected because Messages cannot preserve them.
 - Tool parameters become `input_schema`; required use becomes `any`; and parallel-call control becomes the inverse `disable_parallel_tool_use` value.
+- Tool choice has edge rules: a required or named choice with no tools raises; when only parallelism is set, `disable_parallel_tool_use` rides on an explicit `auto` choice; the flag is omitted when tool use is disabled; and `tool_choice` is dropped entirely when no tools are present.
 
 Messages requires an integer `max_tokens`. Responses and Chat Completions make their corresponding output-token limit optional, but a translated route targeting Messages must provide it so Molto can construct a valid Messages request. If the downstream request omits the limit, validation fails before transport.
 
@@ -211,6 +212,8 @@ The client preserves the response ID, model, and supported block order. Each emi
 `thinking_delta` does not say whether its text is raw reasoning or a summary. Molto classifies it using the explicit provider capability profile: Anthropic and OpenAI profiles use summaries, while vLLM uses raw reasoning. The endpoint or base URL does not select this behavior.
 
 A thinking block that starts with text or a signature begins immediately so the observed snapshot cannot be lost. A completely empty thinking start is deferred until a non-empty thinking or signature delta establishes content. If the block stays empty, Molto omits it and assigns dense normalized indexes to the remaining blocks. Native `ping` events are ignored on this semantic path.
+
+Only the six handled raw events are inspected here; any other `RawMessageStreamEvent` variant is silently ignored rather than rejected. This matches the fact that `ping` is transport-only, but it diverges from `python/CONVENTIONS.md`'s "reject unsupported event types explicitly" rule and from the Responses client, which raises for unknown stream events. The silent-ignore is a documented current behavior, not a deliberate contract to rely on.
 
 Only directly invoked `tool_use` output is normalized. A server-owned caller is rejected because normalized function-call history has no equivalent caller metadata.
 
@@ -238,7 +241,9 @@ User text and tool-result text are always projected in explicit content-block li
 
 ### Thinking modes and effort
 
-Reasoning effort is the portable control. For known Claude model IDs, Molto uses the installed Anthropic model profile to select adaptive thinking or manual extended thinking. Non-Claude model IDs on Messages-compatible endpoints default to adaptive thinking, as covered by the cross-protocol fixtures.
+Reasoning effort is the portable control. For known Claude model IDs, Molto uses the installed Anthropic model profile to select adaptive thinking or manual extended thinking. Non-Claude model IDs on Messages-compatible endpoints default to adaptive thinking, as covered by the cross-protocol fixtures. In addition, current and future adaptive Claude families are force-treated as adaptive and `xhigh`-capable even when the pinned model table has no entry yet: `claude-mythos-preview` and any `claude-{fable,haiku,mythos,opus,sonnet}-<major>=5+` model ID.
+
+When the application speaks Messages, an inbound thinking block is normalized as summarized reasoning: Molto sets `reasoning.summary="detailed"` on the normalized request for both adaptive and `enabled` manual modes.
 
 | Normalized effort | Adaptive `output_config.effort`         | Manual `budget_tokens` |
 | ----------------- | --------------------------------------- | ---------------------- |
@@ -263,7 +268,7 @@ It must not mix or switch representations within one block. Official Anthropic c
 
 ### Opaque thinking state
 
-A Messages thinking block has an initial `signature` and may later receive a `signature_delta`. The delta is a complete replacement snapshot, not text to append to the initial value. Molto stores and reuses the replacement value for block completion and subsequent history.
+A Messages thinking block has an initial `signature` and may later receive a `signature_delta`. The delta is a complete replacement snapshot, not text to append to the initial value: the Anthropic SDK replaces the block's initial signature when it processes a `signature_delta`. Molto stores and reuses the replacement value for block completion and subsequent history.
 
 OpenAI Responses exposes three encrypted snapshots where Messages has only two slots:
 
@@ -351,6 +356,7 @@ Relevant implementation and test entry points:
 - [Normalized content and events](../../python/molto/types/normalized.py)
 - [Interface parity tests](../../tests/core/test_interface.py)
 - [Anthropic cassette matcher](../../scripts/match_anthropic_cassette_events.py)
+- [Cross-protocol comparison](comparison.md)
 
 External protocol references:
 

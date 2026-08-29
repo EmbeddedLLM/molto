@@ -137,6 +137,8 @@ A generic collector may eventually derive non-streaming results from this gramma
 
 The [cross-protocol contract](#cross-protocol-contract) governs every translated route. Input validation establishes what Molto promises to effect; output handling tolerates provider additions without turning them into portable semantics.
 
+These guides describe **target parity requirements**: their tables state what a correct translation must produce, not what Molto necessarily produces today. A section documents current behavior only when it says so explicitly. Likewise, a field accepted through an SDK-backed request wrapper is not an implementation promise; it must be mapped or rejected before it is treated as supported.
+
 Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
 
 | Class                | Required behavior                                                                             |
@@ -209,7 +211,7 @@ Although a provider profile can classify Chat `reasoning_content` as a summary, 
 
 ### Opaque continuation state
 
-Responses `encrypted_content` and a Messages thinking `signature` are provider-issued continuation state. They are not generally portable across providers. Molto currently carries the value through the normalized representation without tracking or validating its issuer. Callers must not reuse translated continuation state across providers. Matched fixtures map it only under the explicit assumption that OpenAI owns both endpoints.
+Responses `encrypted_content` and a Messages thinking `signature` are provider-issued continuation state. They are opaque; applications must not inspect or synthesize these values. They are not generally portable across providers. Molto currently carries the value through the normalized representation without tracking or validating its issuer. Callers must not reuse translated continuation state across providers. Matched fixtures map it only under the explicit assumption that OpenAI owns both endpoints.
 
 Opaque state is represented as replacement snapshots, not append-only text. A Messages `signature_delta` replaces the block-start signature. Responses exposes three encrypted snapshots where Messages exposes two corresponding slots; translated streams preserve the Responses `added` and `done` snapshots and reuse `done` at terminal projection instead of buffering for a third value.
 
@@ -217,11 +219,11 @@ Opaque state is represented as replacement snapshots, not append-only text. A Me
 
 Service-tier labels are not portable provider semantics. Native passthrough preserves the provider value. Translated results use target defaults:
 
-| Downstream result       | Target value |
-| ----------------------- | ------------ |
-| OpenAI Responses        | `default`    |
-| OpenAI Chat Completions | `default`    |
-| Anthropic Messages      | `standard`   |
+| Downstream result       | Target value                        |
+| ----------------------- | ----------------------------------- |
+| OpenAI Responses        | `default`                           |
+| OpenAI Chat Completions | `default`                           |
+| Anthropic Messages      | `standard` in `message_start.usage` |
 
 Request `service_tier` is not forwarded across protocols. Anthropic request values and response values also use different vocabularies and must not be treated as direct aliases.
 
@@ -303,7 +305,7 @@ For open-weight models, the selected renderer or chat template is the most autho
 
 ## Compatibility and maintenance
 
-OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models. Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
+OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models, except two narrow Responses event replacements: `OpenAIResponseCompletedEvent` (sets a `null` `cache_write_tokens` to `0`) and `OpenAIResponseFunctionCallArgumentsDoneEvent` (relaxes the required `name`). Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
 
 Responses is the canonical behavioral reference for matched cross-protocol cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
 
@@ -318,6 +320,7 @@ The protocol-specific contracts are:
 - [OpenAI Responses](protocols/openai-responses.md)
 - [OpenAI Chat Completions](protocols/openai-chat-completions.md)
 - [Anthropic Messages](protocols/anthropic-messages.md)
+- [Cross-protocol comparison](protocols/comparison.md)
 
 ## Primary references
 
