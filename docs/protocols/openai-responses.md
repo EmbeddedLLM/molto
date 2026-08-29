@@ -99,7 +99,7 @@ A Responses stream exposes several nested lifecycles:
 
 These streaming boundaries describe generated output; they are not request message or model-turn boundaries. Responses output items may also be converted into different model-visible turns by the provider's renderer.
 
-Native Responses can distinguish multiple inner content parts within one output item. Molto's normalized stream represents the output-item index, but not the inner content index. A translated route therefore collapses that distinction and reconstructs a single inner part at index `0`. Compatibility coverage also assumes that output-item lifecycles are not interleaved; interleaved items are not a supported translated-route guarantee.
+Native Responses can distinguish multiple inner content parts within one output item. Molto's normalized stream represents the output-item index, but not the inner content index. A translated route therefore collapses that distinction and reconstructs a single inner part at index `0`. Projection state is keyed by `output_index`, so interleaved lifecycles are representable in principle. No cassette exercises interleaving, so it is unverified rather than known-broken.
 
 ### Assistant phase
 
@@ -212,7 +212,9 @@ Responses supports image fidelity controls, including `original`, but the source
 
 Only successful tool results are portable to OpenAI protocols. Function `call_id`, name, JSON arguments, results, and ordering are preserved. A normalized function call may also retain its Responses output-item `id`, but the portable identity used to pair a result with a call is `call_id`.
 
-If a normalized request came from Messages, Molto sets `stream_options.include_obfuscation=false` because Messages has no obfuscation setting. More generally, only explicitly normalized request fields are emitted. Responses-only features such as conversation references, previous-response state, hosted tools, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
+If a normalized request came from Messages, Molto sets `stream_options.include_obfuscation=false` because Messages has no obfuscation setting; omitting the field could select a provider default that is not equivalent to Anthropic's stream. More generally, only explicitly normalized request fields are emitted.
+
+Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
 ### Upstream event normalization
 
@@ -340,8 +342,10 @@ Error translation is semantic, not a complete HTTP error rewrite. The outward ex
 - Messages-to-Responses `created_at` is captured locally at `message_start`.
 - Translated service tier is the target default `default`.
 - Inner content and summary indices are reconstructed as `0`.
-- Exact completion timestamps, assistant `phase`, and independent server state are omitted because the source cannot reconstruct them.
+- Exact completion timestamps, assistant `phase`, and independent server state are omitted because the source cannot reconstruct them. Responses `created` is not `completed_at`.
 - The terminal encrypted snapshot reuses the part-done snapshot when only two normalized lifecycle slots are available.
+- Empty target-only containers required by the Responses schema, such as `annotations: []` and `logprobs: []`, are generated when the source has no value.
+- Request-backed envelope echoes are taken from the downstream request: `max_output_tokens`, `reasoning`, `tools`, `tool_choice` (or `"auto"`), and `parallel_tool_calls` (defaulting to `True`), while `usage` stays `null` until the terminal event.
 
 ### Coerced or structurally changed
 
@@ -363,7 +367,7 @@ The following are implementation gaps, not general claims that the source data c
 - Responses conversation references, previous-response state, prompt-cache decisions, background execution, and other Responses-only server state;
 - preservation of original instruction role and placement when the target protocol cannot represent it;
 - preservation of an output item's multiple inner content indices; and
-- guaranteed handling of interleaved Responses output-item lifecycles.
+- regression coverage of interleaved Responses output-item lifecycles; state is keyed by `output_index`, so interleaving is unverified rather than known-broken.
 - enforcement of the same-provider requirement for opaque reasoning state; callers must keep continuation state with its issuing provider.
 
 Fields accepted by `OpenAIResponsesCreateRequest` but not listed as supported must be treated as unsupported on translated routes until they have an explicit mapping or rejection and cassette-backed parity coverage. Same-protocol passthrough retains the broader native SDK surface.
@@ -382,5 +386,7 @@ Implementation and maintenance references:
 - [Responses adapter](../../python/molto/adapters/openai.py)
 - [Responses upstream client](../../python/molto/upstream/openai.py)
 - [Interface parity tests](../../tests/core/test_interface.py)
+- [OpenAI cassette matcher](../../scripts/match_openai_cassette_events.py) and its [reconstructable Responses canonicalization helpers](../../python/molto/utils/test.py#reconstructable_responses_event)
 - [Chat Completions protocol guide](openai-chat-completions.md)
 - [Anthropic Messages protocol guide](anthropic-messages.md)
+- [Cross-protocol comparison](comparison.md)
