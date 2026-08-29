@@ -71,6 +71,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 #### Python Tests
 
 - Run tests (especially async tests that invoke the OpenAI or Anthropic SDK) with escalated permissions on the first attempt. Their first-request platform detection uses `asyncio.to_thread()`, while the sandbox blocks the Unix socketpair wakeup that asyncio uses to deliver the worker result. Inside the sandbox these tests can therefore stall before reaching `MockTransport`; this is an environment limitation, not a cassette or SDK parsing failure.
+- Resolve the interpreter before blaming a dependency for a version-specific failure. A bare `--python 3.14` request selects the newest build the installed uv knows about, and an older uv resolved that to a pre-release (`cpython-3.14.0a5`, under `~/.local/share/uv/python/`). Print `python -VV` in the failing environment and retry with an up-to-date uv before concluding anything about the code.
 
 #### Stalled Command Cleanup
 
