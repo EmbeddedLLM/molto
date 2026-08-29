@@ -71,6 +71,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 #### Python Tests
 
 - Run tests (especially async tests that invoke the OpenAI or Anthropic SDK) with escalated permissions on the first attempt. Their first-request platform detection uses `asyncio.to_thread()`, while the sandbox blocks the Unix socketpair wakeup that asyncio uses to deliver the worker result. Inside the sandbox these tests can therefore stall before reaching `MockTransport`; this is an environment limitation, not a cassette or SDK parsing failure.
+- Resolve the interpreter before blaming a dependency for a version-specific failure. A bare `--python 3.14` request selects the newest build the installed uv knows about, and an older uv resolved that to a pre-release (`cpython-3.14.0a5`, under `~/.local/share/uv/python/`). Print `python -VV` in the failing environment and retry with an up-to-date uv before concluding anything about the code.
 
 #### Stalled Command Cleanup
 
@@ -137,7 +138,21 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - When writing prompts, avoid using non-ASCII symbols.
 - Follow the existing code style in each file.
 - Use meaningful variable and function names.
-- **Pin dependency versions**: Use exact versions (e.g. `"2.0.0"`) in `package.json` and `pyproject.toml`. Never use caret (`^`) or tilde (`~`) ranges.
+- **Dependency versions**: Pin exact versions (e.g. `"2.0.0"`) in `package.json` and in the `test` extra of `pyproject.toml`. Core `dependencies` may use ranges, because they describe what a consumer may install rather than what this repository is tested against. Never use caret (`^`) or tilde (`~`) ranges for a pinned dependency, and never widen a range without re-deriving it from the test suite. See [Dependency Versions](#dependency-versions).
+
+### Dependency Versions
+
+`pyproject.toml` carries two different contracts, and they should not be conflated:
+
+- `dependencies` bounds what a consumer may install. Ranges are appropriate here, but every bound must be justified by a test result. Record a verified window (`anthropic>=0.119.0,<0.124`, `openai>=2.45.0,<3.2`), not an unverified floor: `openai>=2.45.0` alone would advertise releases that fail.
+- `test` pins what this repository is developed and verified against. `.github/workflows/ci.yml` installs `.[test]`, so every CI run exercises exactly those versions and contributor environments can match it.
+- Routine SDK bumps go through `test` only: change the `==` lines and run the suite. Widen the ranges only when a version you want sits outside them, and re-derive the bound at the same time.
+
+Because CI is pinned, the rest of each range is not continuously verified: a new SDK release inside a window can break consumers without turning CI red. Validate a bound explicitly, by installing that single version into a throwaway `uv` environment and running the whole suite there, rather than trusting the range.
+
+`dependency-version.md` is an uncommitted, local analysis of the provider SDK windows. It records the floor and ceiling each SDK passes the offline replay suite on with the failing test or `ImportError` behind every bound, why each bound exists (a hard imported SDK symbol versus test-level schema drift versus structural breakage no test update can fix), the `uv` per-candidate methodology used to derive them, and how to re-derive or lift a bound.
+
+Treat it as a dated snapshot, not a source of truth. SDK releases appear continuously, so re-derive any bound with the suite before changing it. This file and `pyproject.toml` remain authoritative.
 
 ### Code Comments
 
