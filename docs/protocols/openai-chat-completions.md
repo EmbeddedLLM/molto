@@ -121,7 +121,7 @@ One user message becomes one normalized user input. Ordered text and image parts
 
 System and developer messages with string content both become role-less instructions. Their sequence position is retained while targeting Responses or Chat, but their original role identity is lost. Text-part arrays serialize correctly and remain available on native passthrough, but the translated downstream adapter currently rejects non-string instruction content. A later Chat projection emits every normalized instruction as `developer`. A Messages upstream additionally hoists all instructions into its top-level `system` value, losing mid-conversation placement and instruction boundaries.
 
-Assistant history is flattened into adjacent reasoning, text, and tool-call items. The enclosing assistant-message boundary is not represented. The adapter accepts assistant string content, optional string `reasoning_content`, and function tool calls; assistant content-part arrays are not supported on translated routes.
+Assistant history is flattened into adjacent reasoning, text, and tool-call items. The enclosing assistant-message boundary is not represented. The adapter accepts assistant string content, optional string `reasoning_content`, and function tool calls; assistant content-part arrays are not supported on translated routes. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
 Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result.
 
@@ -155,7 +155,7 @@ An upstream Chat client converts another downstream protocol's normalized reques
 
 The client groups pending assistant reasoning, text, and tool calls where the Chat shape permits it. A reasoning item is held for a following text item so both can inhabit one assistant message. Because the normalized representation does not retain the original assistant container, this reconstruction can merge or split source assistant messages.
 
-OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
+OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 
 ```text
 assistant, tool A, tool B, user image A, user image B
@@ -233,6 +233,8 @@ Translated Chat Completions always includes terminal usage, matching the other t
 
 Translated Chat chunks always use target-default `service_tier="default"`; an upstream tier label is not relabeled as a cross-provider equivalent. Request `service_tier` is not forwarded across protocols. See [Service tiers](../README.md#service-tiers) for the shared rationale.
 
+Chat stream options expose `include_obfuscation`, but the generated `ChatCompletionChunk` and `ChoiceDelta` models declare no `obfuscation` field. Preserving obfuscation parity would therefore require retaining raw chunk data rather than relying on the SDK models, which Molto does not currently do.
+
 ## Errors
 
 Molto currently recognizes one portable error category, on native passthrough and translated routes alike:
@@ -273,7 +275,7 @@ These are implementation gaps rather than inherent claims about the Chat protoco
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and normalized terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
 - Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, prompt-cache settings, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
-- There is no focused regression coverage for role-preserving instruction round trips, mid-sequence instructions, multipart instruction messages, adjacent assistant-message boundaries, multiple choices, or model-template-specific role rewriting.
+- There is no focused regression coverage for role-preserving instruction round trips, adjacent assistant-message boundaries, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
 
 ## Compatibility and references
 
@@ -290,7 +292,9 @@ Repository references:
 - [Chat upstream client](../../python/molto/upstream/openai.py)
 - [Protocol coordination](../../python/molto/core.py)
 - [Interface parity tests](../../tests/core/test_interface.py)
+- [OpenAI cassette matcher](../../scripts/match_openai_cassette_events.py) and its [reconstructable Chat Completions canonicalization helpers](../../python/molto/utils/test.py#reconstructable_chat_completions_chunks)
 - [Cassette policy](../../tests/cassettes/README.md)
+- [Cross-protocol comparison](comparison.md)
 
 External protocol references:
 

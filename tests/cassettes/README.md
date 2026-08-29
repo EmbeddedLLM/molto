@@ -54,6 +54,29 @@ A Messages stream has only two corresponding signature slots: the thinking block
 
 The `signature_delta` is a complete replacement snapshot, not text to append to the initial signature.
 
+In the current recordings the three ciphertexts cover the same number of reasoning tokens, but their byte differences may reflect opaque envelope metadata such as a version, timestamp, or nonce. This equivalence is empirical and non-contractual: applications must not inspect or synthesize these values. Matthew Green's [“Let's talk about encrypted reasoning”](https://blog.cryptographyengineering.com/2026/05/29/fooling-around-with-encrypted-reasoning-blobs/) provides cryptographic background on treating the blobs as opaque authenticated ciphertext and on the metadata their lengths can reveal; it does not establish equivalence among the three snapshots.
+
+### Scenario listing
+
+The `matched/{scenario}/` directories currently exercise these scenarios. One scenario may span several turns, so each turn subfile carries `-01`, `-02`, and so on:
+
+| Scenario | What it exercises |
+| --- | --- |
+| `simple_text` | A single plain-text exchange over every protocol pair. |
+| `reasoning_raw` | Raw reasoning projected through Chat and Messages as well as Responses. Uses `vllm-*` filenames (`provider="vllm"`); see below. |
+| `reasoning_encrypted` | A summarized reasoning item whose continuation is opaque encrypted state, exercising the encrypted-snapshot mapping. |
+| `input_image_base64` | Base64-data-URL image user input. |
+| `input_image_remote_url` | Remote-URL image user input. |
+| `input_image_with_reasoning_encrypted` | An image user turn followed by encrypted reasoning continuation. |
+| `tool_call` | Three turns: a function call, then a result plus another call, then a result plus final text; exercises tool-call history over translated routes. |
+| `tool_call_choice` | Named tool selection (`tool_choice: {name: read_file}`) followed by a disabled tool use (`tool_choice: none`). |
+| `tool_call_parallel` | Two function calls and results with `parallel_tool_calls` enabled. |
+| `tool_call_image_result_parallel` | Parallel tool calls where a result carries an image, exercising the Chat image-tool-result relocation. |
+| `tool_call_with_reasoning_encrypted` | A tool call whose conversation carries encrypted reasoning continuation across three turns. |
+| `error-invalid_request_error` | A native invalid-request error scenario (`error-invalid_request_error`) used to exercise native error passthrough on the relevant route. |
+
+The `reasoning_raw` scenario is named with `vllm-*` filenames and its test derives `provider="vllm"` from that filename prefix, selecting the raw reasoning profile across all three protocols. A base URL never selects either behavior.
+
 ## Specifications and tooling
 
 The detailed contracts are documented in:
@@ -65,5 +88,11 @@ The detailed contracts are documented in:
 - the [Anthropic Messages opaque thinking policy](../../docs/protocols/anthropic-messages.md#opaque-thinking-state), including the encrypted-reasoning lifecycle policy.
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` for deterministic alignment. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
+
+Relevant test entry points and canonicalization helpers:
+
+- `python/molto/utils/test.py` defines the deterministic comparison helpers `reconstructable_responses_event`, `reconstructable_chat_completions_chunks`, and `reconstructable_anthropic_event`;
+- `tests/test_match_openai_cassette_events.py` and `tests/test_match_anthropic_cassette_events.py` verify the matcher scripts against committed cassettes; and
+- `tests/utils/test_test_utils.py` covers the canonicalization helpers themselves.
 
 When a matcher changes an SSE payload discriminator, update the corresponding `event:` header as part of the same change. Keep JSON key order and whitespace stable unless the changed value requires reserialization; this keeps fixture diffs focused on intentional semantic alignment.
