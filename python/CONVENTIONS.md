@@ -205,6 +205,6 @@ Run all implementation tests in cassette playback mode. Actual translated output
 
 Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events.
 
-Log probabilities are not yet transported through the normalized path (an unimplemented requirement recorded in [docs-audit](../docs-audit.md)). Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
+Log probabilities are not yet transported through the normalized path. Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
 
 After changes, run focused replay tests, full `pytest`, and the formatting and lint commands from `.github/workflows/lint.yml`. Report pre-existing failures without changing unrelated files.
