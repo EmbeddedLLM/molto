@@ -9,7 +9,7 @@ request:
       - text: about the ocean.
         type: text
       role: user
-    model: claude-sonnet-5
+    model: gpt-4.1-nano
     stream: true
   headers:
     accept: application/json

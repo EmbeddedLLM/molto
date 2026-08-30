@@ -11,6 +11,8 @@ request:
     max_output_tokens: 1024
     model: gpt-4.1-nano
     stream: true
+    stream_options:
+      include_obfuscation: false
   headers:
     accept: application/json
     accept-encoding: gzip, deflate

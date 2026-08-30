@@ -8,12 +8,14 @@ class UnsupportedInput(ValueError):
 class APIException(Exception):
     """Base exception class for normalized API errors."""
 
-    def __init__(self, message: str, *, response: Response, body: dict | None) -> None:
+    def __init__(self, message: str, *, response: Response, body: dict | str | None) -> None:
         super().__init__(message)
         if not isinstance(response, Response):
             raise TypeError(f"Expected `httpx.Response`, got {type(response)}")
-        if body is not None and not isinstance(body, dict):
-            raise TypeError(f"Expected `dict`, got {type(body)}")
+        # SDK error bodies are raw text when the provider error is not a JSON
+        # object, e.g. an empty router 404 from a wrong URL.
+        if body is not None and not isinstance(body, dict | str):
+            raise TypeError(f"Expected `dict` or `str`, got {type(body)}")
         self.message = message
         self.response = response
         self.body = body
@@ -31,5 +33,5 @@ class ResourceNotFoundError(APIException):
     """Requested resource was not found (404)"""
 
 
-class ModelNotFoundError(ResourceNotFoundError):
+class ModelNotFoundError(APIException):
     """Model not found (400 or 404)"""

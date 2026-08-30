@@ -11,6 +11,9 @@ request:
       role: user
     model: gpt-4.1-nano
     stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
   headers:
     accept: application/json
     accept-encoding: gzip, deflate
