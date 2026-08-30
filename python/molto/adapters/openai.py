@@ -83,6 +83,7 @@ def _raise_openai_error(error: Exception) -> NoReturn:
         body=error.body,
     ) from error
 
+
 _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
     {
         "include",
