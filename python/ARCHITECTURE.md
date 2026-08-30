@@ -285,7 +285,7 @@ ChatCompletionChunk SDK stream
 - raw reasoning and reasoning summaries in requests and assistant history;
 - function tool definitions, tool selection, calls, and successful tool results;
 - ordered mixed text/image user messages, including remote URL and data-URL images;
-- instructions as a leading `SystemPrompt`;
+- role-less instructions; each instruction content part produces one `SystemPrompt`, with sequence position preserved (only the Messages projection hoists them into one top-level `system` string);
 - model and streaming configuration;
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
 
@@ -419,6 +419,8 @@ Response and stream result types are intentional SDK aliases:
 
 Molto does not subclass or duplicate these result models. The SDK already owns the wire schema, and aliases avoid schema drift while giving callers familiar types.
 
+Two members of the Responses event union are intentionally replaced rather than aliased: `OpenAIResponseCompletedEvent` normalizes a `null` `cache_write_tokens` to `0`, and `OpenAIResponseFunctionCallArgumentsDoneEvent` relaxes the SDK's required `name` on the function-call-arguments-done event. Assert these unions by comparing wrapped members with the SDK union rather than asserting identity.
+
 Molto does not recreate or expose the OpenAI SDK's transport-bearing `AsyncStream` runtime object. It context-manages the SDK stream internally and exposes a Molto-owned async iterator that yields SDK-native Responses events and Chat Completions chunks directly.
 
 Generated protocol event dictionaries are validated directly with SDK model adapters.
@@ -441,7 +443,7 @@ SDK streams are context-managed, including when iteration ends early. The short-
 
 Tests are playback-only. Normal runs must never record or rewrite cassettes.
 
-Matched cross-protocol fixtures use a scenario-first layout:
+Matched cross-protocol fixtures use a scenario-first layout under `tests/cassettes/matched/{scenario}/`. The [full scenario listing](../tests/cassettes/README.md#matched-cassettes) lives in the cassette README; this section only illustrates the layout:
 
 ```text
 tests/cassettes/matched/
@@ -457,10 +459,6 @@ tests/cassettes/matched/
     anthropic-messages-stream-00.yaml
     openai-chat_completions-stream-00.yaml
     openai-responses-stream-00.yaml
-  tool_call_choice/
-    ...
-  tool_call_parallel/
-    ...
 ```
 
 The naming pattern is:
@@ -484,6 +482,8 @@ Parity differs by path:
 The current public paths support streaming text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, non-streaming collection, other multimodal content, and additional provider capabilities are not complete cross-protocol implementations yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
+
+Full boundary fidelity is a future-work target, not a current guarantee. Reaching it would require: (1) an instruction item that retains its original role, content-part grouping, and sequence position; (2) a native assistant-message container holding ordered thinking, text, and tool parts; (3) an explicit policy for native features that a target protocol cannot represent; and (4) a model- or renderer-level capability profile distinct from the endpoint schema. The current translated representation approximates these, so cross-protocol boundaries are documented in the [comparison guide](../docs/protocols/comparison.md).
 
 To add another upstream protocol:
 

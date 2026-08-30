@@ -149,7 +149,7 @@ Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid du
 
 ## Unsupported semantics
 
-Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
+Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. This rule is aspirational for the Messages client's stream loop: it inspects only the six handled `RawMessageStreamEvent` types and silently ignores any other variant (documented in the [Messages guide](../docs/protocols/anthropic-messages.md)), diverging from the Responses client, which raises for unknown stream events. Tightening the Messages path is tracked future work. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
 
 For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics. The sole exception is an optional Responses output-item `id`, which Chat Completions and Messages may omit because it does not affect model behavior and has no target equivalent; this exception does not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks beside that client's request construction rather than in the provider-neutral normalized models.
 
@@ -197,10 +197,14 @@ Use the following workflow when adding a feature shared by Responses and one or 
 6. Implement request schemas and native transport support until all same-protocol routes pass without crossing the normalized IR.
 7. Add the smallest provider-neutral representation and the required downstream-adapter and upstream-client mappings until all cross-protocol routes pass. Explicitly reject semantics that a target protocol cannot represent; never silently drop them.
 
+Schema-union note: a shared field name does not guarantee an identical nested shape. Validate each nested union before copying a shared-name field into another protocol. For example, Chat only emits non-empty `logprobs` when a request also sets `logprobs: true`, so copying `top_logprobs` alone is insufficient once structured-output or log-probability support is added.
+
 Run all implementation tests in cassette playback mode. Actual translated output may be written to a temporary location for diagnosis, but it must never be promoted automatically to an expected fixture.
 
 ## Verification
 
-Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events. IR and request-mapping unit tests are supplementary, not a replacement.
+Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events.
+
+Log probabilities are not yet transported through the normalized path. Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
 
 After changes, run focused replay tests, full `pytest`, and the formatting and lint commands from `.github/workflows/lint.yml`. Report pre-existing failures without changing unrelated files.
