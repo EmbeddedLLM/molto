@@ -1,0 +1,36 @@
+filename: 2026-08-27-01a0421a-2e83-7070-aa9b-6ca936edbe91
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: 'Write one short sentence '
+        type: text
+      - text: about the ocean.
+        type: text
+      role: user
+    model: gpt-4.1-nano
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '179'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0421a-2e83-7070-aa9b-6ca936edbe91
+response:
+  body:
+    error:
+      message: invalid x-api-key
+      type: authentication_error
+    request_id: req_011CeSrPRVi5wND36y6jE9XB
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 401
+timestamp: '2026-08-27T07:23:27.235403+00:00'

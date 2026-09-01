@@ -1,0 +1,40 @@
+filename: 2026-08-27-01a0421a-2a8c-7871-9352-13e414e2ca52
+request:
+  body:
+    input:
+    - content:
+      - text: 'Write one short sentence '
+        type: input_text
+      - text: about the ocean.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: gpt-4.1-nano
+    stream: true
+    stream_options:
+      include_obfuscation: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '192'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a0421a-2a8c-7871-9352-13e414e2ca52
+response:
+  body:
+    error:
+      code: invalid_api_key
+      message: 'Incorrect API key provided: sk. You can find your API key at https://platform.openai.com/account/api-keys.'
+      param: null
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '231'
+    content-type: application/json
+  status_code: 401
+timestamp: '2026-08-27T07:23:26.220018+00:00'

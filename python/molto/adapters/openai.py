@@ -12,11 +12,18 @@ from typing import Any, NoReturn
 from uuid import uuid4
 
 from openai import APIStatusError
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import NotFoundError as OpenAINotFoundError
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
-from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import (
+    AuthenticationError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -59,6 +66,23 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "stop_sequence": "stop",
     "tool_call": "tool_calls",
 }
+
+
+def _raise_openai_error(error: Exception) -> NoReturn:
+    if isinstance(error, AuthenticationError):
+        error_type = OpenAIAuthenticationError
+    elif isinstance(error, ResourceNotFoundError):
+        error_type = OpenAINotFoundError
+    elif isinstance(error, ModelNotFoundError):
+        error_type = APIStatusError
+    else:
+        raise error
+    raise error_type(
+        error.message,
+        response=error.response,
+        body=error.body,
+    ) from error
+
 
 _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
     {
@@ -802,6 +826,7 @@ class OpenAIResponsesAdapter(
             # downstream-native, so preserve its SDK subclass. Reconstruct a
             # fresh instance rather than re-raise the cause: chaining it
             # `from error` would make the two exceptions each other's cause.
+            # This only works on errors that have a Normalized exception class in molto
             # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
             # has no `APIStatusError` cause and passes through unchanged until
             # an IR recognition rule exists.
@@ -810,18 +835,7 @@ class OpenAIResponsesAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        if isinstance(error, ModelNotFoundError):
-            # Changing these without changing error message is confusing to users
-            # error.body["error"]["code"] = "model_not_found"
-            # error.body["error"]["param"] = "model"
-            # error.body["error"]["type"] = "invalid_request_error"
-            # error.response.status_code = 400
-            raise APIStatusError(
-                error.message,
-                response=error.response,
-                body=error.body,
-            ) from error
-        raise error
+        _raise_openai_error(error)
 
 
 class OpenAIChatCompletionsAdapter(
@@ -1199,10 +1213,4 @@ class OpenAIChatCompletionsAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        if isinstance(error, ModelNotFoundError):
-            raise APIStatusError(
-                error.message,
-                response=error.response,
-                body=error.body,
-            ) from error
-        raise error
+        _raise_openai_error(error)
