@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 
-from anthropic import APIStatusError
+from anthropic import APIStatusError as AnthropicAPIStatusError
 from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import NotFoundError as AnthropicNotFoundError
 
@@ -534,29 +534,28 @@ class AnthropicMessagesAdapter(
                 yield event({"type": "message_stop"})
 
     def _handle_error(self, error: Exception) -> NoReturn:
-        if not isinstance(error, APIException):
-            raise error
         cause = error.__cause__
+        if (not isinstance(error, APIException)) or cause is None:
+            raise error
         error_map = {
             401: AnthropicAuthenticationError,
             404: AnthropicNotFoundError,
         }
-        if isinstance(cause, APIStatusError):
-            if self.native_request is None:
-                # Same-protocol passthrough: the upstream exception is already
-                # downstream-native, so preserve its SDK subclass. Reconstruct a
-                # fresh instance rather than re-raise the cause: chaining it
-                # `from error` would make the two exceptions each other's cause.
-                # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
-                # has no `APIStatusError` cause and passes through unchanged until
-                # an IR recognition rule exists.
-                raise type(cause)(
-                    cause.message,
-                    response=cause.response,
-                    body=cause.body,
-                ) from error
-            else:
-                error_type = error_map.get(cause.status_code, APIStatusError)
+        # Same-protocol passthrough: the upstream exception is already
+        # downstream-native, so preserve its SDK subclass. Reconstruct a
+        # fresh instance rather than re-raise the cause: chaining it
+        # `from error` would make the two exceptions each other's cause.
+        if isinstance(cause, AnthropicAPIStatusError):
+            raise type(cause)(
+                cause.message,
+                response=cause.response,
+                body=cause.body,
+            ) from error
+        # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
+        # has no `APIStatusError` cause and passes through unchanged until
+        # an IR recognition rule exists.
+        else:
+            error_type = error_map.get(cause.status_code, AnthropicAPIStatusError)
             raise error_type(
                 error.message,
                 response=error.response,
