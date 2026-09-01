@@ -20,9 +20,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEventAdapter,
 )
 from molto.types.exceptions import (
-    AuthenticationError,
-    ModelNotFoundError,
-    ResourceNotFoundError,
+    APIException,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -536,30 +534,32 @@ class AnthropicMessagesAdapter(
                 yield event({"type": "message_stop"})
 
     def _handle_error(self, error: Exception) -> NoReturn:
-        cause = error.__cause__
-        if self.native_request is None and isinstance(cause, APIStatusError):
-            # Same-protocol passthrough: the upstream exception is already
-            # downstream-native, so preserve its SDK subclass. Reconstruct a
-            # fresh instance rather than re-raise the cause: chaining it
-            # `from error` would make the two exceptions each other's cause.
-            # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
-            # has no `APIStatusError` cause and passes through unchanged until
-            # an IR recognition rule exists.
-            raise type(cause)(
-                cause.message,
-                response=cause.response,
-                body=cause.body,
-            ) from error
-        if isinstance(error, AuthenticationError):
-            error_type = AnthropicAuthenticationError
-        elif isinstance(error, ResourceNotFoundError):
-            error_type = AnthropicNotFoundError
-        elif isinstance(error, ModelNotFoundError):
-            error_type = APIStatusError
-        else:
+        if not isinstance(error, APIException):
             raise error
-        raise error_type(
-            error.message,
-            response=error.response,
-            body=error.body,
-        ) from error
+        cause = error.__cause__
+        error_map = {
+            401: AnthropicAuthenticationError,
+            404: AnthropicNotFoundError,
+        }
+        if isinstance(cause, APIStatusError):
+            if self.native_request is None:
+                # Same-protocol passthrough: the upstream exception is already
+                # downstream-native, so preserve its SDK subclass. Reconstruct a
+                # fresh instance rather than re-raise the cause: chaining it
+                # `from error` would make the two exceptions each other's cause.
+                # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
+                # has no `APIStatusError` cause and passes through unchanged until
+                # an IR recognition rule exists.
+                raise type(cause)(
+                    cause.message,
+                    response=cause.response,
+                    body=cause.body,
+                ) from error
+            else:
+                error_type = error_map.get(cause.status_code, APIStatusError)
+            raise error_type(
+                error.message,
+                response=error.response,
+                body=error.body,
+            ) from error
+        raise error
