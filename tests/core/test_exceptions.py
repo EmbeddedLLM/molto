@@ -33,6 +33,25 @@ DOWNSTREAM_ERROR_TYPES: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIS
     "chat/completions": OpenAIAPIStatusError,
     "messages": AnthropicAPIStatusError,
 }
+DOWNSTREAM_STATUS_ERROR_TYPES: dict[
+    Protocol,
+    dict[int, type[OpenAIAPIStatusError | AnthropicAPIStatusError]],
+] = {
+    "responses": {
+        400: OpenAIBadRequestError,
+        401: OpenAIAuthenticationError,
+        404: OpenAINotFoundError,
+    },
+    "chat/completions": {
+        400: OpenAIBadRequestError,
+        401: OpenAIAuthenticationError,
+        404: OpenAINotFoundError,
+    },
+    "messages": {
+        401: AnthropicAuthenticationError,
+        404: AnthropicNotFoundError,
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -42,11 +61,6 @@ class ErrorScenario:
     name: str
     normalized_error: type[APIException]
     error_types: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]]
-    # Outward class per protocol on translated routes; None when every protocol
-    # has a faithful downstream SDK subclass for the normalized error.
-    translated_error_types: (
-        dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]] | None
-    ) = None
     # True when the error was triggered by a deliberately wrong request URL.
     # Current SDKs normalize base_url joining, so Molto cannot reproduce the
     # recorded path; replay asserts the host and endpoint instead.
@@ -62,14 +76,6 @@ ERROR_SCENARIOS: tuple[ErrorScenario, ...] = (
             "responses": OpenAIBadRequestError,
             "chat/completions": OpenAINotFoundError,
             "messages": AnthropicNotFoundError,
-        },
-        # Protocols disagree on the native status (Responses 400, Chat 404), so
-        # translated routes raise the downstream base APIStatusError, preserving
-        # the upstream status/body rather than inventing a target-native status.
-        translated_error_types={
-            "responses": OpenAIAPIStatusError,
-            "chat/completions": OpenAIAPIStatusError,
-            "messages": AnthropicAPIStatusError,
         },
     ),
     ErrorScenario(
@@ -155,11 +161,13 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
     expected_response = upstream_cassette["response"]
     expected_body = _response_body(upstream_cassette)
     # Native passthrough preserves the original SDK subclass. Translated routes
-    # project the normalized semantic error into the downstream SDK namespace.
+    # select the downstream SDK class from the preserved upstream status.
     expected_error_type = (
         scenario.error_types[downstream]
-        if downstream == upstream or scenario.translated_error_types is None
-        else scenario.translated_error_types[downstream]
+        if downstream == upstream
+        else DOWNSTREAM_STATUS_ERROR_TYPES[downstream].get(
+            expected_response["status_code"], DOWNSTREAM_ERROR_TYPES[downstream]
+        )
     )
     http_client, requests = _get_http_client(upstream_cassette)
 

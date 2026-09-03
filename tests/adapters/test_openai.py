@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from openai import APIStatusError, BadRequestError
+from openai import BadRequestError
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
@@ -975,7 +975,7 @@ async def _failing_events() -> AsyncIterator[ModelResponseStreamEvent]:
 
 
 @pytest.mark.parametrize("native", [True, False], ids=["native", "translated"])
-async def test_error_projection_preserves_subclass_only_on_native_routes(native: bool) -> None:
+async def test_error_projection_selects_subclass_from_status(native: bool) -> None:
     if native:
         # Native passthrough never normalizes a request.
         adapter = OpenAIResponsesAdapter(_CAPABILITIES)
@@ -984,12 +984,11 @@ async def test_error_projection_preserves_subclass_only_on_native_routes(native:
         adapter, request = _responses_adapter(_CAPABILITIES)
         stream = adapter.project_events(_failing_events(), request)
 
-    expected_type = BadRequestError if native else APIStatusError
-    with pytest.raises(expected_type) as exc_info:
+    with pytest.raises(BadRequestError) as exc_info:
         [event async for event in stream]
 
     error = exc_info.value
-    assert type(error) is expected_type
+    assert type(error) is BadRequestError
     assert isinstance(error.__cause__, ModelNotFoundError)
     assert type(error.__cause__.__cause__) is BadRequestError
     assert error is not error.__cause__.__cause__

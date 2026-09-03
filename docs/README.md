@@ -278,7 +278,7 @@ Normalized protocol-independent API errors inherit from `molto.types.exceptions.
 | Chat Completions  | OpenAI status `404` and `code == "model_not_found"`             |
 | Messages          | Anthropic status `404` and an error message containing `model:` |
 
-On translated routes, the outward exception uses the downstream SDK's base `APIStatusError`, but its status, message, response, and body still come from the upstream provider. On same-protocol routes it is a fresh instance of the upstream SDK exception's concrete class. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
+On translated routes, the outward exception class is selected from the original provider's preserved HTTP status in the downstream SDK namespace. Molto does not translate the provider's HTTP error contract: status, message, response, and body retain their original values and shape. OpenAI downstream protocols map `400`, `401`, and `404` to `BadRequestError`, `AuthenticationError`, and `NotFoundError`; Messages maps `401` and `404` to Anthropic's `AuthenticationError` and `NotFoundError`. Unmapped statuses use the downstream SDK's base `APIStatusError`. On same-protocol routes the outward exception is a fresh instance of the upstream SDK exception's concrete class. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
 
 ## Provider and model renderers
 

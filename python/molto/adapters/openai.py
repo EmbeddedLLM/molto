@@ -13,15 +13,14 @@ from uuid import uuid4
 
 from openai import APIStatusError
 from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
 from molto.types.exceptions import (
-    AuthenticationError,
-    ModelNotFoundError,
-    ResourceNotFoundError,
+    APIException,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -69,14 +68,15 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
 
 
 def _raise_openai_error(error: Exception) -> NoReturn:
-    if isinstance(error, AuthenticationError):
-        error_type = OpenAIAuthenticationError
-    elif isinstance(error, ResourceNotFoundError):
-        error_type = OpenAINotFoundError
-    elif isinstance(error, ModelNotFoundError):
-        error_type = APIStatusError
-    else:
+    cause = error.__cause__
+    if (not isinstance(error, APIException)) or cause is None:
         raise error
+    error_map = {
+        400: OpenAIBadRequestError,
+        401: OpenAIAuthenticationError,
+        404: OpenAINotFoundError,
+    }
+    error_type = error_map.get(getattr(cause, "status_code", None), APIStatusError)
     raise error_type(
         error.message,
         response=error.response,
