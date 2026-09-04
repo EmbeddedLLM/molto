@@ -137,7 +137,14 @@ Normalized protocol-independent API errors inherit from `APIException`. The curr
 | `ModelNotFoundError`    | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
 | `ResourceNotFoundError` | all                     | protocol `APIStatusError`  | status `404`                                          |
 
-On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
+On translated routes, downstream adapters select the outward SDK class from the original provider's HTTP status. They do not select it from the normalized semantic error and do not translate the HTTP error contract. The status, message, `response`, and body retain their original provider values and shape; only the SDK namespace used to expose that preserved status changes.
+
+| Downstream SDK | Status `400`      | Status `401`          | Status `404`    | Other statuses   |
+| -------------- | ----------------- | --------------------- | --------------- | ---------------- |
+| OpenAI         | `BadRequestError` | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
+| Anthropic      | `APIStatusError`  | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
+
+For example, a missing model reported by Anthropic becomes an OpenAI `NotFoundError` because the original response has status `404`, while retaining Anthropic's body. The reverse route through Messages from Responses preserves the OpenAI status `400` and body and therefore uses Anthropic's base `APIStatusError`. Callers must inspect the normalized exception in the cause chain for the portable semantic category; the outward subclass classifies only the preserved status.
 
 Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
 
