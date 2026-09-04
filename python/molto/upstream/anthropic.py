@@ -25,7 +25,12 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesStreamEvent,
 )
-from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import (
+    AuthenticationError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     FunctionToolChoice,
     ImageUrlInput,
@@ -610,8 +615,20 @@ class AnthropicMessagesClient(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, APIStatusError):
+            if error.status_code == 401:
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             if error.status_code == 404 and "model:" in error.message:
                 raise ModelNotFoundError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if error.status_code == 404:
+                raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,

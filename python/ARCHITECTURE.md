@@ -129,23 +129,25 @@ A translated route applies the first stage in the upstream client and the second
 
 Normalized protocol-independent API errors inherit from `APIException`. The currently implemented subclass is `ModelNotFoundError`. Upstream clients recognize it as follows:
 
-| Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
-| ----------------------- | -------------------------- | ----------------------------------------------------- |
-| OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
-| OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
-| Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
+| Normalized exception    | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
+| ----------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
+| `AuthenticationError`   | all                     | protocol `APIStatusError`  | status `401`                                          |
+| `ModelNotFoundError`    | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
+| `ModelNotFoundError`    | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
+| `ModelNotFoundError`    | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
+| `ResourceNotFoundError` | all                     | protocol `APIStatusError`  | status `404`                                          |
 
-The downstream adapter then raises `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet fully translated into the target protocol's HTTP contract. Its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic remains status `404` when projected through the Responses API, even though OpenAI Responses normally reports that condition as status `400`. The reverse route through Messages retains the upstream Responses status `400` and OpenAI-shaped body.
+On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
 
 Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
 
 ```text
-downstream APIStatusError
-        caused by ModelNotFoundError
+downstream SDK exception
+        caused by normalized Molto exception
         caused by upstream SDK exception
 ```
 
-This preserves the native provider evidence while exposing a stable semantic classification on every route. Translated routes raise the downstream SDK's base `APIStatusError`; a same-protocol route instead raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+This preserves the native provider evidence while exposing a stable semantic classification on every route. A same-protocol route raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
 
 ## Orchestration facade and coordinators
 

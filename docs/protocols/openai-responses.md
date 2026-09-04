@@ -324,7 +324,7 @@ Model-not-found is currently recognized as:
 - Chat Completions: OpenAI `APIStatusError`, status `404`, code `model_not_found`; and
 - Messages: Anthropic `APIStatusError`, status `404`, with `model:` in the message.
 
-Error translation is semantic, not a complete HTTP error rewrite. The outward exception is an OpenAI `APIStatusError`, but its status, message, response, and body remain those of the upstream endpoint. Its `__cause__` is Molto's `ModelNotFoundError`, whose cause is the original upstream SDK exception. See the [shared error contract](../README.md#errors) for caller guidance.
+Error translation is semantic, not a complete HTTP error rewrite. On translated routes, the outward exception is an OpenAI `APIStatusError`, but its status, message, response, and body remain those of the upstream endpoint. Its `__cause__` is Molto's `ModelNotFoundError`, whose cause is the original upstream SDK exception. See the [shared error contract](../README.md#errors) for caller guidance.
 
 ## Fidelity
 

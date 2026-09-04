@@ -2,13 +2,14 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from openai import APIStatusError, AuthenticationError
+from openai import APIStatusError
+from openai import AuthenticationError as OpenAIAuthenticationError
 
 from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -3026,7 +3027,7 @@ async def test_early_stop_closes_stream_but_keeps_shared_client_usable():
     assert http_client.is_closed
 
 
-async def test_native_events_use_openai_sdk_errors():
+async def test_native_events_normalize_authentication_error():
     request_count = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -3053,8 +3054,10 @@ async def test_native_events_use_openai_sdk_errors():
         with pytest.raises(AuthenticationError) as exc_info:
             [event async for event in client.native_events(request)]
 
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.code == "invalid_api_key"
+    error = exc_info.value
+    assert error.response.status_code == 401
+    assert error.body["code"] == "invalid_api_key"
+    assert type(error.__cause__) is OpenAIAuthenticationError
     assert request_count == 1
 
 
