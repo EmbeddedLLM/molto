@@ -94,6 +94,7 @@ _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
         "model",
         "parallel_tool_calls",
         "reasoning",
+        "store",
         "stream",
         "stream_options",
         "temperature",
@@ -400,6 +401,10 @@ class OpenAIResponsesAdapter(
             raise UnsupportedInput(
                 "Unsupported Responses include values for cross-protocol translation: "
                 f"{sorted(unsupported_includes)}."
+            )
+        if request.store is True:
+            raise UnsupportedInput(
+                "Cross-protocol Responses requests do not support `store=true`."
             )
         normalized_input: (
             list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn] | None

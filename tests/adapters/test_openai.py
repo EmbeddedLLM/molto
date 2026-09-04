@@ -152,16 +152,43 @@ def test_responses_adapter_rejects_untranslated_request_fields():
         OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
-def test_responses_adapter_accepts_encrypted_reasoning_include():
-    request = OpenAIResponsesCreateRequest(
-        input="Hello",
-        model="m",
-        include=["reasoning.encrypted_content"],
+def test_responses_adapter_ignores_encrypted_reasoning_include():
+    request_without_include = OpenAIResponsesCreateRequest(input="Hello", model="m")
+    request_with_include = OpenAIResponsesCreateRequest(
+        input="Hello", model="m", include=["reasoning.encrypted_content"]
     )
 
-    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    normalized_without_include = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_without_include
+    )
+    normalized_with_include = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_with_include
+    )
 
-    assert normalized.model == "m"
+    assert normalized_with_include == normalized_without_include
+
+
+def test_responses_adapter_ignores_disabled_store():
+    request_without_store = OpenAIResponsesCreateRequest(input="Hello", model="m")
+    request_with_store_disabled = OpenAIResponsesCreateRequest(
+        input="Hello", model="m", store=False
+    )
+
+    normalized_without_store = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_without_store
+    )
+    normalized_with_store_disabled = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_with_store_disabled
+    )
+
+    assert normalized_with_store_disabled == normalized_without_store
+
+
+def test_responses_adapter_rejects_enabled_store():
+    request = OpenAIResponsesCreateRequest(input="Hello", model="m", store=True)
+
+    with pytest.raises(UnsupportedInput, match=r"store=true"):
+        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
 def test_responses_adapter_rejects_untranslated_include_values():
