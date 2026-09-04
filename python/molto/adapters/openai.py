@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 from uuid import uuid4
 
-from openai import APIStatusError
+from openai import APIStatusError as OpenAIAPIStatusError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
@@ -76,7 +76,7 @@ def _raise_openai_error(error: Exception) -> NoReturn:
         401: OpenAIAuthenticationError,
         404: OpenAINotFoundError,
     }
-    error_type = error_map.get(getattr(cause, "status_code", None), APIStatusError)
+    error_type = error_map.get(getattr(cause, "status_code", None), OpenAIAPIStatusError)
     raise error_type(
         error.message,
         response=error.response,
@@ -821,7 +821,7 @@ class OpenAIResponsesAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         cause = error.__cause__
-        if self.native_request is None and isinstance(cause, APIStatusError):
+        if self.native_request is None and isinstance(cause, OpenAIAPIStatusError):
             # Same-protocol passthrough: the upstream exception is already
             # downstream-native, so preserve its SDK subclass. Reconstruct a
             # fresh instance rather than re-raise the cause: chaining it
@@ -1205,7 +1205,7 @@ class OpenAIChatCompletionsAdapter(
 
     def _handle_error(self, error: Exception) -> NoReturn:
         cause = error.__cause__
-        if self.native_request is None and isinstance(cause, APIStatusError):
+        if self.native_request is None and isinstance(cause, OpenAIAPIStatusError):
             # TODO: Handle bare `APIError` (e.g. mid-stream error events); see
             # OpenAIResponsesAdapter._handle_error for the passthrough rule.
             raise type(cause)(

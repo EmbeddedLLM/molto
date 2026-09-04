@@ -555,7 +555,9 @@ class AnthropicMessagesAdapter(
         # has no `APIStatusError` cause and passes through unchanged until
         # an IR recognition rule exists.
         else:
-            error_type = error_map.get(cause.status_code, AnthropicAPIStatusError)
+            error_type = error_map.get(
+                getattr(cause, "status_code", None), AnthropicAPIStatusError
+            )
             raise error_type(
                 error.message,
                 response=error.response,
