@@ -62,8 +62,10 @@ asyncio.run(main())
 - `endpoint` selects the upstream wire protocol.
 - `provider` (optional) selects the serving implementation and its capabilities.
 - `base_url` (optional) selects only the HTTP destination.
+- `extra_body` (optional) merges provider extensions into the projected upstream body.
+- `extra_headers` (optional) adds upstream headers after Molto removes client credentials and transport-specific fields.
 
-These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough.
+These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough. The returned `MoltoStream.response_headers` retains successful upstream HTTP headers for callers such as proxy servers.
 
 ## Error handling
 
