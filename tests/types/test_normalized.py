@@ -6,6 +6,7 @@ from molto.types.normalized import (
     FunctionToolChoice,
     InputItem,
     NormalizedRequest,
+    NormalizedResponse,
     PartStartEvent,
     TextDelta,
     TextInput,
@@ -16,6 +17,23 @@ from molto.types.normalized import (
     ToolReturn,
     UserInput,
 )
+
+
+def test_normalized_response_preserves_complete_output() -> None:
+    output = [TextOutput(content="Answer", id="message-id")]
+
+    response = NormalizedResponse(
+        id="response-id",
+        created_at=1,
+        model="m",
+        output=output,
+        termination_reason="stop",
+    )
+
+    assert response.output == output
+    assert response.service_tier is None
+    assert response.stop_sequence is None
+    assert response.usage is None
 
 
 def test_user_input_preserves_message_boundary_around_text_parts():

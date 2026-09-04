@@ -30,6 +30,7 @@ from molto.types.normalized import (
     ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
+    NormalizedResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -51,10 +52,12 @@ from molto.types.normalized import (
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
@@ -272,9 +275,20 @@ def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
 
 
 class OpenAIResponsesAdapter(
-    BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
+    BaseAdapter[
+        OpenAIResponsesCreateRequest,
+        OpenAIResponsesStreamEvent,
+        OpenAIResponsesResponse,
+    ]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    def _project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> OpenAIResponsesResponse:
+        raise NotImplementedError("Responses non-streaming projection is not implemented.")
 
     def _normalize_message(
         self,
@@ -839,9 +853,20 @@ class OpenAIResponsesAdapter(
 
 
 class OpenAIChatCompletionsAdapter(
-    BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
+    BaseAdapter[
+        OpenAIChatCompletionsCreateRequest,
+        OpenAIChatCompletionsStreamChunk,
+        OpenAIChatCompletionsResponse,
+    ]
 ):
     """Translate Chat Completions requests and normalized response events."""
+
+    def _project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> OpenAIChatCompletionsResponse:
+        raise NotImplementedError("Chat Completions non-streaming projection is not implemented.")
 
     def _normalize_message(
         self,

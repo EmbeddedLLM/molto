@@ -17,9 +17,15 @@ from molto import Molto
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, PROVIDER_CAPABILITIES, Provider
-from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
-from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
-from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
+)
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
+)
+from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
@@ -90,13 +96,14 @@ def _matched_cassette_paths(scenario: str, protocol: Protocol) -> dict[str, Path
 
 
 def _matched_cassette_path(scenario: str, protocol: Protocol, variant: str) -> Path:
-    cassette_paths = _matched_cassette_paths(scenario, protocol)
-    try:
-        return cassette_paths[variant]
-    except KeyError as error:
+    protocol_name = _protocol_name(protocol)
+    paths = sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*-{protocol_name}-{variant}"))
+    if len(paths) != 1:
         raise ValueError(
-            f"No matched {protocol!r} cassette for {scenario!r}/{variant!r}"
-        ) from error
+            f"Expected one matched {protocol!r} cassette for {scenario!r}/{variant!r}, "
+            f"found {len(paths)}."
+        )
+    return paths[0]
 
 
 @lru_cache(maxsize=5)
@@ -372,6 +379,72 @@ async def test_native_stream_matches_provider_sdk(
     assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
         event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
     ]
+
+
+@pytest.mark.parametrize("protocol", PROTOCOLS)
+async def test_native_non_streaming_responses_match_provider_sdk(protocol: Protocol):
+    cassette_paths = [
+        _matched_cassette_path("simple_text", protocol, variant)
+        for variant in ("non_stream-00.yaml", "non_stream-01.yaml")
+    ]
+    request_bodies = [
+        deepcopy(_read_cassette(cassette_path)["request"]["body"])
+        for cassette_path in cassette_paths
+    ]
+    sdk_responses = []
+
+    async with _get_http_client(cassette_paths, protocol) as http_client:
+        if protocol == "messages":
+            sdk_client = AsyncAnthropic(
+                api_key="test-api-key",
+                base_url="https://api.anthropic.com",
+                http_client=http_client,
+            )
+            for request_body in request_bodies:
+                sdk_response = await sdk_client.messages.create(**request_body)
+                assert not isinstance(sdk_response, AnthropicAsyncStream)
+                sdk_responses.append(sdk_response)
+        else:
+            sdk_client = AsyncOpenAI(
+                api_key="test-api-key",
+                base_url="https://api.openai.com/v1",
+                http_client=http_client,
+            )
+            for request_body in request_bodies:
+                if protocol == "responses":
+                    sdk_response = await sdk_client.responses.create(**request_body)
+                else:
+                    sdk_response = await sdk_client.chat.completions.create(**request_body)
+                assert not isinstance(sdk_response, AsyncStream)
+                sdk_responses.append(sdk_response)
+
+    async with _get_http_client(cassette_paths, protocol) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[protocol]
+        molto_responses = [
+            await coordinator(
+                body=request_body,
+                endpoint=protocol,
+                api_key="test-api-key",
+            )
+            for request_body in request_bodies
+        ]
+
+    response_type = {
+        "responses": OpenAIResponsesResponse,
+        "chat/completions": OpenAIChatCompletionsResponse,
+        "messages": AnthropicMessagesResponse,
+    }[protocol]
+    for molto_response, sdk_response in zip(molto_responses, sdk_responses, strict=True):
+        assert type(molto_response) is response_type
+        assert type(molto_response) is type(sdk_response)
+        assert molto_response.model_dump(
+            mode="json", exclude_unset=True
+        ) == sdk_response.model_dump(mode="json", exclude_unset=True)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)

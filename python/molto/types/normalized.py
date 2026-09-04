@@ -664,6 +664,43 @@ class ResponseEndEvent(ExtraModel):
     ] = "response_end"
 
 
+class NormalizedResponse(ExtraModel):
+    """A complete provider-neutral model response."""
+
+    id: Annotated[
+        str,
+        Field(description="The upstream response identifier."),
+    ]
+    created_at: Annotated[
+        int,
+        Field(description="The upstream response creation time."),
+    ]
+    model: Annotated[
+        str,
+        Field(description="The model that produced the response."),
+    ]
+    output: Annotated[
+        list[OutputItem],
+        Field(description="The ordered response output items."),
+    ]
+    service_tier: Annotated[
+        str | None,
+        Field(description="The service tier used for the response."),
+    ] = None
+    termination_reason: Annotated[
+        TerminationReason,
+        Field(description="The provider-neutral reason that generation terminated."),
+    ]
+    stop_sequence: Annotated[
+        str | None,
+        Field(description="The matched stop sequence, when one terminated generation."),
+    ] = None
+    usage: Annotated[
+        Usage | None,
+        Field(description="The response token usage."),
+    ] = None
+
+
 class PartStartEvent(ExtraModel):
     """An event indicating that a new part has started.
 

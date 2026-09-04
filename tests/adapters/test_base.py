@@ -14,6 +14,7 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
+    NormalizedResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -32,7 +33,11 @@ class NativeRequest(BaseModel):
     value: str
 
 
-class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
+class NativeResponse(BaseModel):
+    value: str
+
+
+class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent, NativeResponse]):
     def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
         return NormalizedRequest(input=[UserInput(content=[TextInput(content=request.value)])])
 
@@ -43,6 +48,16 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent]):
     ) -> AsyncIterator[ModelResponseStreamEvent]:
         del request
         return events
+
+    def _project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> NativeResponse:
+        del request
+        if response.id == "invalid":
+            raise ValueError("Invalid normalized response.")
+        return NativeResponse(value=response.id)
 
     def _handle_error(self, error: Exception) -> NoReturn:
         raise RuntimeError("Native projection failed.") from error
@@ -101,10 +116,102 @@ def test_base_adapter_defines_abstract_translation_contract():
         "_handle_error",
         "_normalize_request",
         "_project_events",
+        "_project_response",
     }
     assert not inspect.isabstract(OpenAIResponsesAdapter)
     assert not inspect.isabstract(OpenAIChatCompletionsAdapter)
     assert not inspect.isabstract(AnthropicMessagesAdapter)
+
+
+def test_adapter_rejects_response_projection_before_request_normalization():
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    response = NormalizedResponse(
+        id="response-id",
+        created_at=1,
+        model="m",
+        output=[],
+        termination_reason="stop",
+    )
+
+    with pytest.raises(RuntimeError, match=r"normalize_request\(\).+project_response\(\)"):
+        adapter.project_response(response, NormalizedRequest())
+
+
+def test_adapter_projects_normalized_response():
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
+    response = NormalizedResponse(
+        id="response-id",
+        created_at=1,
+        model="m",
+        output=[],
+        termination_reason="stop",
+    )
+
+    assert adapter.project_response(response, normalized_request) == NativeResponse(
+        value="response-id"
+    )
+
+
+def test_adapter_translates_response_projection_errors():
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
+    response = NormalizedResponse(
+        id="invalid",
+        created_at=1,
+        model="m",
+        output=[],
+        termination_reason="stop",
+    )
+
+    with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
+        adapter.project_response(response, normalized_request)
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize(
+    ("adapter", "native_request", "message"),
+    [
+        (
+            OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["openai"]),
+            OpenAIResponsesCreateRequest(input="Question", model="m"),
+            "Responses",
+        ),
+        (
+            OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["openai"]),
+            OpenAIChatCompletionsCreateRequest(
+                messages=[{"role": "user", "content": "Question"}], model="m"
+            ),
+            "Chat Completions",
+        ),
+        (
+            AnthropicMessagesAdapter(PROVIDER_CAPABILITIES["anthropic"]),
+            AnthropicMessagesCreateRequest(
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Question"}],
+                model="m",
+            ),
+            "Messages",
+        ),
+    ],
+)
+def test_concrete_response_projection_is_scaffolded_but_unimplemented(
+    adapter: BaseAdapter,
+    native_request: BaseModel,
+    message: str,
+):
+    normalized_request = adapter.normalize_request(native_request)
+    response = NormalizedResponse(
+        id="response-id",
+        created_at=1,
+        model="m",
+        output=[],
+        termination_reason="stop",
+    )
+
+    with pytest.raises(NotImplementedError, match=message):
+        adapter.project_response(response, normalized_request)
 
 
 async def test_adapter_translates_projection_errors() -> None:
@@ -138,6 +245,24 @@ async def test_adapter_native_passthrough_translates_only_errors() -> None:
 
     with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
         await anext(adapter.project_native_events(failing_events()))
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+async def test_adapter_native_response_passthrough_translates_only_errors() -> None:
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    response = NativeResponse(value="hello")
+
+    async def native_response() -> NativeResponse:
+        return response
+
+    assert await adapter.project_native_response(native_response()) is response
+
+    async def failing_response() -> NativeResponse:
+        raise ValueError("Invalid native response.")
+
+    with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
+        await adapter.project_native_response(failing_response())
 
     assert isinstance(exc_info.value.__cause__, ValueError)
 

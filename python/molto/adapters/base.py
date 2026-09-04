@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from typing import NoReturn
 
 from pydantic import BaseModel, ValidationError
@@ -9,11 +9,16 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
+    NormalizedResponse,
     Thinking,
 )
 
 
-class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
+class BaseAdapter[
+    NativeRequestT: BaseModel,
+    NativeEventT,
+    NativeResponseT: BaseModel,
+](ABC):
     """Translate the downstream protocol to and from normalized IR."""
 
     def __init__(
@@ -70,6 +75,19 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         # can write `async for event in adapter.project_events(...)` without awaiting it.
         return self._stream_with_error_handling(self._project_events(events, request))
 
+    def project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> NativeResponseT:
+        """Translate a complete normalized response into the downstream protocol."""
+        if self.native_request is None:
+            raise RuntimeError("normalize_request() must be called before project_response().")
+        try:
+            return self._project_response(response, request)
+        except Exception as error:
+            self._handle_error(error)
+
     def project_native_events(
         self,
         events: AsyncIterator[NativeEventT],
@@ -82,6 +100,16 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         exception so every route exposes the same cause chain.
         """
         return self._stream_with_error_handling(events)
+
+    async def project_native_response(
+        self,
+        response: Awaitable[NativeResponseT],
+    ) -> NativeResponseT:
+        """Pass through a same-protocol response, translating known IR failures."""
+        try:
+            return await response
+        except Exception as error:
+            self._handle_error(error)
 
     async def _stream_with_error_handling(
         self,
@@ -110,8 +138,17 @@ class BaseAdapter[NativeRequestT: BaseModel, NativeEventT](ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def _project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> NativeResponseT:
+        """Implement downstream complete-response projection."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _handle_error(self, error: Exception) -> NoReturn:
-        """Translate or re-raise an error raised while streaming downstream events."""
+        """Translate or re-raise an error raised while projecting downstream output."""
         raise NotImplementedError
 
     def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:

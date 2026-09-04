@@ -16,6 +16,7 @@ from anthropic import NotFoundError as AnthropicNotFoundError
 from molto.adapters.base import BaseAdapter
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
@@ -31,6 +32,7 @@ from molto.types.normalized import (
     ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
+    NormalizedResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -122,9 +124,20 @@ def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
 
 
 class AnthropicMessagesAdapter(
-    BaseAdapter[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
+    BaseAdapter[
+        AnthropicMessagesCreateRequest,
+        AnthropicMessagesStreamEvent,
+        AnthropicMessagesResponse,
+    ]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    def _project_response(
+        self,
+        response: NormalizedResponse,
+        request: NormalizedRequest,
+    ) -> AnthropicMessagesResponse:
+        raise NotImplementedError("Messages non-streaming projection is not implemented.")
 
     @staticmethod
     def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:

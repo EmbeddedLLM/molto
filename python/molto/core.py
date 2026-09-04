@@ -13,9 +13,21 @@ from molto.providers import (
     Endpoint,
     Provider,
 )
-from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
-from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
-from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
+    AnthropicMessagesStreamEvent,
+)
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
+    OpenAIChatCompletionsStreamChunk,
+)
+from molto.types.openai_responses import (
+    OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
+    OpenAIResponsesStreamEvent,
+)
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
@@ -106,7 +118,7 @@ class Molto:
         provider: Provider | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-    ) -> AsyncIterator[BaseModel]:
+    ) -> AsyncIterator[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
         The upstream format can be OpenAI Responses, OpenAI Chat Completions,
@@ -121,9 +133,6 @@ class Molto:
             base_url (str | None, optional): HTTP destination. Defaults to the client's native URL.
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError("Only streaming Responses requests are currently supported.")
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -136,8 +145,15 @@ class Molto:
                 capabilities=capabilities,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request))
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request))
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
+
+        if request.stream is not True:
+            raise NotImplementedError(
+                "Non-streaming translated Responses requests are not currently supported."
             )
 
         adapter = OpenAIResponsesAdapter(capabilities)
@@ -169,7 +185,7 @@ class Molto:
         provider: Provider | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-    ) -> AsyncIterator[BaseModel]:
+    ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
@@ -177,11 +193,6 @@ class Molto:
         HTTP destination.
         """
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError(
-                "Only streaming Chat Completions requests are currently supported."
-            )
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -193,8 +204,15 @@ class Molto:
                 capabilities=capabilities,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request))
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request))
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
+
+        if request.stream is not True:
+            raise NotImplementedError(
+                "Non-streaming translated Chat Completions requests are not currently supported."
             )
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
@@ -226,7 +244,7 @@ class Molto:
         provider: Provider | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-    ) -> AsyncIterator[BaseModel]:
+    ) -> AsyncIterator[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
@@ -234,9 +252,6 @@ class Molto:
         HTTP destination.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError("Only streaming Messages requests are currently supported.")
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -248,8 +263,15 @@ class Molto:
                 capabilities=capabilities,
             )
             adapter = AnthropicMessagesAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request))
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request))
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
+
+        if request.stream is not True:
+            raise NotImplementedError(
+                "Non-streaming translated Messages requests are not currently supported."
             )
 
         adapter = AnthropicMessagesAdapter(capabilities)

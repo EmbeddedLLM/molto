@@ -32,11 +32,12 @@ Do not treat an endpoint or URL hostname as evidence about provider behavior. A 
 
 ## Adapter and client base classes
 
-Create a fresh `BaseAdapter[NativeRequestT, NativeEventT]` subclass instance for each translated request, specifying its concrete native request and event types. Call its public `normalize_request()` before `project_events()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()` and `_project_events()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes the public `project_native_events()` so native failures receive the same downstream-native error projection.
+Create a fresh `BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` subclass instance for each translated request, specifying its concrete native request, event, and response types. Call its public `normalize_request()` before `project_events()` or `project_response()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()`, `_project_events()`, and `_project_response()`, and translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes `project_native_events()` or `project_native_response()` so native failures receive the same downstream-native error projection.
 
-Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT]`, specify its concrete native types, and implement its native path, normalized path, and error translation:
+Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT, NativeResponseT]`, specify its concrete native types, and implement its native paths, normalized path, and error translation:
 
-- `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()` so the native path shares the IR error normalization;
+- `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()`;
+- `native_response()` accepts the validated upstream-native request, returns a non-streaming SDK response, and delegates failures to `_handle_error()`;
 - `_events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`; and
 - `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
@@ -113,7 +114,7 @@ Use explicit semantic content types and discriminated unions. In particular, one
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
-When non-streaming support is added, derive it with a generic collector over the normalized event stream. Do not add a separate provider completion path that can drift from streaming behavior.
+Complete cross-protocol responses use `NormalizedResponse` and must be derived with a generic collector over the normalized event stream. Provider-specific adapters project that model through `project_response()`. Do not add a separate translated provider completion path that can drift from streaming behavior. Native same-protocol requests may bypass the normalized path and return the SDK response directly.
 
 Preserve chunk boundaries when they are observable and covered by parity tests. Do not turn an empty role-establishment chunk into a text delta.
 
@@ -132,8 +133,9 @@ Map usage semantically and construct the public usage payload explicitly. This p
 When downstream and upstream use the same protocol, preserve the native protocol instead of round-tripping through the normalized IR.
 
 - Validate the request with that protocol's request model.
-- Yield the SDK's native event or chunk models directly.
-- Do not route a native event through the normalized IR.
+- Yield the SDK's native event or chunk models directly for streaming requests.
+- Return the SDK's native response model directly for non-streaming requests.
+- Do not route a native event or response through the normalized IR.
 
 The bypass belongs in the relevant coordinator; transport remains in the matching upstream client.
 

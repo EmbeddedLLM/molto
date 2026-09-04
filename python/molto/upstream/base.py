@@ -15,7 +15,11 @@ from molto.types.normalized import (
 )
 
 
-class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
+class BaseClient[
+    NativeRequestT: BaseModel,
+    NativeEventT,
+    NativeResponseT: BaseModel,
+](ABC):
     DEFAULT_BASE_URL: str
 
     def __init__(
@@ -73,6 +77,11 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         Implementations must delegate failures to `_handle_error()` so the native
         path normalizes known errors to the same IR causes as `events()`.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def native_response(self, request: NativeRequestT) -> NativeResponseT:
+        """Return a native response, delegating failures to `_handle_error()`."""
         raise NotImplementedError
 
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:

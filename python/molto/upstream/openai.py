@@ -44,9 +44,10 @@ from molto.types.normalized import (
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
 )
-from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
 from molto.upstream.base import BaseClient
 
 _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
@@ -239,7 +240,9 @@ class _ChatToolCallState:
     args: str
 
 
-class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent]):
+class OpenAIResponsesClient(
+    BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent, OpenAIResponsesResponse]
+):
     """OpenAI Responses transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
@@ -264,6 +267,18 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     # The SDK already constructs ResponseStreamEvent instances. Apart from
                     # the provider omission above, avoid validating every event twice.
                     yield event
+        except Exception as error:
+            self._handle_error(error)
+
+    async def native_response(
+        self, request: OpenAIResponsesCreateRequest
+    ) -> OpenAIResponsesResponse:
+        try:
+            sdk_client = self._make_sdk_client()
+            response = await sdk_client.responses.create(**request.model_dump())
+            if isinstance(response, AsyncStream):
+                raise TypeError("Responses request did not return a non-streaming response.")
+            return response
         except Exception as error:
             self._handle_error(error)
 
@@ -575,7 +590,11 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
 
 
 class OpenAIChatCompletionsClient(
-    BaseClient[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
+    BaseClient[
+        OpenAIChatCompletionsCreateRequest,
+        OpenAIChatCompletionsStreamChunk,
+        OpenAIChatCompletionsResponse,
+    ]
 ):
     """OpenAI Chat Completions transport for native and normalized streaming paths."""
 
@@ -594,6 +613,20 @@ class OpenAIChatCompletionsClient(
                     # The SDK already constructs ChatCompletionChunk instances. Trust that
                     # boundary to avoid serializing and validating every streaming chunk twice.
                     yield chunk
+        except Exception as error:
+            self._handle_error(error)
+
+    async def native_response(
+        self, request: OpenAIChatCompletionsCreateRequest
+    ) -> OpenAIChatCompletionsResponse:
+        try:
+            sdk_client = self._make_sdk_client()
+            response = await sdk_client.chat.completions.create(**request.model_dump())
+            if isinstance(response, AsyncStream):
+                raise TypeError(
+                    "Chat Completions request did not return a non-streaming response."
+                )
+            return response
         except Exception as error:
             self._handle_error(error)
 

@@ -23,6 +23,7 @@ from pydantic_ai.profiles.anthropic import (
 from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
 )
 from molto.types.exceptions import (
@@ -222,7 +223,11 @@ def _image_block(part: ImageUrlInput) -> dict[str, Any]:
 
 
 class AnthropicMessagesClient(
-    BaseClient[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
+    BaseClient[
+        AnthropicMessagesCreateRequest,
+        AnthropicMessagesStreamEvent,
+        AnthropicMessagesResponse,
+    ]
 ):
     """Anthropic Messages transport for native and normalized streaming paths."""
 
@@ -246,6 +251,18 @@ class AnthropicMessagesClient(
             async with stream:
                 async for event in stream:
                     yield event
+        except Exception as error:
+            self._handle_error(error)
+
+    async def native_response(
+        self, request: AnthropicMessagesCreateRequest
+    ) -> AnthropicMessagesResponse:
+        try:
+            sdk_client = self._make_anthropic_client()
+            response = await sdk_client.messages.create(**request.model_dump())
+            if isinstance(response, AsyncStream):
+                raise TypeError("Messages request did not return a non-streaming response.")
+            return response
         except Exception as error:
             self._handle_error(error)
 
