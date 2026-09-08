@@ -253,9 +253,14 @@ class OpenAIResponsesClient(
     ) -> AsyncIterator[ResponseStreamEvent]:
         try:
             sdk_client = self._make_sdk_client()
-            stream = await sdk_client.responses.create(**request.model_dump())
+            stream = await sdk_client.responses.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Responses request did not return a stream.")
+            self._capture_response_headers(stream.response.headers)
             async with stream:
                 async for event in stream:
                     if isinstance(event, ResponseCompletedEvent):
@@ -276,7 +281,11 @@ class OpenAIResponsesClient(
     ) -> OpenAIResponsesResponse:
         try:
             sdk_client = self._make_sdk_client()
-            response = await sdk_client.responses.create(**request.model_dump())
+            response = await sdk_client.responses.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
             if isinstance(response, AsyncStream):
                 raise TypeError("Responses request did not return a non-streaming response.")
             return response
@@ -609,9 +618,14 @@ class OpenAIChatCompletionsClient(
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
         try:
             sdk_client = self._make_sdk_client()
-            stream = await sdk_client.chat.completions.create(**request.model_dump())
+            stream = await sdk_client.chat.completions.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Chat Completions request did not return a stream.")
+            self._capture_response_headers(stream.response.headers)
             async with stream:
                 async for chunk in stream:
                     # The SDK already constructs ChatCompletionChunk instances. Trust that
@@ -625,7 +639,11 @@ class OpenAIChatCompletionsClient(
     ) -> OpenAIChatCompletionsResponse:
         try:
             sdk_client = self._make_sdk_client()
-            response = await sdk_client.chat.completions.create(**request.model_dump())
+            response = await sdk_client.chat.completions.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
             if isinstance(response, AsyncStream):
                 raise TypeError(
                     "Chat Completions request did not return a non-streaming response."

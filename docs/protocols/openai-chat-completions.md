@@ -253,7 +253,7 @@ Chat stream options expose `include_obfuscation`, but the generated `ChatComplet
 Molto currently recognizes one portable error category, on native passthrough and translated routes alike:
 
 - A Chat upstream `openai.APIStatusError` with status `404` and `code == "model_not_found"` becomes `ModelNotFoundError` internally.
-- A normalized missing-model error projected to Chat becomes an `openai.APIStatusError` for the application.
+- A normalized error projected to Chat retains the original provider's HTTP error shape. Its outward OpenAI SDK class is selected from the preserved status: `BadRequestError` for `400`, `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise.
 
 The projected exception retains the upstream status, message, response, and body; Molto does not fabricate a Chat-shaped HTTP error. Its `__cause__` is the normalized error, whose cause is the original upstream SDK exception. Unknown errors are re-raised unchanged. See the [shared error contract](../README.md#errors) and the [architecture details](../../python/ARCHITECTURE.md#error-translation).
 

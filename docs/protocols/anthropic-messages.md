@@ -313,7 +313,7 @@ downstream SDK APIStatusError
         caused by upstream SDK exception
 ```
 
-The Messages client currently recognizes a missing model only when Anthropic raises `anthropic.APIStatusError` with status `404` and a message containing `model:`. On a translated route with Messages as the downstream protocol, a recognized missing-model error from an OpenAI upstream is raised as `anthropic.APIStatusError`, but its status, message, response, and body remain those of the upstream OpenAI error. Molto translates the SDK namespace and semantic cause, not the complete HTTP error contract. Unknown errors are re-raised unchanged. See the [shared error contract](../README.md#errors) for the full route table.
+The Messages client currently recognizes a missing model only when Anthropic raises `anthropic.APIStatusError` with status `404` and a message containing `model:`. On a translated route with Messages as the downstream protocol, Molto preserves the original OpenAI status, message, response, and body without translating their shape. The Messages adapter selects only the outward Anthropic SDK class from that status: `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise. A Responses model-not-found status `400` therefore remains an Anthropic `APIStatusError`, while a Chat Completions status `404` becomes `anthropic.NotFoundError`. Unknown errors are re-raised unchanged. See the [shared error contract](../README.md#errors) for the full route table.
 
 ## Fidelity
 

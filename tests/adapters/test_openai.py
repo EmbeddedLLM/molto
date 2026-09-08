@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from openai import APIStatusError, BadRequestError
+from openai import BadRequestError
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
@@ -159,16 +159,43 @@ def test_responses_adapter_rejects_untranslated_request_fields():
         OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
-def test_responses_adapter_accepts_encrypted_reasoning_include():
-    request = OpenAIResponsesCreateRequest(
-        input="Hello",
-        model="m",
-        include=["reasoning.encrypted_content"],
+def test_responses_adapter_ignores_encrypted_reasoning_include():
+    request_without_include = OpenAIResponsesCreateRequest(input="Hello", model="m")
+    request_with_include = OpenAIResponsesCreateRequest(
+        input="Hello", model="m", include=["reasoning.encrypted_content"]
     )
 
-    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    normalized_without_include = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_without_include
+    )
+    normalized_with_include = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_with_include
+    )
 
-    assert normalized.model == "m"
+    assert normalized_with_include == normalized_without_include
+
+
+def test_responses_adapter_ignores_disabled_store():
+    request_without_store = OpenAIResponsesCreateRequest(input="Hello", model="m")
+    request_with_store_disabled = OpenAIResponsesCreateRequest(
+        input="Hello", model="m", store=False
+    )
+
+    normalized_without_store = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_without_store
+    )
+    normalized_with_store_disabled = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        request_with_store_disabled
+    )
+
+    assert normalized_with_store_disabled == normalized_without_store
+
+
+def test_responses_adapter_rejects_enabled_store():
+    request = OpenAIResponsesCreateRequest(input="Hello", model="m", store=True)
+
+    with pytest.raises(UnsupportedInput, match=r"store=true"):
+        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
 
 
 def test_responses_adapter_rejects_untranslated_include_values():
@@ -1187,7 +1214,7 @@ async def _failing_events() -> AsyncIterator[ModelResponseStreamEvent]:
 
 
 @pytest.mark.parametrize("native", [True, False], ids=["native", "translated"])
-async def test_error_projection_preserves_subclass_only_on_native_routes(native: bool) -> None:
+async def test_error_projection_selects_subclass_from_status(native: bool) -> None:
     if native:
         # Native passthrough never normalizes a request.
         adapter = OpenAIResponsesAdapter(_CAPABILITIES)
@@ -1196,12 +1223,11 @@ async def test_error_projection_preserves_subclass_only_on_native_routes(native:
         adapter, request = _responses_adapter(_CAPABILITIES)
         stream = adapter.project_events(_failing_events(), request)
 
-    expected_type = BadRequestError if native else APIStatusError
-    with pytest.raises(expected_type) as exc_info:
+    with pytest.raises(BadRequestError) as exc_info:
         [event async for event in stream]
 
     error = exc_info.value
-    assert type(error) is expected_type
+    assert type(error) is BadRequestError
     assert isinstance(error.__cause__, ModelNotFoundError)
     assert type(error.__cause__.__cause__) is BadRequestError
     assert error is not error.__cause__.__cause__

@@ -121,10 +121,15 @@ def _get_http_client(
     upstream: Protocol = "responses",
     *,
     translated: bool = False,
+    expected_extra_body: dict[str, Any] | None = None,
+    requests: list[Request] | None = None,
+    response_headers: dict[str, str] | None = None,
 ) -> AsyncClient:
     cassette_paths = cassette_paths.copy()
 
     def cassette_handler(request: Request) -> Response:
+        if requests is not None:
+            requests.append(request)
         cassette_path = cassette_paths.pop(0)
         cassette = _read_cassette(cassette_path)
         scenario = cassette_path.parent.name
@@ -136,7 +141,10 @@ def _get_http_client(
             )
             assert str(request.url) == f"{origin}{cassette['request']['path']}"
             assert request.url.path == cassette["request"]["path"]
-            expected_body = cassette["request"]["body"]
+            expected_body = {
+                **cassette["request"]["body"],
+                **(expected_extra_body or {}),
+            }
             if (
                 translated
                 and upstream == "responses"
@@ -163,12 +171,15 @@ def _get_http_client(
             return Response(
                 cassette_response["status_code"],
                 content="".join(cassette_response["sse"]).encode(),
-                headers={"content-type": "text/event-stream; charset=utf-8"},
+                headers={
+                    "content-type": "text/event-stream; charset=utf-8",
+                    **(response_headers or {}),
+                },
             )
         return Response(
             cassette_response["status_code"],
             json=cassette_response["body"],
-            headers={"content-type": "application/json"},
+            headers={"content-type": "application/json", **(response_headers or {})},
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
@@ -345,6 +356,113 @@ async def test_extra_inputs():
                     **cassette["request"]["body"],
                 )
             )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+async def test_transport_options_and_response_headers(
+    downstream: Protocol,
+    upstream: Protocol,
+    stream: bool,
+):
+    translated = downstream != upstream
+    mode = "stream" if stream or translated else "non_stream"
+    variant = f"{mode}-00.yaml"
+    downstream_path = _matched_cassette_path("simple_text", downstream, variant)
+    upstream_path = _matched_cassette_path("simple_text", upstream, variant)
+    requests: list[Request] = []
+    extra_body = {"client_metadata": {"session_id": "session-123"}}
+    extra_headers = {
+        "Accept": "client-facing/type",
+        "Accept-Encoding": "client-facing-encoding",
+        "Authorization": "Bearer client-facing-key",
+        "Connection": "close, x-connection-specific",
+        "Content-Length": "1",
+        "Host": "client-facing.example",
+        "OpenAI-Organization": "client-facing-organization",
+        "Proxy-Authorization": "Bearer client-facing-proxy-key",
+        "Transfer-Encoding": "chunked",
+        "X-Api-Key": "client-facing-api-key",
+        "X-Codex-Window-Id": "window-123",
+        "X-Connection-Specific": "remove-me",
+        "X-OAI-Attestation": "client-facing-attestation",
+    }
+
+    async with _get_http_client(
+        [upstream_path],
+        upstream,
+        translated=translated,
+        expected_extra_body=extra_body,
+        requests=requests,
+        response_headers={
+            "x-codex-turn-state": "turn-state-123",
+            "x-request-id": "request-123",
+        },
+    ) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        request_body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
+        if translated and not stream:
+            request_body["stream"] = False
+        result = await coordinator(
+            body=request_body,
+            endpoint=upstream,
+            provider=_provider_from_cassette_path(upstream_path),
+            api_key="test-api-key",
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+        )
+
+        if stream:
+            assert result.response_headers["x-codex-turn-state"] == "turn-state-123"
+            assert result.response_headers["x-request-id"] == "request-123"
+            assert [event async for event in result]
+        else:
+            assert isinstance(result, BaseModel)
+
+    assert len(requests) == 1
+    upstream_request = requests[0]
+    assert upstream_request.headers["x-codex-window-id"] == "window-123"
+    assert upstream_request.headers["accept"] != "client-facing/type"
+    assert upstream_request.headers["accept-encoding"] != "client-facing-encoding"
+    assert upstream_request.headers.get("connection") != "close, x-connection-specific"
+    assert "openai-organization" not in upstream_request.headers
+    assert "proxy-authorization" not in upstream_request.headers
+    assert "transfer-encoding" not in upstream_request.headers
+    assert "x-connection-specific" not in upstream_request.headers
+    assert "x-oai-attestation" not in upstream_request.headers
+    assert upstream_request.headers["host"] != "client-facing.example"
+    assert upstream_request.headers["content-length"] != "1"
+    if upstream == "messages":
+        assert upstream_request.headers["x-api-key"] == "test-api-key"
+        assert "authorization" not in upstream_request.headers
+    else:
+        assert upstream_request.headers["authorization"] == "Bearer test-api-key"
+        assert "x-api-key" not in upstream_request.headers
+
+
+@pytest.mark.parametrize("upstream", ["chat/completions", "messages"])
+async def test_responses_translation_ignores_disabled_store(upstream: Protocol):
+    variant = "stream-00.yaml"
+    downstream_path = _matched_cassette_path("simple_text", "responses", variant)
+    upstream_path = _matched_cassette_path("simple_text", upstream, variant)
+    request_body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
+    request_body["store"] = False
+
+    async with _get_http_client([upstream_path], upstream, translated=True) as http_client:
+        client = Molto(http_client=http_client)
+        stream = await client.responses(
+            body=request_body,
+            endpoint=upstream,
+            provider=_provider_from_cassette_path(upstream_path),
+            api_key="test-api-key",
+        )
+
+        assert [event async for event in stream]
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)

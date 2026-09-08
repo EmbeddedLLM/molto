@@ -119,6 +119,8 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 
 Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. Passthrough is validated SDK transport, not an untyped HTTP proxy. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors).
 
+Native passthrough forwards `include` and `store` unchanged. Their behavior-neutral treatment described below applies only when Responses is translated to Chat Completions or Messages.
+
 There is one narrow compatible-provider normalization: if a completed Responses event includes usage but omits `input_tokens_details.cache_write_tokens` as `null`, Molto sets it to `0` to satisfy the pinned SDK contract. Otherwise it does not revalidate or rewrite each event.
 
 ## When the application speaks Responses
@@ -144,17 +146,18 @@ For a translated non-streaming request, this projected Responses event stream is
 
 The implemented normalized path accepts:
 
-- string input and text messages with `system`, `developer`, `user`, and `assistant` roles;
-- ordered mixed text and image user input, using remote URLs or base64 data URLs;
-- raw reasoning and reasoning-summary history;
-- client-defined function tools, tool choice, parallel-call control, calls, successful results, and streamed JSON argument deltas; and
+- string input and text messages with `system`, `developer`, `user`, and `assistant` roles.
+- ordered mixed text and image user input, using remote URLs or base64 data URLs.
+- raw reasoning and reasoning-summary history.
+- client-defined function tools, tool choice, parallel-call control, calls, successful results, and streamed JSON argument deltas.
 - model, streaming mode, output-token limit, reasoning effort, temperature, `top_p`, and `include_obfuscation` when the upstream protocol has an equivalent stream option.
+- the behavior-neutral compatibility settings `include=["reasoning.encrypted_content"]` and `store=false`, which are accepted and omitted from the translated upstream request.
 
 One user message remains one user message, and its ordered text and image parts remain ordered. Consecutive user messages are not merged by Molto, although an upstream provider or model renderer may combine them into one model-visible turn.
 
 System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values. Assistant message containers are flattened: each assistant text part becomes a separate text output, and multiple reasoning parts of the same representation are joined within a normalized reasoning value. These transformations preserve supported content but lose the original instruction role, multipart instruction boundary, and enclosing assistant-message boundary.
 
-Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Optional Responses output-item IDs are the sole exception: they remain valid normalized history, Responses preserves them, and Chat Completions or Messages may omit them because they do not affect model behavior. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint.
+Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Optional Responses output-item IDs may be omitted by Chat Completions or Messages because they do not affect model behavior. Encrypted-reasoning inclusion is ignored because Molto already preserves any encrypted reasoning returned by the provider, while disabled storage is ignored because it requests no provider-side state; `store=true` is rejected. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint.
 
 ### Downstream event projection
 
@@ -332,7 +335,7 @@ Model-not-found is currently recognized as:
 - Chat Completions: OpenAI `APIStatusError`, status `404`, code `model_not_found`; and
 - Messages: Anthropic `APIStatusError`, status `404`, with `model:` in the message.
 
-Error translation is semantic, not a complete HTTP error rewrite. On translated routes, the outward exception is an OpenAI `APIStatusError`, but its status, message, response, and body remain those of the upstream endpoint. Its `__cause__` is Molto's `ModelNotFoundError`, whose cause is the original upstream SDK exception. See the [shared error contract](../README.md#errors) for caller guidance.
+On translated routes, Molto does not rewrite the provider's HTTP error. The original status, message, response, and body retain their values and shape. The Responses adapter selects only the outward OpenAI SDK class from that preserved status: `BadRequestError` for `400`, `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise. Its `__cause__` is Molto's normalized error, whose cause is the original upstream SDK exception. See the [shared error contract](../README.md#errors) for caller guidance.
 
 ## Fidelity
 

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import aclosing
-from typing import NoReturn
+from typing import Any, NoReturn
 
-from httpx import AsyncClient
+from httpx import AsyncClient, Headers
 from openai import AsyncOpenAI, omit
 from pydantic import BaseModel
 
@@ -30,11 +30,20 @@ class BaseClient[
         capabilities: ProviderCapabilities,
         api_key: str | None = None,
         base_url: str | None = None,
+        extra_body: Mapping[str, Any] | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> None:
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url
         self._capabilities = capabilities
+        self._extra_body = extra_body
+        self._extra_headers = extra_headers
+        self.response_headers = Headers()
+
+    def _capture_response_headers(self, headers: Headers) -> None:
+        self.response_headers.clear()
+        self.response_headers.update(headers)
 
     def _make_sdk_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(

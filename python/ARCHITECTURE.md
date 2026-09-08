@@ -68,7 +68,7 @@ Cross-protocol translation follows one governing principle: Molto is strict duri
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-The sole exception to lossless-or-rejected input handling is an optional Responses output-item ID. It is behavior-neutral identity metadata: Responses preserves it, while Chat Completions and Messages may omit it because they have no equivalent field. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+There are three explicit behavior-neutral exceptions to lossless-or-rejected input handling on translated Responses routes. Chat Completions and Messages may omit an optional Responses output-item ID because it has no equivalent and does not affect model behavior. `include=["reasoning.encrypted_content"]` may be ignored because Molto already preserves any encrypted reasoning present in the response, and `store=false` may be ignored because it requests no provider-side state; `store=true` remains unsupported. Native Responses passthrough forwards these fields unchanged. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
 Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
 
@@ -137,7 +137,14 @@ Normalized protocol-independent API errors inherit from `APIException`. The curr
 | `ModelNotFoundError`    | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
 | `ResourceNotFoundError` | all                     | protocol `APIStatusError`  | status `404`                                          |
 
-On translated routes, downstream adapters project recognized normalized failures to `openai.APIStatusError` for Responses or Chat Completions and `anthropic.APIStatusError` for Messages. The downstream SDK namespace is translated, but the error is not yet translated into the target protocol's HTTP contract: its status code, message, `response`, and `body` remain those of the upstream exception. For example, a missing model reported by Anthropic becomes an OpenAI `APIStatusError` while retaining Anthropic's status `404` and body. The reverse route through Messages becomes an Anthropic `APIStatusError` while retaining the upstream Responses status `400` and OpenAI-shaped body.
+On translated routes, downstream adapters select the outward SDK class from the original provider's HTTP status. They do not select it from the normalized semantic error and do not translate the HTTP error contract. The status, message, `response`, and body retain their original provider values and shape; only the SDK namespace used to expose that preserved status changes.
+
+| Downstream SDK | Status `400`      | Status `401`          | Status `404`    | Other statuses   |
+| -------------- | ----------------- | --------------------- | --------------- | ---------------- |
+| OpenAI         | `BadRequestError` | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
+| Anthropic      | `APIStatusError`  | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
+
+For example, a missing model reported by Anthropic becomes an OpenAI `NotFoundError` because the original response has status `404`, while retaining Anthropic's body. The reverse route through Messages from Responses preserves the OpenAI status `400` and body and therefore uses Anthropic's base `APIStatusError`. Callers must inspect the normalized exception in the cause chain for the portable semantic category; the outward subclass classifies only the preserved status.
 
 Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
 
@@ -173,6 +180,10 @@ Each implemented coordinator performs the following work:
 4. Resolve the API key and injected or default HTTP client.
 5. Select the upstream path from `endpoint`.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
+
+Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
+
+The returned `MoltoStream` exposes a copy of the successful upstream response headers as `response_headers`. Coordinator prefetching opens the SDK stream and captures those headers before returning, including on translated routes. Molto retains all response headers; an HTTP server using Molto remains responsible for filtering connection-specific and framing headers before constructing its downstream response.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
