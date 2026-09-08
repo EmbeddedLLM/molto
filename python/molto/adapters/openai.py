@@ -289,7 +289,6 @@ class OpenAIResponsesAdapter(
         events: AsyncIterator[OpenAIResponsesStreamEvent],
         request: NormalizedRequest,
     ) -> OpenAIResponsesResponse:
-        del request
         response: OpenAIResponsesResponse | None = None
         async for event in events:
             if event.type in {"response.completed", "response.incomplete"}:
@@ -878,7 +877,6 @@ class OpenAIChatCompletionsAdapter(
         events: AsyncIterator[OpenAIChatCompletionsStreamChunk],
         request: NormalizedRequest,
     ) -> OpenAIChatCompletionsResponse:
-        del request
         state = ChatCompletionStreamState()
         finished = False
         async for chunk in events:
@@ -1063,7 +1061,6 @@ class OpenAIChatCompletionsAdapter(
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
-        del request
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False
         tool_indices: dict[int, int] = {}

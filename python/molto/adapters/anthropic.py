@@ -135,8 +135,6 @@ class AnthropicMessagesAdapter(
         events: AsyncIterator[AnthropicMessagesStreamEvent],
         request: NormalizedRequest,
     ) -> AnthropicMessagesResponse:
-        del request
-
         message: AnthropicMessagesResponse | None = None
         open_blocks: set[int] = set()
         tool_input_deltas: dict[int, list[str]] = {}
@@ -424,8 +422,6 @@ class AnthropicMessagesAdapter(
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
-        del request
-
         def event(data: dict[str, Any]) -> AnthropicMessagesStreamEvent:
             return AnthropicMessagesStreamEventAdapter.validate_python(data)
 

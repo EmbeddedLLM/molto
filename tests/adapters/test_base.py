@@ -45,7 +45,6 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent, NativeRespons
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> AsyncIterator[ModelResponseStreamEvent]:
-        del request
         return events
 
     async def _project_response(
@@ -53,7 +52,6 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent, NativeRespons
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> NativeResponse:
-        del request
         response = await anext(events)
         if not isinstance(response, ResponseStartEvent):
             raise ValueError("Expected a response start event.")
@@ -67,13 +65,11 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent, NativeRespons
 
 class InvalidNormalizedAdapter(Adapter):
     def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
-        del request
         return NormalizedRequest.model_validate({"unknown": True})
 
 
 class BrokenAdapter(Adapter):
     def _normalize_request(self, request: NativeRequest) -> NormalizedRequest:
-        del request
         raise ValueError("Unexpected implementation error.")
 
 
