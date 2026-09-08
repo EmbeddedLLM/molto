@@ -81,11 +81,15 @@ def _recorded_cassette_path(protocol: Protocol, cassette_name: str) -> Path:
     return CASSETTE_DIR / "openai" / _protocol_name(protocol) / "test_interface" / cassette_name
 
 
-def _matched_cassette_paths(scenario: str, protocol: Protocol) -> dict[str, Path]:
+def _matched_cassette_paths(
+    scenario: str,
+    protocol: Protocol,
+    mode: Literal["stream", "non_stream"] = "stream",
+) -> dict[str, Path]:
     protocol_name = _protocol_name(protocol)
     filename_marker = f"-{protocol_name}-"
     cassette_paths: dict[str, Path] = {}
-    for path in sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*{filename_marker}stream-*.yaml")):
+    for path in sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*{filename_marker}{mode}-*.yaml")):
         variant = path.name.partition(filename_marker)[2]
         if variant in cassette_paths:
             raise ValueError(
@@ -285,6 +289,28 @@ def _sse_records(cassette: dict[str, Any], protocol: Protocol) -> list[str]:
     return records
 
 
+def _completed_responses_body(cassette_path: Path) -> dict[str, Any]:
+    cassette = _read_cassette(cassette_path)
+    response = cassette["response"]
+    if "body" in response:
+        return response["body"]
+    for record in reversed(_sse_records(cassette, "responses")):
+        event = load_sse(record)
+        if event.get("type") in {"response.completed", "response.incomplete"}:
+            return event["response"]
+    raise AssertionError("Responses cassette has no terminal response event.")
+
+
+def _responses_output_text(response: dict[str, Any]) -> str:
+    return "".join(
+        part["text"]
+        for item in response["output"]
+        if item["type"] == "message"
+        for part in item["content"]
+        if part["type"] == "output_text"
+    )
+
+
 def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
     events = [load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
@@ -381,10 +407,22 @@ async def test_native_stream_matches_provider_sdk(
     ]
 
 
-@pytest.mark.parametrize("protocol", PROTOCOLS)
-async def test_native_non_streaming_responses_match_provider_sdk(protocol: Protocol):
+@pytest.mark.parametrize(
+    ("scenario", "protocol"),
+    [
+        ("simple_text", "responses"),
+        ("simple_text", "chat/completions"),
+        ("simple_text", "messages"),
+        ("reasoning_encrypted", "responses"),
+        ("reasoning_encrypted", "messages"),
+    ],
+)
+async def test_native_non_streaming_responses_match_provider_sdk(
+    scenario: str,
+    protocol: Protocol,
+):
     cassette_paths = [
-        _matched_cassette_path("simple_text", protocol, variant)
+        _matched_cassette_path(scenario, protocol, variant)
         for variant in ("non_stream-00.yaml", "non_stream-01.yaml")
     ]
     request_bodies = [
@@ -445,6 +483,125 @@ async def test_native_non_streaming_responses_match_provider_sdk(protocol: Proto
         assert molto_response.model_dump(
             mode="json", exclude_unset=True
         ) == sdk_response.model_dump(mode="json", exclude_unset=True)
+
+
+def _assert_matched_response(
+    response: BaseModel,
+    downstream: Protocol,
+    expected: dict[str, Any],
+) -> None:
+    expected_text = _responses_output_text(expected)
+    expected_usage = expected["usage"]
+    response_type = {
+        "responses": OpenAIResponsesResponse,
+        "chat/completions": OpenAIChatCompletionsResponse,
+        "messages": AnthropicMessagesResponse,
+    }[downstream]
+    assert type(response) is response_type
+    assert response.id == expected["id"]
+    assert response.model == expected["model"]
+
+    if downstream == "responses":
+        assert isinstance(response, OpenAIResponsesResponse)
+        assert response.output_text == expected_text
+        assert response.status == expected["status"]
+        assert response.usage is not None
+        assert response.usage.input_tokens == expected_usage["input_tokens"]
+        assert response.usage.output_tokens == expected_usage["output_tokens"]
+        assert response.usage.total_tokens == expected_usage["total_tokens"]
+    elif downstream == "chat/completions":
+        assert isinstance(response, OpenAIChatCompletionsResponse)
+        assert len(response.choices) == 1
+        assert response.choices[0].message.content == expected_text
+        assert response.choices[0].finish_reason == "stop"
+        assert response.usage is not None
+        assert response.usage.prompt_tokens == expected_usage["input_tokens"]
+        assert response.usage.completion_tokens == expected_usage["output_tokens"]
+        assert response.usage.total_tokens == expected_usage["total_tokens"]
+    else:
+        assert isinstance(response, AnthropicMessagesResponse)
+        assert "".join(block.text for block in response.content if block.type == "text") == (
+            expected_text
+        )
+        assert response.stop_reason == "end_turn"
+        input_details = expected_usage["input_tokens_details"]
+        cache_write_tokens = input_details.get("cache_write_tokens", 0)
+        cached_tokens = input_details.get("cached_tokens", 0)
+        assert response.usage.input_tokens == (
+            expected_usage["input_tokens"] - cache_write_tokens - cached_tokens
+        )
+        assert response.usage.cache_creation_input_tokens == cache_write_tokens
+        assert response.usage.cache_read_input_tokens == cached_tokens
+        assert response.usage.output_tokens == expected_usage["output_tokens"]
+
+    expected_reasoning = next(
+        (item for item in expected["output"] if item["type"] == "reasoning"),
+        None,
+    )
+    if expected_reasoning is None:
+        return
+
+    expected_summary = "".join(part["text"] for part in expected_reasoning["summary"])
+    expected_signature = expected_reasoning["encrypted_content"]
+    if downstream == "responses":
+        assert isinstance(response, OpenAIResponsesResponse)
+        reasoning = next(item for item in response.output if item.type == "reasoning")
+        assert "".join(part.text for part in reasoning.summary) == expected_summary
+        assert reasoning.encrypted_content == expected_signature
+    elif downstream == "messages":
+        assert isinstance(response, AnthropicMessagesResponse)
+        thinking = next(block for block in response.content if block.type == "thinking")
+        assert thinking.thinking == expected_summary
+        assert thinking.signature == expected_signature
+    else:
+        raise AssertionError("Chat Completions cannot preserve encrypted reasoning.")
+
+
+async def _assert_matched_non_stream(
+    scenario: str,
+    downstream: Protocol,
+    upstream: Protocol,
+) -> None:
+    translated = downstream != upstream
+    mode: Literal["stream", "non_stream"] = "stream" if translated else "non_stream"
+    downstream_paths = _matched_cassette_paths(scenario, downstream, mode)
+    upstream_paths = _matched_cassette_paths(scenario, upstream, mode)
+    responses_paths = _matched_cassette_paths(scenario, "responses", mode)
+    assert downstream_paths, f"No matched {downstream!r} {mode} cassettes in {scenario!r}"
+    assert downstream_paths.keys() == upstream_paths.keys() == responses_paths.keys(), (
+        f"Mismatched cassette variants for {scenario!r}: "
+        f"{downstream!r} has {sorted(downstream_paths)}, "
+        f"{upstream!r} has {sorted(upstream_paths)}, "
+        f"'responses' has {sorted(responses_paths)}"
+    )
+    variants = sorted(downstream_paths)
+
+    async with _get_http_client(
+        [upstream_paths[variant] for variant in variants],
+        upstream,
+        translated=translated,
+    ) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        for variant in variants:
+            request_body = deepcopy(_read_cassette(downstream_paths[variant])["request"]["body"])
+            if translated:
+                request_body["stream"] = False
+            response = await coordinator(
+                body=request_body,
+                endpoint=upstream,
+                provider=_provider_from_cassette_path(upstream_paths[variant]),
+                api_key="test-api-key",
+            )
+            _assert_matched_response(
+                response,
+                downstream,
+                _completed_responses_body(responses_paths[variant]),
+            )
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
@@ -680,6 +837,11 @@ async def _assert_matched_stream_events(
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_simple_text_non_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_non_stream("simple_text", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("simple_text", downstream, upstream)
 
@@ -692,6 +854,11 @@ async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
 @pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
 async def test_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
+async def test_reasoning_encrypted_non_stream(downstream: Protocol, upstream: Protocol):
+    await _assert_matched_non_stream("reasoning_encrypted", downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)

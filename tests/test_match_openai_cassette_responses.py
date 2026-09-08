@@ -57,10 +57,37 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> Non
     assert chat == matched
 
 
-def test_matches_tools_usage_and_finish_reason() -> None:
+def test_matches_reasoning_tools_usage_and_finish_reason() -> None:
     chat, responses = _cassettes()
+    responses["request"]["body"]["input"] = [
+        {
+            "content": [{"text": "Check Paris.", "type": "input_text"}],
+            "role": "user",
+        },
+        {
+            "content": [{"text": "I should use weather.", "type": "reasoning_text"}],
+            "summary": [],
+            "type": "reasoning",
+        },
+        {
+            "arguments": '{"city":"Paris"}',
+            "call_id": "call_weather",
+            "name": "weather",
+            "type": "function_call",
+        },
+        {
+            "call_id": "call_weather",
+            "output": "sunny",
+            "type": "function_call_output",
+        },
+    ]
     response = responses["response"]["body"]
     response["output"] = [
+        {
+            "content": [{"text": "Use the weather tool.", "type": "reasoning_text"}],
+            "summary": [],
+            "type": "reasoning",
+        },
         {
             "content": [
                 {"annotations": [], "logprobs": [], "text": "Calling it.", "type": "output_text"}
@@ -92,6 +119,7 @@ def test_matches_tools_usage_and_finish_reason() -> None:
     assert choice["message"] | {"annotations": [], "refusal": None} == {
         "annotations": [],
         "content": "Calling it.",
+        "reasoning_content": "Use the weather tool.",
         "refusal": None,
         "role": "assistant",
         "tool_calls": [
@@ -105,6 +133,54 @@ def test_matches_tools_usage_and_finish_reason() -> None:
     assert chat_usage["prompt_tokens_details"]["cache_write_tokens"] == 2
     assert chat_usage["prompt_tokens_details"]["cached_tokens"] == 3
     assert chat_usage["completion_tokens_details"]["reasoning_tokens"] == 4
+    assert chat["request"]["body"]["messages"] == [
+        {
+            "content": [{"text": "Check Paris.", "type": "text"}],
+            "role": "user",
+        },
+        {
+            "reasoning_content": "I should use weather.",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "function": {"arguments": '{"city":"Paris"}', "name": "weather"},
+                    "id": "call_weather",
+                    "type": "function",
+                }
+            ],
+        },
+        {
+            "content": [{"text": "sunny", "type": "text"}],
+            "role": "tool",
+            "tool_call_id": "call_weather",
+        },
+    ]
+    OpenAIChatCompletionsCreateRequest.model_validate(chat["request"]["body"])
+    OpenAIChatCompletionsResponse.model_validate(chat["response"]["body"])
+
+
+@pytest.mark.parametrize(
+    "reasoning",
+    [
+        {
+            "content": [],
+            "summary": [{"text": "summary", "type": "summary_text"}],
+            "type": "reasoning",
+        },
+        {
+            "content": [{"text": "raw", "type": "reasoning_text"}],
+            "encrypted_content": "opaque",
+            "summary": [],
+            "type": "reasoning",
+        },
+    ],
+)
+def test_rejects_unrepresentable_chat_reasoning(reasoning: dict) -> None:
+    chat, responses = _cassettes()
+    responses["response"]["body"]["output"] = [reasoning]
+
+    with pytest.raises(ValueError, match="cannot map to Chat Completions"):
+        match_chat_completions_response(chat, responses)
 
 
 @pytest.mark.parametrize(

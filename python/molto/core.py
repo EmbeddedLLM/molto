@@ -151,11 +151,6 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        if request.stream is not True:
-            raise NotImplementedError(
-                "Non-streaming translated Responses requests are not currently supported."
-            )
-
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
@@ -174,9 +169,13 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events)
+        return await adapter.project_response(projected_events, normalized_request)
 
     async def chat_completions(
         self,
@@ -210,11 +209,6 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        if request.stream is not True:
-            raise NotImplementedError(
-                "Non-streaming translated Chat Completions requests are not currently supported."
-            )
-
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
@@ -233,9 +227,13 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events)
+        return await adapter.project_response(projected_events, normalized_request)
 
     async def messages(
         self,
@@ -269,11 +267,6 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        if request.stream is not True:
-            raise NotImplementedError(
-                "Non-streaming translated Messages requests are not currently supported."
-            )
-
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
@@ -292,6 +285,10 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request)
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events)
+        return await adapter.project_response(projected_events, normalized_request)

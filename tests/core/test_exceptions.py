@@ -221,16 +221,24 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
     assert error is not original_error
 
 
-@pytest.mark.parametrize("protocol", PROTOCOLS)
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 @pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
-async def test_native_non_streaming_error_scenario(
+async def test_non_streaming_error_scenario(
     scenario: ErrorScenario,
-    protocol: Protocol,
+    downstream: Protocol,
+    upstream: Protocol,
 ):
-    cassette = _read_cassette(scenario.name, protocol)
-    request_body = deepcopy(cassette["request"]["body"])
+    translated = downstream != upstream
+    downstream_cassette = _read_cassette(scenario.name, downstream)
+    upstream_cassette = _read_cassette(scenario.name, upstream)
+    request_body = deepcopy(downstream_cassette["request"]["body"])
     request_body["stream"] = False
-    http_client, requests = _get_http_client(cassette)
+    http_client, requests = _get_http_client(upstream_cassette)
+    expected_error_type = (
+        scenario.error_types[downstream]
+        if not translated or scenario.translated_error_types is None
+        else scenario.translated_error_types[downstream]
+    )
 
     async with http_client:
         client = Molto(http_client=http_client)
@@ -238,18 +246,20 @@ async def test_native_non_streaming_error_scenario(
             "responses": client.responses,
             "chat/completions": client.chat_completions,
             "messages": client.messages,
-        }[protocol]
-        with pytest.raises(scenario.error_types[protocol]) as exc_info:
+        }[downstream]
+        with pytest.raises(expected_error_type) as exc_info:
             await coordinator(
                 body=request_body,
-                endpoint=protocol,
-                provider="anthropic" if protocol == "messages" else "openai",
+                endpoint=upstream,
+                provider="anthropic" if upstream == "messages" else "openai",
                 api_key="test-api-key",
             )
 
     assert len(requests) == 1
-    assert json_loads(requests[0].content) == request_body
+    expected_request_body = upstream_cassette["request"]["body"] if translated else request_body
+    assert json_loads(requests[0].content) == expected_request_body
     error = exc_info.value
-    assert error.status_code == cassette["response"]["status_code"]
+    assert type(error) is expected_error_type
+    assert error.status_code == upstream_cassette["response"]["status_code"]
     assert type(error.__cause__) is scenario.normalized_error
-    assert type(error.__cause__.__cause__) is scenario.error_types[protocol]
+    assert type(error.__cause__.__cause__) is scenario.error_types[upstream]

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable
+from contextlib import AsyncExitStack
 from typing import NoReturn
 
 from pydantic import BaseModel, ValidationError
@@ -9,7 +10,6 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
-    NormalizedResponse,
     Thinking,
 )
 
@@ -73,20 +73,26 @@ class BaseAdapter[
             raise RuntimeError("normalize_request() must be called before project_events().")
         # Keep this method synchronous so it returns an AsyncIterator directly and callers
         # can write `async for event in adapter.project_events(...)` without awaiting it.
-        return self._stream_with_error_handling(self._project_events(events, request))
+        return self._stream_with_error_handling(self._project_events(events, request), events)
 
-    def project_response(
+    async def project_response(
         self,
-        response: NormalizedResponse,
+        events: AsyncIterator[NativeEventT],
         request: NormalizedRequest,
     ) -> NativeResponseT:
-        """Translate a complete normalized response into the downstream protocol."""
+        """Collect projected downstream events into a complete native response."""
         if self.native_request is None:
             raise RuntimeError("normalize_request() must be called before project_response().")
         try:
-            return self._project_response(response, request)
+            return await self._project_response(events, request)
         except Exception as error:
             self._handle_error(error)
+        finally:
+            # Close the projected stream deterministically if collection exits
+            # early because of a terminal event or an error.
+            close = getattr(events, "aclose", None)
+            if close is not None:
+                await close()
 
     def project_native_events(
         self,
@@ -114,19 +120,20 @@ class BaseAdapter[
     async def _stream_with_error_handling(
         self,
         events: AsyncIterator[NativeEventT],
+        source: AsyncIterator[ModelResponseStreamEvent] | None = None,
     ) -> AsyncIterator[NativeEventT]:
-        try:
-            async for event in events:
-                yield event
-        except Exception as error:
-            self._handle_error(error)
-        finally:
-            # An `async for` loop does not close its iterator when this generator
-            # is closed early; propagate closure so the SDK stream is released
-            # deterministically instead of relying on garbage collection.
-            close = getattr(events, "aclose", None)
-            if close is not None:
-                await close()
+        async with AsyncExitStack() as stack:
+            # Projection loops do not close their inputs. Close the projector
+            # before its source, including when projection or cleanup fails.
+            for stream in (source, events):
+                close = getattr(stream, "aclose", None)
+                if close is not None:
+                    stack.push_async_callback(close)
+            try:
+                async for event in events:
+                    yield event
+            except Exception as error:
+                self._handle_error(error)
 
     @abstractmethod
     def _project_events(
@@ -138,12 +145,12 @@ class BaseAdapter[
         raise NotImplementedError
 
     @abstractmethod
-    def _project_response(
+    async def _project_response(
         self,
-        response: NormalizedResponse,
+        events: AsyncIterator[NativeEventT],
         request: NormalizedRequest,
     ) -> NativeResponseT:
-        """Implement downstream complete-response projection."""
+        """Collect downstream events into a complete native response."""
         raise NotImplementedError
 
     @abstractmethod

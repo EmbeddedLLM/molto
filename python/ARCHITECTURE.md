@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Native same-protocol routes support streaming and non-streaming requests. Cross-protocol routes currently support only streaming requests and cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
+Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
 
 ## Route configuration
 
@@ -75,7 +75,7 @@ Every semantic rejection while normalizing or projecting a cross-protocol reques
 The following design rules continue to guide the implementation:
 
 1. Normalize semantic concepts such as text, reasoning, tools, usage, and lifecycle state rather than mirroring a provider schema.
-2. Treat streaming as canonical. Derive complete responses by collecting the normalized stream instead of maintaining a second execution implementation.
+2. Treat streaming as canonical. Derive complete translated responses by projecting the normalized stream into downstream-native events and collecting those events instead of maintaining a second execution implementation.
 3. Keep adapters free of transport and clients free of downstream formatting.
 4. Keep `Molto` thin: it selects and composes components but does not translate provider fields itself.
 5. Preserve unsupported provider output through an explicit escape hatch rather than expanding the IR into a union of every provider schema.
@@ -100,14 +100,14 @@ The layers have distinct ownership:
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
 | `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
-| `adapters/` | Downstream native request to normalized request; normalized events and responses to downstream-native output | HTTP transport |
+| `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
 | `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
 
-`BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request, event, and response types in its interface. A coordinator creates a fresh adapter for each translated request and calls `normalize_request()` before `project_events()` or `project_response()`. Normalization retains the exact validated downstream model as `native_request`, allowing projection to consult native request fields without adding them to the normalized representation. Projection fails if normalization has not established that state. The public projection paths catch failures raised while consuming or projecting normalized output and delegate them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough skips request and output translation, but composes `project_native_events()` or `project_native_response()` around native output so failures reach the same `_handle_error()` contract.
+`BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request, event, and response types in its interface. A coordinator creates a fresh adapter for each translated request and calls `normalize_request()` before `project_events()` or `project_response()`. Normalization retains the exact validated downstream model as `native_request`, allowing projection to consult native request fields without adding them to the normalized representation. Projection fails if normalization has not established that state. `project_events()` translates normalized output into downstream-native events; `project_response()` consumes that projected native event stream to build the complete downstream-native response. The public projection paths catch failures raised while consuming or projecting output and delegate them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough skips request and output translation, but composes `project_native_events()` or `project_native_response()` around native output so failures reach the same `_handle_error()` contract.
 
 `BaseClient[NativeRequestT, NativeEventT, NativeResponseT]` preserves the concrete upstream-native types. `native_events()` accepts a validated streaming request in the upstream protocol and yields that protocol's native SDK events, while `native_response()` accepts a validated non-streaming request and returns its native SDK response. Both native paths delegate failures to `_handle_error()`. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to the same `_handle_error()` so native and translated routes share IR error normalization before downstream projection. Concrete clients own these transformations and the provider transport required by those methods.
 
@@ -168,11 +168,11 @@ A future `Molto.chat()` will be a higher-level dispatcher. It will select one of
 Each implemented coordinator performs the following work:
 
 1. Validate the public body as its protocol request model.
-2. Return a native SDK response for a same-protocol non-streaming request, and reject translated non-streaming requests until collection is implemented.
+2. For a non-streaming request, return the upstream SDK response directly on a same-protocol route or collect downstream-native projected events on a translated route.
 3. Resolve `provider` and its capability profile independently of `base_url`.
 4. Resolve the API key and injected or default HTTP client.
 5. Select the upstream path from `endpoint`.
-6. Return either an async iterator of downstream SDK event models or, for native non-streaming requests, the SDK response model.
+6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
@@ -353,7 +353,7 @@ Service-tier labels are retained as upstream metadata, but target protocols do n
 
 ## Response collection
 
-Streaming remains the canonical translated execution interface. The intended cross-protocol non-streaming path is:
+Streaming remains the canonical translated execution interface. The cross-protocol non-streaming path is:
 
 ```text
 YClient.events()
@@ -362,16 +362,23 @@ YClient.events()
 NormalizedEvent stream
       |
       v
-generic collect()
+XAdapter.project_events()
       |
       v
-NormalizedResponse
+Downstream-native event stream
       |
       v
 XAdapter.project_response()
+      |
+      v
+Downstream-native response
 ```
 
-Translated clients should not gain a separate completion implementation. A generic collector keeps streaming and non-streaming normalization consistent. `NormalizedResponse` and the provider-specific adapter `project_response()` contracts are scaffolded, but collection and projection remain unimplemented. Until both are implemented, coordinators reject translated non-streaming requests explicitly. Same-protocol non-streaming requests bypass the normalized path and return the native SDK response directly.
+The coordinator sets the upstream normalized request to streaming even when the downstream request is non-streaming. This keeps upstream normalization identical for both translated modes. It then passes the resulting normalized events through the same downstream `project_events()` implementation used by a streaming request. Only after translation does the protocol-specific `project_response()` aggregate the projected native events.
+
+Responses returns the inner `Response` from the terminal `response.completed` or `response.incomplete` event. Chat Completions folds projected choice deltas into one assistant message, reconstructs indexed tool calls, and applies the terminal finish reason and usage. Messages accumulates the projected message and content-block lifecycle, including text, thinking, signatures, tool input, terminal stop information, and usage, into one SDK `Message`.
+
+Translated upstream clients do not gain a separate completion implementation, and adapters do not bypass `project_events()` to construct a response directly from normalized events. This keeps streaming and non-streaming translation aligned. Same-protocol non-streaming requests bypass both the normalized and projected-event paths: the matching client's `native_response()` returns the upstream SDK response directly.
 
 ## Responses event projection
 
@@ -441,6 +448,8 @@ The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal
 
 SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters never access `httpx`.
 
+Closure propagates through the complete translated pipeline: adapter wrappers close the projector and its normalized input, client wrappers close the normalizer, and normalizers context-manage their native iterators. This releases the SDK response deterministically on collection failure, cancellation, or explicit early closure without closing the shared HTTP client.
+
 ## Replay and parity testing
 
 Tests are playback-only. Normal runs must never record or rewrite cassettes.
@@ -481,7 +490,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support native non-streaming responses and streaming text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, cross-protocol non-streaming collection, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 

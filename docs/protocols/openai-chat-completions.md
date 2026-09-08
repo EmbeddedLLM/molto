@@ -4,20 +4,21 @@ This guide describes OpenAI Chat Completions as a native protocol and as either 
 
 ## At a glance
 
-| Concern              | Value                                     |
-| -------------------- | ----------------------------------------- |
-| Application method   | `Molto.chat_completions()`                |
-| Upstream endpoint    | `endpoint="chat/completions"`             |
-| Default provider     | `openai`                                  |
-| Request model        | `OpenAIChatCompletionsCreateRequest`      |
-| Stream item          | OpenAI SDK `ChatCompletionChunk`          |
-| Current request mode | Streaming only; `stream=True` is required |
+| Concern             | Value                                |
+| ------------------- | ------------------------------------ |
+| Application method  | `Molto.chat_completions()`           |
+| Upstream endpoint   | `endpoint="chat/completions"`        |
+| Default provider    | `openai`                             |
+| Request model       | `OpenAIChatCompletionsCreateRequest` |
+| Stream item         | OpenAI SDK `ChatCompletionChunk`     |
+| Non-stream response | OpenAI SDK `ChatCompletion`          |
+| Request modes       | Streaming and non-streaming          |
 
-The method always returns Chat Completions chunks to the application. The `endpoint` argument independently chooses whether the provider receives Chat Completions, Responses, or Anthropic Messages wire data.
+The method returns Chat Completions chunks for a streaming request and an OpenAI SDK `ChatCompletion` for a non-streaming request. The `endpoint` argument independently chooses whether the provider receives Chat Completions, Responses, or Anthropic Messages wire data.
 
 ## When to use this protocol
 
-Use `chat_completions()` when the application already uses the OpenAI Chat Completions message and chunk contract, or when it depends on native Chat features that should remain intact on a same-protocol route. Select another upstream endpoint when the application must keep that contract but the serving provider exposes Responses or Messages instead.
+Use `chat_completions()` when the application already uses the OpenAI Chat Completions message, chunk, and response contracts, or when it depends on native Chat features that should remain intact on a same-protocol route. Select another upstream endpoint when the application must keep that contract but the serving provider exposes Responses or Messages instead.
 
 Prefer native passthrough for protocol-specific features outside Molto's shared translation surface. Cross-protocol translation currently focuses on text, portable image input, reasoning, client-defined function tools, usage, and termination semantics. It is not a general emulation of every Chat field.
 
@@ -69,6 +70,8 @@ stream = await molto.chat_completions(
 
 Context-manage the stream, or call `await stream.aclose()` in a `finally` block when managing it manually. Close `Molto` separately with its context manager or `await molto.aclose()`.
 
+For a non-streaming result, set `stream=False` or omit it and await the same method normally. A native route returns the provider's SDK `ChatCompletion` directly. A translated route runs the selected upstream protocol as a stream internally, projects Chat chunks, and accumulates them into the returned `ChatCompletion`.
+
 ## Native wire contract
 
 ### Requests and conversation history
@@ -89,7 +92,7 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 ## Native passthrough
 
-When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest`, calls the OpenAI SDK's `chat.completions.create()`, and yields its `ChatCompletionChunk` objects directly. The request and result do not cross Molto's normalized representation.
+When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest` and calls the OpenAI SDK's `chat.completions.create()`. It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
 This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exception types. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
@@ -101,6 +104,8 @@ For `endpoint="responses"` or `endpoint="messages"`, the downstream adapter norm
 Chat request -> normalized request -> upstream protocol
 Chat chunks <- normalized events  <- upstream stream
 ```
+
+For a translated non-streaming request, those projected Chat chunks are consumed by `OpenAIChatCompletionsAdapter.project_response()` instead of being returned to the application. The upstream call still runs in streaming mode, so both translated result modes share the same normalized and projected events.
 
 ### Downstream request normalization
 
@@ -134,6 +139,12 @@ Normalized output is projected as choice index `0` in one Chat assistant stream.
 Reasoning and text therefore share one projected assistant message even when the source protocol models them as separate items or blocks. Function calls use stable per-stream Chat tool indexes and preserve the normalized call ID, name, and partial JSON arguments.
 
 The terminal chunk contains the projected `finish_reason` and semantic usage. Molto always emits `service_tier="default"` and `logprobs=None` on translated Chat chunks. It does not invent a `system_fingerprint`.
+
+### Projection to a non-streaming Chat completion
+
+`OpenAIChatCompletionsAdapter.project_response()` consumes the already projected `ChatCompletionChunk` stream through the OpenAI SDK's stream accumulator. It folds choice-zero reasoning and content deltas into one assistant message, groups tool-call fragments by their projected indexes, concatenates each call's JSON argument fragments, and applies the terminal finish reason and usage. It preserves projected top-level metadata, removes parser-only streaming snapshot fields, and validates one SDK `ChatCompletion` with one completed choice. A stream without a finish reason cannot produce a complete response and is rejected.
+
+The accumulator does not consume normalized events directly. Because it uses the output of `project_events()`, the non-streaming completion retains the same projected response metadata, target-default service tier, content, reasoning, tool calls, finish mapping, and semantic usage as the streaming route.
 
 ## When the provider exposes Chat Completions
 
@@ -257,7 +268,7 @@ The projected exception retains the upstream status, message, response, and body
 
 ### Generated, defaulted, or unavailable
 
-- Projected Chat uses choice index `0`, `object="chat.completion.chunk"`, `service_tier="default"`, and `logprobs=None`.
+- Projected Chat uses choice index `0`, target-default `service_tier="default"`, and `logprobs=None`. Streaming chunks use `object="chat.completion.chunk"`; the collected response uses `object="chat.completion"`.
 - A Messages upstream has no creation timestamp, so its normalized client captures local wall-clock time and that generated value becomes Chat `created`.
 - Responses has no Chat `system_fingerprint`; translated Chat output omits it.
 - Chat has no output-item IDs, content indexes, item statuses, assistant `phase`, exact response-completion timestamp, or encrypted reasoning state. A richer downstream protocol must generate, omit, or reject those values according to its own guide.
@@ -267,7 +278,6 @@ The projected exception retains the upstream status, message, response, and body
 
 These are implementation gaps rather than inherent claims about the Chat protocol:
 
-- Only streaming requests are supported.
 - An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
 - Translated reasoning through Chat currently supports only unsigned raw reasoning, such as the `vllm` provider profile. Summary profiles fail at the target protocol's signature boundary in either direction.
 - System and developer text-part arrays are preserved on native Chat routes, but translated Chat input currently supports only string instruction content.
@@ -281,7 +291,7 @@ These are implementation gaps rather than inherent claims about the Chat protoco
 
 ## Compatibility and references
 
-The pinned OpenAI SDK in `pyproject.toml` is the schema source of truth. Molto's request wrapper mirrors the SDK method parameters, while streamed results are aliases of the SDK's `ChatCompletionChunk`. Local compatibility message types replace the SDK's iterable annotations with concrete lists for system, developer, user, and tool content arrays, keeping nested validation eager and serialization repeatable. Changing the SDK requires reviewing request parity, extension fields, result mappings, and cassette-backed behavior.
+The pinned OpenAI SDK in `pyproject.toml` is the schema source of truth. Molto's request wrapper mirrors the SDK method parameters, while streaming and non-streaming results use the SDK's `ChatCompletionChunk` and `ChatCompletion` models. Local compatibility message types replace the SDK's iterable annotations with concrete lists for system, developer, user, and tool content arrays, keeping nested validation eager and serialization repeatable. Changing the SDK requires reviewing request parity, extension fields, result mappings, and cassette-backed behavior.
 
 Same-protocol tests compare validated SDK chunks. Translated tests assert the upstream request body and compare reconstructible ordered chunks, including delta boundaries, finish state, semantic usage, and target-default tier. A finish-and-usage chunk is considered semantically equivalent to separate finish and usage chunks because upstream protocols expose usage at different lifecycle points. Tests always replay committed cassettes and never record during normal verification.
 

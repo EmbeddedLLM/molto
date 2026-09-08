@@ -14,6 +14,7 @@ from uuid import uuid4
 from openai import APIStatusError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import NotFoundError as OpenAINotFoundError
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
@@ -30,7 +31,6 @@ from molto.types.normalized import (
     ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
-    NormalizedResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -283,12 +283,19 @@ class OpenAIResponsesAdapter(
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
 
-    def _project_response(
+    async def _project_response(
         self,
-        response: NormalizedResponse,
+        events: AsyncIterator[OpenAIResponsesStreamEvent],
         request: NormalizedRequest,
     ) -> OpenAIResponsesResponse:
-        raise NotImplementedError("Responses non-streaming projection is not implemented.")
+        del request
+        response: OpenAIResponsesResponse | None = None
+        async for event in events:
+            if event.type in {"response.completed", "response.incomplete"}:
+                response = event.response
+        if response is None:
+            raise ValueError("Responses event stream ended without a terminal response.")
+        return response
 
     def _normalize_message(
         self,
@@ -861,12 +868,46 @@ class OpenAIChatCompletionsAdapter(
 ):
     """Translate Chat Completions requests and normalized response events."""
 
-    def _project_response(
+    async def _project_response(
         self,
-        response: NormalizedResponse,
+        events: AsyncIterator[OpenAIChatCompletionsStreamChunk],
         request: NormalizedRequest,
     ) -> OpenAIChatCompletionsResponse:
-        raise NotImplementedError("Chat Completions non-streaming projection is not implemented.")
+        del request
+        state = ChatCompletionStreamState()
+        finished = False
+        async for chunk in events:
+            state.handle_chunk(chunk)
+            finished = finished or any(
+                choice.finish_reason is not None for choice in chunk.choices
+            )
+
+        if not finished:
+            raise ValueError("Chat Completions event stream ended without a finish reason.")
+
+        # The SDK accumulator uses parsed snapshot models and retains streaming-only
+        # tool indices. Strip those fields before validating the native non-streaming
+        # response model.
+        data = state.current_completion_snapshot.model_dump(
+            exclude={
+                "choices": {
+                    "__all__": {
+                        "message": {
+                            "parsed": True,
+                            "tool_calls": {
+                                "__all__": {
+                                    "index": True,
+                                    "function": {"parsed_arguments": True},
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        )
+        for choice in data["choices"]:
+            choice["message"]["role"] = "assistant"
+        return OpenAIChatCompletionsResponse.model_validate(data)
 
     def _normalize_message(
         self,

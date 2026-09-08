@@ -14,7 +14,6 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
-    NormalizedResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
@@ -49,12 +48,15 @@ class Adapter(BaseAdapter[NativeRequest, ModelResponseStreamEvent, NativeRespons
         del request
         return events
 
-    def _project_response(
+    async def _project_response(
         self,
-        response: NormalizedResponse,
+        events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> NativeResponse:
         del request
+        response = await anext(events)
+        if not isinstance(response, ResponseStartEvent):
+            raise ValueError("Expected a response start event.")
         if response.id == "invalid":
             raise ValueError("Invalid normalized response.")
         return NativeResponse(value=response.id)
@@ -78,6 +80,18 @@ class BrokenAdapter(Adapter):
 class EmptyEvents(AsyncIterator[ModelResponseStreamEvent]):
     async def __anext__(self) -> ModelResponseStreamEvent:
         raise StopAsyncIteration
+
+
+class CloseTrackingEvents(AsyncIterator[ModelResponseStreamEvent]):
+    def __init__(self, event: ModelResponseStreamEvent) -> None:
+        self.event = event
+        self.closed = False
+
+    async def __anext__(self) -> ModelResponseStreamEvent:
+        return self.event
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 async def test_adapter_remembers_native_request_before_projecting_events():
@@ -123,95 +137,46 @@ def test_base_adapter_defines_abstract_translation_contract():
     assert not inspect.isabstract(AnthropicMessagesAdapter)
 
 
-def test_adapter_rejects_response_projection_before_request_normalization():
+async def test_adapter_rejects_response_projection_before_request_normalization():
     adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
-    response = NormalizedResponse(
-        id="response-id",
-        created_at=1,
-        model="m",
-        output=[],
-        termination_reason="stop",
-    )
 
     with pytest.raises(RuntimeError, match=r"normalize_request\(\).+project_response\(\)"):
-        adapter.project_response(response, NormalizedRequest())
+        await adapter.project_response(EmptyEvents(), NormalizedRequest())
 
 
-def test_adapter_projects_normalized_response():
+async def test_adapter_collects_projected_events_into_response():
     adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
     normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
-    response = NormalizedResponse(
-        id="response-id",
-        created_at=1,
-        model="m",
-        output=[],
-        termination_reason="stop",
-    )
 
-    assert adapter.project_response(response, normalized_request) == NativeResponse(
+    async def events() -> AsyncIterator[ModelResponseStreamEvent]:
+        yield ResponseStartEvent(id="response-id", created_at=1, model="m")
+
+    assert await adapter.project_response(events(), normalized_request) == NativeResponse(
         value="response-id"
     )
 
 
-def test_adapter_translates_response_projection_errors():
+async def test_adapter_closes_projected_events_after_response_collection():
     adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
     normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
-    response = NormalizedResponse(
-        id="invalid",
-        created_at=1,
-        model="m",
-        output=[],
-        termination_reason="stop",
-    )
+    events = CloseTrackingEvents(ResponseStartEvent(id="response-id", created_at=1, model="m"))
+
+    await adapter.project_response(events, normalized_request)
+
+    assert events.closed
+
+
+async def test_adapter_translates_response_projection_errors():
+    adapter = Adapter(PROVIDER_CAPABILITIES["vllm"])
+    normalized_request = adapter.normalize_request(NativeRequest(value="hello"))
+
+    async def events() -> AsyncIterator[ModelResponseStreamEvent]:
+        yield ResponseStartEvent(id="invalid", created_at=1, model="m")
 
     with pytest.raises(RuntimeError, match="Native projection failed") as exc_info:
-        adapter.project_response(response, normalized_request)
+        await adapter.project_response(events(), normalized_request)
 
     assert isinstance(exc_info.value.__cause__, ValueError)
-
-
-@pytest.mark.parametrize(
-    ("adapter", "native_request", "message"),
-    [
-        (
-            OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["openai"]),
-            OpenAIResponsesCreateRequest(input="Question", model="m"),
-            "Responses",
-        ),
-        (
-            OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["openai"]),
-            OpenAIChatCompletionsCreateRequest(
-                messages=[{"role": "user", "content": "Question"}], model="m"
-            ),
-            "Chat Completions",
-        ),
-        (
-            AnthropicMessagesAdapter(PROVIDER_CAPABILITIES["anthropic"]),
-            AnthropicMessagesCreateRequest(
-                max_tokens=10,
-                messages=[{"role": "user", "content": "Question"}],
-                model="m",
-            ),
-            "Messages",
-        ),
-    ],
-)
-def test_concrete_response_projection_is_scaffolded_but_unimplemented(
-    adapter: BaseAdapter,
-    native_request: BaseModel,
-    message: str,
-):
-    normalized_request = adapter.normalize_request(native_request)
-    response = NormalizedResponse(
-        id="response-id",
-        created_at=1,
-        model="m",
-        output=[],
-        termination_reason="stop",
-    )
-
-    with pytest.raises(NotImplementedError, match=message):
-        adapter.project_response(response, normalized_request)
 
 
 async def test_adapter_translates_projection_errors() -> None:

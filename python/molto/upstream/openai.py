@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, Literal, NoReturn
 
@@ -431,140 +432,143 @@ class OpenAIResponsesClient(
             # seen; keep its source index rather than inventing a dense one.
             return part_indices.get(source_index, source_index)
 
-        async for event in self.native_events(native_request):
-            event_type = event.type
+        async with aclosing(self.native_events(native_request)) as native_events:
+            async for event in native_events:
+                event_type = event.type
 
-            if event_type == "response.created":
-                metadata = event.response
-                yield ResponseStartEvent(
-                    id=metadata.id,
-                    created_at=int(metadata.created_at),
-                    model=metadata.model,
-                    service_tier=metadata.service_tier,
-                )
-            elif event_type == "response.output_item.added":
-                part = _started_output_item(event.item)
-                if isinstance(part, Thinking):
-                    _validate_responses_reasoning_capability(part, self._capabilities.thinking)
-                if (
-                    isinstance(part, Thinking)
-                    and not part.content
-                    and not part.summary
-                    and part.signature is None
-                ):
-                    pending_reasoning[event.output_index] = part
-                else:
-                    yield start_part(event.output_index, part)
-            elif event_type == "response.reasoning_text.delta":
-                if self._capabilities.thinking != "raw" and event.delta:
-                    raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-                # An empty delta must not materialize a deferred reasoning part.
-                if not event.delta and event.output_index in pending_reasoning:
-                    continue
-                if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                    yield start_part(event.output_index, start)
-                yield PartDeltaEvent(
-                    index=part_index(event.output_index),
-                    delta=ThinkingDelta(content_delta=event.delta),
-                )
-            elif event_type == "response.reasoning_summary_text.delta":
-                if self._capabilities.thinking != "summary" and event.delta:
-                    raise ValueError("Raw Responses reasoning cannot contain a summary.")
-                # An empty delta must not materialize a deferred reasoning part.
-                if not event.delta and event.output_index in pending_reasoning:
-                    continue
-                if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                    yield start_part(event.output_index, start)
-                yield PartDeltaEvent(
-                    index=part_index(event.output_index),
-                    delta=ThinkingDelta(summary_delta=event.delta),
-                )
-            elif event_type == "response.content_part.added":
-                # A part-added snapshot can carry initial text; empty ones are
-                # lifecycle echoes and must not materialize a deferred part.
-                added_part = event.part
-                if added_part.type == "reasoning_text" and added_part.text:
-                    if self._capabilities.thinking != "raw":
-                        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                        yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(content_delta=added_part.text),
+                if event_type == "response.created":
+                    metadata = event.response
+                    yield ResponseStartEvent(
+                        id=metadata.id,
+                        created_at=int(metadata.created_at),
+                        model=metadata.model,
+                        service_tier=metadata.service_tier,
                     )
-                elif added_part.type == "output_text" and added_part.text:
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=TextDelta(content_delta=added_part.text),
-                    )
-            elif event_type == "response.reasoning_summary_part.added":
-                added_part = event.part
-                if added_part.type == "summary_text" and added_part.text:
-                    if self._capabilities.thinking != "summary":
-                        raise ValueError("Raw Responses reasoning cannot contain a summary.")
-                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                        yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(summary_delta=added_part.text),
-                    )
-            elif event_type == "response.output_text.delta":
-                yield PartDeltaEvent(
-                    index=part_index(event.output_index),
-                    delta=TextDelta(content_delta=event.delta),
-                )
-            elif event_type == "response.function_call_arguments.delta":
-                yield PartDeltaEvent(
-                    index=part_index(event.output_index),
-                    delta=ToolCallDelta(args_delta=event.delta),
-                )
-            elif event_type == "response.output_item.done":
-                start = pending_reasoning.pop(event.output_index, None)
-                part = _completed_output_item(event.item)
-                if isinstance(part, Thinking):
-                    _validate_responses_reasoning_capability(part, self._capabilities.thinking)
-                    # Deferred items always start empty, so the part is omitted
-                    # when it also completes without content or state.
+                elif event_type == "response.output_item.added":
+                    part = _started_output_item(event.item)
+                    if isinstance(part, Thinking):
+                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
                     if (
-                        start is not None
+                        isinstance(part, Thinking)
                         and not part.content
                         and not part.summary
                         and part.signature is None
                     ):
+                        pending_reasoning[event.output_index] = part
+                    else:
+                        yield start_part(event.output_index, part)
+                elif event_type == "response.reasoning_text.delta":
+                    if self._capabilities.thinking != "raw" and event.delta:
+                        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
+                    # An empty delta must not materialize a deferred reasoning part.
+                    if not event.delta and event.output_index in pending_reasoning:
                         continue
-                    if start is not None:
+                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                         yield start_part(event.output_index, start)
-                    if part.signature is not None:
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=ThinkingDelta(content_delta=event.delta),
+                    )
+                elif event_type == "response.reasoning_summary_text.delta":
+                    if self._capabilities.thinking != "summary" and event.delta:
+                        raise ValueError("Raw Responses reasoning cannot contain a summary.")
+                    # An empty delta must not materialize a deferred reasoning part.
+                    if not event.delta and event.output_index in pending_reasoning:
+                        continue
+                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                        yield start_part(event.output_index, start)
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=ThinkingDelta(summary_delta=event.delta),
+                    )
+                elif event_type == "response.content_part.added":
+                    # A part-added snapshot can carry initial text; empty ones are
+                    # lifecycle echoes and must not materialize a deferred part.
+                    added_part = event.part
+                    if added_part.type == "reasoning_text" and added_part.text:
+                        if self._capabilities.thinking != "raw":
+                            raise ValueError(
+                                "Summarized Responses reasoning cannot contain raw text."
+                            )
+                        if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                            yield start_part(event.output_index, start)
                         yield PartDeltaEvent(
                             index=part_index(event.output_index),
-                            delta=ThinkingDelta(signature_delta=part.signature),
+                            delta=ThinkingDelta(content_delta=added_part.text),
                         )
-                yield PartEndEvent(index=part_index(event.output_index), part=part)
-            elif event_type in {"response.completed", "response.incomplete"}:
-                metadata = event.response
-                if event_type == "response.completed":
-                    termination_reason: TerminationReason = (
-                        "tool_call"
-                        if any(item.type == "function_call" for item in metadata.output)
-                        else "stop"
+                    elif added_part.type == "output_text" and added_part.text:
+                        yield PartDeltaEvent(
+                            index=part_index(event.output_index),
+                            delta=TextDelta(content_delta=added_part.text),
+                        )
+                elif event_type == "response.reasoning_summary_part.added":
+                    added_part = event.part
+                    if added_part.type == "summary_text" and added_part.text:
+                        if self._capabilities.thinking != "summary":
+                            raise ValueError("Raw Responses reasoning cannot contain a summary.")
+                        if (start := pending_reasoning.pop(event.output_index, None)) is not None:
+                            yield start_part(event.output_index, start)
+                        yield PartDeltaEvent(
+                            index=part_index(event.output_index),
+                            delta=ThinkingDelta(summary_delta=added_part.text),
+                        )
+                elif event_type == "response.output_text.delta":
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=TextDelta(content_delta=event.delta),
                     )
+                elif event_type == "response.function_call_arguments.delta":
+                    yield PartDeltaEvent(
+                        index=part_index(event.output_index),
+                        delta=ToolCallDelta(args_delta=event.delta),
+                    )
+                elif event_type == "response.output_item.done":
+                    start = pending_reasoning.pop(event.output_index, None)
+                    part = _completed_output_item(event.item)
+                    if isinstance(part, Thinking):
+                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
+                        # Deferred items always start empty, so the part is omitted
+                        # when it also completes without content or state.
+                        if (
+                            start is not None
+                            and not part.content
+                            and not part.summary
+                            and part.signature is None
+                        ):
+                            continue
+                        if start is not None:
+                            yield start_part(event.output_index, start)
+                        if part.signature is not None:
+                            yield PartDeltaEvent(
+                                index=part_index(event.output_index),
+                                delta=ThinkingDelta(signature_delta=part.signature),
+                            )
+                    yield PartEndEvent(index=part_index(event.output_index), part=part)
+                elif event_type in {"response.completed", "response.incomplete"}:
+                    metadata = event.response
+                    if event_type == "response.completed":
+                        termination_reason: TerminationReason = (
+                            "tool_call"
+                            if any(item.type == "function_call" for item in metadata.output)
+                            else "stop"
+                        )
+                    else:
+                        incomplete_details = metadata.incomplete_details
+                        if incomplete_details is None or incomplete_details.reason is None:
+                            raise ValueError("Incomplete Responses stream omitted its reason.")
+                        termination_reason = incomplete_details.reason
+                    yield ResponseEndEvent(
+                        id=metadata.id,
+                        created_at=int(metadata.created_at),
+                        model=metadata.model,
+                        service_tier=metadata.service_tier,
+                        termination_reason=termination_reason,
+                        usage=_responses_usage(metadata.usage),
+                    )
+                elif event_type in _IGNORED_RESPONSES_EVENTS:
+                    continue
                 else:
-                    incomplete_details = metadata.incomplete_details
-                    if incomplete_details is None or incomplete_details.reason is None:
-                        raise ValueError("Incomplete Responses stream omitted its reason.")
-                    termination_reason = incomplete_details.reason
-                yield ResponseEndEvent(
-                    id=metadata.id,
-                    created_at=int(metadata.created_at),
-                    model=metadata.model,
-                    service_tier=metadata.service_tier,
-                    termination_reason=termination_reason,
-                    usage=_responses_usage(metadata.usage),
-                )
-            elif event_type in _IGNORED_RESPONSES_EVENTS:
-                continue
-            else:
-                raise ValueError(f"Unsupported Responses stream event: {event_type}")
+                    raise ValueError(f"Unsupported Responses stream event: {event_type}")
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, APIStatusError):
@@ -859,137 +863,140 @@ class OpenAIChatCompletionsClient(
         native_request = OpenAIChatCompletionsCreateRequest.model_validate(
             self._request_body(request)
         )
-        async for chunk in self.native_events(native_request):
-            if response_metadata is None:
-                response_metadata = ResponseStartEvent(
-                    id=chunk.id,
-                    created_at=chunk.created,
-                    model=chunk.model,
-                    service_tier=chunk.service_tier,
-                )
-                yield response_metadata
-
-            if chunk.choices:
-                choice = chunk.choices[0]
-                reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                # Reasoning and text may interleave: a non-empty reasoning chunk
-                # ends an active text part and starts a new thinking part. Empty
-                # reasoning chunks carry nothing and never start or switch parts.
-                if reasoning_delta:
-                    if active_part == "text":
-                        ended_part = end_active_part()
-                        if ended_part is not None:
-                            yield ended_part
-                    if active_part is None:
-                        yield start_part(Thinking(content="", summary=""))
-                    part_text += reasoning_delta
-                    yield PartDeltaEvent(
-                        index=active_part_index,
-                        delta=self._classify_thinking_delta(reasoning_delta),
+        async with aclosing(self.native_events(native_request)) as native_events:
+            async for chunk in native_events:
+                if response_metadata is None:
+                    response_metadata = ResponseStartEvent(
+                        id=chunk.id,
+                        created_at=chunk.created,
+                        model=chunk.model,
+                        service_tier=chunk.service_tier,
                     )
+                    yield response_metadata
 
-                if choice.delta.content is not None:
-                    is_empty_role_chunk = (
-                        choice.delta.role is not None and choice.delta.content == ""
-                    )
-                    if not is_empty_role_chunk:
-                        if active_part == "thinking":
+                if chunk.choices:
+                    choice = chunk.choices[0]
+                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
+                    # Reasoning and text may interleave: a non-empty reasoning chunk
+                    # ends an active text part and starts a new thinking part. Empty
+                    # reasoning chunks carry nothing and never start or switch parts.
+                    if reasoning_delta:
+                        if active_part == "text":
                             ended_part = end_active_part()
                             if ended_part is not None:
                                 yield ended_part
                         if active_part is None:
-                            yield start_part(TextOutput(content=""))
-                        if choice.delta.content:
-                            part_text += choice.delta.content
-                            yield PartDeltaEvent(
-                                index=active_part_index,
-                                delta=TextDelta(content_delta=choice.delta.content),
-                            )
+                            yield start_part(Thinking(content="", summary=""))
+                        part_text += reasoning_delta
+                        yield PartDeltaEvent(
+                            index=active_part_index,
+                            delta=self._classify_thinking_delta(reasoning_delta),
+                        )
 
-                if choice.delta.tool_calls is not None:
-                    ended_part = end_active_part()
-                    if ended_part is not None:
-                        yield ended_part
-                    for tool_call_delta in choice.delta.tool_calls:
-                        function_delta = tool_call_delta.function
-                        state = tool_calls.get(tool_call_delta.index)
-                        if state is None:
-                            if (
-                                tool_call_delta.id is None
-                                or function_delta is None
-                                or function_delta.name is None
-                            ):
-                                raise ValueError(
-                                    "The first Chat Completions chunk for a tool call must "
-                                    "include its ID and function name."
+                    if choice.delta.content is not None:
+                        is_empty_role_chunk = (
+                            choice.delta.role is not None and choice.delta.content == ""
+                        )
+                        if not is_empty_role_chunk:
+                            if active_part == "thinking":
+                                ended_part = end_active_part()
+                                if ended_part is not None:
+                                    yield ended_part
+                            if active_part is None:
+                                yield start_part(TextOutput(content=""))
+                            if choice.delta.content:
+                                part_text += choice.delta.content
+                                yield PartDeltaEvent(
+                                    index=active_part_index,
+                                    delta=TextDelta(content_delta=choice.delta.content),
                                 )
-                            if active_tool_call_index is not None:
-                                yield end_tool_call(active_tool_call_index)
-                            state = _ChatToolCallState(
-                                part_index=next_part_index,
-                                tool_call_id=tool_call_delta.id,
-                                tool_name=function_delta.name,
-                                args=function_delta.arguments or "",
+
+                    if choice.delta.tool_calls is not None:
+                        ended_part = end_active_part()
+                        if ended_part is not None:
+                            yield ended_part
+                        for tool_call_delta in choice.delta.tool_calls:
+                            function_delta = tool_call_delta.function
+                            state = tool_calls.get(tool_call_delta.index)
+                            if state is None:
+                                if (
+                                    tool_call_delta.id is None
+                                    or function_delta is None
+                                    or function_delta.name is None
+                                ):
+                                    raise ValueError(
+                                        "The first Chat Completions chunk for a tool call must "
+                                        "include its ID and function name."
+                                    )
+                                if active_tool_call_index is not None:
+                                    yield end_tool_call(active_tool_call_index)
+                                state = _ChatToolCallState(
+                                    part_index=next_part_index,
+                                    tool_call_id=tool_call_delta.id,
+                                    tool_name=function_delta.name,
+                                    args=function_delta.arguments or "",
+                                )
+                                tool_calls[tool_call_delta.index] = state
+                                active_tool_call_index = tool_call_delta.index
+                                yield PartStartEvent(
+                                    index=next_part_index,
+                                    part=ToolCall(
+                                        tool_call_id=state.tool_call_id,
+                                        tool_name=state.tool_name,
+                                        args=state.args,
+                                    ),
+                                )
+                                next_part_index += 1
+                                continue
+
+                            if tool_call_delta.index != active_tool_call_index:
+                                raise ValueError(
+                                    "Chat Completions tool-call deltas must be contiguous by index."
+                                )
+
+                            name_delta = (
+                                function_delta.name if function_delta is not None else None
                             )
-                            tool_calls[tool_call_delta.index] = state
-                            active_tool_call_index = tool_call_delta.index
-                            yield PartStartEvent(
-                                index=next_part_index,
-                                part=ToolCall(
-                                    tool_call_id=state.tool_call_id,
-                                    tool_name=state.tool_name,
-                                    args=state.args,
+                            args_delta = (
+                                function_delta.arguments if function_delta is not None else None
+                            )
+                            if name_delta == state.tool_name:
+                                name_delta = None
+                            tool_call_id_delta = tool_call_delta.id
+                            if tool_call_id_delta == state.tool_call_id:
+                                tool_call_id_delta = None
+                            if name_delta is not None:
+                                state.tool_name += name_delta
+                            if args_delta is not None:
+                                state.args += args_delta
+                            if tool_call_id_delta is not None:
+                                state.tool_call_id = tool_call_id_delta
+                            yield PartDeltaEvent(
+                                index=state.part_index,
+                                delta=ToolCallDelta(
+                                    tool_name_delta=name_delta,
+                                    args_delta=args_delta,
+                                    tool_call_id=tool_call_id_delta,
                                 ),
                             )
-                            next_part_index += 1
-                            continue
 
-                        if tool_call_delta.index != active_tool_call_index:
+                    if choice.finish_reason is not None:
+                        try:
+                            termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
+                        except KeyError as exc:
                             raise ValueError(
-                                "Chat Completions tool-call deltas must be contiguous by index."
-                            )
+                                f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
+                            ) from exc
+                        ended_part = end_active_part()
+                        if ended_part is not None:
+                            yield ended_part
+                        if active_tool_call_index is not None:
+                            yield end_tool_call(active_tool_call_index)
+                        tool_calls.clear()
+                        active_tool_call_index = None
 
-                        name_delta = function_delta.name if function_delta is not None else None
-                        args_delta = (
-                            function_delta.arguments if function_delta is not None else None
-                        )
-                        if name_delta == state.tool_name:
-                            name_delta = None
-                        tool_call_id_delta = tool_call_delta.id
-                        if tool_call_id_delta == state.tool_call_id:
-                            tool_call_id_delta = None
-                        if name_delta is not None:
-                            state.tool_name += name_delta
-                        if args_delta is not None:
-                            state.args += args_delta
-                        if tool_call_id_delta is not None:
-                            state.tool_call_id = tool_call_id_delta
-                        yield PartDeltaEvent(
-                            index=state.part_index,
-                            delta=ToolCallDelta(
-                                tool_name_delta=name_delta,
-                                args_delta=args_delta,
-                                tool_call_id=tool_call_id_delta,
-                            ),
-                        )
-
-                if choice.finish_reason is not None:
-                    try:
-                        termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
-                    except KeyError as exc:
-                        raise ValueError(
-                            f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
-                        ) from exc
-                    ended_part = end_active_part()
-                    if ended_part is not None:
-                        yield ended_part
-                    if active_tool_call_index is not None:
-                        yield end_tool_call(active_tool_call_index)
-                    tool_calls.clear()
-                    active_tool_call_index = None
-
-            if chunk.usage is not None:
-                usage = _chat_usage(chunk.usage)
+                if chunk.usage is not None:
+                    usage = _chat_usage(chunk.usage)
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from typing import NoReturn
 
 from httpx import AsyncClient
@@ -87,8 +88,9 @@ class BaseClient[
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream provider events translated to normalized events with error handling."""
         try:
-            async for event in self._events(request):
-                yield event
+            async with aclosing(self._events(request)) as events:
+                async for event in events:
+                    yield event
         except Exception as error:
             self._handle_error(error)
 

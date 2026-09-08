@@ -22,10 +22,17 @@ from molto.types.normalized import (
     ThinkingDelta,
     ToolCall,
     ToolCallDelta,
+    Usage,
     UserInput,
 )
-from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
-from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
+)
+from molto.types.openai_responses import (
+    OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
+)
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 _CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
@@ -341,6 +348,211 @@ def _chat_adapter(capabilities: ProviderCapabilities):
 _RESPONSE_START = ResponseStartEvent(id="resp_123", created_at=1, model="m")
 _RESPONSE_END = ResponseEndEvent(id="resp_123", created_at=1, model="m", termination_reason="stop")
 _CHAT_START = ResponseStartEvent(id="chatcmpl_123", created_at=1, model="m")
+
+
+async def test_responses_response_projection_returns_terminal_response() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=TextOutput(content="")),
+                PartDeltaEvent(index=0, delta=TextDelta(content_delta="Answer")),
+                PartEndEvent(index=0, part=TextOutput(content="Answer")),
+                ResponseEndEvent(
+                    id="resp_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="stop",
+                    usage=Usage(
+                        input_tokens=3,
+                        input_tokens_details={"cached_tokens": 1},
+                        output_tokens=2,
+                        output_tokens_details={"reasoning_tokens": 0},
+                        total_tokens=5,
+                    ),
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    assert type(response) is OpenAIResponsesResponse
+    assert response.id == "resp_123"
+    assert response.status == "completed"
+    assert response.output[0].content[0].text == "Answer"
+    assert response.usage is not None
+    assert response.usage.input_tokens_details.cached_tokens == 1
+
+
+async def test_responses_response_projection_drains_projected_stream() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+    exhausted = False
+
+    async def events() -> AsyncIterator[ModelResponseStreamEvent]:
+        nonlocal exhausted
+        yield _RESPONSE_START
+        yield _RESPONSE_END
+        exhausted = True
+
+    await adapter.project_response(adapter.project_events(events(), request), request)
+
+    assert exhausted
+
+
+async def test_responses_response_projection_returns_incomplete_response() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                ResponseEndEvent(
+                    id="resp_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="max_output_tokens",
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    assert response.status == "incomplete"
+    assert response.incomplete_details is not None
+    assert response.incomplete_details.reason == "max_output_tokens"
+
+
+async def test_responses_response_projection_rejects_missing_terminal_event() -> None:
+    adapter, request = _responses_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="without a terminal response"):
+        await adapter.project_response(
+            adapter.project_events(_stream(_RESPONSE_START), request),
+            request,
+        )
+
+
+async def test_chat_response_projection_accumulates_projected_chunks() -> None:
+    adapter, request = _chat_adapter(PROVIDER_CAPABILITIES["vllm"])
+
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _CHAT_START,
+                PartStartEvent(index=0, part=Thinking(content="", summary="")),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="Think")),
+                PartEndEvent(index=0, part=Thinking(content="Think", summary="")),
+                PartStartEvent(index=1, part=TextOutput(content="")),
+                PartDeltaEvent(index=1, delta=TextDelta(content_delta="Answer")),
+                PartEndEvent(index=1, part=TextOutput(content="Answer")),
+                PartStartEvent(
+                    index=2,
+                    part=ToolCall(
+                        tool_name="weather",
+                        args="",
+                        tool_call_id="call_weather",
+                    ),
+                ),
+                PartDeltaEvent(index=2, delta=ToolCallDelta(args_delta='{"city":')),
+                PartDeltaEvent(index=2, delta=ToolCallDelta(args_delta='"Paris"}')),
+                PartEndEvent(
+                    index=2,
+                    part=ToolCall(
+                        tool_name="weather",
+                        args='{"city":"Paris"}',
+                        tool_call_id="call_weather",
+                    ),
+                ),
+                ResponseEndEvent(
+                    id="chatcmpl_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="tool_call",
+                    usage=Usage(
+                        input_tokens=8,
+                        input_tokens_details={
+                            "cached_tokens": 3,
+                            "cache_write_tokens": 2,
+                        },
+                        output_tokens=5,
+                        output_tokens_details={"reasoning_tokens": 1},
+                        total_tokens=13,
+                    ),
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    assert type(response) is OpenAIChatCompletionsResponse
+    assert response.id == "chatcmpl_123"
+    assert response.object == "chat.completion"
+    assert response.service_tier == "default"
+    [choice] = response.choices
+    assert choice.finish_reason == "tool_calls"
+    assert choice.message.content == "Answer"
+    assert choice.message.reasoning_content == "Think"
+    assert choice.message.role == "assistant"
+    assert choice.message.tool_calls is not None
+    [tool_call] = choice.message.tool_calls
+    assert tool_call.model_dump() == {
+        "id": "call_weather",
+        "function": {"arguments": '{"city":"Paris"}', "name": "weather"},
+        "type": "function",
+    }
+    assert response.usage is not None
+    assert response.usage.prompt_tokens == 8
+    assert response.usage.prompt_tokens_details is not None
+    assert response.usage.prompt_tokens_details.cached_tokens == 3
+    assert response.usage.prompt_tokens_details.cache_write_tokens == 2
+    assert response.usage.completion_tokens_details is not None
+    assert response.usage.completion_tokens_details.reasoning_tokens == 1
+
+
+async def test_chat_response_projection_handles_completion_without_content() -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _CHAT_START,
+                ResponseEndEvent(
+                    id="chatcmpl_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="content_filter",
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    [choice] = response.choices
+    assert choice.finish_reason == "content_filter"
+    assert choice.message.role == "assistant"
+    assert choice.message.content is None
+
+
+async def test_chat_response_projection_rejects_missing_finish_reason() -> None:
+    adapter, request = _chat_adapter(_CAPABILITIES)
+
+    with pytest.raises(ValueError, match="without a finish reason"):
+        await adapter.project_response(
+            adapter.project_events(
+                _stream(
+                    _CHAT_START,
+                    PartStartEvent(index=0, part=TextOutput(content="unfinished")),
+                ),
+                request,
+            ),
+            request,
+        )
 
 
 @pytest.mark.parametrize(

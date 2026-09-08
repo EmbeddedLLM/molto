@@ -22,9 +22,9 @@ content-filter limits map to `length` and `content_filter` respectively.
 The result remains a Chat Completions wire-format cassette. Responses-only envelope
 fields such as message item IDs, sequence numbers, and a distinct completion time
 cannot be encoded in CC chunks; the converter must generate those fields
-deterministically for exact output parity. Canonical Responses tool-call history is
-translated into Chat Completions messages. Other request fields and transport
-metadata are intentionally left unchanged.
+deterministically for exact output parity. Canonical Responses raw reasoning and
+tool-call history are translated into Chat Completions messages. Other request
+fields and transport metadata are intentionally left unchanged.
 """
 
 from __future__ import annotations
@@ -74,6 +74,26 @@ def _response_message_content(
     return "".join(text)
 
 
+def _raw_reasoning_content(item: dict[str, Any]) -> str:
+    content = item.get("content")
+    if not isinstance(content, list):
+        raise ValueError("Responses reasoning item must contain a content list.")
+    if item.get("summary") not in (None, []):
+        raise ValueError("Responses reasoning summaries cannot map to Chat Completions.")
+    if item.get("encrypted_content") is not None:
+        raise ValueError("Encrypted Responses reasoning cannot map to Chat Completions.")
+
+    reasoning: list[str] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") != "reasoning_text":
+            raise ValueError("Only raw Responses reasoning can map to Chat Completions.")
+        text = part.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Responses reasoning text must be a string.")
+        reasoning.append(text)
+    return "".join(reasoning)
+
+
 def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
@@ -88,6 +108,15 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type == "reasoning":
+            messages.append(
+                {
+                    "reasoning_content": _raw_reasoning_content(item),
+                    "role": "assistant",
+                }
+            )
+            continue
+
         if item_type == "function_call":
             call_id = item.get("call_id")
             name = item.get("name")
@@ -134,14 +163,21 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
         role = item.get("role")
         if role not in {"system", "developer", "user", "assistant"}:
             raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
-        messages.append(
-            {
-                "content": _response_message_content(
-                    item.get("content"), preserve_parts=role == "user"
-                ),
-                "role": role,
-            }
-        )
+        message = {
+            "content": _response_message_content(
+                item.get("content"), preserve_parts=role == "user"
+            ),
+            "role": role,
+        }
+        if (
+            role == "assistant"
+            and messages
+            and messages[-1].get("role") == "assistant"
+            and ("content" not in messages[-1])
+        ):
+            messages[-1].update(message)
+        else:
+            messages.append(message)
     return messages
 
 
@@ -152,7 +188,8 @@ def _match_request_history(
     responses_request = _request_body(responses_cassette)
     response_input = responses_request.get("input")
     if not isinstance(response_input, list) or not any(
-        isinstance(item, dict) and item.get("type") in {"function_call", "function_call_output"}
+        isinstance(item, dict)
+        and item.get("type") in {"reasoning", "function_call", "function_call_output"}
         for item in response_input
     ):
         return
