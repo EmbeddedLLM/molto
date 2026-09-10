@@ -20,7 +20,20 @@ The cassettes under `errors/{scenario}/` preserve the native request and error r
 errors/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
-Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Error replay covers same-protocol SDK passthrough and every translated route, asserting the normalized cause chain and preservation of the upstream response on all of them.
+Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Add error categories to `ERROR_SCENARIOS` in `tests/core/test_exceptions.py`. The shared test replays streaming requests through the native SDK and every Molto route, asserting SDK error parity, the normalized cause chain, and preservation of the upstream response. It consumes returned streams to cover errors delivered after successful HTTP headers as well as immediate HTTP failures.
+
+Match error-cassette requests before adding a scenario; route tests compare request bodies directly without model or streaming-option adjustments. Use the Responses request as the canonical input, with `stream_options.include_obfuscation: false` when matching Messages routes. The matching scripts support `--request-only` to align counterpart requests while preserving error responses and transport metadata:
+
+```bash
+python scripts/match_openai_cassette_events.py <chat-cassette> <responses-cassette> --request-only
+python scripts/match_anthropic_cassette_events.py <messages-cassette> <responses-cassette> --request-only
+```
+
+The context-length streaming requests use the same model and equivalent streaming settings after matching. The Anthropic model in these replay requests is therefore a matching value, not a model to send to the live Anthropic endpoint. Recorded error bodies and SSE events remain unchanged.
+
+The six `context_length_exceeded` recordings have their repeated request text shortened to a single `x` to keep fixtures small and replay fast. The original instruction and recorded responses, including token counts and SSE events, are preserved. These shortened requests test error handling through replay; they no longer reproduce context overflow against a live provider.
+
+An error delivered inside an HTTP `200` stream is recorded under `response.sse`, retaining status `200`; it must not be rewritten as an HTTP `400` error. The OpenAI SDK may raise a plain `APIError` for such an event without attaching an HTTP status to the exception. If the SDK disconnects before the upstream stream finishes, the recorder saves the SSE lines received so far without adding a disconnect marker. That recording may be partial and does not establish which events the provider would have sent afterward.
 
 ## Matched cassettes
 

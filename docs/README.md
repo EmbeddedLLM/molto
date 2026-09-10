@@ -5,7 +5,7 @@ Molto is a Python library for translating between LLM API protocols without givi
 Molto has two design goals:
 
 - Support any implemented downstream protocol through any implemented upstream protocol with one provider-neutral translation model.
-- Bypass translation when both sides use the same protocol, preserving the native SDK request, event, and error contracts.
+- Bypass translation when both sides use the same protocol, preserving native requests and events with the [shared error policy](errors.md).
 
 Only streaming requests are currently supported.
 
@@ -123,7 +123,7 @@ application protocol events
 
 The public `Molto` facade validates the downstream body, resolves routing and transport configuration, and composes the adapter and client. Adapters own downstream request normalization and downstream event projection. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
 
-When the application and provider protocols match, Molto skips the normalized representation. This native passthrough is an identity optimization: the request is still validated, but SDK-native events and errors are yielded without losing protocol-only structure.
+When the application and provider protocols match, Molto skips the normalized representation. This native passthrough validates requests and yields SDK-native events without losing protocol-only structure. Errors follow the [shared policy](errors.md).
 
 Streaming is the execution primitive. The normalized event grammar is:
 
@@ -264,25 +264,7 @@ When projecting Messages, Molto recovers uncached input by subtracting cache rea
 
 ### Errors
 
-Native and translated routes share a two-stage cause chain for errors with a known protocol-independent meaning:
-
-```text
-downstream SDK exception
-        caused by
-normalized APIException
-        caused by
-upstream SDK exception
-```
-
-Normalized protocol-independent API errors inherit from `molto.types.exceptions.APIException`. The implemented category is `ModelNotFoundError`:
-
-| Upstream protocol | Recognition rule                                                |
-| ----------------- | --------------------------------------------------------------- |
-| Responses         | OpenAI status `400` and `code == "model_not_found"`             |
-| Chat Completions  | OpenAI status `404` and `code == "model_not_found"`             |
-| Messages          | Anthropic status `404` and an error message containing `model:` |
-
-On translated routes, the outward exception class is selected from the original provider's preserved HTTP status in the downstream SDK namespace. Molto does not translate the provider's HTTP error contract: status, message, response, and body retain their original values and shape. OpenAI downstream protocols map `400`, `401`, and `404` to `BadRequestError`, `AuthenticationError`, and `NotFoundError`; Messages maps `401` and `404` to Anthropic's `AuthenticationError` and `NotFoundError`. Unmapped statuses use the downstream SDK's base `APIStatusError`. On same-protocol routes the outward exception is a fresh instance of the upstream SDK exception's concrete class. The normalized exception is its `__cause__`, and the original upstream SDK exception is the normalized exception's cause. Unknown errors are re-raised unchanged as the original SDK exception.
+Recognized failures expose a downstream SDK exception with a normalized Molto cause; unknown errors pass through unchanged. See [Errors](errors.md) for the cause chain, recognition rules, status mappings, and the streaming and missing-credentials cases.
 
 ## Provider and model renderers
 

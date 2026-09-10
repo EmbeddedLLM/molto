@@ -24,7 +24,9 @@ fields such as message item IDs, sequence numbers, and a distinct completion tim
 cannot be encoded in CC chunks; the converter must generate those fields
 deterministically for exact output parity. Canonical Responses tool-call history is
 translated into Chat Completions messages. Other request fields and transport
-metadata are intentionally left unchanged.
+metadata are intentionally left unchanged. With `--request-only`, match input,
+model, token limit, reasoning effort, and streaming settings without touching the
+recorded response; this mode supports error cassettes.
 """
 
 from __future__ import annotations
@@ -711,6 +713,25 @@ def match_chat_completions_events(
     _match_request_history(chat_cassette, responses_cassette)
 
 
+def match_chat_completions_request(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> None:
+    """Align request input and streaming settings without rewriting provider errors."""
+    chat_request = _request_body(chat_cassette)
+    responses_request = _request_body(responses_cassette)
+    chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
+    for field in ("model", "stream"):
+        chat_request[field] = responses_request[field]
+    if responses_request.get("max_output_tokens") is not None:
+        chat_request["max_completion_tokens"] = responses_request["max_output_tokens"]
+    if responses_request["stream"]:
+        chat_request["stream_options"] = {
+            **responses_request.get("stream_options", {}),
+            "include_usage": True,
+        }
+    _match_request_reasoning_effort(chat_cassette, responses_cassette)
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -722,6 +743,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("chat_completions_cassette", type=Path)
     parser.add_argument("responses_cassette", type=Path)
     parser.add_argument("--output", type=Path, help="Write to a different YAML file.")
+    parser.add_argument(
+        "--request-only",
+        action="store_true",
+        help="Match request fields and preserve the response.",
+    )
     return parser.parse_args(argv)
 
 
@@ -732,10 +758,13 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(chat_cassette, dict) or not isinstance(responses_cassette, dict):
         raise ValueError("Cassette roots must be YAML mappings.")
 
-    match_chat_completions_events(chat_cassette, responses_cassette)
+    if args.request_only:
+        match_chat_completions_request(chat_cassette, responses_cassette)
+    else:
+        match_chat_completions_events(chat_cassette, responses_cassette)
     output_path = args.output or args.chat_completions_cassette
     dump_yaml(chat_cassette, str(output_path), sort_keys=True)
-    print(f"Matched Chat Completions events and wrote {output_path}.")
+    print(f"Matched Chat Completions cassette and wrote {output_path}.")
     return 0
 
 

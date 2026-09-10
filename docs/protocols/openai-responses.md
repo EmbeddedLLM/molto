@@ -114,7 +114,7 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 - delegates request serialization, authentication, HTTP, retries, SSE parsing, and OpenAI exception construction to `AsyncOpenAI.responses.create()`.
 - yields the SDK's `ResponseStreamEvent` models directly.
 
-The stream does not cross the normalized representation and retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier. Passthrough is validated SDK transport, not an untyped HTTP proxy. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors).
+The stream does not cross the normalized representation and retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier. Passthrough is validated SDK transport, not an untyped HTTP proxy. Errors follow the [shared policy](../errors.md).
 
 Native passthrough forwards `include` and `store` unchanged. Their behavior-neutral treatment described below applies only when Responses is translated to Chat Completions or Messages.
 
@@ -316,15 +316,9 @@ Molto retains the more specific source reason in the normalized stream. The coer
 
 ## Errors
 
-Molto normalizes only recognized errors with a protocol-independent meaning and then raises them in the downstream OpenAI SDK namespace, on native passthrough and translated routes alike. Unknown errors are re-raised unchanged as the original SDK exception.
+Recognized errors use the OpenAI SDK namespace and the [shared cause chain and status policy](../errors.md).
 
-Model-not-found is currently recognized as:
-
-- Responses: OpenAI `APIStatusError`, status `400`, code `model_not_found`;
-- Chat Completions: OpenAI `APIStatusError`, status `404`, code `model_not_found`; and
-- Messages: Anthropic `APIStatusError`, status `404`, with `model:` in the message.
-
-On translated routes, Molto does not rewrite the provider's HTTP error. The original status, message, response, and body retain their values and shape. The Responses adapter selects only the outward OpenAI SDK class from that preserved status: `BadRequestError` for `400`, `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise. Its `__cause__` is Molto's normalized error, whose cause is the original upstream SDK exception. See the [shared error contract](../README.md#errors) for caller guidance.
+A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the context-length SSE `error` event before yielding `response.failed`. Molto retains `ContextLengthExceededError` as its cause and the real response on that cause. See [failures during streaming](../errors.md#responses-failures-during-streaming); catching only `response.failed` is insufficient.
 
 ## Fidelity
 

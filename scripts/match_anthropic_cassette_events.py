@@ -1092,6 +1092,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("messages_cassette", type=Path)
     parser.add_argument("responses_cassette", type=Path)
     parser.add_argument("--output", type=Path, help="Write to a different YAML file.")
+    parser.add_argument(
+        "--request-only",
+        action="store_true",
+        help="Match request fields and preserve the response.",
+    )
     return parser.parse_args(argv)
 
 
@@ -1102,10 +1107,15 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(messages_cassette, dict) or not isinstance(responses_cassette, dict):
         raise ValueError("Cassette roots must be YAML mappings.")
 
-    match_messages_events(messages_cassette, responses_cassette)
+    if args.request_only:
+        messages_cassette["request"]["body"] = _matched_request_body(
+            _request_body(messages_cassette), _request_body(responses_cassette)
+        )
+    else:
+        match_messages_events(messages_cassette, responses_cassette)
     output_path = args.output or args.messages_cassette
     dump_yaml(messages_cassette, str(output_path), sort_keys=True)
-    print(f"Matched Anthropic Messages events and wrote {output_path}.")
+    print(f"Matched Anthropic Messages cassette and wrote {output_path}.")
     return 0
 
 

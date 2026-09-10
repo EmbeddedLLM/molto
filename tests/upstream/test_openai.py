@@ -1,15 +1,21 @@
 from collections.abc import AsyncIterator
+from json import dumps
 
 import httpx
 import pytest
-from openai import APIStatusError
+from openai import APIError, APIStatusError, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
 
 from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import (
+    AuthenticationError,
+    ContextLengthExceededError,
+    ModelNotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -3059,6 +3065,138 @@ async def test_native_events_normalize_authentication_error():
     assert error.body["code"] == "invalid_api_key"
     assert type(error.__cause__) is OpenAIAuthenticationError
     assert request_count == 1
+
+
+@pytest.mark.parametrize("client_type", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
+@pytest.mark.parametrize(
+    "error",
+    [
+        OpenAIError("The `api_key` and `workload_identity` arguments are mutually exclusive"),
+        TypeError("Missing credentials."),
+        APIError(
+            "Missing credentials.",
+            request=httpx.Request("POST", "https://example.test"),
+            body=None,
+        ),
+    ],
+)
+async def test_missing_credentials_recognition_requires_sdk_type_and_message(client_type, error):
+    async with httpx.AsyncClient() as http_client:
+        client = client_type(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(type(error)) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+@pytest.mark.parametrize("client_type", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
+async def test_missing_credentials_recognizes_sdk_error_subclasses(client_type):
+    class CredentialsError(OpenAIError):
+        pass
+
+    error = CredentialsError("Missing credentials.")
+    async with httpx.AsyncClient() as http_client:
+        client = client_type(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(AuthenticationError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is None
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [(400, "invalid_request_error"), (400, None), (422, "context_length_exceeded")],
+)
+@pytest.mark.parametrize("client_type", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
+async def test_context_length_recognition_requires_status_and_code(
+    status: int, code: str | None, client_type
+):
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = APIStatusError(
+        "Your input exceeds the context window of this model.",
+        response=response,
+        body={"code": code},
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = client_type(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(APIStatusError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+@pytest.mark.parametrize("status_error", [False, True])
+async def test_context_stream_error_distinguishes_api_error_subclasses(status_error):
+    class StreamAPIError(APIError):
+        pass
+
+    request = httpx.Request("POST", "https://example.test")
+    response = httpx.Response(200, request=request)
+    body = {"code": "context_length_exceeded"}
+    error = (
+        APIStatusError(
+            "Context exceeded", response=httpx.Response(422, request=request), body=body
+        )
+        if status_error
+        else StreamAPIError("Context exceeded", request=request, body=body)
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(
+            APIStatusError if status_error else ContextLengthExceededError
+        ) as exc_info:
+            client._handle_error(error, response=response)
+    if status_error:
+        assert exc_info.value is error
+    else:
+        assert exc_info.value.__cause__ is error
+        assert exc_info.value.response is response
+        assert exc_info.value.body is body
+
+
+@pytest.mark.parametrize("status", [None, 201])
+async def test_context_stream_error_requires_successful_response(status):
+    request = httpx.Request("POST", "https://example.test")
+    error = APIError("Context exceeded", request=request, body={"code": "context_length_exceeded"})
+    response = httpx.Response(status, request=request) if status is not None else None
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(APIError) as exc_info:
+            client._handle_error(error, response=response)
+    assert exc_info.value is error
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions", "messages"])
+@pytest.mark.parametrize(
+    ("status", "code"), [(200, "unknown_error"), (201, "context_length_exceeded")]
+)
+async def test_unknown_responses_stream_error_passes_through(downstream, status, code):
+    error_body = {"code": code, "message": "Provider-specific failure"}
+
+    def handler(request):
+        response = _sse_response(dumps({"type": "error", "error": error_body}))
+        response.status_code = status
+        return response
+
+    body = {"model": "m", "stream": True}
+    if downstream == "responses":
+        body["input"] = "Hi"
+    else:
+        body["messages"] = [{"role": "user", "content": "Hi"}]
+        if downstream == "messages":
+            body["max_tokens"] = 16
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        with pytest.raises(APIError) as exc_info:
+            stream = await coordinator(body=body, endpoint="responses", api_key="test-key")
+            async with stream:
+                [event async for event in stream]
+    assert type(exc_info.value) is APIError
+    assert exc_info.value.body == error_body
+    assert exc_info.value.__cause__ is None
 
 
 @pytest.mark.parametrize("endpoint", ["responses", "chat/completions"])

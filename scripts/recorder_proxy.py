@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Any, AsyncGenerator
 
 import uvicorn
+from anyio import CancelScope
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from httpx import AsyncClient, HTTPStatusError
 from loguru import logger
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
+from starlette.types import Send
 from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 from uuid_utils import uuid7
 from yaml import dump as yaml_dump
@@ -128,6 +130,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Recording Proxy", lifespan=lifespan)
 
 
+class RecordingStreamingResponse(StreamingResponse):
+    async def stream_response(self, send: Send) -> None:
+        try:
+            await super().stream_response(send)
+        finally:
+            # A disconnect during send leaves the generator suspended at yield.
+            # Close it explicitly so its recording is saved before returning.
+            with CancelScope(shield=True):
+                await self.body_iterator.aclose()
+
+
 @app.api_route(
     "/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
@@ -183,37 +196,37 @@ async def proxy_request(request: Request, path: str) -> Response:
                 content=body,
                 timeout=TIMEOUT,
             ) as response:
-                yield response
-
-                if response.status_code != 200:
-                    chunk_str = (await response.aread()).decode()
-                    if media_type == "application/json":
-                        recording["response"]["body"] = json.loads(chunk_str)
-                    else:
-                        recording["response"]["body"] = chunk_str
-                    yield chunk_str
-                else:
-                    sse_events = []
-                    try:
-                        async for chunk_str in response.aiter_lines():
-                            chunk_str = f"{chunk_str}\n"
-                            # Immediately yield the chunk
-                            yield chunk_str
-                            sse_events.append(chunk_str)
-                    except Exception as e:
-                        # Preserve partial SSE in the cassette even if the stream terminates unexpectedly.
-                        recording["response"]["stream_error"] = f"{e.__class__.__name__}: {e}"
-                    finally:
-                        recording["response"]["sse"] = sse_events
                 recording["response"]["status_code"] = response.status_code
                 recording["response"]["headers"] = filter_headers(response.headers)
-                save_recording(recording, recording["filename"])
-                logger.info("Streaming completed.")
+                try:
+                    yield response
+
+                    if response.status_code != 200:
+                        chunk_str = (await response.aread()).decode()
+                        if media_type == "application/json":
+                            recording["response"]["body"] = json.loads(chunk_str)
+                        else:
+                            recording["response"]["body"] = chunk_str
+                        yield chunk_str
+                    else:
+                        sse_events = recording["response"]["sse"] = []
+                        try:
+                            async for chunk_str in response.aiter_lines():
+                                chunk_str = f"{chunk_str}\n"
+                                # Retain the line before yielding: the SDK may close
+                                # the stream as soon as it receives an error event.
+                                sse_events.append(chunk_str)
+                                yield chunk_str
+                        except Exception as e:
+                            recording["response"]["stream_error"] = f"{e.__class__.__name__}: {e}"
+                finally:
+                    save_recording(recording, recording["filename"])
+                    logger.info("Streaming recording saved.")
 
         agen = _stream()
         response: Response = await anext(agen)
         media_type = response.headers.get("content-type", "text/event-stream")
-        return StreamingResponse(
+        return RecordingStreamingResponse(
             agen,
             status_code=response.status_code,
             headers=filter_response_headers(response.headers),

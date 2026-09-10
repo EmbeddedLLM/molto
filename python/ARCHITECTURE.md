@@ -113,48 +113,7 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 
 ## Error translation
 
-Every route uses two stages for errors with a known protocol-independent meaning:
-
-```text
-upstream SDK exception
-        |
-        v
-normalized APIException
-        |
-        v
-downstream SDK exception
-```
-
-A translated route applies the first stage in the upstream client and the second in the downstream adapter around the normalized event stream. A same-protocol route composes the same two stages around the native event stream, so callers classify errors through the same cause chain regardless of the route taken.
-
-Normalized protocol-independent API errors inherit from `APIException`. The currently implemented subclass is `ModelNotFoundError`. Upstream clients recognize it as follows:
-
-| Normalized exception    | Upstream protocol       | Upstream SDK exception     | Recognition rule                                      |
-| ----------------------- | ----------------------- | -------------------------- | ----------------------------------------------------- |
-| `AuthenticationError`   | all                     | protocol `APIStatusError`  | status `401`                                          |
-| `ModelNotFoundError`    | OpenAI Responses        | `openai.APIStatusError`    | status `400` and `code == "model_not_found"`          |
-| `ModelNotFoundError`    | OpenAI Chat Completions | `openai.APIStatusError`    | status `404` and `code == "model_not_found"`          |
-| `ModelNotFoundError`    | Anthropic Messages      | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
-| `ResourceNotFoundError` | all                     | protocol `APIStatusError`  | status `404`                                          |
-
-On translated routes, downstream adapters select the outward SDK class from the original provider's HTTP status. They do not select it from the normalized semantic error and do not translate the HTTP error contract. The status, message, `response`, and body retain their original provider values and shape; only the SDK namespace used to expose that preserved status changes.
-
-| Downstream SDK | Status `400`      | Status `401`          | Status `404`    | Other statuses   |
-| -------------- | ----------------- | --------------------- | --------------- | ---------------- |
-| OpenAI         | `BadRequestError` | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
-| Anthropic      | `APIStatusError`  | `AuthenticationError` | `NotFoundError` | `APIStatusError` |
-
-For example, a missing model reported by Anthropic becomes an OpenAI `NotFoundError` because the original response has status `404`, while retaining Anthropic's body. The reverse route through Messages from Responses preserves the OpenAI status `400` and body and therefore uses Anthropic's base `APIStatusError`. Callers must inspect the normalized exception in the cause chain for the portable semantic category; the outward subclass classifies only the preserved status.
-
-Callers that need the semantic category should inspect the exception chain instead of relying only on status codes or provider-specific bodies:
-
-```text
-downstream SDK exception
-        caused by normalized Molto exception
-        caused by upstream SDK exception
-```
-
-This preserves the native provider evidence while exposing a stable semantic classification on every route. A same-protocol route raises a fresh instance of the upstream exception's own class, so native passthrough preserves the exact SDK error type. The original SDK exception remains the innermost cause on every route. Unknown errors are re-raised unchanged because Molto has no justified normalized equivalent.
+Upstream clients normalize recognized SDK failures as `APIException`; downstream adapters project them into their SDK namespace. Both native and translated routes use this pipeline. See [Errors](../docs/errors.md) for recognition rules, status mappings, and special cases.
 
 ## Orchestration facade and coordinators
 
@@ -446,9 +405,9 @@ Each OpenAI upstream client constructs a short-lived `AsyncOpenAI` wrapper with:
 
 An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI organization and project environment settings are suppressed so compatible-provider requests cannot leak OpenAI account metadata.
 
-The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Native passthrough and unknown translated errors preserve the OpenAI exception rather than wrapping it as the previous `httpx` behavior; translated errors with a known semantic equivalent follow the [error translation](#error-translation) contract. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
+The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Recognized errors on every route follow the [error translation](../docs/errors.md) contract; unknown SDK errors pass through unchanged. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
-SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters never access `httpx`.
+SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters do not perform HTTP requests; they use `httpx` only to construct the compatibility response required to project local credential failures as SDK authentication errors.
 
 ## Replay and parity testing
 

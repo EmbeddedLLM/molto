@@ -44,11 +44,13 @@ The public `events()` wrapper owns error interception; do not override it. Clien
 
 ## Error translation
 
-Normalize only upstream errors with a known protocol-independent meaning. An upstream client's `_handle_error()` must raise the normalized Molto exception from the original SDK exception. On translated routes, a downstream adapter must select the downstream SDK exception class from the original provider's preserved HTTP status, falling back to the downstream SDK's base `APIStatusError` when that status has no explicit mapping. Do not select the outward class from the normalized error type and do not translate the original status, message, `response`, or body. The normalized cause owns portable semantic classification; the outward SDK subclass classifies only the preserved HTTP status. On same-protocol passthrough, the adapter instead raises a fresh instance of the original SDK exception's class to preserve the native error type; never re-raise the cause instance itself, because chaining it `from` the normalized error would make the two exceptions each other's cause. Re-raise unknown errors unchanged.
+Follow the [error contract and recognition rules](../docs/errors.md):
 
-Error translation is currently partial. Changing the exception into the downstream SDK namespace does not authorize inventing a target-native status, message, or body. Preserve the upstream status code, message, `response`, and `body` until the implementation has an explicit, documented, cassette-backed mapping for the complete downstream wire error. Callers can use the resulting cause chain for semantic classification even when providers assign different statuses to the same condition.
-
-Document each concrete recognition rule in the architecture's [error translation table](ARCHITECTURE.md#error-translation). Cover every applicable native and translated route with provider-native error cassettes. Tests must assert the outward SDK namespace, upstream status/message/body preservation, normalized cause, and original upstream SDK cause.
+- Raise normalized errors from the original SDK exception in the upstream client's `_handle_error()`. Re-raise unknown errors unchanged.
+- Project HTTP errors by preserved status, retaining the upstream request, response, message, and body. On native routes, construct a fresh SDK exception; reusing the original cause would create a circular cause chain.
+- For recognized stream errors, pass the actual stream response to `_handle_error()` and retain it on the normalized cause. Project plain SDK `APIError`, not an HTTP status error.
+- Only missing credentials may synthesize HTTP metadata: the upstream client supplies the intended request using SDK URL-joining behavior; the adapter supplies a `401` response. Keep the normalized response and body `None`. Other normalized errors without a response pass through unchanged.
+- Document new recognition rules and cover every applicable route with [cassette-backed SDK parity](../tests/cassettes/README.md#error-cassettes). Assert the outward class, message/body, full cause chain, and real transport metadata. For local credentials, compare real SDK failures and intended URLs, asserting the deliberate discrepancy and zero HTTP calls.
 
 ## OpenAI SDK schemas
 

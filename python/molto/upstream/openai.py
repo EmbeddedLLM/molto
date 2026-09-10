@@ -6,12 +6,14 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any, Literal, NoReturn
 
-from openai import APIStatusError, AsyncStream
+from httpx import Response
+from openai import APIError, APIStatusError, AsyncStream, OpenAIError
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 from pydantic import ValidationError
 
 from molto.types.exceptions import (
     AuthenticationError,
+    ContextLengthExceededError,
     ModelNotFoundError,
     ResourceNotFoundError,
     UnsupportedInput,
@@ -247,6 +249,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
     async def native_events(
         self, request: OpenAIResponsesCreateRequest
     ) -> AsyncIterator[ResponseStreamEvent]:
+        upstream_response = None
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.responses.create(
@@ -257,6 +260,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Responses request did not return a stream.")
             self._capture_response_headers(stream.response.headers)
+            upstream_response = stream.response
             async with stream:
                 async for event in stream:
                     if isinstance(event, ResponseCompletedEvent):
@@ -270,7 +274,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                     # the provider omission above, avoid validating every event twice.
                     yield event
         except Exception as error:
-            self._handle_error(error)
+            self._handle_error(error, response=upstream_response)
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -556,8 +560,25 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             else:
                 raise ValueError(f"Unsupported Responses stream event: {event_type}")
 
-    def _handle_error(self, error: Exception) -> NoReturn:
+    def _handle_error(self, error: Exception, *, response: Response | None = None) -> NoReturn:
+        if (
+            isinstance(error, OpenAIError)
+            and not isinstance(error, APIError)
+            and str(error).startswith("Missing credentials.")
+        ):
+            raise AuthenticationError(
+                str(error),
+                response=None,
+                body=None,
+                request=self._make_authentication_request("responses"),
+            ) from error
         if isinstance(error, APIStatusError):
+            if error.status_code == 400 and error.code == "context_length_exceeded":
+                raise ContextLengthExceededError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             if error.status_code == 401:
                 raise AuthenticationError(
                     error.message,
@@ -574,6 +595,18 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
+                    body=error.body,
+                ) from error
+        elif isinstance(error, APIError):
+            # SSE APIError has no response; native_events supplies the stream response.
+            if (
+                error.code == "context_length_exceeded"
+                and response is not None
+                and response.status_code == 200
+            ):
+                raise ContextLengthExceededError(
+                    error.message,
+                    response=response,
                     body=error.body,
                 ) from error
         raise error
@@ -985,7 +1018,25 @@ class OpenAIChatCompletionsClient(
         )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if (
+            isinstance(error, OpenAIError)
+            and not isinstance(error, APIError)
+            and str(error).startswith("Missing credentials.")
+        ):
+            # The OpenAI SDK raises a generic OpenAIError for missing credentials when SDK is used.
+            raise AuthenticationError(
+                str(error),
+                response=None,
+                body=None,
+                request=self._make_authentication_request("chat/completions"),
+            ) from error
         if isinstance(error, APIStatusError):
+            if error.status_code == 400 and error.code == "context_length_exceeded":
+                raise ContextLengthExceededError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
             if error.status_code == 401:
                 raise AuthenticationError(
                     error.message,

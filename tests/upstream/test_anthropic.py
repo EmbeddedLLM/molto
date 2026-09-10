@@ -13,7 +13,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -1685,3 +1685,54 @@ async def test_native_events_normalize_known_sdk_errors():
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, AnthropicAPIStatusError)
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        (422, "prompt is too long: 2 > 1"),
+        (400, "max_tokens is invalid"),
+    ],
+)
+async def test_context_length_recognition_requires_status_and_message(status, message):
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = AnthropicAPIStatusError(message, response=response, body=None)
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(AnthropicAPIStatusError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TypeError("Messages request did not return a stream."),
+        ValueError('"Could not resolve authentication method.'),
+    ],
+)
+async def test_missing_credentials_recognition_requires_type_and_message(error):
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(type(error)) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+async def test_missing_credentials_recognizes_type_error_subclasses():
+    class CredentialsError(TypeError):
+        pass
+
+    error = CredentialsError('"Could not resolve authentication method.')
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(AuthenticationError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is None
