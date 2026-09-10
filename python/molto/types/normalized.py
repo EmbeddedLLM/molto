@@ -429,6 +429,42 @@ class StreamOptions(StrictModel):
     ] = None
 
 
+PromptCacheMode: TypeAlias = Literal["implicit", "explicit"]
+PromptCacheTtl: TypeAlias = Literal["5m", "1h", "30m"]
+PromptCacheRetention: TypeAlias = Literal["in_memory", "24h"]
+
+
+class PromptCache(StrictModel):
+    """Prompt-caching intent for one request.
+
+    Caching changes cost and latency, never model-visible content, so every field is
+    optional and each target protocol projects only the subset it represents. Providers
+    disagree on the vocabulary: `key` and `retention` exist solely on the OpenAI side,
+    and the supported `ttl` values do not overlap between OpenAI (`30m`) and Anthropic
+    (`5m`, `1h`). Clients map minimum lifetimes under their documented policy or reject
+    them. Messages drops the caller key without enabling caching on its own.
+    """
+
+    key: Annotated[
+        str | None,
+        Field(description="A caller-supplied key that partitions the provider's cache."),
+    ] = None
+    mode: Annotated[
+        PromptCacheMode | None,
+        Field(
+            description=("Whether the provider or the request marks the cached prefix boundary.")
+        ),
+    ] = None
+    ttl: Annotated[
+        PromptCacheTtl | None,
+        Field(description="Minimum lifetime of a cached prefix."),
+    ] = None
+    retention: Annotated[
+        PromptCacheRetention | None,
+        Field(description="Where the provider may retain the cached prefix."),
+    ] = None
+
+
 class NormalizedRequest(StrictModel):
     input: Annotated[
         Input | None,
@@ -449,6 +485,10 @@ class NormalizedRequest(StrictModel):
     parallel_tool_calls: Annotated[
         bool | None,
         Field(description="Whether the model may run tool calls in parallel."),
+    ] = None
+    prompt_cache: Annotated[
+        PromptCache | None,
+        Field(description="Prompt-caching intent for the request."),
     ] = None
     reasoning: Annotated[
         Reasoning | None,

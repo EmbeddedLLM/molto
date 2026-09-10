@@ -19,7 +19,7 @@ Three rules make this principle concrete:
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. The sole deliberate exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
+“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. The documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, and caller-defined prompt-cache keys on Messages. Portable call identities such as `tool_call_id` are not part of these exceptions.
 
 Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model. Molto's local public request models always reject unknown top-level fields; this behavior is not configurable through environment settings.
 
@@ -141,17 +141,17 @@ These guides describe **target parity requirements**: their tables state what a 
 
 Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
 
-| Class                | Required behavior                                                                             |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.     |
-| Request-backed       | Retain a downstream request value when the target result contract must echo it.               |
-| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.        |
-| Translator-generated | Generate required target structure using a stable, internally consistent policy.              |
-| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations.   |
-| Unsupported input    | Reject before translation, except for optional Responses output-item IDs as documented below. |
-| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.   |
+| Class                | Required behavior                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.   |
+| Request-backed       | Retain a downstream request value when the target result contract must echo it.             |
+| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.      |
+| Translator-generated | Generate required target structure using a stable, internally consistent policy.            |
+| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations. |
+| Unsupported input    | Reject before translation, except for the item-ID and cache-key omissions documented below. |
+| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity. |
 
-Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped or explicitly rejected by the target client. The sole exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
+Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped or explicitly rejected by the target client. There are two documented exceptions: Chat Completions and Messages may omit optional Responses output-item IDs, and Messages silently drops caller-defined prompt-cache keys because it computes cache identity implicitly. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
 
 Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
@@ -187,10 +187,11 @@ The translated path currently supports:
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
+- prompt-cache settings under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client map or reject them explicitly.
+The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, content-block prompt-cache breakpoints, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 
@@ -214,6 +215,25 @@ Although a provider profile can classify Chat `reasoning_content` as a summary, 
 Responses `encrypted_content` and a Messages thinking `signature` are provider-issued continuation state. They are opaque; applications must not inspect or synthesize these values. They are not generally portable across providers. Molto currently carries the value through the normalized representation without tracking or validating its issuer. Callers must not reuse translated continuation state across providers. Matched fixtures map it only under the explicit assumption that OpenAI owns both endpoints.
 
 Opaque state is represented as replacement snapshots, not append-only text. A Messages `signature_delta` replaces the block-start signature. Responses exposes three encrypted snapshots where Messages exposes two corresponding slots; translated streams preserve the Responses `added` and `done` snapshots and reuse `done` at terminal projection instead of buffering for a third value.
+
+### Prompt caching
+
+Prompt caching changes cost and latency without changing model-visible content or conversation history. Translated routes map supported cache settings and reject unsupported semantics, with one deliberate omission: Messages silently drops caller-defined cache keys because Anthropic computes cache identity implicitly. Dropping a key does not enable caching or discard the remaining options.
+
+One normalized `PromptCache` value carries the request's cache intent:
+
+| Normalized field | Responses and Chat Completions | Anthropic Messages |
+| --- | --- | --- |
+| `key` | `prompt_cache_key` | silently dropped; Messages derives cache identity from prompt content |
+| `mode` | `prompt_cache_options.mode` | `implicit` selects top-level automatic `cache_control`; `explicit` selects no automatic caching |
+| `ttl` | `prompt_cache_options.ttl`, only `30m` | implicit mode: `30m` maps to `1h`; `5m` and `1h` pass through; omitted uses the five-minute default |
+| `retention` | `prompt_cache_retention` | rejected |
+
+OpenAI defines `30m` as a minimum cache lifetime, so Molto maps it to Anthropic `1h` to meet that minimum. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not an exact lifetime or pricing equivalence. In the reverse direction, OpenAI clients still reject Anthropic `5m` and `1h` lifetimes; an omitted lifetime translates in either direction. See the [OpenAI field reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+A caller opts into automatic Messages caching by sending `prompt_cache_options: {"mode": "implicit"}`. A lifetime without a mode also enables automatic caching: `prompt_cache_options: {"ttl": "30m"}` selects Anthropic `1h`. A key-only request or empty options object adds no `cache_control` and does not enable caching. `prompt_cache_retention` has no Messages equivalent and is rejected even when combined with a key or supported options.
+
+Cache _breakpoints_ stay provider-native and are not portable. Responses and Chat Completions `prompt_cache_breakpoint` content parts, and Anthropic block-level `cache_control`, are rejected on translated routes; native passthrough forwards them unchanged. `mode: "explicit"` on a Messages route projects no `cache_control`; its lifetime has no effect without breakpoints, and Molto does not invent them.
 
 ### Service tiers
 

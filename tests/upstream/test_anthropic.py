@@ -22,6 +22,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
@@ -756,6 +757,34 @@ def test_client_projects_user_text_as_content_block_list():
     ]
 
 
+def test_client_projects_prompt_cache_as_automatic_cache_control():
+    def body(prompt_cache: PromptCache) -> dict[str, object]:
+        return AnthropicMessagesClient._request_body(
+            NormalizedRequest(
+                max_output_tokens=2048,
+                model="compatible-model",
+                stream=True,
+                prompt_cache=prompt_cache,
+            )
+        )
+
+    assert body(PromptCache(mode="implicit"))["cache_control"] == {"type": "ephemeral"}
+    assert body(PromptCache(ttl="1h"))["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert body(PromptCache(key="turn-1", ttl="30m"))["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "1h",
+    }
+    assert body(PromptCache(mode="implicit", ttl="5m"))["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "5m",
+    }
+    # Explicit mode asks for caller-marked breakpoints, which Messages only represents on
+    # individual content blocks, so projecting no automatic cache control is faithful.
+    assert "cache_control" not in body(PromptCache(mode="explicit", ttl="30m"))
+    assert "cache_control" not in body(PromptCache(key="turn-1"))
+    assert "cache_control" not in body(PromptCache())
+
+
 def test_adapter_preserves_user_message_and_part_boundaries():
     request = AnthropicMessagesCreateRequest(
         max_tokens=2048,
@@ -1466,6 +1495,10 @@ def test_client_accepts_disabled_stream_obfuscation():
     ("normalized_request", "error"),
     [
         (NormalizedRequest(model="model", max_tool_calls=1), "max_tool_calls"),
+        (
+            NormalizedRequest(model="model", prompt_cache=PromptCache(retention="24h")),
+            "prompt cache retention",
+        ),
         (
             NormalizedRequest(
                 model="model",

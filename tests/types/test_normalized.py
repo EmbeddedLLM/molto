@@ -152,6 +152,7 @@ def test_request_uses_provider_neutral_function_tools():
             }
         },
         {"stream_options": {"include_obfuscation": True, "unknown": True}},
+        {"prompt_cache": {"mode": "implicit", "unknown": True}},
     ],
 )
 def test_request_rejects_extra_fields_at_every_strict_boundary(request_data: dict):

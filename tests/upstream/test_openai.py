@@ -19,6 +19,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
@@ -979,6 +980,53 @@ def test_openai_clients_reject_failed_tool_results(client):
 
     with pytest.raises(UnsupportedInput, match="cannot preserve non-successful"):
         client._request_body(request)
+
+
+@pytest.mark.parametrize(
+    ("prompt_cache", "expected"),
+    [
+        (
+            PromptCache(key="turn-1", mode="implicit", ttl="30m", retention="24h"),
+            {
+                "prompt_cache_key": "turn-1",
+                "prompt_cache_options": {"mode": "implicit", "ttl": "30m"},
+                "prompt_cache_retention": "24h",
+            },
+        ),
+        (PromptCache(mode="explicit"), {"prompt_cache_options": {"mode": "explicit"}}),
+        (PromptCache(key="turn-1"), {"prompt_cache_key": "turn-1"}),
+        (PromptCache(retention="in_memory"), {"prompt_cache_retention": "in_memory"}),
+    ],
+)
+def test_openai_clients_project_prompt_cache_fields(prompt_cache, expected):
+    request = NormalizedRequest(model="m", stream=True, prompt_cache=prompt_cache)
+
+    for body in (
+        OpenAIResponsesClient._request_body(request),
+        OpenAIChatCompletionsClient._request_body(request),
+    ):
+        assert {
+            field: body[field] for field in body if field.startswith("prompt_cache")
+        } == expected
+
+
+def test_openai_clients_omit_unset_prompt_cache():
+    request = NormalizedRequest(model="m", stream=True)
+
+    for body in (
+        OpenAIResponsesClient._request_body(request),
+        OpenAIChatCompletionsClient._request_body(request),
+    ):
+        assert not [field for field in body if field.startswith("prompt_cache")]
+
+
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+def test_openai_clients_reject_unsupported_prompt_cache_ttl(ttl):
+    request = NormalizedRequest(model="m", stream=True, prompt_cache=PromptCache(ttl=ttl))
+
+    for client in (OpenAIResponsesClient, OpenAIChatCompletionsClient):
+        with pytest.raises(UnsupportedInput, match=f"cannot represent prompt cache ttl '{ttl}"):
+            client._request_body(request)
 
 
 @pytest.mark.parametrize(

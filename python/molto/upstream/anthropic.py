@@ -124,6 +124,25 @@ class _PartState:
     signature: str = ""
 
 
+def _cache_control(request: NormalizedRequest) -> dict[str, Any] | None:
+    """Project normalized cache intent onto Messages' top-level automatic caching."""
+    cache = request.prompt_cache
+    if cache is None:
+        return None
+    if cache.retention is not None:
+        raise UnsupportedInput("Anthropic Messages cannot represent prompt cache retention.")
+    # Messages derives cache identity from content. Dropping an affinity key alone must
+    # not enable paid cache writes; explicit mode likewise adds no automatic breakpoint.
+    if cache.mode == "explicit" or (cache.mode is None and cache.ttl is None):
+        return None
+    control: dict[str, Any] = {"type": "ephemeral"}
+    if cache.ttl is not None:
+        # TTL is a minimum lifetime. Anthropic's 1h option satisfies 30m, at its
+        # documented higher cache-write price; the 5m default would undershoot it.
+        control["ttl"] = "1h" if cache.ttl == "30m" else cache.ttl
+    return control
+
+
 def _tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
     if request.tools is None:
         return None
@@ -378,6 +397,9 @@ class AnthropicMessagesClient(
         tool_choice = _tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
+        cache_control = _cache_control(request)
+        if cache_control is not None:
+            body["cache_control"] = cache_control
         body.update(_thinking_configuration(request, has_thinking=has_thinking))
         if request.temperature is not None:
             body["temperature"] = request.temperature

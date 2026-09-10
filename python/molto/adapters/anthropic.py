@@ -32,6 +32,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ReasoningEffort,
     ResponseEndEvent,
@@ -71,6 +72,7 @@ _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
 
 _MESSAGES_TRANSLATABLE_FIELDS = frozenset(
     {
+        "cache_control",
         "max_tokens",
         "messages",
         "model",
@@ -84,6 +86,14 @@ _MESSAGES_TRANSLATABLE_FIELDS = frozenset(
         "top_p",
     }
 )
+
+
+def _reject_cache_breakpoint(block: dict[str, Any]) -> None:
+    """Reject a Messages content-block cache breakpoint, which the normalized IR cannot mark."""
+    if block.get("cache_control") is not None:
+        raise UnsupportedInput(
+            f"Anthropic {block.get('type')} cache_control is not supported for translation."
+        )
 
 
 def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
@@ -126,6 +136,7 @@ class AnthropicMessagesAdapter(
 
     @staticmethod
     def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
+        _reject_cache_breakpoint(block)
         block_type = block.get("type")
         if block_type == "text":
             return TextInput(content=block["text"])
@@ -146,6 +157,8 @@ class AnthropicMessagesAdapter(
         ]
         if unsupported:
             raise UnsupportedInput(f"Unsupported Anthropic system content blocks: {unsupported}")
+        for block in content_blocks:
+            _reject_cache_breakpoint(block)
         return [SystemPrompt(content=block["text"]) for block in content_blocks]
 
     def _normalize_user_blocks(
@@ -170,6 +183,7 @@ class AnthropicMessagesAdapter(
         return items
 
     def _normalize_tool_result(self, block: dict[str, Any]) -> ToolReturn:
+        _reject_cache_breakpoint(block)
         content = block.get("content", "")
         if isinstance(content, str):
             normalized_content = [TextInput(content=content)]
@@ -187,6 +201,7 @@ class AnthropicMessagesAdapter(
     ) -> list[Thinking | TextOutput | ToolCall]:
         items: list[Thinking | TextOutput | ToolCall] = []
         for block in content_blocks:
+            _reject_cache_breakpoint(block)
             block_type = block.get("type")
             if block_type == "thinking":
                 part = self._classify_thinking(block["thinking"], signature=block.get("signature"))
@@ -241,8 +256,7 @@ class AnthropicMessagesAdapter(
         if isinstance(request.system, str):
             normalized_input.append(SystemPrompt(content=request.system))
         elif request.system is not None:
-            for block in request.system:
-                normalized_input.append(SystemPrompt(content=block["text"]))
+            normalized_input.extend(self._normalize_system_blocks(list(request.system)))
 
         for message in request.messages:
             if isinstance(message.content, str):
@@ -264,6 +278,13 @@ class AnthropicMessagesAdapter(
             "stream": request.stream,
             "stream_options": StreamOptions(include_obfuscation=False),
         }
+        if request.cache_control is not None:
+            # Top-level control is Anthropic's opt-in to provider-chosen breakpoints that
+            # advance with the conversation; its `ephemeral` type is pinned by the request model.
+            data["prompt_cache"] = PromptCache(
+                mode="implicit",
+                ttl=request.cache_control.get("ttl"),
+            )
         if request.tools is not None:
             data["tools"] = [_normalize_tool(tool) for tool in request.tools]
         if request.tool_choice is not None:

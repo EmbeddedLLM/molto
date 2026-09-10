@@ -12,6 +12,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
@@ -192,6 +193,67 @@ def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
         OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
             {"role": "user", "content": [part]}
         )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "hello", "prompt_cache_breakpoint": {"mode": "explicit"}}
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_123",
+            "content": [
+                {"type": "text", "text": "result", "prompt_cache_breakpoint": {"mode": "explicit"}}
+            ],
+        },
+    ],
+    ids=["user", "tool"],
+)
+def test_chat_adapter_rejects_prompt_cache_breakpoint(message):
+    with pytest.raises(UnsupportedInput, match="not supported for translation"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
+            OpenAIChatCompletionsCreateRequest(model="m", messages=[message], stream=True)
+        )
+
+
+def test_openai_adapters_normalize_prompt_cache_fields():
+    cache = {
+        "prompt_cache_key": "turn-1",
+        "prompt_cache_options": {"mode": "explicit", "ttl": "30m"},
+        "prompt_cache_retention": "24h",
+    }
+    responses = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(model="m", input="hi", stream=True, **cache)
+    )
+    chat = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            model="m",
+            messages=[{"role": "user", "content": "hi"}],
+            stream=True,
+            **cache,
+        )
+    )
+    expected = PromptCache(key="turn-1", mode="explicit", ttl="30m", retention="24h")
+
+    assert responses.prompt_cache == expected
+    assert chat.prompt_cache == expected
+
+
+def test_openai_adapters_omit_unconfigured_prompt_cache():
+    empty_options = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(model="m", input="hi", prompt_cache_options={})
+    )
+    unset = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
+        OpenAIChatCompletionsCreateRequest(model="m", messages=[{"role": "user", "content": "hi"}])
+    )
+
+    assert empty_options.prompt_cache is None
+    assert unset.prompt_cache is None
 
 
 @pytest.mark.parametrize(

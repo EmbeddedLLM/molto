@@ -32,6 +32,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
@@ -93,6 +94,9 @@ _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
         "max_tool_calls",
         "model",
         "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_options",
+        "prompt_cache_retention",
         "reasoning",
         "stream",
         "stream_options",
@@ -110,6 +114,9 @@ _CHAT_TRANSLATABLE_FIELDS = frozenset(
         "max_completion_tokens",
         "max_tokens",
         "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_options",
+        "prompt_cache_retention",
         "reasoning_effort",
         "stream",
         "stream_options",
@@ -179,6 +186,32 @@ def _chat_tool_choice(choice: Any) -> ToolChoice | None:
     if choice.get("type") != "function":
         raise UnsupportedInput(f"Unsupported Chat Completions tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["function"]["name"])
+
+
+def _reject_prompt_cache_breakpoint(part: Any, protocol: str) -> None:
+    """Reject a content-part cache breakpoint, which the normalized IR cannot mark."""
+    if isinstance(part, dict) and part.get("prompt_cache_breakpoint") is not None:
+        raise UnsupportedInput(
+            f"{protocol} {part.get('type')} prompt_cache_breakpoint is not "
+            "supported for translation."
+        )
+
+
+def _prompt_cache(
+    key: str | None,
+    options: dict[str, Any] | None,
+    retention: str | None,
+) -> PromptCache | None:
+    """Normalize the cache fields that Responses and Chat Completions spell identically."""
+    options = dict(options or {})
+    if key is None and retention is None and not options:
+        return None
+    return PromptCache(
+        key=key,
+        mode=options.get("mode"),
+        ttl=options.get("ttl"),
+        retention=retention,
+    )
 
 
 def _validate_responses_function_metadata(
@@ -351,11 +384,7 @@ class OpenAIResponsesAdapter(
                     if isinstance(part, BaseModel):
                         part = part.model_dump()
                     part_type = part.get("type") if isinstance(part, dict) else None
-                    if isinstance(part, dict) and "prompt_cache_breakpoint" in part:
-                        raise UnsupportedInput(
-                            f"Responses {part_type} prompt_cache_breakpoint is not "
-                            "supported for translation."
-                        )
+                    _reject_prompt_cache_breakpoint(part, "Responses")
                     if part_type == "input_text":
                         parts.append(TextInput(content=part["text"]))
                     elif part_type == "input_image":
@@ -429,6 +458,11 @@ class OpenAIResponsesAdapter(
             max_tool_calls=request.max_tool_calls,
             model=request.model,
             parallel_tool_calls=request.parallel_tool_calls,
+            prompt_cache=_prompt_cache(
+                request.prompt_cache_key,
+                request.prompt_cache_options,
+                request.prompt_cache_retention,
+            ),
             reasoning=request.reasoning,
             stream=request.stream,
             stream_options=request.stream_options,
@@ -856,6 +890,7 @@ class OpenAIChatCompletionsAdapter(
                 if isinstance(part, BaseModel):
                     part = part.model_dump()
                 part_type = part.get("type") if isinstance(part, dict) else None
+                _reject_prompt_cache_breakpoint(part, "Chat Completions")
                 if part_type == "text":
                     parts.append(TextInput(content=part["text"]))
                 elif part_type == "image_url":
@@ -869,12 +904,12 @@ class OpenAIChatCompletionsAdapter(
             if isinstance(content, str):
                 tool_content = [TextInput(content=content)]
             elif isinstance(content, list):
-                if any(
-                    isinstance(part, dict) and part.get("type") == "image_url" for part in content
-                ):
-                    raise UnsupportedInput(
-                        "Chat Completions cannot represent image tool result content."
-                    )
+                for part in content:
+                    _reject_prompt_cache_breakpoint(part, "Chat Completions")
+                    if isinstance(part, dict) and part.get("type") == "image_url":
+                        raise UnsupportedInput(
+                            "Chat Completions cannot represent image tool result content."
+                        )
                 text_parts = [
                     part.get("text")
                     for part in content
@@ -968,6 +1003,13 @@ class OpenAIChatCompletionsAdapter(
             data["max_output_tokens"] = max_output_tokens
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
+        prompt_cache = _prompt_cache(
+            request.prompt_cache_key,
+            request.prompt_cache_options,
+            request.prompt_cache_retention,
+        )
+        if prompt_cache is not None:
+            data["prompt_cache"] = prompt_cache
         if request.tools is not None:
             data["tools"] = _chat_tools(request.tools)
         if request.tool_choice is not None:

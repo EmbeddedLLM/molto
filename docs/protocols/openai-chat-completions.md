@@ -116,6 +116,7 @@ The translated path currently maps these request semantics:
 | Function `tools`                     | Preserves name, description, parameters, and strict validation                           |
 | `tool_choice`                        | Preserves `auto`, `none`, `required`, or a named function through target-specific shapes |
 | `stream_options.include_obfuscation` | Preserved where the upstream protocol represents it                                      |
+| `prompt_cache_*`                     | Becomes the portable prompt-cache intent                                                 |
 
 One user message becomes one normalized user input. Ordered text and image parts remain ordered, and consecutive user messages remain separate. Scalar user text becomes one text part.
 
@@ -123,7 +124,7 @@ System and developer messages with string content both become role-less instruct
 
 Assistant history is flattened into adjacent reasoning, text, and tool-call items. The enclosing assistant-message boundary is not represented. The adapter accepts assistant string content, optional string `reasoning_content`, and function tool calls; assistant content-part arrays are not supported on translated routes. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
-Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result.
+Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result. A `prompt_cache_breakpoint` on a user or tool content part is rejected on translated routes because the normalized request has no per-part cache marker; native passthrough still forwards it.
 
 Fields accepted by the request wrapper but not listed above are not guaranteed to reach a cross-protocol upstream. In particular, accepting a field as extra request data is not evidence that Molto translates it. Native passthrough is the appropriate route when such a field is required.
 
@@ -141,17 +142,18 @@ An upstream Chat client converts another downstream protocol's normalized reques
 
 ### Upstream request construction
 
-| Normalized input              | Chat request                                                     |
-| ----------------------------- | ---------------------------------------------------------------- |
-| Instruction                   | `developer` message at the same sequence position                |
-| User input                    | One `user` message with an explicit ordered content-part array   |
-| Portable image                | `image_url` part, preserving URL or data URL and optional detail |
-| Reasoning plus following text | One assistant message with `reasoning_content` and `content`     |
-| Adjacent assistant text items | Separate assistant messages                                      |
-| Function call                 | Assistant `tool_calls[]` entry                                   |
-| Successful text tool result   | `tool` message with the original `tool_call_id`                  |
-| Output-token limit            | `max_completion_tokens`                                          |
-| Streaming usage               | `stream_options.include_usage=true`                              |
+| Normalized input              | Chat request                                                         |
+| ----------------------------- | -------------------------------------------------------------------- |
+| Instruction                   | `developer` message at the same sequence position                    |
+| User input                    | One `user` message with an explicit ordered content-part array       |
+| Portable image                | `image_url` part, preserving URL or data URL and optional detail     |
+| Reasoning plus following text | One assistant message with `reasoning_content` and `content`         |
+| Adjacent assistant text items | Separate assistant messages                                          |
+| Function call                 | Assistant `tool_calls[]` entry                                       |
+| Successful text tool result   | `tool` message with the original `tool_call_id`                      |
+| Output-token limit            | `max_completion_tokens`                                              |
+| Streaming usage               | `stream_options.include_usage=true`                                  |
+| Prompt cache                  | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
 
 The client groups pending assistant reasoning, text, and tool calls where the Chat shape permits it. A reasoning item is held for a following text item so both can inhabit one assistant message. Because the normalized representation does not retain the original assistant container, this reconstruction can merge or split source assistant messages.
 
@@ -203,9 +205,13 @@ Chat's single `reasoning_content` extension can be classified as either the norm
 
 ### Tools and tool results
 
-Function definitions preserve their portable schema fields. Named selection maps to a named target function or tool, `required` maps to Messages `any`, and parallel-call control maps to each target's native setting. Tool-call IDs are portable call identities; they must not be confused with Responses output-item IDs, which are a separate structure. When Responses history is projected to Chat, those output-item IDs are accepted and omitted as the sole exception to the rule that every accepted input field must affect the target request.
+Function definitions preserve their portable schema fields. Named selection maps to a named target function or tool, `required` maps to Messages `any`, and parallel-call control maps to each target's native setting. Tool-call IDs are portable call identities; they must not be confused with Responses output-item IDs, which are a separate structure. When Responses history is projected to Chat, those output-item IDs are accepted and omitted under the documented identity-metadata exception. The separate cache-key omission applies only to Messages upstreams.
 
 Successful text tool results preserve call ID, content order, and conversation order. Image results require the upstream-Chat relocation described above. Failed-result semantics, hosted tools, server tools, and general custom tool types do not have a complete cross-protocol mapping.
+
+### Prompt caching
+
+`prompt_cache_key`, `prompt_cache_options`, and `prompt_cache_retention` normalize into the same `PromptCache` value the Responses adapter uses, and reach a Responses upstream unchanged because both OpenAI protocols spell the fields identically. A Messages upstream silently drops the key, maps implicit mode to top-level automatic `cache_control`, and maps the `30m` minimum lifetime to `1h`. An omitted lifetime uses Anthropic's five-minute default. Key-only requests and explicit mode add no automatic caching; explicit-mode lifetimes have no effect without breakpoints. Retention policies are rejected. Anthropic `5m` and `1h` lifetimes remain rejected when projecting to Chat. See [Prompt caching](../README.md#prompt-caching) for the shared policy, including the longer retention and higher cache-write pricing of the `1h` mapping.
 
 ### Termination and usage
 
@@ -253,6 +259,7 @@ The projected exception retains the upstream status, message, response, and body
 - One boundary per supported user message and the order of its text and image parts.
 - Choice-zero text, classified reasoning, and function-argument delta boundaries.
 - Response ID, creation time when supplied by the source, model, supported finish semantics, and semantic token usage.
+- Prompt-cache intent under the [shared mapping policy](../README.md#prompt-caching), including silent key omission and `30m` to `1h` mapping on Messages.
 - Function names, JSON argument bytes, call IDs, successful text results, selection, and parallel-call intent.
 
 ### Generated, defaulted, or unavailable
@@ -276,7 +283,7 @@ These are implementation gaps rather than inherent claims about the Chat protoco
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and normalized terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
-- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, prompt-cache settings, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
+- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
 - There is no focused regression coverage for role-preserving instruction round trips, adjacent assistant-message boundaries, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
 
 ## Compatibility and references

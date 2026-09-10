@@ -18,6 +18,7 @@ from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, PROVIDER_CAPABILITIES, Provider
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
@@ -110,7 +111,9 @@ def _get_http_client(
     upstream: Protocol = "responses",
     *,
     translated: bool = False,
+    expected_body: dict[str, Any] | None = None,
 ) -> AsyncClient:
+    """Replay `cassette_paths`, optionally asserting one exact outgoing request body."""
     cassette_paths = cassette_paths.copy()
 
     def cassette_handler(request: Request) -> Response:
@@ -125,7 +128,9 @@ def _get_http_client(
             )
             assert str(request.url) == f"{origin}{cassette['request']['path']}"
             assert request.url.path == cassette["request"]["path"]
-            expected_body = cassette["request"]["body"]
+            expected = expected_body
+            if expected is None:
+                expected = cassette["request"]["body"]
             if (
                 translated
                 and upstream == "responses"
@@ -133,14 +138,14 @@ def _get_http_client(
             ):
                 _assert_reconstructable_encrypted_responses_request(
                     request_body,
-                    expected_body,
+                    expected,
                 )
             elif translated and upstream == "responses" and scenario in TOOL_CALL_SCENARIOS:
-                _assert_reconstructable_tool_responses_request(request_body, expected_body)
+                _assert_reconstructable_tool_responses_request(request_body, expected)
             elif translated and upstream == "chat/completions" and scenario in TOOL_CALL_SCENARIOS:
-                _assert_reconstructable_tool_chat_request(request_body, expected_body)
+                _assert_reconstructable_tool_chat_request(request_body, expected)
             else:
-                assert request_body == expected_body
+                assert request_body == expected
         except AssertionError as e:
             return Response(
                 400,
@@ -706,3 +711,285 @@ async def test_instructions_stream():
         "instructions-stream-01.yaml",
     ]
     await _assert_responses_events(cassette_names)
+
+
+# --- Prompt caching --- #
+
+_OPENAI_PROMPT_CACHE: dict[str, Any] = {
+    "prompt_cache_key": "codex-turn-1",
+    "prompt_cache_options": {"mode": "implicit", "ttl": "30m"},
+    "prompt_cache_retention": "24h",
+}
+_MESSAGES_PROMPT_CACHE: dict[str, Any] = {"cache_control": {"type": "ephemeral"}}
+
+
+def _coordinator(client: Molto, protocol: Protocol):
+    return {
+        "responses": client.responses,
+        "chat/completions": client.chat_completions,
+        "messages": client.messages,
+    }[protocol]
+
+
+def _simple_text_cassette(protocol: Protocol) -> Path:
+    return _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
+
+
+async def _assert_prompt_cache_request(
+    downstream: Protocol,
+    upstream: Protocol,
+    additions: dict[str, Any],
+    expected_additions: dict[str, Any],
+) -> None:
+    """Assert the outgoing cache fields and parity with parsed downstream SDK events."""
+    downstream_path = _simple_text_cassette(downstream)
+    upstream_path = _simple_text_cassette(upstream)
+    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+    expected_body = deepcopy(_read_cassette(upstream_path)["request"]["body"]) | expected_additions
+
+    async with _get_http_client(
+        [upstream_path],
+        upstream,
+        translated=downstream != upstream,
+        expected_body=expected_body,
+    ) as http_client:
+        stream = await _coordinator(Molto(http_client=http_client), downstream)(
+            body=body,
+            endpoint=upstream,
+            provider=_provider_from_cassette_path(upstream_path),
+            api_key="test-api-key",
+        )
+        events = [event async for event in stream]
+
+    # Reuse the recorded response without rewriting fixtures: these tests exercise
+    # request projection and stream fidelity, not the provider's cache-hit decisions.
+    async with _get_http_client([downstream_path], downstream, expected_body=body) as http_client:
+        if downstream == "messages":
+            sdk_stream = await AsyncAnthropic(
+                api_key="test-api-key", http_client=http_client
+            ).messages.create(**body)
+        else:
+            sdk_client = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+            if downstream == "responses":
+                sdk_stream = await sdk_client.responses.create(**body)
+            else:
+                sdk_stream = await sdk_client.chat.completions.create(**body)
+        async with sdk_stream:
+            sdk_events = [event async for event in sdk_stream]
+
+    if downstream == upstream:
+        assert [type(event) for event in events] == [type(event) for event in sdk_events]
+        assert [event.model_dump(mode="json", exclude_unset=True) for event in events] == [
+            event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
+        ]
+        return
+
+    actual_sse = [dumps_sse(event) for event in events]
+    expected_sse = [dumps_sse(event) for event in sdk_events]
+    # The recorded response predates these request overrides, so compare its original
+    # reconstructible fields rather than treating its cache metadata as a fresh result.
+    recorded_body = _read_cassette(downstream_path)["request"]["body"]
+    if downstream == "responses":
+        _assert_responses_stream_invariants(actual_sse)
+        actual = [reconstructable_responses_event(sse, body=recorded_body) for sse in actual_sse]
+        expected = [
+            reconstructable_responses_event(sse, body=recorded_body) for sse in expected_sse
+        ]
+        if upstream == "messages":
+            for event in actual + expected:
+                if isinstance(event.get("response"), dict):
+                    event["response"].pop("created_at", None)
+    elif downstream == "chat/completions":
+        actual = [
+            chunk
+            for sse in actual_sse
+            for chunk in reconstructable_chat_completions_chunks(sse, body=body)
+        ]
+        expected = [
+            chunk
+            for sse in expected_sse
+            for chunk in reconstructable_chat_completions_chunks(sse, body=body)
+        ]
+        if upstream == "messages":
+            for chunk in actual + expected:
+                chunk.pop("created", None)
+    else:
+        actual = [reconstructable_anthropic_event(sse) for sse in actual_sse]
+        expected = [reconstructable_anthropic_event(sse) for sse in expected_sse]
+    assert actual == expected
+
+
+async def _assert_prompt_cache_rejected(
+    downstream: Protocol,
+    upstream: Protocol,
+    additions: dict[str, Any],
+    match: str,
+) -> None:
+    """Assert an unportable cache value fails before any upstream request is made."""
+    downstream_path = _simple_text_cassette(downstream)
+    upstream_path = _simple_text_cassette(upstream)
+    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+
+    async with _get_http_client([]) as http_client:
+        with pytest.raises(UnsupportedInput, match=match):
+            await _coordinator(Molto(http_client=http_client), downstream)(
+                body=body,
+                endpoint=upstream,
+                provider=_provider_from_cassette_path(upstream_path),
+                api_key="test-api-key",
+            )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_prompt_cache_translates_across_protocols(
+    downstream: Protocol,
+    upstream: Protocol,
+):
+    if downstream == "messages":
+        additions = deepcopy(_MESSAGES_PROMPT_CACHE)
+        expected_additions = (
+            additions if upstream == "messages" else {"prompt_cache_options": {"mode": "implicit"}}
+        )
+        await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+        return
+
+    additions = deepcopy(_OPENAI_PROMPT_CACHE)
+    if upstream == "messages":
+        additions.pop("prompt_cache_retention")
+        expected_additions = {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
+    else:
+        expected_additions = deepcopy(additions)
+    await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("key", [None, "codex-turn-1"])
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (None, {}),
+        ({}, {}),
+        ({"mode": "implicit"}, {"cache_control": {"type": "ephemeral"}}),
+        ({"ttl": "30m"}, {"cache_control": {"type": "ephemeral", "ttl": "1h"}}),
+        ({"mode": "explicit"}, {}),
+        ({"mode": "explicit", "ttl": "30m"}, {}),
+    ],
+)
+async def test_messages_prompt_cache_options(downstream, key, options, expected):
+    additions = {}
+    if key is not None:
+        additions["prompt_cache_key"] = key
+    if options is not None:
+        additions["prompt_cache_options"] = options
+    await _assert_prompt_cache_request(
+        downstream,
+        "messages",
+        additions,
+        expected,
+    )
+
+
+@pytest.mark.parametrize(
+    ("downstream", "additions", "upstream", "match"),
+    [
+        (
+            "messages",
+            {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            "responses",
+            r"prompt cache ttl '1h'",
+        ),
+        (
+            "messages",
+            {"cache_control": {"type": "ephemeral", "ttl": "5m"}},
+            "chat/completions",
+            r"prompt cache ttl '5m'",
+        ),
+        ("responses", {"prompt_cache_retention": "24h"}, "messages", "prompt cache retention"),
+        (
+            "chat/completions",
+            {"prompt_cache_key": "turn", "prompt_cache_retention": "in_memory"},
+            "messages",
+            "prompt cache retention",
+        ),
+    ],
+)
+async def test_prompt_cache_rejects_unportable_values(
+    downstream: Protocol,
+    additions: dict[str, Any],
+    upstream: Protocol,
+    match: str,
+):
+    await _assert_prompt_cache_rejected(downstream, upstream, additions, match)
+
+
+@pytest.mark.parametrize(
+    ("downstream", "protocol", "additions", "match"),
+    [
+        (
+            "responses",
+            "responses",
+            {
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": "Write one short sentence about the ocean.",
+                                "prompt_cache_breakpoint": {"mode": "explicit"},
+                            }
+                        ],
+                    }
+                ]
+            },
+            "Responses input_text prompt_cache_breakpoint",
+        ),
+        (
+            "chat/completions",
+            "chat/completions",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Write one short sentence about the ocean.",
+                                "prompt_cache_breakpoint": {"mode": "explicit"},
+                            }
+                        ],
+                    }
+                ]
+            },
+            "Chat Completions text prompt_cache_breakpoint",
+        ),
+        (
+            "messages",
+            "messages",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Write one short sentence about the ocean.",
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                    }
+                ]
+            },
+            "Anthropic text cache_control",
+        ),
+    ],
+)
+async def test_cache_breakpoints_pass_through_natively_and_reject_translation(
+    downstream: Protocol,
+    protocol: Protocol,
+    additions: dict[str, Any],
+    match: str,
+):
+    await _assert_prompt_cache_request(downstream, protocol, additions, additions)
+    other = "messages" if protocol != "messages" else "responses"
+    await _assert_prompt_cache_rejected(downstream, other, additions, match)

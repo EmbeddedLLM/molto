@@ -99,6 +99,30 @@ def _chat_tool_choice(request: NormalizedRequest) -> Any:
     return request.tool_choice
 
 
+def _prompt_cache_fields(request: NormalizedRequest) -> dict[str, Any]:
+    """Project normalized cache intent onto the fields both OpenAI protocols share."""
+    cache = request.prompt_cache
+    if cache is None:
+        return {}
+    fields: dict[str, Any] = {}
+    options: dict[str, Any] = {}
+    if cache.mode is not None:
+        options["mode"] = cache.mode
+    if cache.ttl is not None:
+        if cache.ttl != "30m":
+            raise UnsupportedInput(
+                f"OpenAI protocols cannot represent prompt cache ttl {cache.ttl!r}."
+            )
+        options["ttl"] = cache.ttl
+    if options:
+        fields["prompt_cache_options"] = options
+    if cache.key is not None:
+        fields["prompt_cache_key"] = cache.key
+    if cache.retention is not None:
+        fields["prompt_cache_retention"] = cache.retention
+    return fields
+
+
 def _validate_responses_function_call(
     item: Any,
     *,
@@ -388,6 +412,7 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
             body["reasoning"] = request.reasoning.model_dump(exclude={"extra_fields"})
         if request.stream_options is not None:
             body["stream_options"] = request.stream_options.model_dump(exclude={"extra_fields"})
+        body.update(_prompt_cache_fields(request))
         try:
             return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
         except ValidationError as error:
@@ -753,6 +778,7 @@ class OpenAIChatCompletionsClient(
             body["temperature"] = request.temperature
         if request.top_p is not None:
             body["top_p"] = request.top_p
+        body.update(_prompt_cache_fields(request))
         try:
             return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
         except ValidationError as error:

@@ -21,6 +21,7 @@ Every row below holds for a translated route (one protocol to another through th
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
 | Termination reason | Projected per the shared table | Provider-neutral termination | Reasons without a target equivalent are coerced to that target's normal completion |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized |
+| Prompt-cache intent | Projected under the [shared policy](../README.md#prompt-caching) | Normalized `PromptCache` | Messages silently drops keys and maps implicit `30m` minimum lifetime to `1h`; key-only requests do not enable caching; retention and translated breakpoints are rejected; Anthropic lifetimes remain rejected on OpenAI |
 | Response ID and model | Preserved | Source response | A Messages upstream has no creation timestamp; `created_at` is captured locally |
 | Exact response-completion timestamp | Unavailable and omitted | None | Responses `created` is not `completed_at` |
 | Assistant `phase` | Not normalizable | None | Native Responses passthrough retains it; Chat and Messages omit it |
@@ -44,6 +45,7 @@ Full boundary fidelity would require more than the current normalized representa
 | Keepalive | None specific on translated output | None specific on translated output | `ping` is transport-only, filtered by the SDK, never synthesized |
 | Multiple candidates | Not supported | Only `choices[0]` normalized; `n > 1` should not use translation | Not supported |
 | Tools | `function_call` items | `tool_calls[]` in assistant messages | `tool_use` / `tool_result` blocks |
+| Request prompt caching | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | top-level or per-block `cache_control` |
 
 Responses is the richer lifecycle protocol. Translating into Responses requires synthesizing output-item IDs, sequence numbers, item/content lifecycles, and empty target-only containers; translating into Chat or Messages flattens that lifecycle into deltas or blocks. The conversion is not symmetric: a native result must be mapped, defaulted, generated, or rejected rather than copied.
 
