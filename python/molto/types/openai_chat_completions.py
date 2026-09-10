@@ -18,6 +18,9 @@ from openai.types.chat.chat_completion_assistant_message_param import (
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
 from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
+from openai.types.chat.chat_completion_content_part_refusal_param import (
+    ChatCompletionContentPartRefusalParam,
+)
 from openai.types.chat.chat_completion_content_part_text_param import (
     ChatCompletionContentPartTextParam,
 )
@@ -59,6 +62,11 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
+    content: NotRequired[
+        str
+        | list[ChatCompletionContentPartTextParam | ChatCompletionContentPartRefusalParam]
+        | None
+    ]
 
 
 class ChatCompletionUserMessageListParam(TypedDict):
@@ -98,6 +106,7 @@ _RETAINED_CHAT_MESSAGE_PARAMS = tuple(
     for item in get_args(ChatCompletionMessageParam)
     if item
     not in {
+        ChatCompletionAssistantMessageParam,
         ChatCompletionDeveloperMessageParam,
         ChatCompletionSystemMessageParam,
         ChatCompletionToolMessageParam,

@@ -38,7 +38,7 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
-@pytest.mark.parametrize("role", ["system", "developer", "user"])
+@pytest.mark.parametrize("role", ["system", "developer", "user", "assistant"])
 def test_request_dump_preserves_content_part_lists(role):
     body = OpenAIChatCompletionsCreateRequest(
         messages=[
@@ -77,7 +77,7 @@ def test_request_dump_preserves_content_part_lists(role):
     assert body.model_dump() == expected
 
 
-@pytest.mark.parametrize("role", ["system", "developer"])
+@pytest.mark.parametrize("role", ["system", "developer", "assistant"])
 def test_request_rejects_malformed_instruction_content_parts(role):
     with pytest.raises(ValidationError):
         OpenAIChatCompletionsCreateRequest(

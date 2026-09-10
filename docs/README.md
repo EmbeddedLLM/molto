@@ -187,11 +187,11 @@ The translated path currently supports:
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
-- prompt-cache settings under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
+- prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, content-block prompt-cache breakpoints, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
+The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 
@@ -218,22 +218,33 @@ Opaque state is represented as replacement snapshots, not append-only text. A Me
 
 ### Prompt caching
 
-Prompt caching changes cost and latency without changing model-visible content or conversation history. Translated routes map supported cache settings and reject unsupported semantics, with one deliberate omission: Messages silently drops caller-defined cache keys because Anthropic computes cache identity implicitly. Dropping a key does not enable caching or discard the remaining options.
+Prompt caching changes cost and latency without changing model-visible content or conversation history. Messages silently drops caller-defined cache keys because Anthropic computes cache identity implicitly. Dropping a key does not enable caching or discard the remaining options.
 
-One normalized `PromptCache` value carries the request's cache intent:
+`NormalizedRequest.prompt_cache` carries request-wide intent; `CacheBreakpoint` on supported content parts carries the position and optional lifetime of an explicit marker:
 
 | Normalized field | Responses and Chat Completions | Anthropic Messages |
 | --- | --- | --- |
-| `key` | `prompt_cache_key` | silently dropped; Messages derives cache identity from prompt content |
-| `mode` | `prompt_cache_options.mode` | `implicit` selects top-level automatic `cache_control`; `explicit` selects no automatic caching |
-| `ttl` | `prompt_cache_options.ttl`, only `30m` | implicit mode: `30m` maps to `1h`; `5m` and `1h` pass through; omitted uses the five-minute default |
-| `retention` | `prompt_cache_retention` | rejected |
+| `PromptCache.key` | `prompt_cache_key` | Silently dropped |
+| `PromptCache.mode` | `prompt_cache_options.mode` | `implicit` enables top-level automatic `cache_control`; `explicit` caches only marked blocks |
+| `PromptCache.ttl` | `prompt_cache_options.ttl`, only `30m` | `30m` maps to `1h`; `5m` and `1h` pass through |
+| `PromptCache.retention` | `prompt_cache_retention` | Rejected |
+| Content `cache_breakpoint` | `prompt_cache_breakpoint: {"mode": "explicit"}` | Block `cache_control: {"type": "ephemeral", "ttl": ...}` |
 
-OpenAI defines `30m` as a minimum cache lifetime, so Molto maps it to Anthropic `1h` to meet that minimum. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not an exact lifetime or pricing equivalence. In the reverse direction, OpenAI clients still reject Anthropic `5m` and `1h` lifetimes; an omitted lifetime translates in either direction. See the [OpenAI field reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+A key-only request or empty options object without markers does not enable Messages caching. Implicit mode enables automatic caching; a lifetime without a mode also enables it. Without markers, implicit mode with no lifetime uses Anthropic's five-minute default. Explicit mode omits top-level automatic caching but preserves marked blocks. When projecting normalized input to Messages, a block lifetime overrides the normalized request lifetime; an omitted block lifetime inherits it.
 
-A caller opts into automatic Messages caching by sending `prompt_cache_options: {"mode": "implicit"}`. A lifetime without a mode also enables automatic caching: `prompt_cache_options: {"ttl": "30m"}` selects Anthropic `1h`. A key-only request or empty options object adds no `cache_control` and does not enable caching. `prompt_cache_retention` has no Messages equivalent and is rejected even when combined with a key or supported options.
+When an OpenAI request has any content marker, normalization resolves omitted mode to `implicit` and omitted lifetime to OpenAI's `30m` default. Messages therefore uses `1h` for both marked blocks and automatic caching, unless the caller selected explicit mode to disable the latter. An Anthropic request with only block markers normalizes to explicit mode; adding top-level `cache_control` selects implicit mode while retaining the blocks.
 
-Cache _breakpoints_ stay provider-native and are not portable. Responses and Chat Completions `prompt_cache_breakpoint` content parts, and Anthropic block-level `cache_control`, are rejected on translated routes; native passthrough forwards them unchanged. `mode: "explicit"` on a Messages route projects no `cache_control`; its lifetime has no effect without breakpoints, and Molto does not invent them.
+OpenAI defines `30m` as a minimum lifetime, so Molto maps it to Anthropic `1h`. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not exact lifetime or pricing equivalence. In the reverse direction, explicit Anthropic `5m` and `1h` lifetimes, including block lifetimes, are rejected by OpenAI clients. An omitted Anthropic block lifetime remains unspecified and uses OpenAI's `30m` default on projection; this deliberately accepts a different provider default instead of inventing an explicit five-minute requirement. See the [OpenAI field reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+Supported marker positions are system/developer text, user text/images, assistant text, and nested tool-result text/images. Chat tool messages support only text. Translation rejects markers that cannot retain their prefix:
+
+- Anthropic outer `tool_result`, `tool_use`, thinking blocks, and tool definitions have no corresponding OpenAI content-part marker.
+- Messages allows at most four cache breakpoints, counting automatic caching unless the final eligible block already has a marker with the same lifetime. A different automatic and final explicit lifetime is rejected. One-hour breakpoints must precede five-minute breakpoints.
+- Messages rejects mid-conversation instructions whenever any marker is present, because hoisting would change the cached prefix.
+- Chat rejects marked tool returns when image relocation would move content past a marker, including a marked later parallel tool return with earlier images still waiting to be emitted.
+- Responses rejects marked assistant history with an output-item ID, because its marker-capable easy input-message schema cannot preserve that ID.
+
+Messages keeps system blocks separate when any system block is marked. Native passthrough forwards provider-native cache fields unchanged.
 
 ### Service tiers
 

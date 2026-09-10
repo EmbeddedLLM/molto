@@ -922,74 +922,132 @@ async def test_prompt_cache_rejects_unportable_values(
     await _assert_prompt_cache_rejected(downstream, upstream, additions, match)
 
 
+def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any]) -> dict[str, Any]:
+    text_type = "input_text" if protocol == "responses" else "text"
+    field = "cache_control" if protocol == "messages" else "prompt_cache_breakpoint"
+    part = {"type": text_type, "text": "Cached prefix.", field: marker}
+    suffix = {"type": text_type, "text": "Uncached suffix."}
+    if position in {"image", "tool_image"}:
+        part = (
+            {"type": "input_image", "image_url": "https://example.com/image.png", field: marker}
+            if protocol == "responses"
+            else {
+                "type": "image_url",
+                "image_url": {"url": "https://example.com/image.png"},
+                field: marker,
+            }
+            if protocol == "chat/completions"
+            else {
+                "type": "image",
+                "source": {"type": "url", "url": "https://example.com/image.png"},
+                field: marker,
+            }
+        )
+    user = {"role": "user", "content": [suffix]}
+    messages = [user]
+    if position in {"user", "image"}:
+        messages = [{"role": "user", "content": [part, suffix]}]
+    elif position == "system":
+        if protocol == "messages":
+            return {"system": [part, suffix], "messages": [user]}
+        messages = [
+            {"role": "developer", "content": [part]},
+            {"role": "developer", "content": "Uncached suffix."},
+            user,
+        ]
+    elif position == "assistant":
+        messages = [{"role": "assistant", "content": [part]}, user]
+    elif position in {"tool", "tool_image"}:
+        if protocol == "responses":
+            messages = [
+                {
+                    "type": "function_call",
+                    "name": "lookup",
+                    "arguments": "{}",
+                    "call_id": "c1",
+                    "status": "completed",
+                },
+                {"type": "function_call_output", "call_id": "c1", "output": [part, suffix]},
+                user,
+            ]
+        elif protocol == "chat/completions":
+            messages = [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "c1", "content": [part, suffix]},
+                user,
+            ]
+        else:
+            messages = [
+                {
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "id": "c1", "name": "lookup", "input": {}}],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "c1", "content": [part, suffix]}
+                    ],
+                },
+                user,
+            ]
+    return {"input" if protocol == "responses" else "messages": messages}
+
+
 @pytest.mark.parametrize(
-    ("downstream", "protocol", "additions", "match"),
+    ("position", "downstream", "upstream"),
     [
-        (
-            "responses",
-            "responses",
-            {
-                "input": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": "Write one short sentence about the ocean.",
-                                "prompt_cache_breakpoint": {"mode": "explicit"},
-                            }
-                        ],
-                    }
-                ]
-            },
-            "Responses input_text prompt_cache_breakpoint",
-        ),
-        (
-            "chat/completions",
-            "chat/completions",
-            {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Write one short sentence about the ocean.",
-                                "prompt_cache_breakpoint": {"mode": "explicit"},
-                            }
-                        ],
-                    }
-                ]
-            },
-            "Chat Completions text prompt_cache_breakpoint",
-        ),
-        (
-            "messages",
-            "messages",
-            {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Write one short sentence about the ocean.",
-                                "cache_control": {"type": "ephemeral"},
-                            }
-                        ],
-                    }
-                ]
-            },
-            "Anthropic text cache_control",
-        ),
+        (position, downstream, upstream)
+        for position in ("user", "image", "system", "assistant", "tool", "tool_image")
+        for downstream, upstream in ROUTES
+        if position != "tool_image" or "chat/completions" not in (downstream, upstream)
     ],
 )
-async def test_cache_breakpoints_pass_through_natively_and_reject_translation(
-    downstream: Protocol,
-    protocol: Protocol,
-    additions: dict[str, Any],
-    match: str,
-):
-    await _assert_prompt_cache_request(downstream, protocol, additions, additions)
-    other = "messages" if protocol != "messages" else "responses"
-    await _assert_prompt_cache_rejected(downstream, other, additions, match)
+@pytest.mark.parametrize("mode", ["implicit", "explicit"])
+async def test_cache_breakpoint_translation(downstream, upstream, position, mode):
+    openai_marker = {"mode": "explicit"}
+    messages_marker = {"type": "ephemeral"}
+    additions = _breakpoint_input(
+        downstream, position, messages_marker if downstream == "messages" else openai_marker
+    )
+    if downstream == "messages":
+        if mode == "implicit":
+            additions["cache_control"] = {"type": "ephemeral"}
+    else:
+        additions["prompt_cache_options"] = {"mode": mode, "ttl": "30m"}
+    if downstream == upstream:
+        expected = deepcopy(additions)
+    else:
+        marker = {"type": "ephemeral", "ttl": "1h"} if upstream == "messages" else openai_marker
+        expected = _breakpoint_input(upstream, position, marker)
+        if upstream == "messages":
+            if mode == "implicit":
+                expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        else:
+            expected["prompt_cache_options"] = {"mode": mode}
+            if downstream != "messages":
+                expected["prompt_cache_options"]["ttl"] = "30m"
+    await _assert_prompt_cache_request(downstream, upstream, additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+async def test_breakpoint_without_options_inherits_openai_defaults(downstream):
+    additions = _breakpoint_input(downstream, "user", {"mode": "explicit"})
+    expected = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
+    expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+
+
+@pytest.mark.parametrize("upstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+async def test_messages_block_ttl_rejects_unrepresentable_openai_lifetime(upstream, ttl):
+    additions = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": ttl})
+    await _assert_prompt_cache_rejected("messages", upstream, additions, "prompt cache ttl")

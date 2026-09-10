@@ -15,6 +15,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -27,6 +28,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     StreamOptions,
+    SystemPrompt,
     TerminationReason,
     TextDelta,
     TextInput,
@@ -1718,3 +1720,113 @@ async def test_native_events_normalize_known_sdk_errors():
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, AnthropicAPIStatusError)
+
+
+@pytest.mark.parametrize("mode", ["implicit", "explicit"])
+def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            SystemPrompt(content="Cached instructions", cache_breakpoint=CacheBreakpoint()),
+            SystemPrompt(content="Uncached instructions"),
+            UserInput(content=[TextInput(content="Question", cache_breakpoint=CacheBreakpoint())]),
+        ],
+        prompt_cache=PromptCache(mode=mode, ttl="30m"),
+    )
+    body = AnthropicMessagesClient._request_body(request)
+    control = {"type": "ephemeral", "ttl": "1h"}
+    assert body["system"] == [
+        {"type": "text", "text": "Cached instructions", "cache_control": control},
+        {"type": "text", "text": "Uncached instructions"},
+    ]
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Question", "cache_control": control}],
+        }
+    ]
+    assert body.get("cache_control") == (control if mode == "implicit" else None)
+
+
+def test_rejects_cache_prefix_changes_from_hoisted_instructions():
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(content=[TextInput(content="Question", cache_breakpoint=CacheBreakpoint())]),
+            SystemPrompt(content="Later instructions"),
+        ],
+    )
+    with pytest.raises(UnsupportedInput, match="hoisting"):
+        AnthropicMessagesClient._request_body(request)
+
+
+@pytest.mark.parametrize(
+    ("count", "mode", "unmarked_tail", "allowed"),
+    [
+        (4, "explicit", True, True),
+        (5, "explicit", False, False),
+        (3, "implicit", True, True),
+        (4, "implicit", True, False),
+        (4, "implicit", False, True),
+    ],
+)
+def test_cache_breakpoint_slot_limit(count, mode, unmarked_tail, allowed):
+    content = [TextInput(content=str(i), cache_breakpoint=CacheBreakpoint()) for i in range(count)]
+    if unmarked_tail:
+        content.append(TextInput(content="Uncached tail"))
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[UserInput(content=content)],
+        prompt_cache=PromptCache(mode=mode),
+    )
+    if allowed:
+        body = AnthropicMessagesClient._request_body(request)
+        assert sum("cache_control" in part for part in body["messages"][0]["content"]) == count
+    else:
+        with pytest.raises(UnsupportedInput, match="at most four"):
+            AnthropicMessagesClient._request_body(request)
+
+
+@pytest.mark.parametrize("ttls", [("1h", "5m"), ("5m", "1h")])
+def test_block_lifetimes_must_decrease_in_prompt_order(ttls):
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(
+                content=[
+                    TextInput(content=str(i), cache_breakpoint=CacheBreakpoint(ttl=ttl))
+                    for i, ttl in enumerate(ttls)
+                ]
+            )
+        ],
+        prompt_cache=PromptCache(mode="explicit"),
+    )
+    if ttls == ("1h", "5m"):
+        body = AnthropicMessagesClient._request_body(request)
+        assert [part["cache_control"]["ttl"] for part in body["messages"][0]["content"]] == list(
+            ttls
+        )
+    else:
+        with pytest.raises(UnsupportedInput, match="must precede"):
+            AnthropicMessagesClient._request_body(request)
+
+
+def test_automatic_and_final_block_cache_lifetimes_must_match():
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(
+                content=[
+                    TextInput(content="Question", cache_breakpoint=CacheBreakpoint(ttl="1h")),
+                ]
+            )
+        ],
+        prompt_cache=PromptCache(mode="implicit", ttl="5m"),
+    )
+    with pytest.raises(UnsupportedInput, match="must match"):
+        AnthropicMessagesClient._request_body(request)

@@ -165,7 +165,7 @@ The adapter currently applies these rules:
 
 Within a user message, tool results must precede ordinary user content for the current normalized path. A failed Messages tool result is representable inside Molto, but OpenAI request histories have no equivalent failed outcome, so a Messages-to-OpenAI route rejects it rather than silently changing its meaning.
 
-`cache_control` on an individual content block or tool definition is an explicit breakpoint, and the normalized request has no per-block cache marker, so translated routes reject it. Native passthrough still forwards it unchanged.
+`cache_control` on system text, user text/images, assistant text, and nested tool-result text/images becomes a positional `CacheBreakpoint` with optional lifetime. Block-only caching selects normalized explicit mode; top-level `cache_control` selects implicit mode while preserving block markers. Markers on outer `tool_result`, `tool_use`, thinking blocks, and tool definitions are rejected on translated routes because OpenAI has no corresponding content-part marker. Native passthrough preserves these provider-native fields.
 
 The request wrapper also accepts `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are available in native passthrough but are not forwarded across the normalized path. Within `output_config`, only `effort` is normalized.
 
@@ -195,19 +195,13 @@ The client applies these Messages-specific rules:
 - Adjacent tool returns are grouped into one user message containing `tool_result` blocks. Successful and failed outcomes map directly; `is_error=true` represents failure. Denied and interrupted outcomes are rejected because Messages cannot preserve them.
 - Tool parameters become `input_schema`; required use becomes `any`; and parallel-call control becomes the inverse `disable_parallel_tool_use` value.
 - Tool choice has edge rules: a required or named choice with no tools raises; when only parallelism is set, `disable_parallel_tool_use` rides on an explicit `auto` choice; the flag is omitted when tool use is disabled; and `tool_choice` is dropped entirely when no tools are present.
-- Implicit normalized cache intent becomes top-level automatic `cache_control: {type: ephemeral}`. Lifetimes `5m` and `1h` pass through; OpenAI's `30m` minimum maps to `1h`, and omission uses Anthropic's five-minute default. A caller-defined cache key is silently dropped without enabling caching or discarding the remaining options. Explicit mode projects no `cache_control`, so its lifetime has no effect without breakpoints. Retention policies are rejected.
+- Implicit normalized cache intent becomes top-level automatic `cache_control: {type: ephemeral}`. Lifetimes `5m` and `1h` pass through; OpenAI's `30m` minimum maps to `1h`. OpenAI marker presence resolves an omitted lifetime to `30m` before projection; without markers, omission uses Anthropic's five-minute default. A caller-defined cache key is silently dropped without enabling caching or discarding the remaining options. Explicit mode omits top-level `cache_control` but preserves marked blocks, which inherit the request lifetime unless they specify their own. Retention policies are rejected.
 
 Messages requires an integer `max_tokens`. Responses and Chat Completions make their corresponding output-token limit optional, but a translated route targeting Messages must provide it so Molto can construct a valid Messages request. If the downstream request omits the limit, validation fails before transport.
 
-Every normalized system prompt, wherever it occurred in the original conversation, is removed from the sequence, joined with blank lines, and sent as one top-level `system` string. This permits broad cross-protocol instruction support but loses:
+Normalized system prompts are projected into top-level `system`. If any system block is marked, the client keeps all system blocks separate and projects their markers. Otherwise it joins instruction text with blank lines. Instruction role and enclosing message boundaries remain unavailable in the normalized representation.
 
-- original top-level versus mid-conversation placement;
-- `system` versus `developer` identity from OpenAI protocols;
-- later-instruction priority;
-- original system message and content-block boundaries; and
-- cache-prefix and per-block cache-control semantics.
-
-This is a translated-route limitation. A native Messages route does not hoist or merge system content through the normalized representation.
+Without markers, mid-conversation instructions are hoisted, losing their original placement and later-instruction priority. If any marker is present, the client rejects mid-conversation instructions because hoisting would change the cached prefix. A native Messages route does not hoist or merge system content through the normalized representation.
 
 ### Stream normalization
 
@@ -227,21 +221,21 @@ Only directly invoked `tool_use` output is normalized. A server-owned caller is 
 
 The normalized representation is the composition point, so these mappings are directional rather than pair-specific:
 
-| Messages concept            | Normalized meaning                         | Messages projection                        |
-| --------------------------- | ------------------------------------------ | ------------------------------------------ |
-| `system` or system message  | System prompt                              | One hoisted top-level `system` string      |
-| User `text` block           | Ordered text input                         | User `text` block                          |
-| User `image` block          | Ordered image input                        | Base64 or URL `image` block                |
-| Assistant `text` block      | Assistant text history                     | Assistant `text` block                     |
-| Assistant `thinking` block  | Raw reasoning or summary plus opaque state | Assistant `thinking` block                 |
-| `max_tokens`                | Output-token limit                         | `max_tokens`                               |
-| Custom tool `input_schema`  | Function parameters                        | Custom tool `input_schema`                 |
-| `tool_use`                  | Function call                              | `tool_use`                                 |
-| `tool_result`               | Tool return and outcome                    | `tool_result`, with `is_error` for failure |
-| `tool_choice.type=any`      | Required tool use                          | `tool_choice.type=any`                     |
-| `disable_parallel_tool_use` | Inverse parallel-call control              | Inverted on projection                     |
-| Top-level `cache_control`   | Prompt cache with implicit breakpoints     | Top-level `cache_control`                  |
-| Block `cache_control`       | Rejected; no per-block cache marker exists | Native passthrough only                    |
+| Messages concept | Normalized meaning | Messages projection |
+| --- | --- | --- |
+| `system` or system message | System prompt | Top-level `system`; separate blocks when any system block is marked |
+| User `text` block | Ordered text input | User `text` block |
+| User `image` block | Ordered image input | Base64 or URL `image` block |
+| Assistant `text` block | Assistant text history | Assistant `text` block |
+| Assistant `thinking` block | Raw reasoning or summary plus opaque state | Assistant `thinking` block |
+| `max_tokens` | Output-token limit | `max_tokens` |
+| Custom tool `input_schema` | Function parameters | Custom tool `input_schema` |
+| `tool_use` | Function call | `tool_use` |
+| `tool_result` | Tool return and outcome | `tool_result`, with `is_error` for failure |
+| `tool_choice.type=any` | Required tool use | `tool_choice.type=any` |
+| `disable_parallel_tool_use` | Inverse parallel-call control | Inverted on projection |
+| Top-level `cache_control` | Prompt cache with implicit breakpoints | Top-level `cache_control` |
+| Supported text/image block `cache_control` | Positional `CacheBreakpoint` with optional lifetime | Block `cache_control` |
 
 User text and tool-result text are always projected in explicit content-block lists. One normalized user input remains one Messages user message, and its ordered parts are not merged or split by Molto.
 
@@ -294,9 +288,11 @@ Messages request tier values (`auto` and `standard_only`) are distinct from resp
 
 ### Prompt caching
 
-Anthropic has no caller-defined cache key: cache identity comes from the matching tools, system, and message prefix, and caching happens only where the request asks for it. Top-level `cache_control` therefore normalizes as implicit-mode cache intent, while block-level `cache_control` has no normalized equivalent and is rejected on translated routes. For OpenAI requests reaching Messages, Molto silently drops `prompt_cache_key` because Anthropic computes cache identity implicitly; a key alone does not enable caching. It processes `prompt_cache_options` independently and rejects `prompt_cache_retention`.
+Anthropic derives cache identity from the matching tools, system, and message prefix. Molto silently drops OpenAI `prompt_cache_key` without enabling caching and independently processes options and content markers; `prompt_cache_retention` is rejected. Top-level `cache_control` normalizes to implicit mode, while block-only caching normalizes to explicit mode. Supported text/image block markers retain their position and optional lifetime.
 
-Implicit mode enables automatic caching. Molto maps OpenAI's `30m` minimum lifetime to Anthropic `1h`, selecting longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for the five-minute default used when the lifetime is omitted. Native `5m` and `1h` values pass through to Messages; both remain rejected on OpenAI targets. Explicit mode emits no automatic caching, and its lifetime has no effect without breakpoints. See [Prompt caching](../README.md#prompt-caching) for the shared field table and provider references.
+OpenAI markers resolve an omitted mode to `implicit` and omitted lifetime to `30m`. Messages maps that minimum to `1h` for both marked blocks and automatic caching; explicit mode omits only the automatic control. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for five minutes. Without markers, implicit mode with no lifetime uses Anthropic's five-minute default. Explicit `5m` and `1h` lifetimes pass through to Messages but remain rejected on OpenAI; omitted Anthropic block lifetimes use OpenAI's `30m` default under the documented omission policy.
+
+Messages allows at most four breakpoints, counting automatic caching unless the final eligible block already has a marker with the same lifetime. Conflicting automatic and final explicit lifetimes are rejected, and one-hour markers must precede five-minute markers. Mid-conversation instructions are rejected whenever any marker is present. Marked system blocks stay separate. Markers on outer tool-result, tool-use, thinking, or tool-definition objects remain provider-native. See [Prompt caching](../README.md#prompt-caching) for the complete mapping and provider references.
 
 ### Usage and cache accounting
 
@@ -326,7 +322,7 @@ The Messages client currently recognizes a missing model only when Anthropic rai
 - Supported thinking, text, and direct tool-use block ordering, with a stable index for every emitted block lifecycle.
 - Response ID, model, text and reasoning delta boundaries, call IDs, tool names, and partial JSON argument deltas.
 - Successful tool results, failed tool results when the target can represent them, stop sequences, and semantic cache usage.
-- Implicit prompt-cache intent, projected as automatic top-level `cache_control` when Messages is the target, with `30m` minimum lifetime mapped to `1h` under the shared policy.
+- Automatic caching and supported text/image block markers, with `30m` minimum lifetime mapped to `1h` under the shared policy.
 
 ### Generated, defaulted, or coerced
 
@@ -342,9 +338,9 @@ The Messages client currently recognizes a missing model only when Anthropic rai
 - Responses output-item IDs are accepted in normalized history but omitted when Messages is the target; portable tool-call IDs remain mapped.
 - Anthropic can merge consecutive same-role wire messages and interprets a final assistant message as prefill.
 - The normalized representation does not retain the enclosing assistant message boundary.
-- Translating to Messages hoists all instructions and loses their original placement, role, priority, system block boundaries, and cache-prefix meaning.
+- Unmarked translation may hoist instructions and lose placement, priority, and block boundaries. Marked system blocks stay separate; requests with any markers and mid-conversation instructions are rejected.
 - Caller-defined prompt-cache keys are silently dropped because Anthropic computes cache identity implicitly; dropping a key does not enable caching.
-- Anthropic block-level `cache_control` breakpoints have no normalized equivalent, so an OpenAI `prompt_cache_breakpoint` cannot reach a Messages request as a breakpoint.
+- Markers on outer tool-result, tool-use, thinking, and tool-definition objects have no supported OpenAI equivalent.
 - `ping` is transport-only and is not projected across protocols.
 - Provider-owned signatures are not portable across providers.
 
@@ -356,7 +352,7 @@ A route targeting Messages must supply a downstream output-token limit because M
 
 The normalized path does not currently implement image output, citations, refusals as content blocks, redacted thinking, server or hosted tools, structured output, multiple candidates, or non-streaming collection. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 
-Mid-conversation system placement and model support are not locally validated. Translated requests targeting Messages hoist those instructions even when the source protocol could retain their original positions. These are current Molto limitations, distinct from Anthropic's inherent same-role merging and prefill semantics.
+Model support for mid-conversation system instructions is not locally validated. Without cache markers, translated requests targeting Messages hoist those instructions even when the source protocol could retain their original positions. With any markers present, Molto rejects mid-conversation instructions to preserve cache prefixes. These are current Molto limitations, distinct from Anthropic's inherent same-role merging and prefill semantics.
 
 ## Compatibility and references
 

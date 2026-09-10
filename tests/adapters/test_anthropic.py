@@ -9,6 +9,7 @@ from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
@@ -346,9 +347,17 @@ def test_normalizes_top_level_cache_control_as_implicit_prompt_cache():
         ),
     ],
 )
-def test_rejects_content_block_cache_control(overrides):
-    with pytest.raises(UnsupportedInput, match="cache_control is not supported for translation"):
-        _normalize(_request(**overrides), _CAPABILITIES)
+def test_content_block_cache_control(overrides):
+    block = (overrides.get("system") or overrides["messages"][0]["content"])[0]
+    if block["type"] in {"tool_result", "tool_use", "thinking"}:
+        with pytest.raises(
+            UnsupportedInput, match="cache_control is not supported for translation"
+        ):
+            _normalize(_request(**overrides), _CAPABILITIES)
+    else:
+        normalized = _normalize(_request(**overrides), _CAPABILITIES)
+        assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
+        assert normalized.prompt_cache == PromptCache(mode="explicit")
 
 
 def test_rejects_untranslated_request_fields():

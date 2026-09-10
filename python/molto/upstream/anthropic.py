@@ -135,12 +135,66 @@ def _cache_control(request: NormalizedRequest) -> dict[str, Any] | None:
     # not enable paid cache writes; explicit mode likewise adds no automatic breakpoint.
     if cache.mode == "explicit" or (cache.mode is None and cache.ttl is None):
         return None
+    return _ephemeral_cache_control(cache.ttl)
+
+
+def _ephemeral_cache_control(ttl: str | None) -> dict[str, Any]:
     control: dict[str, Any] = {"type": "ephemeral"}
-    if cache.ttl is not None:
-        # TTL is a minimum lifetime. Anthropic's 1h option satisfies 30m, at its
-        # documented higher cache-write price; the 5m default would undershoot it.
-        control["ttl"] = "1h" if cache.ttl == "30m" else cache.ttl
+    if ttl is not None:
+        # TTL is a minimum lifetime; Anthropic's 1h option satisfies OpenAI's 30m.
+        control["ttl"] = "1h" if ttl == "30m" else ttl
     return control
+
+
+def _content_block(
+    part: SystemPrompt | TextInput | ImageUrlInput | TextOutput,
+    request: NormalizedRequest,
+) -> dict[str, Any]:
+    block = (
+        _image_block(part)
+        if isinstance(part, ImageUrlInput)
+        else {"type": "text", "text": part.content}
+    )
+    if part.cache_breakpoint is not None:
+        ttl = part.cache_breakpoint.ttl
+        if ttl is None and request.prompt_cache is not None:
+            ttl = request.prompt_cache.ttl
+        block["cache_control"] = _ephemeral_cache_control(ttl)
+    return block
+
+
+def _validate_cache_controls(body: dict[str, Any]) -> None:
+    """Check Messages' slot and lifetime constraints after choosing native boundaries."""
+    blocks = list(body["system"]) if isinstance(body.get("system"), list) else []
+    blocks.extend(block for message in body["messages"] for block in message["content"])
+    controls = []
+    for block in blocks:
+        if block["type"] == "tool_result":
+            controls.extend(
+                part["cache_control"] for part in block["content"] if "cache_control" in part
+            )
+        if "cache_control" in block:
+            controls.append(block["cache_control"])
+    automatic = body.get("cache_control")
+    if automatic is not None:
+        last = next((block for block in reversed(blocks) if block["type"] != "thinking"), {})
+        existing = last.get("cache_control")
+        if existing is None:
+            controls.append(automatic)
+        elif existing.get("ttl", "5m") != automatic.get("ttl", "5m"):
+            raise UnsupportedInput(
+                "Anthropic automatic and final explicit cache lifetimes must match."
+            )
+    if len(controls) > 4:
+        raise UnsupportedInput(
+            "Anthropic Messages supports at most four cache breakpoints, including automatic caching."
+        )
+    seen_short_ttl = False
+    for control in controls:
+        if control.get("ttl", "5m") == "5m":
+            seen_short_ttl = True
+        elif seen_short_ttl:
+            raise UnsupportedInput("Anthropic 1h cache breakpoints must precede 5m breakpoints.")
 
 
 def _tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -273,8 +327,8 @@ class AnthropicMessagesClient(
         request: NormalizedRequest,
         *,
         capabilities: ProviderCapabilities | None = None,
-    ) -> tuple[str | None, list[dict[str, Any]], bool]:
-        system_parts: list[str] = []
+    ) -> tuple[str | list[dict[str, Any]] | None, list[dict[str, Any]], bool]:
+        system_parts: list[SystemPrompt] = []
         messages: list[dict[str, Any]] = []
         assistant_blocks: list[dict[str, Any]] = []
         tool_result_blocks: list[dict[str, Any]] = []
@@ -294,16 +348,11 @@ class AnthropicMessagesClient(
             if isinstance(item, SystemPrompt):
                 flush_assistant()
                 flush_tool_results()
-                system_parts.append(item.content)
+                system_parts.append(item)
             elif isinstance(item, UserInput):
                 flush_assistant()
                 flush_tool_results()
-                content: list[dict[str, Any]] = []
-                for part in item.content:
-                    if isinstance(part, TextInput):
-                        content.append({"type": "text", "text": part.content})
-                    elif isinstance(part, ImageUrlInput):
-                        content.append(_image_block(part))
+                content = [_content_block(part, request) for part in item.content]
                 messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 flush_tool_results()
@@ -335,7 +384,7 @@ class AnthropicMessagesClient(
                 assistant_blocks.append(block)
             elif isinstance(item, TextOutput):
                 flush_tool_results()
-                assistant_blocks.append({"type": "text", "text": item.content})
+                assistant_blocks.append(_content_block(item, request))
             elif isinstance(item, ToolCall):
                 flush_tool_results()
                 tool_input = {} if item.args is None else json_loads(item.args)
@@ -358,12 +407,7 @@ class AnthropicMessagesClient(
                 block = {
                     "type": "tool_result",
                     "tool_use_id": item.tool_call_id,
-                    "content": [
-                        {"type": "text", "text": part.content}
-                        if isinstance(part, TextInput)
-                        else _image_block(part)
-                        for part in item.content
-                    ],
+                    "content": [_content_block(part, request) for part in item.content],
                 }
                 if item.outcome == "failed":
                     block["is_error"] = True
@@ -372,7 +416,12 @@ class AnthropicMessagesClient(
                 raise UnsupportedInput(f"Unsupported Anthropic input item: {type(item)}")
         flush_assistant()
         flush_tool_results()
-        return "\n\n".join(system_parts) or None, messages, has_thinking
+        system = (
+            [_content_block(part, request) for part in system_parts]
+            if any(part.cache_breakpoint is not None for part in system_parts)
+            else "\n\n".join(part.content for part in system_parts) or None
+        )
+        return system, messages, has_thinking
 
     @classmethod
     def _request_body(
@@ -400,6 +449,7 @@ class AnthropicMessagesClient(
         cache_control = _cache_control(request)
         if cache_control is not None:
             body["cache_control"] = cache_control
+        _validate_cache_controls(body)
         body.update(_thinking_configuration(request, has_thinking=has_thinking))
         if request.temperature is not None:
             body["temperature"] = request.temperature
@@ -412,6 +462,17 @@ class AnthropicMessagesClient(
 
     @staticmethod
     def _validate_request(request: NormalizedRequest) -> None:
+        if next(request.iter_cache_breakpoints(), None) is not None:
+            seen_message = False
+            for item in request.input or []:
+                if isinstance(item, SystemPrompt):
+                    if seen_message:
+                        raise UnsupportedInput(
+                            "Anthropic Messages cannot preserve cache prefixes when hoisting "
+                            "mid-conversation instructions."
+                        )
+                else:
+                    seen_message = True
         if request.max_tool_calls is not None:
             raise UnsupportedInput("Anthropic Messages cannot represent max_tool_calls.")
         if (

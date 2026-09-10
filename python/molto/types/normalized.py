@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from textwrap import dedent
 from time import time
 from typing import Annotated, Any, Literal, Self, TypeAlias
@@ -7,11 +7,25 @@ from pydantic import BeforeValidator, Discriminator, Field, model_validator
 
 from molto.types.base import ExtraModel, StrictModel, ZeroIfNoneInt
 
+PromptCacheTtl: TypeAlias = Literal["5m", "1h", "30m"]
+
+
+class CacheBreakpoint(StrictModel):
+    """The end of a reusable prefix, attached to its final content part."""
+
+    ttl: Annotated[
+        PromptCacheTtl | None,
+        Field(description="Minimum cache lifetime, overriding the request lifetime if set."),
+    ] = None
+
 
 class SystemPrompt(StrictModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     content_type: Annotated[
         Literal["system-prompt"],
         Field(description="Content type identifier as a discriminator."),
@@ -22,6 +36,9 @@ class TextInput(StrictModel):
     """Text content sent to the model."""
 
     content: Annotated[str, Field(description="The content sent to the model.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     content_type: Annotated[
         Literal["text-input"],
         Field(description="Content type identifier as a discriminator."),
@@ -32,6 +49,9 @@ class ImageUrlInput(StrictModel):
     """An image supplied by remote URL or data URL."""
 
     url: Annotated[str, Field(description="The remote URL or data URL of the image.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     detail: Annotated[
         Literal["auto", "low", "high", "original"] | None,
         Field(description="The requested image fidelity, when specified."),
@@ -177,19 +197,6 @@ class UserInput(StrictModel):
 #     ] = "uploaded-file"
 
 
-# class CachePointInput(ExtraModel):
-#     """A prompt-caching boundary marker."""
-
-#     content_type: Annotated[
-#         Literal["cache-point"],
-#         Field(description="Content type identifier as a discriminator."),
-#     ] = "cache-point"
-#     ttl: Annotated[
-#         Literal["5m", "1h"],
-#         Field(description="The cache time-to-live."),
-#     ] = "5m"
-
-
 class ToolReturn(StrictModel):
     """Tool return parts."""
 
@@ -232,6 +239,10 @@ class TextOutput(ExtraModel):
         str,
         Field(description="The text content of the response."),
     ]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None,
+        Field(description="Cache the prefix ending at this part when used as history."),
+    ] = None
     id: Annotated[
         str | None,
         Field(description="An optional identifier of the text part."),
@@ -430,7 +441,6 @@ class StreamOptions(StrictModel):
 
 
 PromptCacheMode: TypeAlias = Literal["implicit", "explicit"]
-PromptCacheTtl: TypeAlias = Literal["5m", "1h", "30m"]
 PromptCacheRetention: TypeAlias = Literal["in_memory", "24h"]
 
 
@@ -518,6 +528,18 @@ class NormalizedRequest(StrictModel):
         float | None,
         Field(description="The nucleus-sampling probability mass."),
     ] = None
+
+    def iter_cache_breakpoints(self) -> Iterator[CacheBreakpoint]:
+        """Yield explicit markers in input order, including nested content parts."""
+        for item in self.input or []:
+            if isinstance(item, (UserInput, ToolReturn)):
+                for part in item.content:
+                    if part.cache_breakpoint is not None:
+                        yield part.cache_breakpoint
+            elif (
+                isinstance(item, (SystemPrompt, TextOutput)) and item.cache_breakpoint is not None
+            ):
+                yield item.cache_breakpoint
 
 
 class TextDelta(ExtraModel):

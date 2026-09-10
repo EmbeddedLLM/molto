@@ -8,6 +8,7 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    CacheBreakpoint,
     ModelResponseStreamEvent,
     PartDeltaEvent,
     PartEndEvent,
@@ -188,11 +189,11 @@ def test_responses_adapter_rejects_untranslated_include_values():
     ],
     ids=["text", "image"],
 )
-def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
-    with pytest.raises(UnsupportedInput, match="not supported for translation"):
-        OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
-            {"role": "user", "content": [part]}
-        )
+def test_responses_adapter_normalizes_prompt_cache_breakpoint(part):
+    request = OpenAIResponsesCreateRequest(model="m", input=[{"role": "user", "content": [part]}])
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
+    assert normalized.prompt_cache == PromptCache(mode="implicit", ttl="30m")
 
 
 @pytest.mark.parametrize(
@@ -214,11 +215,12 @@ def test_responses_adapter_rejects_prompt_cache_breakpoint(part):
     ],
     ids=["user", "tool"],
 )
-def test_chat_adapter_rejects_prompt_cache_breakpoint(message):
-    with pytest.raises(UnsupportedInput, match="not supported for translation"):
-        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
-            OpenAIChatCompletionsCreateRequest(model="m", messages=[message], stream=True)
-        )
+def test_chat_adapter_normalizes_prompt_cache_breakpoint(message):
+    normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
+        OpenAIChatCompletionsCreateRequest(model="m", messages=[message], stream=True)
+    )
+    assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
+    assert normalized.prompt_cache == PromptCache(mode="implicit", ttl="30m")
 
 
 def test_openai_adapters_normalize_prompt_cache_fields():
@@ -372,7 +374,7 @@ def test_responses_adapter_rejects_wrong_content_part_for_message_role():
             {
                 "type": "message",
                 "role": "assistant",
-                "content": [{"type": "input_text", "text": "x"}],
+                "content": [{"type": "input_image", "image_url": "https://example.com/a.png"}],
             }
         )
 
@@ -1054,3 +1056,30 @@ async def test_error_projection_selects_subclass_from_status(native: bool) -> No
     assert isinstance(error.__cause__, ModelNotFoundError)
     assert type(error.__cause__.__cause__) is BadRequestError
     assert error is not error.__cause__.__cause__
+
+
+@pytest.mark.parametrize("role", ["system", "developer", "assistant"])
+def test_chat_normalizes_marked_text_arrays_without_merging_parts(role):
+    request = OpenAIChatCompletionsCreateRequest(
+        model="m",
+        messages=[
+            {
+                "role": role,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Cached",
+                        "prompt_cache_breakpoint": {"mode": "explicit"},
+                    },
+                    {"type": "text", "text": "Uncached"},
+                ],
+            }
+        ],
+    )
+    normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+    item_type = TextOutput if role == "assistant" else SystemPrompt
+    assert normalized.input == [
+        item_type(content="Cached", cache_breakpoint=CacheBreakpoint()),
+        item_type(content="Uncached"),
+    ]
+    assert normalized.prompt_cache == PromptCache(mode="implicit", ttl="30m")

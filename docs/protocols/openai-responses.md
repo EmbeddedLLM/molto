@@ -143,14 +143,14 @@ The implemented normalized path accepts:
 - ordered mixed text and image user input, using remote URLs or base64 data URLs;
 - raw reasoning and reasoning-summary history;
 - client-defined function tools, tool choice, parallel-call control, calls, successful results, and streamed JSON argument deltas;
-- `prompt_cache_key`, `prompt_cache_options`, and `prompt_cache_retention`; and
+- `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`, and supported content-part `prompt_cache_breakpoint` markers; and
 - model, streaming mode, output-token limit, reasoning effort, temperature, `top_p`, and `include_obfuscation` when the upstream protocol has an equivalent stream option.
 
 One user message remains one user message, and its ordered text and image parts remain ordered. Consecutive user messages are not merged by Molto, although an upstream provider or model renderer may combine them into one model-visible turn.
 
 System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values. Assistant message containers are flattened: each assistant text part becomes a separate text output, and multiple reasoning parts of the same representation are joined within a normalized reasoning value. These transformations preserve supported content but lose the original instruction role, multipart instruction boundary, and enclosing assistant-message boundary.
 
-Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, and caller-defined prompt-cache keys on Messages. Output-item IDs remain valid normalized history and are preserved by Responses; Messages drops cache keys without enabling caching and processes cache options independently. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. A `prompt_cache_breakpoint` on a content part is not portable either, because the normalized request has no per-part cache marker; native passthrough still forwards it.
+Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, and caller-defined prompt-cache keys on Messages. Output-item IDs remain valid normalized history and are preserved by Responses; Messages drops cache keys without enabling caching and processes cache options independently. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. Supported content-part `prompt_cache_breakpoint` values become normalized positional markers. Assistant markers use easy input-message `input_text` parts; marked assistant history with an output-item ID is rejected because that schema cannot preserve the ID.
 
 ### Downstream event projection
 
@@ -194,19 +194,20 @@ When another Molto method selects `endpoint="responses"`, the Responses client p
 
 The Responses client maps normalized input as follows:
 
-| Normalized value    | Responses request                                                    |
-| ------------------- | -------------------------------------------------------------------- |
-| Instruction         | `developer` message at the same normalized sequence position         |
-| User input          | One `user` message with ordered `input_text` and `input_image` parts |
-| Raw reasoning       | Completed `reasoning` item with `reasoning_text` content             |
-| Reasoning summary   | Completed `reasoning` item with summary and encrypted state          |
-| Assistant text      | Completed assistant `message` with one `output_text` part            |
-| Function call       | Completed `function_call` item                                       |
-| Function result     | `function_call_output` with ordered text and image parts             |
-| Output-token limit  | `max_output_tokens`                                                  |
-| Function definition | Responses function tool                                              |
-| Tool selection      | Responses `auto`, `none`, `required`, or named function choice       |
-| Prompt cache        | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
+| Normalized value         | Responses request                                                    |
+| ------------------------ | -------------------------------------------------------------------- |
+| Instruction              | `developer` message at the same normalized sequence position         |
+| User input               | One `user` message with ordered `input_text` and `input_image` parts |
+| Raw reasoning            | Completed `reasoning` item with `reasoning_text` content             |
+| Reasoning summary        | Completed `reasoning` item with summary and encrypted state          |
+| Assistant text           | Completed assistant `message` with one `output_text` part            |
+| Function call            | Completed `function_call` item                                       |
+| Function result          | `function_call_output` with ordered text and image parts             |
+| Output-token limit       | `max_output_tokens`                                                  |
+| Function definition      | Responses function tool                                              |
+| Tool selection           | Responses `auto`, `none`, `required`, or named function choice       |
+| Prompt cache             | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
+| Content cache breakpoint | `prompt_cache_breakpoint` on supported text/image parts              |
 
 Every normalized instruction is emitted as `developer`; an original `system` role cannot be reconstructed. Each flat assistant text output becomes a separate assistant message, so one source assistant message with several parts may split into several Responses messages. Assistant `phase` remains omitted.
 
@@ -283,7 +284,9 @@ Hosted tools, custom-text tools, server tools, and failed tool-result semantics 
 
 ### Prompt caching
 
-Responses and Chat Completions spell their cache request fields identically, so `prompt_cache_key`, `prompt_cache_options`, and `prompt_cache_retention` normalize into one `PromptCache` value and reach a Chat upstream unchanged. A Messages upstream silently drops the caller-defined key, maps implicit mode to top-level automatic `cache_control`, and maps the `30m` minimum lifetime to `1h`. Without a lifetime it uses Anthropic's five-minute default. A key alone does not enable caching; explicit mode adds no automatic caching and its lifetime has no effect. Retention policies are rejected. Anthropic `5m` and `1h` lifetimes remain rejected when projecting to Responses. See [Prompt caching](../README.md#prompt-caching) for the shared policy, including the longer retention and higher cache-write pricing of the `1h` mapping.
+Responses and Chat Completions share `prompt_cache_key`, `prompt_cache_options`, and `prompt_cache_retention`. Both also normalize content-part `prompt_cache_breakpoint` into positional `CacheBreakpoint` values. Responses projects markers on system/developer text, user text/images, assistant text, and function-output text/images. Marked assistant history uses easy input-message `input_text` parts and cannot also carry an output-item ID.
+
+With markers present, omitted OpenAI mode resolves to `implicit` and omitted lifetime to `30m`. Messages maps that minimum to `1h` on marked blocks and top-level automatic caching; explicit mode suppresses only the top-level control. Without markers, implicit mode with no lifetime retains the Anthropic five-minute default. A key alone never enables Messages caching: the key is silently dropped, and retention policies are rejected. Explicit Anthropic `5m` and `1h` lifetimes remain rejected on Responses, while omitted block lifetimes use OpenAI's `30m` default. See [Prompt caching](../README.md#prompt-caching) for pricing, supported positions, and prefix-preservation limits.
 
 ### Usage, service tier, and termination
 
