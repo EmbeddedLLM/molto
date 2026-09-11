@@ -15,7 +15,9 @@ class CacheBreakpoint(StrictModel):
 
     ttl: Annotated[
         PromptCacheTtl | None,
-        Field(description="Minimum cache lifetime, overriding the request lifetime if set."),
+        Field(
+            description="Requested minimum cache lifetime, overriding the request lifetime if set."
+        ),
     ] = None
 
 
@@ -451,8 +453,9 @@ class PromptCache(StrictModel):
     optional and each target protocol projects only the subset it represents. Providers
     disagree on the vocabulary: `key` and `retention` exist solely on the OpenAI side,
     and the supported `ttl` values do not overlap between OpenAI (`30m`) and Anthropic
-    (`5m`, `1h`). Clients map minimum lifetimes under their documented policy or reject
-    them. Messages drops the caller key without enabling caching on its own.
+    (`5m`, `1h`). Clients map requested lifetimes under the documented cache policy:
+    OpenAI uses `30m` even for a requested `1h` minimum, while Messages rounds `30m`
+    up to `1h`. Messages drops the caller key without enabling caching on its own.
     """
 
     key: Annotated[
@@ -467,7 +470,9 @@ class PromptCache(StrictModel):
     ] = None
     ttl: Annotated[
         PromptCacheTtl | None,
-        Field(description="Minimum lifetime of a cached prefix."),
+        Field(
+            description="Requested minimum lifetime of a cached prefix; target mappings may approximate it."
+        ),
     ] = None
     retention: Annotated[
         PromptCacheRetention | None,

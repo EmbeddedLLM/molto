@@ -114,13 +114,10 @@ def _prompt_cache_fields(request: NormalizedRequest) -> dict[str, Any]:
         if cache.retention is not None:
             fields["prompt_cache_retention"] = cache.retention
         ttls.append(cache.ttl)
-    for ttl in ttls:
-        if ttl is None:
-            continue
-        if ttl != "30m":
-            raise UnsupportedInput(f"OpenAI protocols cannot represent prompt cache ttl {ttl!r}.")
-        # OpenAI exposes the breakpoint lifetime only at request level.
-        options["ttl"] = ttl
+    if any(ttl is not None for ttl in ttls):
+        # OpenAI only supports one request-wide TTL. This rounds 5m up and
+        # approximates 1h with a shorter minimum under the documented cache policy.
+        options["ttl"] = "30m"
     if options:
         fields["prompt_cache_options"] = options
     return fields

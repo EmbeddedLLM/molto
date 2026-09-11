@@ -1022,13 +1022,14 @@ def test_openai_clients_omit_unset_prompt_cache():
         assert not [field for field in body if field.startswith("prompt_cache")]
 
 
-@pytest.mark.parametrize("ttl", ["5m", "1h"])
-def test_openai_clients_reject_unsupported_prompt_cache_ttl(ttl):
+@pytest.mark.parametrize("ttl", ["5m", "30m", "1h"])
+def test_openai_clients_map_prompt_cache_ttl(ttl):
     request = NormalizedRequest(model="m", stream=True, prompt_cache=PromptCache(ttl=ttl))
 
     for client in (OpenAIResponsesClient, OpenAIChatCompletionsClient):
-        with pytest.raises(UnsupportedInput, match=f"cannot represent prompt cache ttl '{ttl}"):
-            client._request_body(request)
+        body = client._request_body(request)
+        assert body["prompt_cache_options"] == {"ttl": "30m"}
+        assert "prompt_cache_retention" not in body
 
 
 @pytest.mark.parametrize(
@@ -1115,7 +1116,7 @@ def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, 
 
 @pytest.mark.parametrize("client", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
 @pytest.mark.parametrize("ttl", ["30m", "5m", "1h"])
-def test_openai_clients_validate_breakpoint_lifetimes(client, ttl):
+def test_openai_clients_map_breakpoint_lifetimes(client, ttl):
     request = NormalizedRequest(
         model="m",
         prompt_cache=PromptCache(mode="explicit", key="turn-1"),
@@ -1126,13 +1127,10 @@ def test_openai_clients_validate_breakpoint_lifetimes(client, ttl):
         ],
     )
 
-    if ttl != "30m":
-        with pytest.raises(UnsupportedInput, match=f"cannot represent prompt cache ttl '{ttl}"):
-            client._request_body(request)
-    else:
-        body = client._request_body(request)
-        assert body["prompt_cache_options"] == {"mode": "explicit", "ttl": "30m"}
-        assert body["prompt_cache_key"] == "turn-1"
+    body = client._request_body(request)
+    assert body["prompt_cache_options"] == {"mode": "explicit", "ttl": "30m"}
+    assert body["prompt_cache_key"] == "turn-1"
+    assert "prompt_cache_retention" not in body
 
 
 def test_openai_clients_preserve_tool_text_cache_breakpoint():

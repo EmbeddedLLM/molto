@@ -15,7 +15,7 @@ Only streaming requests are currently supported.
 
 Three rules make this principle concrete:
 
-- Normalized requests are closed and lossless-or-rejected.
+- Normalized requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](#prompt-caching).
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
@@ -145,17 +145,17 @@ These guides describe **target parity requirements**: their tables state what a 
 
 Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
 
-| Class                | Required behavior                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.   |
-| Request-backed       | Retain a downstream request value when the target result contract must echo it.             |
-| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.      |
-| Translator-generated | Generate required target structure using a stable, internally consistent policy.            |
-| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations. |
-| Unsupported input    | Reject before translation, except for the item-ID and cache-key omissions documented below. |
-| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity. |
+| Class                | Required behavior                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.                        |
+| Request-backed       | Retain a downstream request value when the target result contract must echo it.                                  |
+| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.                           |
+| Translator-generated | Generate required target structure using a stable, internally consistent policy.                                 |
+| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations.                      |
+| Unsupported input    | Reject before translation, except for documented omissions and [cache-lifetime approximations](#prompt-caching). |
+| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.                      |
 
-Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped or explicitly rejected by the target client. There are two documented exceptions: Chat Completions and Messages may omit optional Responses output-item IDs, and Messages silently drops caller-defined prompt-cache keys because it computes cache identity implicitly. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
+Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped, handled under a documented exception, or explicitly rejected by the target client. The [input contract](#cross-protocol-contract) describes permitted omissions, and the [cache policy](#prompt-caching) describes lifetime approximations. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
 
 Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
@@ -230,7 +230,7 @@ Prompt caching changes cost and latency without changing model-visible content o
 | --- | --- | --- |
 | `PromptCache.key` | `prompt_cache_key` | Silently dropped |
 | `PromptCache.mode` | `prompt_cache_options.mode` | `implicit` enables top-level automatic `cache_control`; `explicit` caches only marked blocks |
-| `PromptCache.ttl` | `prompt_cache_options.ttl`, only `30m` | `30m` maps to `1h`; `5m` and `1h` pass through |
+| `PromptCache.ttl` | `5m`, `30m`, and `1h` map to request-wide `prompt_cache_options.ttl: "30m"` | `30m` maps to `1h`; `5m` and `1h` pass through |
 | `PromptCache.retention` | `prompt_cache_retention` | Rejected |
 | Content `cache_breakpoint` | `prompt_cache_breakpoint: {"mode": "explicit"}` | Block `cache_control: {"type": "ephemeral", "ttl": ...}` |
 
@@ -238,7 +238,11 @@ A key-only request or empty options object without markers does not enable Messa
 
 When an OpenAI request has any content marker, normalization resolves omitted mode to `implicit` and omitted lifetime to OpenAI's `30m` default. Messages therefore uses `1h` for both marked blocks and automatic caching, unless the caller selected explicit mode to disable the latter. An Anthropic request with only block markers normalizes to explicit mode; adding top-level `cache_control` selects implicit mode while retaining the blocks.
 
-OpenAI defines `30m` as a minimum lifetime, so Molto maps it to Anthropic `1h`. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not exact lifetime or pricing equivalence. In the reverse direction, explicit Anthropic `5m` and `1h` lifetimes, including block lifetimes, are rejected by OpenAI clients. An omitted Anthropic block lifetime remains unspecified and uses OpenAI's `30m` default on projection; this deliberately accepts a different provider default instead of inventing an explicit five-minute requirement. See the [OpenAI field reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+OpenAI defines `30m` as a minimum lifetime, so Molto maps it to Anthropic `1h`. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not exact lifetime or pricing equivalence. See [OpenAI cache lifetime](https://developers.openai.com/api/docs/guides/prompt-caching#cache-lifetime) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+In the reverse direction, OpenAI supports only `30m` in `prompt_cache_options.ttl`. Molto maps every explicit normalized request or block lifetime (`5m`, `30m`, or `1h`) to that request-wide value. This rounds `5m` up but approximates `1h` with a shorter minimum: an OpenAI target does not guarantee the requested hour. Mixed block lifetimes collapse to one `30m` value for automatic caching and all explicit breakpoints, while mode and marker positions remain intact. This is a documented exception to the lossless-or-rejected input contract. Molto does not synthesize `prompt_cache_retention: "24h"`: retention is a separate maximum policy and does not establish a one-hour minimum.
+
+An omitted Anthropic lifetime remains unspecified unless another request or block lifetime supplies the shared OpenAI TTL; otherwise OpenAI's `30m` default applies. Molto does not invent an explicit five-minute requirement from Anthropic's default. Native passthrough retains the original provider lifetimes.
 
 Supported marker positions are system/developer text, user text/images, assistant text, and nested tool-result text/images. Chat tool messages support only text. Translation rejects markers that cannot retain their prefix:
 

@@ -6,7 +6,7 @@ A Python library for translating between LLM API protocols without giving up nat
 
 - **Any protocol to any protocol.** Accept any supported downstream LLM protocol and translate it to any supported upstream LLM protocol through a provider-neutral representation.
 - **Native when no translation is needed.** When the downstream and upstream protocols match, Molto bypasses translation via normalized representation and acts as a thin wrapper around the corresponding native SDK. Requests are still subject to Molto's validated public contract, while returned events remain native SDK classes and objects.
-- **Strict inputs, lenient outputs.** Cross-protocol requests are closed and lossless-or-rejected, while normalized outputs tolerate provider extensions. Retaining unknown output data does not authorize projecting it into another protocol.
+- **Strict inputs, lenient outputs.** Cross-protocol requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](docs/README.md#prompt-caching), while normalized outputs tolerate provider extensions. Retaining unknown output data does not authorize projecting it into another protocol.
 
 Start with the [Molto documentation](docs/README.md) for protocol guides, translation guarantees, and current support. See [Molto Architecture](python/ARCHITECTURE.md) for the internal translation and native-passthrough design.
 
