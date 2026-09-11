@@ -603,4 +603,3 @@ class AnthropicMessagesAdapter(
                 response=error.response,
                 body=error.body,
             ) from error
-        raise error

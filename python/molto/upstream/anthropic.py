@@ -313,9 +313,14 @@ class AnthropicMessagesClient(
     ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
         try:
             sdk_client = self._make_anthropic_client()
-            stream = await sdk_client.messages.create(**request.model_dump())
+            stream = await sdk_client.messages.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Messages request did not return a stream.")
+            self._capture_response_headers(stream.response.headers)
             async with stream:
                 async for event in stream:
                     yield event

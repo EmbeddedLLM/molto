@@ -11,10 +11,11 @@ The library already provides:
 - `Molto.responses()` with upstream protocol, provider, base URL, and API-key selection.
 - Streaming text, function calls and results, supported images, and reasoning history under the [Responses translation contract](../protocols/openai-responses.md).
 - Prompt-cache options and supported content breakpoints under the [shared prompt-cache policy](../README.md#prompt-caching).
-- Acceptance of `include=["reasoning.encrypted_content"]` on translated routes, with supported reasoning signatures preserved independently of that include hint.
-- First-event prefetching, so setup failures surface when awaiting the coordinator, and an upstream stream that can be closed explicitly.
+- Acceptance of `store=false` and `include=["reasoning.encrypted_content"]` as documented no-ops on translated routes, with supported reasoning signatures preserved independently of the include hint.
+- Request-scoped `extra_body` and `extra_headers` arguments on every coordinator, with credential and transport-header filtering before upstream forwarding.
+- First-event prefetching, so setup failures surface when awaiting the coordinator, and a `MoltoStream` that exposes successful upstream `response_headers` before consumption and can be closed explicitly.
 
-Several prerequisites are still missing. Translated requests currently reject `store=false`. The public coordinator has no `extra_body` or `extra_headers` arguments, and returned streams do not expose upstream response headers. These require deliberate library contracts before the server can rely on them; proposed interfaces below are not available APIs.
+The remaining work is the server boundary: Codex compatibility validation, model routing, request policy, downstream header filtering, HTTP streaming, and lifecycle handling. The transport APIs above are available library foundations; the server interfaces below remain proposed.
 
 Current behavior remains documented in the [protocol guides](../README.md#choose-a-protocol), [Python architecture](../../python/ARCHITECTURE.md), and [Python conventions](../../python/CONVENTIONS.md).
 
@@ -79,13 +80,13 @@ Serve the Codex-specific `{ "models": [...] }` representation, accept `client_ve
 
 Completion criteria: catalog validation, model alias routing, public/private separation, external overrides, and installed-wheel resource loading all have tests.
 
-## Milestone 3: complete the request and transport contracts
+## Milestone 3: implement server request and transport policies
 
 ### Responses fields and extensions
 
-Accept `store=false` as a documented no-op on translated routes while continuing to reject `store=true`. The stateless server should reject requests that require stored Responses state on every route. Preserve the existing handling of `include=["reasoning.encrypted_content"]`.
+Reuse the library's acceptance of `store=false` and `include=["reasoning.encrypted_content"]` on translated routes. The stateless server should reject requests that require stored Responses state on every route, including native Responses routes that the library otherwise passes through.
 
-Extract Codex `client_metadata` before strict request validation. Define a narrow extension mechanism, potentially an `extra_body` argument, that can forward it only to a native Responses upstream known to accept it. On translated routes, discard it or retain bounded tracing fields under a documented policy. Avoid logging the full metadata because it can contain workspace and tool context. Merge compatible extension fields without allowing them to override validated routing or request policy.
+Extract Codex `client_metadata` before strict request validation. Use the coordinator's `extra_body` argument to forward it only to a native Responses upstream known to accept it. On translated routes, discard it or retain bounded tracing fields under a documented policy. Avoid logging the full metadata because it can contain workspace and tool context. The server must restrict extension fields so they cannot override validated routing or request policy; `extra_body` bypasses normalization and is merged by the upstream SDK.
 
 Define mapping or rejection rules for optional `service_tier` and `text` settings before exposing related catalog capabilities. Unsupported fields should produce actionable errors.
 
@@ -107,11 +108,11 @@ Supported content-part `prompt_cache_breakpoint` values already map to Anthropic
 
 ### Headers and credentials
 
-Add a tested request-header forwarding contract, potentially `extra_headers`, that removes client credentials, account selectors, hop-by-hop fields, request framing, and proxy topology headers before the upstream SDK call. Preserve supported Codex operational headers only under an explicit forwarding policy. Upstream credentials must come from the selected route; optional inbound bearer authentication belongs at the server boundary.
+Use the coordinator's `extra_headers` argument and existing filtering of client credentials, account selectors, hop-by-hop fields, request framing, and proxy topology headers. Define which Codex operational headers the server forwards. Upstream credentials must come from the selected route; optional inbound bearer authentication belongs at the server boundary.
 
-Expose upstream response headers before the first downstream event is sent. The server needs filtered access to request IDs, `x-codex-turn-state`, model and catalog metadata, supported rate-limit and safety-buffering headers, and retry information on failures. Do not copy `content-length`, `content-encoding`, `transfer-encoding`, or hop-by-hop headers after re-streaming the body. Passing turn-state headers in both directions should not require Molto-owned conversation state.
+Read successful upstream headers from `MoltoStream.response_headers` before the first downstream event is sent, and failure headers from the SDK exception's response. The server must filter request IDs, `x-codex-turn-state`, model and catalog metadata, supported rate-limit and safety-buffering headers, and retry information for forwarding. Do not copy `content-length`, `content-encoding`, `transfer-encoding`, or hop-by-hop headers after re-streaming the body; Molto preserves response headers without this downstream filtering. Passing turn-state headers in both directions should not require Molto-owned conversation state.
 
-Completion criteria: SDK-backed tests cover the accepted Responses fields, native-only extensions, credential isolation, request-header filtering, and response-header availability before stream consumption. Cache-policy tests cover caller intent, route defaults, forbidden caching, key-only requests, and explicit markers.
+Completion criteria: server tests build on the library's SDK-backed transport coverage to verify accepted Responses fields, native-only extension policy, credential isolation, operational-header forwarding, and downstream response-header filtering. Cache-policy tests cover caller intent, route defaults, forbidden caching, key-only requests, and explicit markers.
 
 ## Milestone 4: implement HTTP streaming and lifecycle handling
 

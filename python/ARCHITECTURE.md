@@ -68,7 +68,7 @@ Cross-protocol translation follows one governing principle: Molto is strict duri
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-Two documented exceptions allow omission at the target boundary: optional Responses output-item IDs may be omitted by Chat Completions and Messages, and caller-defined prompt-cache keys are silently dropped by Messages because Anthropic computes cache identity implicitly. Dropping a cache key does not enable caching; the remaining cache options are processed independently. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+Documented exceptions allow omission at protocol boundaries. Chat Completions and Messages may omit optional Responses output-item IDs because they have no equivalent and do not affect model behavior. Messages silently drops caller-defined prompt-cache keys because Anthropic computes cache identity implicitly; dropping a key does not enable caching, and remaining cache options are processed independently. Translated Responses routes may ignore `include=["reasoning.encrypted_content"]` because Molto already preserves any encrypted reasoning present in the response, and `store=false` because it requests no provider-side state; `store=true` remains unsupported. Native passthrough forwards these fields unchanged. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
 Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
 
@@ -180,6 +180,10 @@ Each implemented coordinator performs the following work:
 4. Resolve the API key and injected or default HTTP client.
 5. Select the upstream path from `endpoint`.
 6. Return an async iterator of the same downstream protocol's SDK event models.
+
+Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
+
+The returned `MoltoStream` exposes a copy of the successful upstream response headers as `response_headers`. Coordinator prefetching opens the SDK stream and captures those headers before returning, including on translated routes. Molto retains all response headers; an HTTP server using Molto remains responsible for filtering connection-specific and framing headers before constructing its downstream response.
 
 Each coordinator deliberately chooses between a native and translated pipeline. This is a downstream protocol decision, not logic that belongs in an adapter or transport client.
 
