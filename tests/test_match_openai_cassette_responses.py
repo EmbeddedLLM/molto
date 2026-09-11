@@ -57,6 +57,33 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> Non
     assert chat == matched
 
 
+@pytest.mark.parametrize("details_state", ["missing", "null"])
+@pytest.mark.parametrize("token_count", [0, 3])
+def test_populates_optional_usage_details(details_state: str, token_count: int) -> None:
+    chat, responses = _cassettes()
+    chat_usage = chat["response"]["body"]["usage"]
+    for field in ("prompt_tokens_details", "completion_tokens_details"):
+        if details_state == "missing":
+            chat_usage.pop(field)
+        else:
+            chat_usage[field] = None
+    response_usage = responses["response"]["body"]["usage"]
+    response_usage["input_tokens_details"] = {
+        "cache_write_tokens": token_count,
+        "cached_tokens": token_count,
+    }
+    response_usage["output_tokens_details"] = {"reasoning_tokens": token_count}
+
+    match_chat_completions_response(chat, responses)
+
+    assert chat_usage["prompt_tokens_details"] == {
+        "cache_write_tokens": token_count,
+        "cached_tokens": token_count,
+    }
+    assert chat_usage["completion_tokens_details"] == {"reasoning_tokens": token_count}
+    OpenAIChatCompletionsResponse.model_validate(chat["response"]["body"])
+
+
 def test_matches_reasoning_tools_usage_and_finish_reason() -> None:
     chat, responses = _cassettes()
     responses["request"]["body"]["input"] = [
@@ -111,6 +138,8 @@ def test_matches_reasoning_tools_usage_and_finish_reason() -> None:
     }
     chat_usage = chat["response"]["body"]["usage"]
     chat_usage["prompt_tokens_details"]["cache_write_tokens"] = 0
+    chat_usage["prompt_tokens_details"]["audio_tokens"] = 1
+    chat_usage["completion_tokens_details"]["audio_tokens"] = 2
 
     match_chat_completions_response(chat, responses)
 
@@ -133,6 +162,8 @@ def test_matches_reasoning_tools_usage_and_finish_reason() -> None:
     assert chat_usage["prompt_tokens_details"]["cache_write_tokens"] == 2
     assert chat_usage["prompt_tokens_details"]["cached_tokens"] == 3
     assert chat_usage["completion_tokens_details"]["reasoning_tokens"] == 4
+    assert chat_usage["prompt_tokens_details"]["audio_tokens"] == 1
+    assert chat_usage["completion_tokens_details"]["audio_tokens"] == 2
     assert chat["request"]["body"]["messages"] == [
         {
             "content": [{"text": "Check Paris.", "type": "text"}],

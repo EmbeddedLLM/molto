@@ -184,16 +184,21 @@ def _map_usage(response_usage: dict[str, Any], chat_usage: dict[str, Any]) -> No
     chat_usage["total_tokens"] = response_usage["total_tokens"]
 
     input_details = response_usage.get("input_tokens_details") or {}
-    prompt_details = chat_usage.get("prompt_tokens_details")
-    if isinstance(prompt_details, dict):
-        for field in ("cache_write_tokens", "cached_tokens"):
-            if field in input_details:
-                prompt_details[field] = input_details[field]
+    prompt_details = {
+        field: input_details[field]
+        for field in ("cache_write_tokens", "cached_tokens")
+        if field in input_details
+    }
+    if prompt_details:
+        chat_usage["prompt_tokens_details"] = (
+            chat_usage.get("prompt_tokens_details") or {}
+        ) | prompt_details
 
     output_details = response_usage.get("output_tokens_details") or {}
-    completion_details = chat_usage.get("completion_tokens_details")
-    if isinstance(completion_details, dict) and "reasoning_tokens" in output_details:
-        completion_details["reasoning_tokens"] = output_details["reasoning_tokens"]
+    if "reasoning_tokens" in output_details:
+        chat_usage["completion_tokens_details"] = (
+            chat_usage.get("completion_tokens_details") or {}
+        ) | {"reasoning_tokens": output_details["reasoning_tokens"]}
 
 
 def _response_body(cassette: dict[str, Any]) -> dict[str, Any]:
