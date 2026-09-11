@@ -353,6 +353,10 @@ The protocol-specific contracts are:
 - [Anthropic Messages](protocols/anthropic-messages.md)
 - [Cross-protocol comparison](protocols/comparison.md)
 
+## Future work
+
+The [Codex server roadmap](roadmap/codex-server.md) describes a proposed stateless HTTP Responses server, its library prerequisites, and the milestones required for Codex CLI compatibility. The server is not yet implemented.
+
 ## Primary references
 
 - [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses)
