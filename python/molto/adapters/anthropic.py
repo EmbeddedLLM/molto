@@ -14,10 +14,12 @@ from anthropic import APIStatusError as AnthropicAPIStatusError
 from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import NotFoundError as AnthropicNotFoundError
 from httpx import Response
+from pydantic_core import from_json
 
 from molto.adapters.base import BaseAdapter
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
@@ -123,9 +125,114 @@ def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
 
 
 class AnthropicMessagesAdapter(
-    BaseAdapter[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
+    BaseAdapter[
+        AnthropicMessagesCreateRequest,
+        AnthropicMessagesStreamEvent,
+        AnthropicMessagesResponse,
+    ]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    async def _project_response(
+        self,
+        events: AsyncIterator[AnthropicMessagesStreamEvent],
+        request: NormalizedRequest,
+    ) -> AnthropicMessagesResponse:
+        message: AnthropicMessagesResponse | None = None
+        open_blocks: set[int] = set()
+        tool_input_deltas: dict[int, list[str]] = {}
+        received_message_delta = False
+        received_message_stop = False
+
+        async for event in events:
+            if event.type == "message_start":
+                if message is not None:
+                    raise ValueError("Received more than one Anthropic message start.")
+                message = event.message.model_copy(deep=True)
+                continue
+
+            if message is None:
+                raise ValueError(f"Received {event.type} before the Anthropic message start.")
+
+            if event.type == "content_block_start":
+                if event.index != len(message.content):
+                    raise ValueError(
+                        "Anthropic content blocks must start in contiguous index order."
+                    )
+                message.content.append(event.content_block.model_copy(deep=True))
+                open_blocks.add(event.index)
+            elif event.type == "content_block_delta":
+                if event.index not in open_blocks:
+                    raise ValueError("Received an Anthropic content delta outside an open block.")
+                content_block = message.content[event.index]
+                if event.delta.type == "text_delta":
+                    if content_block.type != "text":
+                        raise ValueError("Received an Anthropic text delta for a non-text block.")
+                    content_block.text += event.delta.text
+                elif event.delta.type == "thinking_delta":
+                    if content_block.type != "thinking":
+                        raise ValueError(
+                            "Received an Anthropic thinking delta for a non-thinking block."
+                        )
+                    content_block.thinking += event.delta.thinking
+                elif event.delta.type == "signature_delta":
+                    if content_block.type != "thinking":
+                        raise ValueError(
+                            "Received an Anthropic signature delta for a non-thinking block."
+                        )
+                    content_block.signature = event.delta.signature
+                elif event.delta.type == "input_json_delta":
+                    if content_block.type != "tool_use":
+                        raise ValueError(
+                            "Received an Anthropic tool-input delta for a non-tool block."
+                        )
+                    tool_input_deltas.setdefault(event.index, []).append(event.delta.partial_json)
+                elif event.delta.type == "citations_delta":
+                    if content_block.type != "text":
+                        raise ValueError(
+                            "Received an Anthropic citation delta for a non-text block."
+                        )
+                    if content_block.citations is None:
+                        content_block.citations = []
+                    content_block.citations.append(event.delta.citation)
+            elif event.type == "content_block_stop":
+                if event.index not in open_blocks:
+                    raise ValueError("Received an Anthropic content stop outside an open block.")
+                content_block = message.content[event.index]
+                if event.index in tool_input_deltas:
+                    raw_input = "".join(tool_input_deltas.pop(event.index))
+                    if raw_input:
+                        # Match SDK accumulation when a token limit truncates tool arguments.
+                        tool_input = from_json(raw_input, allow_partial=True)
+                        if not isinstance(tool_input, dict):
+                            raise ValueError("Anthropic tool input must be a JSON object.")
+                        if content_block.type != "tool_use":
+                            raise ValueError("Received Anthropic tool input for a non-tool block.")
+                        content_block.input = tool_input
+                open_blocks.remove(event.index)
+            elif event.type == "message_delta":
+                if open_blocks:
+                    raise ValueError(
+                        "Received an Anthropic message delta before all blocks ended."
+                    )
+                message.stop_reason = event.delta.stop_reason
+                message.stop_sequence = event.delta.stop_sequence
+                if event.delta.stop_details is not None:
+                    message.stop_details = event.delta.stop_details
+                for field_name, value in event.usage:
+                    if value is not None:
+                        setattr(message.usage, field_name, value)
+                received_message_delta = True
+            elif event.type == "message_stop":
+                if open_blocks:
+                    raise ValueError("Received an Anthropic message stop before all blocks ended.")
+                if not received_message_delta:
+                    raise ValueError("Received an Anthropic message stop before its final delta.")
+                received_message_stop = True
+
+        if message is None or not received_message_stop:
+            raise ValueError("Anthropic event stream ended before the message stop event.")
+        return message
 
     @staticmethod
     def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
@@ -318,8 +425,6 @@ class AnthropicMessagesAdapter(
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
-        del request
-
         def event(data: dict[str, Any]) -> AnthropicMessagesStreamEvent:
             return AnthropicMessagesStreamEventAdapter.validate_python(data)
 

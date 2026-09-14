@@ -100,12 +100,12 @@ The detailed contracts are documented in:
 - the [Responses fidelity contract](../../docs/protocols/openai-responses.md#fidelity) and [Chat Completions fidelity contract](../../docs/protocols/openai-chat-completions.md#fidelity); and
 - the [Anthropic Messages opaque thinking policy](../../docs/protocols/anthropic-messages.md#opaque-thinking-state), including the encrypted-reasoning lifecycle policy.
 
-Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` for deterministic alignment. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
+Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` to align streaming SSE fixtures. Use `scripts/match_openai_cassette_responses.py` and `scripts/match_anthropic_cassette_responses.py` to align non-streaming JSON response fixtures. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
 
 Relevant test entry points and canonicalization helpers:
 
 - `python/molto/utils/test.py` defines the deterministic comparison helpers `reconstructable_responses_event`, `reconstructable_chat_completions_chunks`, and `reconstructable_anthropic_event`;
-- `tests/test_match_openai_cassette_events.py` and `tests/test_match_anthropic_cassette_events.py` verify the matcher scripts against committed cassettes; and
+- `tests/test_match_openai_cassette_events.py`, `tests/test_match_anthropic_cassette_events.py`, `tests/test_match_openai_cassette_responses.py`, and `tests/test_match_anthropic_cassette_responses.py` verify the matcher scripts against committed cassettes; and
 - `tests/utils/test_test_utils.py` covers the canonicalization helpers themselves.
 
 When a matcher changes an SSE payload discriminator, update the corresponding `event:` header as part of the same change. Keep JSON key order and whitespace stable unless the changed value requires reserialization; this keeps fixture diffs focused on intentional semantic alignment.

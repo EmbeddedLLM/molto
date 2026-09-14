@@ -1,6 +1,6 @@
 # OpenAI Responses
 
-Use `Molto.responses()` when your application speaks the OpenAI Responses protocol. Molto always returns OpenAI SDK Responses events from this method, whether the provider exposes Responses, Chat Completions, or Anthropic Messages.
+Use `Molto.responses()` when your application speaks the OpenAI Responses protocol. Molto returns OpenAI SDK Responses events for a streaming request and an OpenAI SDK `Response` for a non-streaming request, whether the provider exposes Responses, Chat Completions, or Anthropic Messages.
 
 This guide describes the Responses wire contract and both directions of translation. For routing, shared parity rules, and provider capability policy, start with the [documentation overview](../README.md).
 
@@ -13,7 +13,8 @@ This guide describes the Responses wire contract and both directions of translat
 | Default upstream provider | `openai`                                |
 | Validated request         | `OpenAIResponsesCreateRequest`          |
 | Stream items returned     | OpenAI SDK `ResponseStreamEvent` models |
-| Implemented mode          | Streaming only; `stream` must be `true` |
+| Non-stream response       | OpenAI SDK `Response`                   |
+| Implemented modes         | Streaming and non-streaming             |
 | Other upstream endpoints  | `chat/completions`, `messages`          |
 
 `endpoint` selects the upstream wire protocol, `provider` selects the serving implementation and capability profile, and `base_url` selects only the HTTP destination. Molto never infers provider behavior from a URL.
@@ -76,6 +77,8 @@ async with Molto() as molto:
 
 Use `endpoint="chat/completions"` for a Chat Completions upstream. Context-manage both `Molto` and the returned stream so early termination releases the HTTP response. If context managers are impractical, call `await stream.aclose()` and then `await molto.aclose()` in `finally` blocks.
 
+For a non-streaming result, set `stream=False` or omit it and await the same method normally. A native route returns the provider's SDK `Response` directly. A translated route still executes the upstream streaming path internally, projects OpenAI Responses events, and returns the inner `Response` from its terminal event.
+
 ## Native wire contract
 
 ### Requests and conversation history
@@ -109,12 +112,12 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 
 `Molto.responses(endpoint="responses")` performs these operations:
 
-- validates the body as `OpenAIResponsesCreateRequest`.
-- rejects a request unless `stream is True`.
-- delegates request serialization, authentication, HTTP, retries, SSE parsing, and OpenAI exception construction to `AsyncOpenAI.responses.create()`.
-- yields the SDK's `ResponseStreamEvent` models directly.
+- validates the body as `OpenAIResponsesCreateRequest`;
+- delegates request serialization, authentication, HTTP, retries, response parsing, and OpenAI exception construction to `AsyncOpenAI.responses.create()`;
+- yields the SDK's `ResponseStreamEvent` models directly when streaming; and
+- returns the SDK's `Response` directly when non-streaming.
 
-The stream does not cross the normalized representation and retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier. Passthrough is validated SDK transport, not an untyped HTTP proxy. Errors follow the [shared policy](../errors.md).
+Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. Passthrough is validated SDK transport, not an untyped HTTP proxy. Errors follow the [shared policy](../errors.md).
 
 Native passthrough forwards `include` and `store` unchanged. Their behavior-neutral treatment described below applies only when Responses is translated to Chat Completions or Messages.
 
@@ -136,6 +139,8 @@ Normalized event stream
       v
 Responses lifecycle and SDK events
 ```
+
+For a translated non-streaming request, this projected Responses event stream is passed to `OpenAIResponsesAdapter.project_response()` rather than returned to the application. The upstream request still runs in streaming mode, so both translated result modes share the same normalized events and Responses projection.
 
 ### Downstream request normalization
 
@@ -187,6 +192,12 @@ The source of metadata depends on the upstream endpoint:
 | Exact completion time | Unavailable and omitted                      | Unavailable and omitted                      |
 
 Generated values are valid target structure, not recovered server state. In particular, a Chat tool-call ID maps to Responses `call_id`; it is never reused as the enclosing function-call item's ID. That output-item ID is independent and may need to be generated.
+
+### Downstream non-streaming response projection
+
+`OpenAIResponsesAdapter.project_response()` consumes the already projected Responses SDK events. A terminal `response.completed` and `response.incomplete` event each carry the full response object in their `response` field; the projector returns that inner SDK `Response` unchanged. A projected stream that ends without either terminal event cannot produce a valid non-streaming response and is rejected.
+
+The response projector does not reconstruct output items from normalized events. The terminal event produced by `project_events()` remains the source of truth, so streaming and non-streaming Responses results share IDs, output ordering, status, incomplete details, usage, and request-backed envelope fields.
 
 ## When the provider exposes Responses
 
@@ -355,7 +366,6 @@ A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the c
 
 The following are implementation gaps, not general claims that the source data cannot exist:
 
-- non-streaming collection;
 - multiple Chat Completions choices; the current translated client reads only `choices[0]`;
 - summarized reasoning through Chat Completions; Chat has no signature slot, so current translation fails in either direction rather than discarding required continuation state;
 - refusals as content, hosted and server tools, failed tool-result semantics, redacted thinking, citations, annotations, moderation, and other multimodal output;

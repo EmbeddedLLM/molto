@@ -56,4 +56,4 @@ The upstream client constructs the intended request using its effective base URL
 
 ## Implementation and verification
 
-See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Non-streaming error-handler coverage is deferred.
+See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Coverage includes streaming and non-streaming requests across native and translated routes, comparing provider SDK errors and their normalized cause chains. Translated non-streaming requests also exercise errors raised while consuming the upstream stream. Missing-credential tests cover both result modes and assert that no HTTP request is sent.
