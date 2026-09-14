@@ -529,8 +529,13 @@ async def test_chat_response_projection_accumulates_projected_chunks() -> None:
     [tool_call] = choice.message.tool_calls
     assert tool_call.model_dump() == {
         "id": "call_weather",
-        "function": {"arguments": '{"city":"Paris"}', "name": "weather"},
+        "function": {
+            "arguments": '{"city":"Paris"}',
+            "name": "weather",
+            "parsed_arguments": None,
+        },
         "type": "function",
+        "index": 0,
     }
     assert response.usage is not None
     assert response.usage.prompt_tokens == 8
