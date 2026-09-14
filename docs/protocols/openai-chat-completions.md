@@ -142,7 +142,7 @@ The terminal chunk contains the projected `finish_reason` and semantic usage. Mo
 
 ### Projection to a non-streaming Chat completion
 
-`OpenAIChatCompletionsAdapter.project_response()` consumes the already projected `ChatCompletionChunk` stream through the OpenAI SDK's stream accumulator. It folds choice-zero reasoning and content deltas into one assistant message, groups tool-call fragments by their projected indexes, concatenates each call's JSON argument fragments, and applies the terminal finish reason and usage. It preserves projected top-level metadata, removes parser-only streaming snapshot fields, and validates one SDK `ChatCompletion` with one completed choice. A stream without a finish reason cannot produce a complete response and is rejected.
+`OpenAIChatCompletionsAdapter.project_response()` consumes the already projected `ChatCompletionChunk` stream through the OpenAI SDK's stream accumulator. It folds choice-zero reasoning and content deltas into one assistant message, groups tool-call fragments by their projected indexes, concatenates each call's JSON argument fragments, and applies the terminal finish reason and usage. It preserves projected top-level metadata and validates the dumped snapshot as one SDK `ChatCompletion` with one completed choice, without excluding parser-only or streaming-only fields. A stream without a finish reason cannot produce a complete response and is rejected.
 
 The accumulator does not consume normalized events directly. Because it uses the output of `project_events()`, the non-streaming completion retains the same projected response metadata, target-default service tier, content, reasoning, tool calls, finish mapping, and semantic usage as the streaming route.
 

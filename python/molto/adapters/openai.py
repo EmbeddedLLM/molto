@@ -888,26 +888,7 @@ class OpenAIChatCompletionsAdapter(
         if not finished:
             raise ValueError("Chat Completions event stream ended without a finish reason.")
 
-        # The SDK accumulator uses parsed snapshot models and retains streaming-only
-        # tool indices. Strip those fields before validating the native non-streaming
-        # response model.
-        data = state.current_completion_snapshot.model_dump(
-            exclude={
-                "choices": {
-                    "__all__": {
-                        "message": {
-                            "parsed": True,
-                            "tool_calls": {
-                                "__all__": {
-                                    "index": True,
-                                    "function": {"parsed_arguments": True},
-                                }
-                            },
-                        }
-                    }
-                }
-            }
-        )
+        data = state.current_completion_snapshot.model_dump()
         for choice in data["choices"]:
             choice["message"]["role"] = "assistant"
         return OpenAIChatCompletionsResponse.model_validate(data)
