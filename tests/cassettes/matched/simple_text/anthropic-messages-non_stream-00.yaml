@@ -1,0 +1,51 @@
+filename: 2026-08-26-01a03d4c-33bc-7e00-8794-3935c3c6c095
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
+      role: user
+    model: gpt-4.1-nano
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '179'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a03d4c-33bc-7e00-8794-3935c3c6c095
+response:
+  body:
+    content:
+    - text: The ocean is a vast, mysterious body of water that covers most of the
+        Earth's surface.
+      type: text
+    id: resp_0dd4c16a990b6f72006a8eab094a8487d1b5a58e2a499c6bbc
+    model: gpt-4.1-nano-2025-04-14
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      inference_geo: global
+      input_tokens: 15
+      output_tokens: 19
+      output_tokens_details:
+        thinking_tokens: 0
+      service_tier: standard
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-08-26T08:59:59.292391+00:00'

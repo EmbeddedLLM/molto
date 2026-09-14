@@ -4,21 +4,22 @@ Anthropic Messages is both a public protocol that applications can use with Molt
 
 ## At a glance
 
-| Concern           | Anthropic Messages in Molto                   |
-| ----------------- | --------------------------------------------- |
-| Public method     | `Molto.messages()`                            |
-| Upstream endpoint | `endpoint="messages"`                         |
-| Default provider  | `anthropic`                                   |
-| Request model     | `AnthropicMessagesCreateRequest`              |
-| Stream result     | Anthropic SDK `RawMessageStreamEvent` objects |
-| Native transport  | `AsyncAnthropic.messages.create()`            |
-| Supported mode    | Streaming only; `stream` must be `true`       |
+| Concern             | Anthropic Messages in Molto                   |
+| ------------------- | --------------------------------------------- |
+| Public method       | `Molto.messages()`                            |
+| Upstream endpoint   | `endpoint="messages"`                         |
+| Default provider    | `anthropic`                                   |
+| Request model       | `AnthropicMessagesCreateRequest`              |
+| Stream result       | Anthropic SDK `RawMessageStreamEvent` objects |
+| Non-stream response | Anthropic SDK `Message`                       |
+| Native transport    | `AsyncAnthropic.messages.create()`            |
+| Supported modes     | Streaming and non-streaming                   |
 
-The method always accepts an Anthropic Messages request and streams Anthropic Messages events back to the application. `endpoint` selects the upstream wire protocol independently of `provider` and `base_url`.
+The method always accepts an Anthropic Messages request. It returns Anthropic Messages events for a streaming request and an Anthropic SDK `Message` for a non-streaming request. `endpoint` selects the upstream wire protocol independently of `provider` and `base_url`.
 
 ## When to use this protocol
 
-Use `Molto.messages()` when the application already speaks Anthropic Messages or depends on Anthropic SDK stream event types. The upstream can still be an Anthropic Messages, OpenAI Responses, or OpenAI Chat Completions endpoint.
+Use `Molto.messages()` when the application already speaks Anthropic Messages or depends on Anthropic SDK event and response types. The upstream can still be an Anthropic Messages, OpenAI Responses, or OpenAI Chat Completions endpoint.
 
 Use `endpoint="messages"` from any Molto protocol method when the provider exposes the Messages wire format. When the method is also `messages()`, Molto uses native passthrough. Otherwise it translates through Molto's normalized representation.
 
@@ -54,6 +55,8 @@ asyncio.run(main())
 ```
 
 The returned stream is an async context manager. If it is not used with `async with`, close the stream with `await stream.aclose()` and close Molto with `await molto.aclose()`.
+
+For a non-streaming result, set `stream=False` or omit it and await the same method normally. A native route returns the provider's SDK `Message` directly. A translated route runs the selected upstream protocol as a stream internally, projects Anthropic message events, and accumulates them into the returned `Message`.
 
 ### Application speaks Messages, provider speaks Responses
 
@@ -140,13 +143,13 @@ The native stream may start a block with content already present in the `content
 
 ## Native passthrough
 
-`Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest`, calls `AsyncAnthropic.messages.create()`, and yields the Anthropic SDK's native stream events directly. It does not route the request or events through Molto's normalized representation.
+`Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest` and calls `AsyncAnthropic.messages.create()`. It yields the Anthropic SDK's native events directly for a streaming request and returns the SDK's native `Message` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
-This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. It also preserves native Anthropic exception types; a recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). The request is still a validated, streaming-only Molto request rather than an untyped HTTP proxy.
+This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. It also preserves native Anthropic exception types; a recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). The request is still validated rather than passed through as an untyped HTTP proxy.
 
 ## When the application speaks Messages
 
-When `Molto.messages()` targets `responses` or `chat/completions`, the `AnthropicMessagesAdapter` converts the Messages request to normalized content and projects the upstream normalized event stream back into Anthropic SDK events.
+When `Molto.messages()` targets `responses` or `chat/completions`, the `AnthropicMessagesAdapter` converts the Messages request to normalized content and projects the upstream normalized event stream back into Anthropic SDK events. For a translated non-streaming request, those projected events are consumed by `AnthropicMessagesAdapter.project_response()` instead of being returned to the application. The upstream call still runs in streaming mode, so both translated result modes share the same normalized and projected events.
 
 ### Request normalization
 
@@ -177,6 +180,12 @@ The adapter projects normalized events as one Anthropic message with indexed con
 - A response end produces `message_delta` with authoritative terminal usage and stop information, followed by `message_stop`.
 
 Translated output never synthesizes `ping`. Translated `tool_use` blocks use the target default `caller: {type: direct}` because normalized function calls do not carry Messages caller metadata.
+
+### Messages non-streaming response projection
+
+`AnthropicMessagesAdapter.project_response()` consumes the already projected Anthropic SDK event stream. It initializes the response from `message_start`, appends indexed blocks from `content_block_start`, folds text, thinking, and citation deltas into their blocks, replaces a thinking signature from `signature_delta`, and assembles partial JSON into each `tool_use.input`. It validates content-block lifecycle and index order, and requires tool input to be a JSON object. When generation stops within tool arguments, collection preserves the complete JSON values available so far, matching the Anthropic SDK's partial JSON parsing. A final `message_delta` supplies stop information and authoritative usage before `message_stop` confirms that the accumulated SDK `Message` is complete.
+
+The response projector does not consume normalized events directly. Because it uses the output of `project_events()`, the non-streaming message retains the same projected block order, target-default service tier, content, reasoning, tool calls, stop mapping, and semantic usage as the streaming route.
 
 ## When the provider exposes Messages
 
@@ -335,17 +344,17 @@ The Messages client currently recognizes a missing model only when Anthropic rai
 
 ## Current implementation limitations
 
-Cross-protocol Messages support is currently limited to streaming requests and the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
+Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
 A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Reasoning summaries are not currently portable through Chat Completions in either direction because Chat has no signature slot. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
 
-The normalized path does not currently implement image output, citations, refusals as content blocks, redacted thinking, server or hosted tools, structured output, multiple candidates, or non-streaming collection. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
+The normalized path does not currently implement image output, citations, refusals as content blocks, redacted thinking, server or hosted tools, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 
 Mid-conversation system placement and model support are not locally validated. Translated requests targeting Messages hoist those instructions even when the source protocol could retain their original positions. These are current Molto limitations, distinct from Anthropic's inherent same-role merging and prefill semantics.
 
 ## Compatibility and references
 
-Responses is the canonical behavioral reference for matched cross-protocol fixtures. Same-protocol tests compare parsed Anthropic SDK events. Translated tests compare reconstructible semantics and separately assert balanced lifecycles, stable indexes, matching delta accumulation, terminal usage, termination, and target-default service tier. Cassettes are replayed only; see the [cassette policy](../../tests/cassettes/README.md).
+Responses is the canonical behavioral reference for matched cross-protocol fixtures. Same-protocol tests compare parsed Anthropic SDK events or non-streaming responses. Translated streaming tests compare reconstructible semantics and separately assert balanced lifecycles, stable indexes, matching delta accumulation, terminal usage, termination, and target-default service tier; non-streaming tests verify accumulation of those projected native events into an SDK `Message`. Cassettes are replayed only; see the [cassette policy](../../tests/cassettes/README.md).
 
 Relevant implementation and test entry points:
 

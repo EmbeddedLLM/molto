@@ -1,12 +1,19 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 import pytest
+from anthropic import AsyncAnthropic
 from anthropic import NotFoundError as AnthropicNotFoundError
+from anthropic.lib.streaming._messages import accumulate_event
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesStreamEvent,
+    AnthropicMessagesStreamEventAdapter,
+)
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
     FunctionToolChoice,
@@ -20,6 +27,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
+    TextDelta,
     TextInput,
     TextOutput,
     Thinking,
@@ -30,6 +38,7 @@ from molto.types.normalized import (
     Usage,
     UserInput,
 )
+from molto.utils.io import read_yaml
 
 _CAPABILITIES = PROVIDER_CAPABILITIES["anthropic"]
 
@@ -268,6 +277,13 @@ async def _stream(*events: ModelResponseStreamEvent) -> AsyncIterator[ModelRespo
         yield event
 
 
+async def _native_stream(
+    *events: AnthropicMessagesStreamEvent,
+) -> AsyncIterator[AnthropicMessagesStreamEvent]:
+    for event in events:
+        yield event
+
+
 def _adapter(capabilities: ProviderCapabilities = _CAPABILITIES):
     adapter = AnthropicMessagesAdapter(capabilities)
     request = adapter.normalize_request(_request())
@@ -275,6 +291,7 @@ def _adapter(capabilities: ProviderCapabilities = _CAPABILITIES):
 
 
 _MESSAGE_START = ResponseStartEvent(id="msg_123", created_at=1, model="m")
+_MESSAGE_END = ResponseEndEvent(id="msg_123", created_at=1, model="m", termination_reason="stop")
 
 
 @pytest.mark.parametrize(
@@ -478,6 +495,233 @@ async def test_projection_maps_terminal_usage() -> None:
     assert usage.output_tokens == 7
     assert usage.output_tokens_details.thinking_tokens == 4
     assert events[-1].type == "message_stop"
+
+
+async def test_response_projection_collects_projected_events() -> None:
+    adapter, request = _adapter()
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(
+                    index=0,
+                    part=Thinking(content="", summary="Plan", signature="initial-state"),
+                ),
+                PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta=" carefully")),
+                PartDeltaEvent(
+                    index=0,
+                    delta=ThinkingDelta(signature_delta="opaque-state"),
+                ),
+                PartEndEvent(
+                    index=0,
+                    part=Thinking(
+                        content="",
+                        summary="Plan carefully",
+                        signature="opaque-state",
+                    ),
+                ),
+                PartStartEvent(index=1, part=TextOutput(content="Hel")),
+                PartDeltaEvent(index=1, delta=TextDelta(content_delta="lo")),
+                PartEndEvent(index=1, part=TextOutput(content="Hello")),
+                PartStartEvent(
+                    index=2,
+                    part=ToolCall(tool_name="weather", args="", tool_call_id="call_1"),
+                ),
+                PartDeltaEvent(index=2, delta=ToolCallDelta(args_delta='{"city":')),
+                PartDeltaEvent(index=2, delta=ToolCallDelta(args_delta='"Paris"}')),
+                PartEndEvent(
+                    index=2,
+                    part=ToolCall(
+                        tool_name="weather",
+                        args='{"city":"Paris"}',
+                        tool_call_id="call_1",
+                    ),
+                ),
+                ResponseEndEvent(
+                    id="msg_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="tool_call",
+                    usage=Usage(
+                        input_tokens=10,
+                        input_tokens_details=InputTokenDetails(
+                            cached_tokens=3, cache_write_tokens=2
+                        ),
+                        output_tokens=7,
+                        output_tokens_details=OutputTokenDetails(reasoning_tokens=4),
+                        total_tokens=17,
+                    ),
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    assert response.id == "msg_123"
+    assert response.model == "m"
+    assert response.role == "assistant"
+    assert response.stop_reason == "tool_use"
+    assert response.stop_sequence is None
+    assert [block.type for block in response.content] == ["thinking", "text", "tool_use"]
+    thinking = response.content[0]
+    assert thinking.type == "thinking"
+    assert thinking.thinking == "Plan carefully"
+    assert thinking.signature == "opaque-state"
+    text = response.content[1]
+    assert text.type == "text"
+    assert text.text == "Hello"
+    tool = response.content[2]
+    assert tool.type == "tool_use"
+    assert tool.id == "call_1"
+    assert tool.name == "weather"
+    assert tool.input == {"city": "Paris"}
+    assert response.usage.input_tokens == 5
+    assert response.usage.cache_creation_input_tokens == 2
+    assert response.usage.cache_read_input_tokens == 3
+    assert response.usage.output_tokens == 7
+    assert response.usage.output_tokens_details is not None
+    assert response.usage.output_tokens_details.thinking_tokens == 4
+    assert response.usage.service_tier == "standard"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected_input"),
+    [
+        ("{", {}),
+        ('{"city": "Par', {}),
+        ('{"city":"Paris","units":"cel', {"city": "Paris"}),
+        ('{"cities":["Paris","Lon', {"cities": ["Paris"]}),
+    ],
+)
+async def test_response_projection_preserves_truncated_tool_input_like_sdk(
+    arguments, expected_input
+) -> None:
+    adapter, request = _adapter()
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(
+                    index=0,
+                    part=ToolCall(tool_name="weather", args="", tool_call_id="call_1"),
+                ),
+                PartDeltaEvent(index=0, delta=ToolCallDelta(args_delta=arguments)),
+                PartEndEvent(
+                    index=0,
+                    part=ToolCall(tool_name="weather", args=arguments, tool_call_id="call_1"),
+                ),
+                ResponseEndEvent(
+                    id="msg_123",
+                    created_at=1,
+                    model="m",
+                    termination_reason="max_output_tokens",
+                ),
+            ),
+            request,
+        )
+    ]
+    expected = None
+    for event in events:
+        expected = accumulate_event(event=event, current_snapshot=expected)
+
+    response = await adapter.project_response(_native_stream(*events), request)
+
+    assert expected is not None
+    assert response.stop_reason == expected.stop_reason == "max_tokens"
+    assert response.content[0].input == expected.content[0].input == expected_input
+
+
+@pytest.mark.parametrize("scenario", ["tool_call", "tool_call_parallel"])
+async def test_response_projection_matches_sdk_tool_cassette(scenario) -> None:
+    cassette = read_yaml(
+        Path(__file__).parents[1]
+        / "cassettes"
+        / "matched"
+        / scenario
+        / "anthropic-messages-stream-00.yaml"
+    )
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content="".join(cassette["response"]["sse"]),
+        )
+    )
+    async with AsyncAnthropic(
+        api_key="test-key", http_client=httpx.AsyncClient(transport=transport)
+    ) as client:
+        async with await client.messages.create(**cassette["request"]["body"]) as stream:
+            events = [event async for event in stream]
+    expected = None
+    for event in events:
+        expected = accumulate_event(event=event, current_snapshot=expected)
+    adapter, request = _adapter()
+
+    response = await adapter.project_response(_native_stream(*events), request)
+
+    assert expected is not None
+    # The SDK attaches its parsing buffer and structured-output state to blocks.
+    # It also omits terminal thinking-token usage, which Molto preserves.
+    exclude = {
+        "content": {"__all__": {"__json_buf", "parsed_output"}},
+        "usage": {"output_tokens_details"},
+    }
+    assert response.model_dump(exclude=exclude) == expected.model_dump(exclude=exclude)
+    terminal_usage = next(event.usage for event in events if event.type == "message_delta")
+    assert response.usage.output_tokens_details == terminal_usage.output_tokens_details
+
+
+async def test_response_projection_drains_projected_stream() -> None:
+    adapter, request = _adapter()
+    exhausted = False
+
+    async def events() -> AsyncIterator[ModelResponseStreamEvent]:
+        nonlocal exhausted
+        yield _MESSAGE_START
+        yield _MESSAGE_END
+        exhausted = True
+
+    await adapter.project_response(adapter.project_events(events(), request), request)
+
+    assert exhausted
+
+
+async def test_response_projection_rejects_missing_message_stop() -> None:
+    adapter, request = _adapter()
+
+    with pytest.raises(ValueError, match="ended before the message stop event"):
+        await adapter.project_response(
+            adapter.project_events(_stream(_MESSAGE_START), request),
+            request,
+        )
+
+
+async def test_response_projection_rejects_message_stop_before_final_delta() -> None:
+    adapter, request = _adapter()
+    message_start = AnthropicMessagesStreamEventAdapter.validate_python(
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_123",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "m",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        }
+    )
+    message_stop = AnthropicMessagesStreamEventAdapter.validate_python({"type": "message_stop"})
+
+    with pytest.raises(ValueError, match="message stop before its final delta"):
+        await adapter.project_response(
+            _native_stream(message_start, message_stop),
+            request,
+        )
 
 
 async def test_native_passthrough_preserves_original_error_class() -> None:
