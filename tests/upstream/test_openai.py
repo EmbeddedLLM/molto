@@ -5,6 +5,7 @@ import httpx
 import pytest
 from openai import APIError, APIStatusError, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import NotFoundError as OpenAINotFoundError
 
 from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
@@ -14,6 +15,7 @@ from molto.types.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
     ModelNotFoundError,
+    ResourceNotFoundError,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -3151,10 +3153,10 @@ async def test_missing_credentials_recognizes_sdk_error_subclasses(client_type):
 
 @pytest.mark.parametrize(
     ("status", "code"),
-    [(400, "invalid_request_error"), (400, None), (422, "context_length_exceeded")],
+    [(400, "invalid_request_error"), (400, None), (401, None), (404, None)],
 )
 @pytest.mark.parametrize("client_type", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
-async def test_context_length_recognition_requires_status_and_code(
+async def test_error_recognition_does_not_use_status_alone(
     status: int, code: str | None, client_type
 ):
     response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
@@ -3168,6 +3170,37 @@ async def test_context_length_recognition_requires_status_and_code(
         with pytest.raises(APIStatusError) as exc_info:
             client._handle_error(error)
     assert exc_info.value is error
+
+
+@pytest.mark.parametrize("client_type", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
+@pytest.mark.parametrize("status", [400, 401, 404, 422])
+@pytest.mark.parametrize(
+    ("sdk_error_type", "code", "normalized_type"),
+    [
+        (APIStatusError, "context_length_exceeded", ContextLengthExceededError),
+        (APIStatusError, "model_not_found", ModelNotFoundError),
+        (OpenAIAuthenticationError, "model_not_found", ModelNotFoundError),
+        (OpenAINotFoundError, "model_not_found", ModelNotFoundError),
+        (OpenAIAuthenticationError, None, AuthenticationError),
+        (OpenAINotFoundError, None, ResourceNotFoundError),
+    ],
+)
+async def test_error_recognition_uses_code_and_sdk_class(
+    client_type, status, sdk_error_type, code, normalized_type
+):
+    class ProviderError(sdk_error_type):
+        pass
+
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = ProviderError("Provider failure", response=response, body={"code": code})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = client_type(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(normalized_type) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is response
+    assert exc_info.value.response.status_code == status
+    assert exc_info.value.body is error.body
 
 
 @pytest.mark.parametrize("status_error", [False, True])
@@ -3187,34 +3220,40 @@ async def test_context_stream_error_distinguishes_api_error_subclasses(status_er
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        with pytest.raises(
-            APIStatusError if status_error else ContextLengthExceededError
-        ) as exc_info:
+        with pytest.raises(ContextLengthExceededError) as exc_info:
             client._handle_error(error, response=response)
-    if status_error:
-        assert exc_info.value is error
-    else:
-        assert exc_info.value.__cause__ is error
-        assert exc_info.value.response is response
-        assert exc_info.value.body is body
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is (error.response if status_error else response)
+    assert exc_info.value.response.status_code == (422 if status_error else 200)
+    assert exc_info.value.body is body
 
 
-@pytest.mark.parametrize("status", [None, 201])
-async def test_context_stream_error_requires_successful_response(status):
+async def test_context_stream_error_requires_response():
     request = httpx.Request("POST", "https://example.test")
     error = APIError("Context exceeded", request=request, body={"code": "context_length_exceeded"})
-    response = httpx.Response(status, request=request) if status is not None else None
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
         client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
         with pytest.raises(APIError) as exc_info:
-            client._handle_error(error, response=response)
+            client._handle_error(error)
     assert exc_info.value is error
 
 
+@pytest.mark.parametrize("status", [200, 201])
+async def test_context_stream_error_recognition_ignores_status(status):
+    request = httpx.Request("POST", "https://example.test")
+    response = httpx.Response(status, request=request)
+    error = APIError("Context exceeded", request=request, body={"code": "context_length_exceeded"})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        with pytest.raises(ContextLengthExceededError) as exc_info:
+            client._handle_error(error, response=response)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is response
+    assert exc_info.value.response.status_code == status
+
+
 @pytest.mark.parametrize("downstream", ["responses", "chat/completions", "messages"])
-@pytest.mark.parametrize(
-    ("status", "code"), [(200, "unknown_error"), (201, "context_length_exceeded")]
-)
+@pytest.mark.parametrize(("status", "code"), [(200, "unknown_error"), (201, "unknown_error")])
 async def test_unknown_responses_stream_error_passes_through(downstream, status, code):
     error_body = {"code": code, "message": "Provider-specific failure"}
 

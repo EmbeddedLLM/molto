@@ -48,6 +48,7 @@ The public `events()` wrapper owns error interception; do not override it. Clien
 Follow the [error contract and recognition rules](../docs/errors.md):
 
 - Raise normalized errors from the original SDK exception in the upstream client's `_handle_error()`. Re-raise unknown errors unchanged.
+- Recognize upstream categories by error codes and SDK classes, without checking HTTP status. Retain message checks where generic SDK classes and error types cannot distinguish the category.
 - Project HTTP errors by preserved status, retaining the upstream request, response, message, and body. On native routes, construct a fresh SDK exception; reusing the original cause would create a circular cause chain.
 - For recognized stream errors, pass the actual stream response to `_handle_error()` and retain it on the normalized cause. Project plain SDK `APIError`, not an HTTP status error.
 - Only missing credentials may synthesize HTTP metadata: the upstream client supplies the intended request using SDK URL-joining behavior; the adapter supplies a `401` response. Keep the normalized response and body `None`. Other normalized errors without a response pass through unchanged.

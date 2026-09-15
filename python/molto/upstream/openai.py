@@ -9,6 +9,8 @@ from typing import Any, Literal, NoReturn
 
 from httpx import Response
 from openai import APIError, APIStatusError, AsyncStream, OpenAIError
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import NotFoundError as OpenAINotFoundError
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
 from pydantic import ValidationError
 
@@ -596,25 +598,27 @@ class OpenAIResponsesClient(
                 request=self._make_authentication_request("responses"),
             ) from error
         if isinstance(error, APIStatusError):
-            if error.status_code == 400 and error.code == "context_length_exceeded":
+            # Specific error codes take precedence over broader SDK classes,
+            # which also recognize errors without a structured body.
+            if error.code == "context_length_exceeded":
                 raise ContextLengthExceededError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 401:
-                raise AuthenticationError(
-                    error.message,
-                    response=error.response,
-                    body=error.body,
-                ) from error
-            if error.status_code == 404 and error.code == "model_not_found":
+            if error.code == "model_not_found":
                 raise ModelNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 404:
+            if isinstance(error, OpenAIAuthenticationError):
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if isinstance(error, OpenAINotFoundError):
                 raise ResourceNotFoundError(
                     error.message,
                     response=error.response,
@@ -622,11 +626,7 @@ class OpenAIResponsesClient(
                 ) from error
         elif isinstance(error, APIError):
             # SSE APIError has no response; native_events supplies the stream response.
-            if (
-                error.code == "context_length_exceeded"
-                and response is not None
-                and response.status_code == 200
-            ):
+            if error.code == "context_length_exceeded" and response is not None:
                 raise ContextLengthExceededError(
                     error.message,
                     response=response,
@@ -1079,25 +1079,27 @@ class OpenAIChatCompletionsClient(
                 request=self._make_authentication_request("chat/completions"),
             ) from error
         if isinstance(error, APIStatusError):
-            if error.status_code == 400 and error.code == "context_length_exceeded":
+            # Specific error codes take precedence over broader SDK classes,
+            # which also recognize errors without a structured body.
+            if error.code == "context_length_exceeded":
                 raise ContextLengthExceededError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 401:
-                raise AuthenticationError(
-                    error.message,
-                    response=error.response,
-                    body=error.body,
-                ) from error
-            if error.status_code == 404 and error.code == "model_not_found":
+            if error.code == "model_not_found":
                 raise ModelNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 404:
+            if isinstance(error, OpenAIAuthenticationError):
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if isinstance(error, OpenAINotFoundError):
                 raise ResourceNotFoundError(
                     error.message,
                     response=error.response,

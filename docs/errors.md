@@ -12,20 +12,19 @@ Inspect `error.__cause__` for the portable error category. Unknown errors pass t
 
 ## Recognition rules
 
-Recognition uses `isinstance`, including subclasses. Model-specific `404` rules take precedence over generic resource-not-found errors.
+Recognition uses error codes and SDK classes (`isinstance`, including subclasses), without checking HTTP status codes. Specific OpenAI error codes take precedence over broader SDK class fallbacks. Anthropic's generic error types do not distinguish context overflow or missing models, so those categories retain their message checks and precede broader SDK class fallbacks. Local missing-credential errors also require message checks because their SDK classes are generic.
 
 | Normalized exception | Upstream protocol | Upstream SDK exception | Recognition rule |
 | --- | --- | --- | --- |
-| `AuthenticationError` | all | protocol `APIStatusError` | status `401` |
+| `AuthenticationError` | all | protocol `AuthenticationError` | SDK class |
 | `AuthenticationError` | OpenAI Responses and Chat Completions | `openai.OpenAIError`, excluding `openai.APIError` | message starts with `Missing credentials.` |
 | `AuthenticationError` | Anthropic Messages | `TypeError`, including subclasses | message starts with `"Could not resolve authentication method.` |
-| `ContextLengthExceededError` | OpenAI Responses and Chat Completions | `openai.APIStatusError` | status `400` and `code == "context_length_exceeded"` |
-| `ContextLengthExceededError` | OpenAI Responses | `openai.APIError` excluding `APIStatusError` | stream response status `200` and `code == "context_length_exceeded"` |
-| `ContextLengthExceededError` | Anthropic Messages | `anthropic.APIStatusError` | status `400` and an SDK error message containing `prompt is too long:` |
-| `ModelNotFoundError` | OpenAI Responses | `openai.APIStatusError` | status `404` and `code == "model_not_found"` |
-| `ModelNotFoundError` | OpenAI Chat Completions | `openai.APIStatusError` | status `404` and `code == "model_not_found"` |
-| `ModelNotFoundError` | Anthropic Messages | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
-| `ResourceNotFoundError` | all | protocol `APIStatusError` | status `404` |
+| `ContextLengthExceededError` | OpenAI Responses and Chat Completions | `openai.APIStatusError` | `code == "context_length_exceeded"` |
+| `ContextLengthExceededError` | OpenAI Responses | `openai.APIError` excluding `APIStatusError` | `code == "context_length_exceeded"`, with the stream response supplied for preservation |
+| `ContextLengthExceededError` | Anthropic Messages | `anthropic.BadRequestError` | SDK error message containing `prompt is too long:` |
+| `ModelNotFoundError` | OpenAI Responses and Chat Completions | `openai.APIStatusError` | `code == "model_not_found"` |
+| `ModelNotFoundError` | Anthropic Messages | `anthropic.NotFoundError` | error message containing `model:` |
+| `ResourceNotFoundError` | all | protocol `NotFoundError` | SDK class |
 
 The current Responses model-not-found recordings return HTTP `404` in both streaming and non-streaming mode. A streaming request can fail with an HTTP error before an event stream opens.
 

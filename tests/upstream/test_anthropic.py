@@ -4,6 +4,9 @@ from time import time
 import httpx
 import pytest
 from anthropic import APIStatusError as AnthropicAPIStatusError
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import BadRequestError as AnthropicBadRequestError
+from anthropic import NotFoundError as AnthropicNotFoundError
 from pydantic import ValidationError
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
@@ -14,7 +17,13 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import (
+    AuthenticationError,
+    ContextLengthExceededError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     FunctionTool,
     FunctionToolChoice,
@@ -1723,15 +1732,17 @@ async def test_native_events_normalize_known_sdk_errors():
 
 
 @pytest.mark.parametrize(
-    ("status", "message"),
+    ("sdk_error_type", "status", "message"),
     [
-        (422, "prompt is too long: 2 > 1"),
-        (400, "max_tokens is invalid"),
+        (AnthropicAPIStatusError, 400, "prompt is too long: 2 > 1"),
+        (AnthropicBadRequestError, 400, "max_tokens is invalid"),
+        (AnthropicAPIStatusError, 401, "Invalid key"),
+        (AnthropicAPIStatusError, 404, "model: m"),
     ],
 )
-async def test_context_length_recognition_requires_status_and_message(status, message):
+async def test_error_recognition_requires_sdk_class_and_message(sdk_error_type, status, message):
     response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
-    error = AnthropicAPIStatusError(message, response=response, body=None)
+    error = sdk_error_type(message, response=response, body=None)
     async with httpx.AsyncClient() as http_client:
         client = AnthropicMessagesClient(
             http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
@@ -1739,6 +1750,34 @@ async def test_context_length_recognition_requires_status_and_message(status, me
         with pytest.raises(AnthropicAPIStatusError) as exc_info:
             client._handle_error(error)
     assert exc_info.value is error
+
+
+@pytest.mark.parametrize("status", [400, 401, 404, 422])
+@pytest.mark.parametrize(
+    ("sdk_error_type", "message", "normalized_type"),
+    [
+        (AnthropicBadRequestError, "prompt is too long: 2 > 1", ContextLengthExceededError),
+        (AnthropicAuthenticationError, "Invalid key", AuthenticationError),
+        (AnthropicNotFoundError, "model: m", ModelNotFoundError),
+        (AnthropicNotFoundError, "Resource missing", ResourceNotFoundError),
+    ],
+)
+async def test_error_recognition_uses_sdk_class(sdk_error_type, status, message, normalized_type):
+    class ProviderError(sdk_error_type):
+        pass
+
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = ProviderError(message, response=response, body=None)
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(normalized_type) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is response
+    assert exc_info.value.response.status_code == status
+    assert exc_info.value.body is error.body
 
 
 @pytest.mark.parametrize(
