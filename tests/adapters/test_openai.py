@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
-from openai import BadRequestError
+from openai import NotFoundError
 
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
@@ -1198,13 +1198,13 @@ def _model_not_found_error() -> ModelNotFoundError:
         }
     }
     response = httpx.Response(
-        400,
+        404,
         json=body,
         request=httpx.Request("POST", "https://api.openai.com/v1/responses"),
     )
     try:
-        raise BadRequestError("Unknown model", response=response, body=body)
-    except BadRequestError as error:
+        raise NotFoundError("Unknown model", response=response, body=body)
+    except NotFoundError as error:
         try:
             raise ModelNotFoundError(
                 error.message, response=error.response, body=error.body
@@ -1228,11 +1228,11 @@ async def test_error_projection_selects_subclass_from_status(native: bool) -> No
         adapter, request = _responses_adapter(_CAPABILITIES)
         stream = adapter.project_events(_failing_events(), request)
 
-    with pytest.raises(BadRequestError) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         [event async for event in stream]
 
     error = exc_info.value
-    assert type(error) is BadRequestError
+    assert type(error) is NotFoundError
     assert isinstance(error.__cause__, ModelNotFoundError)
-    assert type(error.__cause__.__cause__) is BadRequestError
+    assert type(error.__cause__.__cause__) is NotFoundError
     assert error is not error.__cause__.__cause__

@@ -1,0 +1,34 @@
+filename: 2026-09-14-01a09ebf-e1d5-7dd0-a861-5735695f07e2
+request:
+  body:
+    max_tokens: 16
+    messages:
+    - content:
+      - text: Say hello.
+        type: text
+      role: user
+    model: molto-model-that-does-not-exist
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '151'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a09ebf-e1d5-7dd0-a861-5735695f07e2
+response:
+  body:
+    error:
+      message: 'model: molto-model-that-does-not-exist'
+      type: not_found_error
+    request_id: req_011Cf2utEFL35cNJ4mAxmfEg
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 404
+timestamp: '2026-09-14T07:09:30.453279+00:00'

@@ -1,4 +1,4 @@
-filename: 2026-08-26-01a03d21-e98b-7972-99b1-afec2dd992cd
+filename: 2026-09-14-01a09f01-244e-74d3-a188-25247b9d285e
 request:
   body:
     input:
@@ -22,17 +22,16 @@ request:
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 01a03d21-e98b-7972-99b1-afec2dd992cd
+request_id: 01a09f01-244e-74d3-a188-25247b9d285e
 response:
   body:
     error:
       code: model_not_found
-      message: The requested model 'kimi' does not exist.
-      param: model
+      message: The model `kimi` does not exist or you do not have access to it.
+      param: null
       type: invalid_request_error
   headers:
     connection: keep-alive
-    content-length: '170'
     content-type: application/json
-  status_code: 400
-timestamp: '2026-08-26T08:13:47.787811+00:00'
+  status_code: 404
+timestamp: '2026-09-14T08:20:47.310618+00:00'

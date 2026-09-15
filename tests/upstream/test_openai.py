@@ -3248,11 +3248,9 @@ async def test_unknown_responses_stream_error_passes_through(downstream, status,
 
 @pytest.mark.parametrize("endpoint", ["responses", "chat/completions"])
 async def test_native_events_normalize_known_sdk_errors(endpoint: str):
-    status = 400 if endpoint == "responses" else 404
-
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            status,
+            404,
             json={
                 "error": {
                     "code": "model_not_found",
@@ -3284,5 +3282,5 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
             [event async for event in client.native_events(request)]
 
     error = exc_info.value
-    assert error.response.status_code == status
+    assert error.response.status_code == 404
     assert isinstance(error.__cause__, APIStatusError)

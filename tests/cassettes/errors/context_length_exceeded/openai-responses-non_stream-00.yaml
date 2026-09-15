@@ -1,0 +1,37 @@
+filename: 2026-09-14-01a09eb2-444f-7280-bb9e-9b9481124a17
+request:
+  body:
+    input:
+    - content:
+      - text: Reply with OK. x
+        type: input_text
+      role: user
+    max_output_tokens: 16
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '4000148'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a09eb2-444f-7280-bb9e-9b9481124a17
+response:
+  body:
+    error:
+      code: context_length_exceeded
+      message: Your input exceeds the context window of this model. Please adjust
+        your input and try again.
+      param: input
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '228'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-09-14T06:54:38.159893+00:00'

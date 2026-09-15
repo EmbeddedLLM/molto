@@ -1,0 +1,37 @@
+filename: 2026-09-14-01a09eb8-64bb-7993-b421-3e4abb45a918
+request:
+  body:
+    input:
+    - content:
+      - text: Say hello.
+        type: input_text
+      role: user
+    max_output_tokens: 16
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '142'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a09eb8-64bb-7993-b421-3e4abb45a918
+response:
+  body:
+    error:
+      code: invalid_api_key
+      message: 'Incorrect API key provided: invalid-***-key. You can find your API
+        key at https://platform.openai.com/account/api-keys.'
+      param: null
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '244'
+    content-type: application/json
+  status_code: 401
+timestamp: '2026-09-14T07:01:19.675677+00:00'

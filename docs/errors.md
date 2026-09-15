@@ -22,10 +22,12 @@ Recognition uses `isinstance`, including subclasses. Model-specific `404` rules 
 | `ContextLengthExceededError` | OpenAI Responses and Chat Completions | `openai.APIStatusError` | status `400` and `code == "context_length_exceeded"` |
 | `ContextLengthExceededError` | OpenAI Responses | `openai.APIError` excluding `APIStatusError` | stream response status `200` and `code == "context_length_exceeded"` |
 | `ContextLengthExceededError` | Anthropic Messages | `anthropic.APIStatusError` | status `400` and an SDK error message containing `prompt is too long:` |
-| `ModelNotFoundError` | OpenAI Responses | `openai.APIStatusError` | status `400` and `code == "model_not_found"` |
+| `ModelNotFoundError` | OpenAI Responses | `openai.APIStatusError` | status `404` and `code == "model_not_found"` |
 | `ModelNotFoundError` | OpenAI Chat Completions | `openai.APIStatusError` | status `404` and `code == "model_not_found"` |
 | `ModelNotFoundError` | Anthropic Messages | `anthropic.APIStatusError` | status `404` and an error message containing `model:` |
 | `ResourceNotFoundError` | all | protocol `APIStatusError` | status `404` |
+
+The current Responses model-not-found recordings return HTTP `404` in both streaming and non-streaming mode. A streaming request can fail with an HTTP error before an event stream opens.
 
 ## HTTP errors
 
@@ -56,4 +58,4 @@ The upstream client constructs the intended request using its effective base URL
 
 ## Implementation and verification
 
-See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Coverage includes streaming and non-streaming requests across native and translated routes, comparing provider SDK errors and their normalized cause chains. Translated non-streaming requests also exercise errors raised while consuming the upstream stream. Missing-credential tests cover both result modes and assert that no HTTP request is sent.
+See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Cassette-backed coverage includes streaming and non-streaming requests across native and translated routes for every error scenario. Non-streaming tests use non-streaming recordings and compare provider SDK exceptions and their normalized cause chains; translated calls still stream upstream internally. Missing-credential tests cover both result modes and assert that no HTTP request is sent.

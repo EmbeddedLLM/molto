@@ -1,0 +1,37 @@
+filename: 2026-09-14-01a09eb2-624f-77b3-9d33-db33578e5228
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Reply with OK. x
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '4000149'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a09eb2-624f-77b3-9d33-db33578e5228
+response:
+  body:
+    error:
+      code: context_length_exceeded
+      message: This model's maximum context length is 1047576 tokens. However, your
+        messages resulted in 2000012 tokens. Please reduce the length of the messages.
+      param: messages
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-length: '286'
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-09-14T06:54:45.839864+00:00'
