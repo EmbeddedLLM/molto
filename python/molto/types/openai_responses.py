@@ -28,11 +28,13 @@ from openai.types.responses.response_input_file_param import ResponseInputFilePa
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
-from openai.types.responses.response_input_text_param import ResponseInputTextParam
-from openai.types.responses.response_output_message_param import (
-    Content as ResponseOutputMessageContentParam,
+from openai.types.responses.response_input_text_param import (
+    PromptCacheBreakpoint,
+    ResponseInputTextParam,
 )
 from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
+from openai.types.responses.response_output_refusal_param import ResponseOutputRefusalParam
+from openai.types.responses.response_output_text_param import ResponseOutputTextParam
 from openai.types.responses.response_prompt_param import ResponsePromptParam
 from openai.types.responses.response_reasoning_item_param import (
     Content as ResponseReasoningContentParam,
@@ -78,6 +80,12 @@ class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
     ] = None
 
 
+class ResponseOutputTextCacheBreakpointParam(ResponseOutputTextParam, total=False):
+    """The live API accepts output-text markers omitted by the pinned SDK schema."""
+
+    prompt_cache_breakpoint: PromptCacheBreakpoint
+
+
 class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
     """Assistant output history accepted by compatible Responses APIs without an ID."""
 
@@ -86,7 +94,7 @@ class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
         Field(description="The optional output message ID."),
     ] = None
     content: Annotated[
-        list[ResponseOutputMessageContentParam],
+        list[ResponseOutputTextCacheBreakpointParam | ResponseOutputRefusalParam],
         Field(description="The assistant message content."),
     ]
     role: Annotated[Literal["assistant"], Field(description="The output message role.")]
@@ -134,8 +142,9 @@ class ResponseInputMessageParam(SDKResponseInputMessageParam):
 # variant the SDK models, including `file_id` images and `input_file` parts.
 # Only four items are replaced: the two message wrappers re-point their content
 # lists at the detail-optional image, and compatible providers also omit IDs
-# from reasoning and output-history items. Translatability is enforced by the
-# adapter, not here.
+# from reasoning and output-history items. Output history also accepts cache
+# markers supported by the live API. Translatability is enforced by the adapter,
+# not here.
 _REPLACED_SDK_INPUT_ITEMS = {
     EasyInputMessageParam,
     SDKResponseInputMessageParam,

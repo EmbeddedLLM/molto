@@ -40,6 +40,7 @@ def test_request_dump_is_ready_for_chat_completions_create():
 
 @pytest.mark.parametrize("role", ["system", "developer", "user", "assistant"])
 def test_request_dump_preserves_content_part_lists(role):
+    """Ensures validation and repeated serialization preserve message and part boundaries."""
     body = OpenAIChatCompletionsCreateRequest(
         messages=[
             {
@@ -79,6 +80,7 @@ def test_request_dump_preserves_content_part_lists(role):
 
 @pytest.mark.parametrize("role", ["system", "developer", "assistant"])
 def test_request_rejects_malformed_instruction_content_parts(role):
+    """Asserts that local schema extensions reject instruction and assistant parts lacking text."""
     with pytest.raises(ValidationError):
         OpenAIChatCompletionsCreateRequest(
             messages=[{"role": role, "content": [{"type": "text"}]}],

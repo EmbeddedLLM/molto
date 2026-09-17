@@ -104,7 +104,7 @@ Reuse Molto's existing mapping; the server's remaining responsibility is choosin
 
 Use route defaults only when the caller has not supplied cache intent. Reject conflicts with a mandatory route policy instead of silently changing the caller's requested boundaries or lifetime. Document the cache-write pricing implications when enabling an Anthropic default.
 
-Supported content-part `prompt_cache_breakpoint` values already map to Anthropic block-level `cache_control`. With OpenAI markers, omitted mode and TTL resolve to implicit mode and `30m`, which maps to one-hour Messages caching. Preserve the markers and let Molto enforce slot limits, TTL ordering, and prefix constraints. Messages still rejects `prompt_cache_retention` on translated routes. The [shared policy](../README.md#prompt-caching) is the authoritative list of mappings and limitations.
+Supported content-part `prompt_cache_breakpoint` values already map to Anthropic block-level `cache_control`. With OpenAI markers, omitted mode and TTL resolve to implicit mode and `30m`, which maps to one-hour Messages caching. Preserve the markers and let Molto enforce TTL ordering and prefix constraints. The upstream enforces breakpoint-count limits. Messages still rejects `prompt_cache_retention` on translated routes. The [shared policy](../README.md#prompt-caching) is the authoritative list of mappings and limitations.
 
 ### Headers and credentials
 

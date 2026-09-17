@@ -384,21 +384,6 @@ class OpenAIResponsesClient(
                     reasoning_item["encrypted_content"] = item.signature
                 items.append(reasoning_item)
             elif isinstance(item, TextOutput):
-                if item.cache_breakpoint is not None:
-                    # The easy input-message form supports markers; output_text does not.
-                    items.append(
-                        {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "input_text",
-                                    "text": item.content,
-                                    **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
-                                }
-                            ],
-                        }
-                    )
-                    continue
                 message = {
                     "type": "message",
                     "role": "assistant",
@@ -409,6 +394,7 @@ class OpenAIResponsesClient(
                             "text": item.content,
                             "annotations": [],
                             "logprobs": [],
+                            **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
                         }
                     ],
                 }

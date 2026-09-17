@@ -1201,6 +1201,7 @@ async def test_prompt_cache_translates_across_protocols(
     downstream: Protocol,
     upstream: Protocol,
 ):
+    """Ensures cache settings reach every upstream route while preserving SDK event parity."""
     if downstream == "messages":
         additions = deepcopy(_MESSAGES_PROMPT_CACHE)
         expected_additions = (
@@ -1232,6 +1233,7 @@ async def test_prompt_cache_translates_across_protocols(
     ],
 )
 async def test_messages_prompt_cache_options(downstream, key, options, expected):
+    """Ensures Messages cache mode and lifetime are independent of the dropped caller key."""
     additions = {}
     if key is not None:
         additions["prompt_cache_key"] = key
@@ -1263,6 +1265,7 @@ async def test_prompt_cache_rejects_unportable_values(
     upstream: Protocol,
     match: str,
 ):
+    """Asserts that Messages routes reject retention guarantees they cannot preserve."""
     await _assert_prompt_cache_rejected(downstream, upstream, additions, match)
 
 
@@ -1301,6 +1304,9 @@ def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any])
         ]
     elif position == "assistant":
         messages = [{"role": "assistant", "content": [part]}, user]
+        if protocol == "responses":
+            messages[0].update(type="message", status="completed")
+            part.update(type="output_text", annotations=[], logprobs=[])
     elif position in {"tool", "tool_image"}:
         if protocol == "responses":
             messages = [
@@ -1357,6 +1363,7 @@ def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any])
 )
 @pytest.mark.parametrize("mode", ["implicit", "explicit"])
 async def test_cache_breakpoint_translation(downstream, upstream, position, mode):
+    """Ensures translation preserves marker positions, cache modes, and SDK event parity."""
     openai_marker = {"mode": "explicit"}
     messages_marker = {"type": "ephemeral"}
     additions = _breakpoint_input(
@@ -1382,8 +1389,62 @@ async def test_cache_breakpoint_translation(downstream, upstream, position, mode
     await _assert_prompt_cache_request(downstream, upstream, additions, expected)
 
 
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+async def test_responses_assistant_cache_marker_with_history_id(upstream):
+    """Ensures marked assistant history remains valid and Responses routes retain its ID."""
+    additions = _breakpoint_input("responses", "assistant", {"mode": "explicit"})
+    additions["input"][0]["id"] = "msg_123"
+    additions["prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
+    if upstream == "responses":
+        expected = deepcopy(additions)
+    else:
+        marker = (
+            {"type": "ephemeral", "ttl": "1h"} if upstream == "messages" else {"mode": "explicit"}
+        )
+        expected = _breakpoint_input(upstream, "assistant", marker)
+        if upstream == "chat/completions":
+            expected["prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
+    await _assert_prompt_cache_request("responses", upstream, additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize(("count", "mode"), [(5, "explicit"), (5, "implicit"), (4, "implicit")])
+async def test_messages_cache_breakpoint_count_is_left_to_upstream(downstream, count, mode):
+    """Ensures all markers reach Messages so the upstream owns changing count limits."""
+    text_type = "input_text" if downstream == "responses" else "text"
+    content = [
+        {
+            "type": text_type,
+            "text": str(i),
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        }
+        for i in range(count)
+    ]
+    content.append({"type": text_type, "text": "Uncached tail"})
+    additions = {
+        "input" if downstream == "responses" else "messages": [
+            {"role": "user", "content": content}
+        ],
+        "prompt_cache_options": {"mode": mode, "ttl": "30m"},
+    }
+    expected_content = [
+        {
+            "type": "text",
+            "text": str(i),
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+        for i in range(count)
+    ]
+    expected_content.append({"type": "text", "text": "Uncached tail"})
+    expected = {"messages": [{"role": "user", "content": expected_content}]}
+    if mode == "implicit":
+        expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+
+
 @pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
 async def test_breakpoint_without_options_inherits_openai_defaults(downstream):
+    """Ensures marker-only requests carry OpenAI cache defaults to Messages."""
     additions = _breakpoint_input(downstream, "user", {"mode": "explicit"})
     expected = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
     expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
@@ -1393,6 +1454,7 @@ async def test_breakpoint_without_options_inherits_openai_defaults(downstream):
 @pytest.mark.parametrize("upstream", PROTOCOLS)
 @pytest.mark.parametrize("ttl", ["5m", "1h"])
 async def test_messages_request_cache_lifetime(upstream, ttl):
+    """Ensures native lifetimes survive and OpenAI routes use the documented approximation."""
     additions = {"cache_control": {"type": "ephemeral", "ttl": ttl}}
     expected = (
         additions
@@ -1414,6 +1476,7 @@ async def test_messages_request_cache_lifetime(upstream, ttl):
 @pytest.mark.parametrize("ttl", ["5m", "1h"])
 @pytest.mark.parametrize("mode", ["implicit", "explicit"])
 async def test_messages_block_cache_lifetime(upstream, position, ttl, mode):
+    """Ensures lifetime mapping preserves marker positions and automatic-cache mode."""
     additions = _breakpoint_input("messages", position, {"type": "ephemeral", "ttl": ttl})
     if mode == "implicit":
         additions["cache_control"] = {"type": "ephemeral", "ttl": ttl}
@@ -1428,6 +1491,7 @@ async def test_messages_block_cache_lifetime(upstream, position, ttl, mode):
 @pytest.mark.parametrize("upstream", ["responses", "chat/completions"])
 @pytest.mark.parametrize("automatic", [False, True])
 async def test_messages_mixed_cache_lifetimes_use_one_openai_lifetime(upstream, automatic):
+    """Ensures mixed lifetimes share one OpenAI TTL without losing markers or cache mode."""
     additions = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
     additions["messages"][0]["content"][1]["cache_control"] = {
         "type": "ephemeral",
