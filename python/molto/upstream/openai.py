@@ -365,11 +365,6 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 items.append(reasoning_item)
             elif isinstance(item, TextOutput):
                 if item.cache_breakpoint is not None:
-                    if item.id is not None:
-                        raise UnsupportedInput(
-                            "Responses cannot preserve an assistant message ID with a "
-                            "prompt cache breakpoint."
-                        )
                     # The easy input-message form supports markers; output_text does not.
                     items.append(
                         {
@@ -808,6 +803,8 @@ class OpenAIChatCompletionsClient(
                     deferred_image_messages
                     or any(isinstance(part, ImageUrlInput) for part in item.content)
                 ) and any(part.cache_breakpoint is not None for part in item.content):
+                    # TODO: Some CC implementation such as vLLM and SGLang supports image tool content
+                    # TODO: Only raise this if the upstream CC does not support image tool content
                     raise UnsupportedInput(
                         "Chat Completions cannot preserve prompt cache breakpoints when "
                         "tool-result images must move past the marked part."

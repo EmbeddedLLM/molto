@@ -164,7 +164,11 @@ def _content_block(
 
 
 def _validate_cache_controls(body: dict[str, Any]) -> None:
-    """Check Messages' slot and lifetime constraints after choosing native boundaries."""
+    """
+    Check Messages' slot and lifetime constraints after choosing native boundaries.
+
+    For things like maximum number of cache breakpoints, we let the upstream enforce it.
+    """
     blocks = list(body["system"]) if isinstance(body.get("system"), list) else []
     blocks.extend(block for message in body["messages"] for block in message["content"])
     controls = []
@@ -185,10 +189,6 @@ def _validate_cache_controls(body: dict[str, Any]) -> None:
             raise UnsupportedInput(
                 "Anthropic automatic and final explicit cache lifetimes must match."
             )
-    if len(controls) > 4:
-        raise UnsupportedInput(
-            "Anthropic Messages supports at most four cache breakpoints, including automatic caching."
-        )
     seen_short_ttl = False
     for control in controls:
         if control.get("ttl", "5m") == "5m":
