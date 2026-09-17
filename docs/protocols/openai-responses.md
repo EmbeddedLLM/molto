@@ -212,7 +212,7 @@ The Responses client maps normalized input as follows:
 | Prompt cache             | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
 | Content cache breakpoint | `prompt_cache_breakpoint` on supported text/image parts              |
 
-Every normalized instruction is emitted as `developer`; an original `system` role cannot be reconstructed. Each flat assistant text output becomes a separate assistant message, so one source assistant message with several parts may split into several Responses messages. Assistant `phase` remains omitted.
+Every normalized instruction is emitted as a `developer` message with one `input_text` part; an original `system` role cannot be reconstructed. Each flat assistant text output becomes a separate assistant message, so one source assistant message with several parts may split into several Responses messages. Assistant `phase` remains omitted.
 
 Responses supports image fidelity controls, including `original`, but the source protocol may not. Images from Messages therefore have no `detail` value. Images from Chat Completions preserve supported detail values; a value that the target counterpart cannot represent is rejected at that counterpart's boundary instead of being silently discarded.
 

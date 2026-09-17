@@ -55,6 +55,13 @@ TOOL_CALL_SCENARIOS: tuple[str, ...] = (
     "tool_call_parallel",
     "tool_call_with_reasoning_encrypted",
 )
+PROMPT_CACHE_SCENARIOS: tuple[str, ...] = (
+    "prompt_cache_implicit",
+    "prompt_cache_explicit",
+)
+PROMPT_CACHE_CASES: tuple[tuple[str, str], ...] = tuple(
+    product(PROMPT_CACHE_SCENARIOS, ("stream-00.yaml", "stream-01.yaml"))
+)
 
 
 def _protocol_name(protocol: Protocol) -> str:
@@ -433,6 +440,7 @@ async def test_responses_translation_ignores_disabled_store(upstream: Protocol):
         ("tool_call", "stream-00.yaml"),
         ("tool_call", "stream-01.yaml"),
         ("tool_call", "stream-02.yaml"),
+        *PROMPT_CACHE_CASES,
     ],
 )
 async def test_native_stream_matches_provider_sdk(
@@ -495,6 +503,7 @@ async def test_native_stream_matches_provider_sdk(
         ("tool_call", "stream-00.yaml"),
         ("tool_call", "stream-01.yaml"),
         ("tool_call", "stream-02.yaml"),
+        *PROMPT_CACHE_CASES,
     ],
 )
 def test_matched_request_body_matches_across_protocols(
@@ -597,6 +606,10 @@ async def _assert_stream_events(
             if downstream == "responses":
                 assert len(events) == len(expected_sse_events)
                 _assert_responses_stream_invariants(actual_sse_events)
+                if scenario in PROMPT_CACHE_SCENARIOS:
+                    usage = events[-1].response.usage
+                    assert usage.input_tokens_details.cached_tokens > 0
+                    assert usage.input_tokens_details.cache_write_tokens == 0
                 if upstream == "responses":
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "chat/completions":
@@ -720,6 +733,12 @@ async def _assert_matched_stream_events(
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("simple_text", downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("scenario", PROMPT_CACHE_SCENARIOS)
+async def test_prompt_cache_stream(scenario: str, downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events(scenario, downstream, upstream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
@@ -1046,7 +1065,7 @@ def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any])
             return {"system": [part, suffix], "messages": [user]}
         messages = [
             {"role": "developer", "content": [part]},
-            {"role": "developer", "content": "Uncached suffix."},
+            {"role": "developer", "content": [suffix]},
             user,
         ]
     elif position == "assistant":

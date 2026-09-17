@@ -311,17 +311,13 @@ class OpenAIResponsesClient(BaseClient[OpenAIResponsesCreateRequest, ResponseStr
                 items.append(
                     {
                         "role": "developer",
-                        "content": (
-                            [
-                                {
-                                    "type": "input_text",
-                                    "text": item.content,
-                                    **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
-                                }
-                            ]
-                            if item.cache_breakpoint is not None
-                            else item.content
-                        ),
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": item.content,
+                                **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                            }
+                        ],
                     }
                 )
             elif isinstance(item, UserInput):
@@ -731,17 +727,13 @@ class OpenAIChatCompletionsClient(
                 messages.append(
                     {
                         "role": "developer",
-                        "content": (
-                            [
-                                {
-                                    "type": "text",
-                                    "text": item.content,
-                                    **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
-                                }
-                            ]
-                            if item.cache_breakpoint is not None
-                            else item.content
-                        ),
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": item.content,
+                                **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                            }
+                        ],
                     }
                 )
             elif isinstance(item, UserInput):
