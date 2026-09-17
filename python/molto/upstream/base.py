@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Mapping
+from contextlib import aclosing
 from typing import Any, NoReturn
 
 from httpx import AsyncClient, Headers
@@ -15,7 +16,11 @@ from molto.types.normalized import (
 )
 
 
-class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
+class BaseClient[
+    NativeRequestT: BaseModel,
+    NativeEventT,
+    NativeResponseT: BaseModel,
+](ABC):
     DEFAULT_BASE_URL: str
 
     def __init__(
@@ -84,11 +89,17 @@ class BaseClient[NativeRequestT: BaseModel, NativeEventT](ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    async def native_response(self, request: NativeRequestT) -> NativeResponseT:
+        """Return a native response, delegating failures to `_handle_error()`."""
+        raise NotImplementedError
+
     async def events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         """Stream provider events translated to normalized events with error handling."""
         try:
-            async for event in self._events(request):
-                yield event
+            async with aclosing(self._events(request)) as events:
+                async for event in events:
+                    yield event
         except Exception as error:
             self._handle_error(error)
 

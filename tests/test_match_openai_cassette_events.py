@@ -184,6 +184,11 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
             "role": "user",
         },
         {
+            "content": [{"type": "reasoning_text", "text": "Use the tool."}],
+            "summary": [],
+            "type": "reasoning",
+        },
+        {
             "arguments": "{}",
             "call_id": "call_test",
             "name": "TestTool",
@@ -207,6 +212,21 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
         for message in chat_cassette["request"]["body"]["messages"]
         if message["role"] == "user"
     ] == user_messages
+    assert next(
+        message
+        for message in chat_cassette["request"]["body"]["messages"]
+        if message["role"] == "assistant"
+    ) == {
+        "reasoning_content": "Use the tool.",
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "function": {"arguments": "{}", "name": "TestTool"},
+                "id": "call_test",
+                "type": "function",
+            }
+        ],
+    }
 
 
 def test_cli_sorts_yaml_mapping_keys(tmp_path: Path) -> None:

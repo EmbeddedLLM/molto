@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
@@ -23,6 +24,7 @@ from pydantic_ai.profiles.anthropic import (
 from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
 )
 from molto.types.exceptions import (
@@ -295,7 +297,11 @@ def _image_block(part: ImageUrlInput) -> dict[str, Any]:
 
 
 class AnthropicMessagesClient(
-    BaseClient[AnthropicMessagesCreateRequest, AnthropicMessagesStreamEvent]
+    BaseClient[
+        AnthropicMessagesCreateRequest,
+        AnthropicMessagesStreamEvent,
+        AnthropicMessagesResponse,
+    ]
 ):
     """Anthropic Messages transport for native and normalized streaming paths."""
 
@@ -324,6 +330,22 @@ class AnthropicMessagesClient(
             async with stream:
                 async for event in stream:
                     yield event
+        except Exception as error:
+            self._handle_error(error)
+
+    async def native_response(
+        self, request: AnthropicMessagesCreateRequest
+    ) -> AnthropicMessagesResponse:
+        try:
+            sdk_client = self._make_anthropic_client()
+            response = await sdk_client.messages.create(
+                **request.model_dump(),
+                extra_body=self._extra_body,
+                extra_headers=self._extra_headers,
+            )
+            if isinstance(response, AsyncStream):
+                raise TypeError("Messages request did not return a non-streaming response.")
+            return response
         except Exception as error:
             self._handle_error(error)
 
@@ -537,169 +559,174 @@ class AnthropicMessagesClient(
         native_request = AnthropicMessagesCreateRequest.model_validate(
             self._request_body(request, capabilities=self._capabilities)
         )
-        async for event in self.native_events(native_request):
-            if isinstance(event, RawMessageStartEvent):
-                message = event.message
-                metadata = ResponseStartEvent(
-                    id=message.id,
-                    model=message.model,
-                    service_tier=message.usage.service_tier,
-                )
-                input_tokens = message.usage.input_tokens
-                cache_creation = message.usage.cache_creation_input_tokens or 0
-                cache_read = message.usage.cache_read_input_tokens or 0
-                yield metadata
-            elif isinstance(event, RawContentBlockStartEvent):
-                block = event.content_block
-                if block.type == "thinking":
-                    part: Thinking | TextOutput | ToolCall = self._classify_thinking(
-                        block.thinking, signature=block.signature
+        async with aclosing(self.native_events(native_request)) as native_events:
+            async for event in native_events:
+                if isinstance(event, RawMessageStartEvent):
+                    message = event.message
+                    metadata = ResponseStartEvent(
+                        id=message.id,
+                        model=message.model,
+                        service_tier=message.usage.service_tier,
                     )
-                elif block.type == "text":
-                    part = TextOutput(content=block.text)
-                elif block.type == "tool_use":
-                    if block.caller is not None and block.caller.type != "direct":
-                        raise ValueError(
-                            "Only directly invoked Anthropic tool uses can be translated."
+                    input_tokens = message.usage.input_tokens
+                    cache_creation = message.usage.cache_creation_input_tokens or 0
+                    cache_read = message.usage.cache_read_input_tokens or 0
+                    yield metadata
+                elif isinstance(event, RawContentBlockStartEvent):
+                    block = event.content_block
+                    if block.type == "thinking":
+                        part: Thinking | TextOutput | ToolCall = self._classify_thinking(
+                            block.thinking, signature=block.signature
                         )
-                    part = ToolCall(
-                        tool_name=block.name,
-                        args="" if not block.input else json_dumps(block.input),
-                        tool_call_id=block.id,
-                    )
-                else:
-                    raise ValueError(f"Unsupported Anthropic output block: {block.type}")
-                if (
-                    isinstance(part, Thinking)
-                    and not part.content
-                    and not part.summary
-                    and not part.signature
-                ):
-                    parts[event.index] = _PartState(part)
-                    pending_thinking.add(event.index)
-                elif isinstance(part, Thinking):
-                    parts[event.index] = _PartState(part, block.thinking, part.signature or "")
-                    yield start_part(event.index, part)
-                else:
-                    parts[event.index] = _PartState(
-                        part, part.content if isinstance(part, TextOutput) else part.args
-                    )
-                    yield start_part(event.index, part)
-            elif isinstance(event, RawContentBlockDeltaEvent):
-                delta = event.delta
-                state = parts.get(event.index)
-                part = state.part if state is not None else None
-                if delta.type == "thinking_delta" and isinstance(part, Thinking):
-                    # An empty delta must not materialize a deferred block.
-                    if not delta.thinking and event.index in pending_thinking:
+                    elif block.type == "text":
+                        part = TextOutput(content=block.text)
+                    elif block.type == "tool_use":
+                        if block.caller is not None and block.caller.type != "direct":
+                            raise ValueError(
+                                "Only directly invoked Anthropic tool uses can be translated."
+                            )
+                        part = ToolCall(
+                            tool_name=block.name,
+                            args="" if not block.input else json_dumps(block.input),
+                            tool_call_id=block.id,
+                        )
+                    else:
+                        raise ValueError(f"Unsupported Anthropic output block: {block.type}")
+                    if (
+                        isinstance(part, Thinking)
+                        and not part.content
+                        and not part.summary
+                        and not part.signature
+                    ):
+                        parts[event.index] = _PartState(part)
+                        pending_thinking.add(event.index)
+                    elif isinstance(part, Thinking):
+                        parts[event.index] = _PartState(part, block.thinking, part.signature or "")
+                        yield start_part(event.index, part)
+                    else:
+                        parts[event.index] = _PartState(
+                            part, part.content if isinstance(part, TextOutput) else part.args
+                        )
+                        yield start_part(event.index, part)
+                elif isinstance(event, RawContentBlockDeltaEvent):
+                    delta = event.delta
+                    state = parts.get(event.index)
+                    part = state.part if state is not None else None
+                    if delta.type == "thinking_delta" and isinstance(part, Thinking):
+                        # An empty delta must not materialize a deferred block.
+                        if not delta.thinking and event.index in pending_thinking:
+                            continue
+                        if (pending := pop_pending_thinking(event.index)) is not None:
+                            yield start_part(event.index, pending)
+                        state.content += delta.thinking
+                        yield PartDeltaEvent(
+                            index=part_indices[event.index],
+                            delta=self._classify_thinking_delta(delta.thinking),
+                        )
+                    elif delta.type == "signature_delta" and isinstance(part, Thinking):
+                        if self._capabilities.thinking == "raw":
+                            continue
+                        # An empty signature carries no state and must not
+                        # materialize a deferred block.
+                        if not delta.signature and event.index in pending_thinking:
+                            continue
+                        if (pending := pop_pending_thinking(event.index)) is not None:
+                            yield start_part(event.index, pending)
+                        # Anthropic defines signature_delta as the complete replacement
+                        # signature for the block, not an append-only fragment.
+                        state.signature = delta.signature
+                        yield PartDeltaEvent(
+                            index=part_indices[event.index],
+                            delta=ThinkingDelta(signature_delta=delta.signature),
+                        )
+                    elif delta.type == "text_delta" and isinstance(part, TextOutput):
+                        state.content += delta.text
+                        yield PartDeltaEvent(
+                            index=part_indices[event.index],
+                            delta=TextDelta(content_delta=delta.text),
+                        )
+                    elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
+                        state.content += delta.partial_json
+                        yield PartDeltaEvent(
+                            index=part_indices[event.index],
+                            delta=ToolCallDelta(args_delta=delta.partial_json),
+                        )
+                    else:
+                        raise ValueError(f"Unsupported Anthropic output delta: {delta.type}")
+                elif isinstance(event, RawContentBlockStopEvent):
+                    state = parts.get(event.index)
+                    if state is None:
+                        raise ValueError("Received an Anthropic block stop before its start.")
+                    if pop_pending_thinking(event.index) is not None:
+                        # A deferred block that received no deltas stayed empty.
                         continue
-                    if (pending := pop_pending_thinking(event.index)) is not None:
-                        yield start_part(event.index, pending)
-                    state.content += delta.thinking
-                    yield PartDeltaEvent(
-                        index=part_indices[event.index],
-                        delta=self._classify_thinking_delta(delta.thinking),
+                    part = state.part
+                    if isinstance(part, Thinking):
+                        if self._capabilities.thinking == "summary" and not state.signature:
+                            raise ValueError(
+                                "An Anthropic reasoning summary requires a signature."
+                            )
+                        completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
+                            state.content, signature=state.signature
+                        )
+                    elif isinstance(part, ToolCall):
+                        completed_part = ToolCall(
+                            tool_name=part.tool_name,
+                            args=state.content,
+                            tool_call_id=part.tool_call_id,
+                        )
+                    else:
+                        completed_part = TextOutput(content=state.content)
+                    yield PartEndEvent(index=part_indices[event.index], part=completed_part)
+                elif isinstance(event, RawMessageDeltaEvent):
+                    if event.delta.stop_reason is not None:
+                        try:
+                            termination_reason = _TERMINATION_REASONS[event.delta.stop_reason]
+                        except KeyError as exc:
+                            raise ValueError(
+                                f"Unsupported Anthropic stop reason: {event.delta.stop_reason}"
+                            ) from exc
+                        stop_sequence = event.delta.stop_sequence
+                    raw_usage = event.usage
+                    if raw_usage.input_tokens is not None:
+                        input_tokens = raw_usage.input_tokens
+                    if raw_usage.cache_creation_input_tokens is not None:
+                        cache_creation = raw_usage.cache_creation_input_tokens
+                    if raw_usage.cache_read_input_tokens is not None:
+                        cache_read = raw_usage.cache_read_input_tokens
+                    output_details = raw_usage.output_tokens_details
+                    reasoning_tokens = (
+                        output_details.thinking_tokens if output_details is not None else 0
                     )
-                elif delta.type == "signature_delta" and isinstance(part, Thinking):
-                    if self._capabilities.thinking == "raw":
-                        continue
-                    # An empty signature carries no state and must not
-                    # materialize a deferred block.
-                    if not delta.signature and event.index in pending_thinking:
-                        continue
-                    if (pending := pop_pending_thinking(event.index)) is not None:
-                        yield start_part(event.index, pending)
-                    # Anthropic defines signature_delta as the complete replacement
-                    # signature for the block, not an append-only fragment.
-                    state.signature = delta.signature
-                    yield PartDeltaEvent(
-                        index=part_indices[event.index],
-                        delta=ThinkingDelta(signature_delta=delta.signature),
+                    usage = Usage(
+                        input_tokens=input_tokens + cache_creation + cache_read,
+                        input_tokens_details=InputTokenDetails(
+                            cached_tokens=cache_read,
+                            cache_write_tokens=cache_creation,
+                        ),
+                        output_tokens=raw_usage.output_tokens,
+                        output_tokens_details=OutputTokenDetails(
+                            reasoning_tokens=reasoning_tokens
+                        ),
+                        total_tokens=input_tokens
+                        + cache_creation
+                        + cache_read
+                        + raw_usage.output_tokens,
                     )
-                elif delta.type == "text_delta" and isinstance(part, TextOutput):
-                    state.content += delta.text
-                    yield PartDeltaEvent(
-                        index=part_indices[event.index],
-                        delta=TextDelta(content_delta=delta.text),
+                elif isinstance(event, RawMessageStopEvent):
+                    if metadata is None:
+                        raise ValueError("Anthropic stream ended before its message started.")
+                    if termination_reason is None:
+                        raise ValueError("Anthropic stream ended without a stop reason.")
+                    yield ResponseEndEvent(
+                        id=metadata.id,
+                        created_at=metadata.created_at,
+                        model=metadata.model,
+                        service_tier=metadata.service_tier,
+                        termination_reason=termination_reason,
+                        stop_sequence=stop_sequence,
+                        usage=usage,
                     )
-                elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
-                    state.content += delta.partial_json
-                    yield PartDeltaEvent(
-                        index=part_indices[event.index],
-                        delta=ToolCallDelta(args_delta=delta.partial_json),
-                    )
-                else:
-                    raise ValueError(f"Unsupported Anthropic output delta: {delta.type}")
-            elif isinstance(event, RawContentBlockStopEvent):
-                state = parts.get(event.index)
-                if state is None:
-                    raise ValueError("Received an Anthropic block stop before its start.")
-                if pop_pending_thinking(event.index) is not None:
-                    # A deferred block that received no deltas stayed empty.
-                    continue
-                part = state.part
-                if isinstance(part, Thinking):
-                    if self._capabilities.thinking == "summary" and not state.signature:
-                        raise ValueError("An Anthropic reasoning summary requires a signature.")
-                    completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
-                        state.content, signature=state.signature
-                    )
-                elif isinstance(part, ToolCall):
-                    completed_part = ToolCall(
-                        tool_name=part.tool_name,
-                        args=state.content,
-                        tool_call_id=part.tool_call_id,
-                    )
-                else:
-                    completed_part = TextOutput(content=state.content)
-                yield PartEndEvent(index=part_indices[event.index], part=completed_part)
-            elif isinstance(event, RawMessageDeltaEvent):
-                if event.delta.stop_reason is not None:
-                    try:
-                        termination_reason = _TERMINATION_REASONS[event.delta.stop_reason]
-                    except KeyError as exc:
-                        raise ValueError(
-                            f"Unsupported Anthropic stop reason: {event.delta.stop_reason}"
-                        ) from exc
-                    stop_sequence = event.delta.stop_sequence
-                raw_usage = event.usage
-                if raw_usage.input_tokens is not None:
-                    input_tokens = raw_usage.input_tokens
-                if raw_usage.cache_creation_input_tokens is not None:
-                    cache_creation = raw_usage.cache_creation_input_tokens
-                if raw_usage.cache_read_input_tokens is not None:
-                    cache_read = raw_usage.cache_read_input_tokens
-                output_details = raw_usage.output_tokens_details
-                reasoning_tokens = (
-                    output_details.thinking_tokens if output_details is not None else 0
-                )
-                usage = Usage(
-                    input_tokens=input_tokens + cache_creation + cache_read,
-                    input_tokens_details=InputTokenDetails(
-                        cached_tokens=cache_read,
-                        cache_write_tokens=cache_creation,
-                    ),
-                    output_tokens=raw_usage.output_tokens,
-                    output_tokens_details=OutputTokenDetails(reasoning_tokens=reasoning_tokens),
-                    total_tokens=input_tokens
-                    + cache_creation
-                    + cache_read
-                    + raw_usage.output_tokens,
-                )
-            elif isinstance(event, RawMessageStopEvent):
-                if metadata is None:
-                    raise ValueError("Anthropic stream ended before its message started.")
-                if termination_reason is None:
-                    raise ValueError("Anthropic stream ended without a stop reason.")
-                yield ResponseEndEvent(
-                    id=metadata.id,
-                    created_at=metadata.created_at,
-                    model=metadata.model,
-                    service_tier=metadata.service_tier,
-                    termination_reason=termination_reason,
-                    stop_sequence=stop_sequence,
-                    usage=usage,
-                )
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, APIStatusError):

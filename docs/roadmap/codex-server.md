@@ -8,7 +8,7 @@ The goal is to let Codex CLI use Molto as an HTTP Responses provider, with reque
 
 The library already provides:
 
-- `Molto.responses()` with upstream protocol, provider, base URL, and API-key selection.
+- `Molto.responses()` with streaming and non-streaming results, upstream protocol, provider, base URL, and API-key selection.
 - Streaming text, function calls and results, supported images, and reasoning history under the [Responses translation contract](../protocols/openai-responses.md).
 - Prompt-cache options and supported content breakpoints under the [shared prompt-cache policy](../README.md#prompt-caching).
 - Acceptance of `store=false` and `include=["reasoning.encrypted_content"]` as documented no-ops on translated routes, with supported reasoning signatures preserved independently of the include hint.
@@ -122,7 +122,7 @@ Serialize typed events as `text/event-stream`, with the event type in `event:` a
 
 Return an OpenAI-compatible JSON error with an appropriate HTTP status for pre-stream failures. After headers are sent, emit a valid `response.failed` event when the failure can be represented faithfully; otherwise terminate the stream. Never synthesize successful completion after an upstream failure. Preserve upstream request IDs and retry information where available.
 
-Close the upstream iterator on client disconnect, generator cancellation, failure, or normal completion, and configure deployment proxies to avoid SSE buffering. Reject non-streaming requests until collection is supported.
+Close the upstream iterator on client disconnect, generator cancellation, failure, or normal completion, and configure deployment proxies to avoid SSE buffering. Reject non-streaming requests in the first server release; the library already supports response collection, but the server JSON response path remains deferred.
 
 Completion criteria: HTTP integration tests verify catalog responses, model routing, authentication, exact SSE framing and event order, setup and mid-stream errors, cancellation, and resource cleanup.
 
@@ -141,7 +141,7 @@ Evaluate these independently after the stateless baseline is reliable:
 - Translation of custom patch tools, namespaces, deferred tool search, and additional MCP/app request shapes.
 - Hosted web search and the standalone search endpoint.
 - Responses WebSockets and remote compaction.
-- Non-streaming responses, stored response retrieval, and conversation state.
+- An HTTP JSON response path using the library's existing non-streaming support, stored response retrieval, and conversation state.
 - Additional model catalog capabilities, including service tiers and structured output, once their mappings are implemented and tested.
 
 Each expansion should start from a concrete Codex workflow and a verified protocol contract.

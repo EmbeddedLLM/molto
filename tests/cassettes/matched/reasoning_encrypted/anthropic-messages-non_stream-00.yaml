@@ -1,0 +1,67 @@
+filename: 2026-09-07-01a07af9-7a64-7633-a4d8-b47a2e0ff68c
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: How much wood would a woodchuck chuck?
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    output_config:
+      effort: medium
+    stream: false
+    thinking:
+      display: summarized
+      type: adaptive
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '255'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a07af9-7a64-7633-a4d8-b47a2e0ff68c
+response:
+  body:
+    content:
+    - signature: gAAAAABqnnUXThm0lcZTYXARpcKRT6xapPS1G7DaFC1j3YJEHhQDow2Vz94Di53PBE-RyDViQ0Qp6BW0x12azW1Te4XVnYlkbwFxIW9a8m8nvkK9WyDRj6xhrtLZoxWTg7tOGN48JmenXzpWEyMndghUnxtOWoGgOnOrtPYz5jxPKu0siA5bjXxuNSBPmLaLIwcbXa8sBPcy35N4iawqKSEI40m8UuKskfbUzw8HaS_4Bo4c8-iR9Dx9aJS1z2UcIBOFDl26eeCcsaHJxE3XRq0anbF6qZafnL2rGKC1UaPt-3QAPeYMKfwDBcV8-7RYqyKB5GpP5OMxiL8_un3zpuvi0937UUvhcxVT6hJXlknS32H5j31snHk6OgY9NvSYBE8nDPh2DIhCHGyNbfPt4eYjsfvikuD-Hwo1KwdTD4pQusr1ASRXefVOFX1TCDDSZVyGKtaeRNXSfTODq8FbLko3Elvvq9JBeuB6ekhm8LSRg3QcYe1OBdukS2EvqDfpBxQnHRUNrXvaVSAbrUv3dcj8VHeqf_fD_jQZld0_-eCf5bDGCVf6_D4t3--neYsVmg8LN2uingRprFREdAVirgLx_CI2tVDyyzjlzj7roZT2jpzuuDm9W2sB2otC31ytoJq_7t9e3eY0n_EizYOmkV7gGo8reEmUxnyIRokI0RtkXPdCcR4_8sK-U7dY7in00W3mL_zirrATtg48lsR8RSZfyI5v89lMddvwd-ihRIaxNdRSdm8oLhgi6uqqrwj-slMSW486m305d0xzG6JFOuvxen5g3UwhKJ3vHoazgpgj7GfpI1geXBC1F9fqu7V6PAufJDWJpKZcFOEC8aik7VicaiuqlpU0HvxtSjI0vwCd5oMrQzZbmVTRTB2C_WE8UoEn2r4O5F6m0KMFap6HvoM6CumB1vFt4EjuUQD0AtIDeD4hlMLDVkR3UCcsG52ZXSUprsXyn0_U6oWosHyCjQIqYBK0MaUGOatD12eKArqBMNjc1Jx2JsSap0tal7Lef5z3T1oXmThkX4SAf0ZBSgHyPNAOWJcbvLk42J8A937eHGYpIssWplUUifhFEIMyyyBax-Xb6txjjx-q6Zj5_swlVo_c5h54wm2eZXEzjp7fcy7P1XKcPrXdD43G4T1CK7OnJNVJxQ2_zlixRcRCGeJi2vDOhqbqTf09Y3P_ZDQo1NGaBPSl2dZVkWqPkjkyw_X66JPg7U5wTyDocaDejHsNFDtMfDg84RxV7rvlclU73a11cHIGdviJdhugr2NEdZvM-nF37COuIABYpTfpj4nTUUfOpqaPR6q4Gkwb6GSH54g8xKJV_mUPIz3lf6dzjajwgQcT2fusX3IAcjY6803tVn4MpJvKnIxOGkFqkgZ6JpZ1DjoxkKa7-QkYdTQhH6iVROKXGziCC3_IsA4FUYhhOO5slsZN335PFHsu2304hKUpo0nTqLN8HX_ik9BjzFlI0MrOBGW_Vt5hs9tM33cjq6SQiuaBOojmhCiz6-9HktxHtII7fzWJXChGJ3saJC9n95BveJqf9ZtYLJPz0EUBzPYVmOHidAbHBb6kdGNs59ClB7l_8bC8BU4XEcVf5Hb5N_MVdCRyhKUHTPFOn03baxc_DbBSON0omSB2QAk89DsXz8kVK3aywcEYIWMyhuqeaH9E81vmoXIV1yYDIiLPGEpD742xTafHq-p6EfzGTn3P0RTMQx7cALWDUiRXt8C7DjuLpNTgPHzLuDlPEPMiPgAHufx6Ni7biCtB1T7RpCUAmn2pBgDSCidRmbzKJhAevnjHiJJI
+      thinking: '**Considering tongue twisters**
+
+
+        I need to provide a classic tongue twister about a woodchuck. The phrase goes:
+        "A woodchuck would chuck as much wood as a woodchuck could chuck if a woodchuck
+        could chuck wood." It’s not factual, but I could mention that studies estimate
+        a woodchuck can move about 700 pounds of wood, as noted in a 1988 study. I’ll
+        make sure to present this information concisely!'
+      type: thinking
+    - text: As much wood as a woodchuck could chuck—if a woodchuck could chuck wood.
+        The classic tongue-twister answer is **about 700 pounds**.
+      type: text
+    id: resp_0ca8ea20b0f7c4e6006a9e75122a2887d080198ac925ac9827
+    model: gpt-5.6-luna
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      inference_geo: global
+      input_tokens: 16
+      output_tokens: 151
+      output_tokens_details:
+        thinking_tokens: 110
+      service_tier: standard
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-09-07T08:26:05.284496+00:00'

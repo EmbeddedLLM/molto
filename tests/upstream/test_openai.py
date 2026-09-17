@@ -38,10 +38,12 @@ from molto.types.normalized import (
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
@@ -3233,6 +3235,51 @@ async def test_chat_completions_sdk_consumes_terminal_marker():
     assert len(events) == 1
     assert type(events[0]) is OpenAIChatCompletionsStreamChunk
     assert events[0].id == "chatcmpl_123"
+
+
+async def test_responses_native_response_uses_openai_sdk_model():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_response())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = OpenAIResponsesClient(
+            http_client,
+            capabilities=OPENAI_CAPABILITIES,
+            api_key="test-api-key",
+        )
+        request = OpenAIResponsesCreateRequest(input="Hi", model="m", stream=False)
+        response = await client.native_response(request)
+
+    assert type(response) is OpenAIResponsesResponse
+    assert response.id == "resp_123"
+
+
+async def test_chat_completions_native_response_uses_openai_sdk_model():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl_123",
+                "choices": [],
+                "created": 1,
+                "model": "m",
+                "object": "chat.completion",
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = OpenAIChatCompletionsClient(
+            http_client,
+            capabilities=OPENAI_CAPABILITIES,
+            api_key="test-api-key",
+        )
+        request = OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": "Hi"}], model="m", stream=False
+        )
+        response = await client.native_response(request)
+
+    assert type(response) is OpenAIChatCompletionsResponse
+    assert response.id == "chatcmpl_123"
 
 
 class _TrackingStream(httpx.AsyncByteStream):

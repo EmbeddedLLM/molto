@@ -1,0 +1,162 @@
+filename: 2026-09-07-01a07af9-6404-7a33-bb25-0a15f3750419
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content:
+      - text: How much wood would a woodchuck chuck?
+        type: input_text
+      role: user
+    - content: []
+      encrypted_content: gAAAAABqnnUXThm0lcZTYXARpcKRT6xapPS1G7DaFC1j3YJEHhQDow2Vz94Di53PBE-RyDViQ0Qp6BW0x12azW1Te4XVnYlkbwFxIW9a8m8nvkK9WyDRj6xhrtLZoxWTg7tOGN48JmenXzpWEyMndghUnxtOWoGgOnOrtPYz5jxPKu0siA5bjXxuNSBPmLaLIwcbXa8sBPcy35N4iawqKSEI40m8UuKskfbUzw8HaS_4Bo4c8-iR9Dx9aJS1z2UcIBOFDl26eeCcsaHJxE3XRq0anbF6qZafnL2rGKC1UaPt-3QAPeYMKfwDBcV8-7RYqyKB5GpP5OMxiL8_un3zpuvi0937UUvhcxVT6hJXlknS32H5j31snHk6OgY9NvSYBE8nDPh2DIhCHGyNbfPt4eYjsfvikuD-Hwo1KwdTD4pQusr1ASRXefVOFX1TCDDSZVyGKtaeRNXSfTODq8FbLko3Elvvq9JBeuB6ekhm8LSRg3QcYe1OBdukS2EvqDfpBxQnHRUNrXvaVSAbrUv3dcj8VHeqf_fD_jQZld0_-eCf5bDGCVf6_D4t3--neYsVmg8LN2uingRprFREdAVirgLx_CI2tVDyyzjlzj7roZT2jpzuuDm9W2sB2otC31ytoJq_7t9e3eY0n_EizYOmkV7gGo8reEmUxnyIRokI0RtkXPdCcR4_8sK-U7dY7in00W3mL_zirrATtg48lsR8RSZfyI5v89lMddvwd-ihRIaxNdRSdm8oLhgi6uqqrwj-slMSW486m305d0xzG6JFOuvxen5g3UwhKJ3vHoazgpgj7GfpI1geXBC1F9fqu7V6PAufJDWJpKZcFOEC8aik7VicaiuqlpU0HvxtSjI0vwCd5oMrQzZbmVTRTB2C_WE8UoEn2r4O5F6m0KMFap6HvoM6CumB1vFt4EjuUQD0AtIDeD4hlMLDVkR3UCcsG52ZXSUprsXyn0_U6oWosHyCjQIqYBK0MaUGOatD12eKArqBMNjc1Jx2JsSap0tal7Lef5z3T1oXmThkX4SAf0ZBSgHyPNAOWJcbvLk42J8A937eHGYpIssWplUUifhFEIMyyyBax-Xb6txjjx-q6Zj5_swlVo_c5h54wm2eZXEzjp7fcy7P1XKcPrXdD43G4T1CK7OnJNVJxQ2_zlixRcRCGeJi2vDOhqbqTf09Y3P_ZDQo1NGaBPSl2dZVkWqPkjkyw_X66JPg7U5wTyDocaDejHsNFDtMfDg84RxV7rvlclU73a11cHIGdviJdhugr2NEdZvM-nF37COuIABYpTfpj4nTUUfOpqaPR6q4Gkwb6GSH54g8xKJV_mUPIz3lf6dzjajwgQcT2fusX3IAcjY6803tVn4MpJvKnIxOGkFqkgZ6JpZ1DjoxkKa7-QkYdTQhH6iVROKXGziCC3_IsA4FUYhhOO5slsZN335PFHsu2304hKUpo0nTqLN8HX_ik9BjzFlI0MrOBGW_Vt5hs9tM33cjq6SQiuaBOojmhCiz6-9HktxHtII7fzWJXChGJ3saJC9n95BveJqf9ZtYLJPz0EUBzPYVmOHidAbHBb6kdGNs59ClB7l_8bC8BU4XEcVf5Hb5N_MVdCRyhKUHTPFOn03baxc_DbBSON0omSB2QAk89DsXz8kVK3aywcEYIWMyhuqeaH9E81vmoXIV1yYDIiLPGEpD742xTafHq-p6EfzGTn3P0RTMQx7cALWDUiRXt8C7DjuLpNTgPHzLuDlPEPMiPgAHufx6Ni7biCtB1T7RpCUAmn2pBgDSCidRmbzKJhAevnjHiJJI
+      id: rs_0ca8ea20b0f7c4e6006a9e7512e7dc87d09ae8b435f78befc4
+      summary:
+      - text: '**Considering tongue twisters**
+
+
+          I need to provide a classic tongue twister about a woodchuck. The phrase
+          goes: "A woodchuck would chuck as much wood as a woodchuck could chuck if
+          a woodchuck could chuck wood." It’s not factual, but I could mention that
+          studies estimate a woodchuck can move about 700 pounds of wood, as noted
+          in a 1988 study. I’ll make sure to present this information concisely!'
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: As much wood as a woodchuck could chuck—if a woodchuck could chuck wood.
+          The classic tongue-twister answer is **about 700 pounds**.
+        type: output_text
+      id: msg_0ca8ea20b0f7c4e6006a9e7516c61887d09d153c9cbce1da9e
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: What's your reasoning?
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: gpt-5.6-luna
+    reasoning:
+      effort: medium
+      summary: detailed
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3075'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a07af9-6404-7a33-bb25-0a15f3750419
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1788769564
+    created_at: 1788769559
+    error: null
+    frequency_penalty: 0.0
+    id: resp_0ca8ea20b0f7c4e6006a9e7517b4d087d086c4c5d5ae1aa901
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-5.6-luna
+    moderation: null
+    object: response
+    output:
+    - content: []
+      encrypted_content: gAAAAABqnnUd9Tx77Sr-2FA-7sSWMzVTgpcKYnCM-sfDh2w9geAPXkUHqCbf-KYGxkpMWrRaQ7kZYTZk2LTlOqFoqV1vA24ND42HuyE4zsSm1pyaR8m4hLahmUXrEiqZ7_lz11HKdnb_mB_9XBsW4NYK-7se8TU_01OEW_4_AJ1sDX8wFRi4BnqqERJKb4k3TjfDTdLNXOmHrTD3fmdR_JxvF-6Bz5gLeCAlVFMSurmY8MQONW13Q-CedbqUMwbD0gFi9zvhoKZhB-pfSMp5jXrr4xRFftRlQwmi2xit4x8gWPGdAo5U7m29aZj3TvVh87kVnJUFkU4utOI_jl-3vI8QLzZg3mmYwHVyiVx4UMlfsJQvmOqffhfjVxNa1jYLIGHLuuJPUavxosT7n7wH95Dd5M3euDhEqXemTqkSrIcdsQcmM9hTUUurnJ4ANzp5GEuM9GQ3G-dDWVwwfd9R66s1VBfDrzIZC10qYh4DSrhwczhx0sX6WAB_TKw_zFXjk7kveAvRoCruwVKIS8bBjaj3laoaZYAnmAuAZsYql2AOMddg0yrX1Kh8czSOgjGKf43AzrH1NJ5tGwshOBW6oxOA9PbZOvS0MTa-D_pTZflaSei1YUeSaRPGIBIIOc7hGE3C1NFV8zzr36DLXwgKBONL8YyBNAvG1Qk_xvhx0tZ9tzTjdd8AJcidf3dzl2-xKZsKVEY82OrnqMMAVKw3_QPDr07I4OQiCSQnGj99jhFc3va3lfEJ1Ny8FVpXUW4MgCX6G-PYX4SO6JZw079ENR0sk34mwcHt8XmNORgP-NjsLdp35-oSAehTsflUvNE0dXvP8p3JWN1zu0qVN5ip3ibAj8S7Y0tgC-ZUc8H7VDRydMPF0Vul7gq3hMsk5G9LANi-5Nch-MeXSEN0-AQJZmyvY_biT1kws5UGmsa5P0-cMNCwWJsRC7lijvJKCtIuIv_F0RsTQXn3D0Z8QDr2gKHjBKw8KAC6VdEav9uEvosSlwT1XOqtjDxQIlLq78nSg0azjSdGqhmGfbWy8qBAnnWZj_T1iCAXk-ffI4WhwjS53aaNp4YqvdOF-jxJc_ft2GEgbfSOGvNum941LULQfZq2TDt_wxyhzmatXycX-Ng90lojDGpYhGRzuVBH1ZVu_6_9eGl2tkIRsSZ6CB_ZQAIT38I14A2cq7AL6aguEhOumhvw4rlRCeIM04SbTt_qqXaZsxVJWKqDUAAUAw7kDL-CkVju1fJf3o3kZ02MQ0UN3_nvkz9o7IOwPmxs-Xz8cCVkjRjHM-pSePbEZ1vzvt2Ms5f6UmwqfB1y5tfpD7eAirwGwR3FeDY76HsJuTJfHsx0iyRAIDfLZqQcKh7oKV4BtiQWAqG8i3RmSCtgggrZlsvPhEXRvUIXd4D8ssCwtXFd2OTmO0KJ5q3a1yyx_BHquIJ6pfOhmu09eJyfSIpD4jmZAenQ7YXPz5y14btNzld5kb7Z5jcRbCoXs8yJQTMfPV3bD3-nM62uKmuXcYxeQJlq2JP_CW2a8m5aXZFnS-GVLYVRPUpfl_gEd9mdWpEO6bIytwMfcmh3aJSw-8ESaE1CBqw_RP4W99qiKtCDk1yJ3czH9duRSZFYp76_xYXvQBf3D7_Qzbdg_Retu0zAzcCgAcpHrA4iSvxQHMGLlY3rj-k3KG7vLwUR1SomIkAWbD-RLZjPpjQm5IY91C-JyGzjZg55YOYB7ZF_4DrO4Fu3hqDDPHr5-h8du8asioxqv7XGoahTon2TQAokqFFLJSZtV4wZ7AVaZjXH4Osv0ndnoG8ruh7WiKzktc2etSTm1d72BVORrjJUutVE-hygpZnnx1fc_6d9bkxKW9aBSi__YUrgQhv7I5ysS2kMAnsGzgmQ2waKqVgX4kAeUhCXkoWmaNMdbJwyr_zJo1-SXPNbEnLvtBFtg34Nh-EoY_7Eq06bmpZrysL2tSFRYtvE9Gy021bLfz-AyYFIW9EQllw7jVd3wodTu8nxdPDmVZ35nRLlFIrUiTjIbbneycKdXy7AVB1IH-efAemYgKCKwahnJtrP9lkZ28ZBNmB_Mb0_vKy_gATMOM9s464qavoyHyxR8Gh-iH0rnjtjtgJKLRB_AjIWyrSCf5X_25gBoEPgZ4mK1qWzmgSApj-o4baMUs4UASQmajRVm8Y3AIfpR2DYH2zAAhY4
+      id: rs_0ca8ea20b0f7c4e6006a9e751834c887d0ba8d13ee00f85dbd
+      summary:
+      - text: '**Clarifying the 700-pound estimate**
+
+
+          I need to explain the 700-pound estimate, which may come from folklore.
+          This number seems to be linked to Robert Krulwich and a study from 1988.
+          It mentions that while woodchucks don’t actually chuck wood, they excavate
+          dirt, and the folklore answer is that they could chuck about 700 pounds
+          of wood based on burrow volume. That estimate is often associated with wildlife
+          biologist Richard Thomas, who calculated it based on the dirt a woodchuck
+          moves. I need to avoid over-claiming here.'
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: 'The phrase itself doesn’t have a literal answer: woodchucks don’t normally
+          move wood—they excavate soil.
+
+
+          The **700-pound figure** is a rough, playful estimate attributed to wildlife
+          biologist Richard Thomas. He estimated the amount of material a woodchuck
+          might move while digging a typical burrow, then converted that volume to
+          an equivalent weight of wood. So it’s not a measured wood-chucking capacity—just
+          a calculation behind the traditional punchline.'
+        type: output_text
+      id: msg_0ca8ea20b0f7c4e6006a9e751c3f8087d0bfefee128981abef
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: 24h
+    reasoning:
+      context: all_turns
+      effort: medium
+      mode: standard
+      summary: detailed
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools: []
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 177
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 273
+      output_tokens_details:
+        reasoning_tokens: 174
+      total_tokens: 450
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-09-07T08:25:59.556175+00:00'

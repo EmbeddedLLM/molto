@@ -15,6 +15,7 @@ from openai import APIStatusError as OpenAIAPIStatusError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import NotFoundError as OpenAINotFoundError
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
@@ -52,10 +53,12 @@ from molto.types.normalized import (
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
@@ -312,9 +315,26 @@ def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
 
 
 class OpenAIResponsesAdapter(
-    BaseAdapter[OpenAIResponsesCreateRequest, OpenAIResponsesStreamEvent]
+    BaseAdapter[
+        OpenAIResponsesCreateRequest,
+        OpenAIResponsesStreamEvent,
+        OpenAIResponsesResponse,
+    ]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    async def _project_response(
+        self,
+        events: AsyncIterator[OpenAIResponsesStreamEvent],
+        request: NormalizedRequest,
+    ) -> OpenAIResponsesResponse:
+        response: OpenAIResponsesResponse | None = None
+        async for event in events:
+            if event.type in {"response.completed", "response.incomplete"}:
+                response = event.response
+        if response is None:
+            raise ValueError("Responses event stream ended without a terminal response.")
+        return response
 
     def _normalize_message(
         self,
@@ -916,9 +936,34 @@ class OpenAIResponsesAdapter(
 
 
 class OpenAIChatCompletionsAdapter(
-    BaseAdapter[OpenAIChatCompletionsCreateRequest, OpenAIChatCompletionsStreamChunk]
+    BaseAdapter[
+        OpenAIChatCompletionsCreateRequest,
+        OpenAIChatCompletionsStreamChunk,
+        OpenAIChatCompletionsResponse,
+    ]
 ):
     """Translate Chat Completions requests and normalized response events."""
+
+    async def _project_response(
+        self,
+        events: AsyncIterator[OpenAIChatCompletionsStreamChunk],
+        request: NormalizedRequest,
+    ) -> OpenAIChatCompletionsResponse:
+        state = ChatCompletionStreamState()
+        finished = False
+        async for chunk in events:
+            state.handle_chunk(chunk)
+            finished = finished or any(
+                choice.finish_reason is not None for choice in chunk.choices
+            )
+
+        if not finished:
+            raise ValueError("Chat Completions event stream ended without a finish reason.")
+
+        data = state.current_completion_snapshot.model_dump()
+        for choice in data["choices"]:
+            choice["message"]["role"] = "assistant"
+        return OpenAIChatCompletionsResponse.model_validate(data)
 
     def _normalize_message(
         self,
@@ -1098,7 +1143,6 @@ class OpenAIChatCompletionsAdapter(
         events: AsyncIterator[ModelResponseStreamEvent],
         request: NormalizedRequest,
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
-        del request
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False
         tool_indices: dict[int, int] = {}
