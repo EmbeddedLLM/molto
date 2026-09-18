@@ -11,6 +11,7 @@ from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -19,9 +20,11 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
+    SystemPrompt,
     TerminationReason,
     TextDelta,
     TextInput,
@@ -981,6 +984,319 @@ def test_openai_clients_reject_failed_tool_results(client):
 
     with pytest.raises(UnsupportedInput, match="cannot preserve non-successful"):
         client._request_body(request)
+
+
+@pytest.mark.parametrize(
+    ("prompt_cache", "expected"),
+    [
+        (
+            PromptCache(key="turn-1", mode="implicit", ttl="30m", retention="24h"),
+            {
+                "prompt_cache_key": "turn-1",
+                "prompt_cache_options": {"mode": "implicit", "ttl": "30m"},
+                "prompt_cache_retention": "24h",
+            },
+        ),
+        (PromptCache(mode="explicit"), {"prompt_cache_options": {"mode": "explicit"}}),
+        (PromptCache(key="turn-1"), {"prompt_cache_key": "turn-1"}),
+        (PromptCache(retention="in_memory"), {"prompt_cache_retention": "in_memory"}),
+    ],
+)
+def test_openai_clients_project_prompt_cache_fields(prompt_cache, expected):
+    """Ensures both OpenAI endpoints receive cache intent without invented settings."""
+    request = NormalizedRequest(model="m", stream=True, prompt_cache=prompt_cache)
+
+    for body in (
+        OpenAIResponsesClient._request_body(request),
+        OpenAIChatCompletionsClient._request_body(request),
+    ):
+        assert {
+            field: body[field] for field in body if field.startswith("prompt_cache")
+        } == expected
+
+
+def test_openai_clients_omit_unset_prompt_cache():
+    """Ensures absent cache intent leaves provider defaults untouched."""
+    request = NormalizedRequest(model="m", stream=True)
+
+    for body in (
+        OpenAIResponsesClient._request_body(request),
+        OpenAIChatCompletionsClient._request_body(request),
+    ):
+        assert not [field for field in body if field.startswith("prompt_cache")]
+
+
+@pytest.mark.parametrize("ttl", ["5m", "30m", "1h"])
+def test_openai_clients_map_prompt_cache_ttl(ttl):
+    """Ensures TTL mapping uses 30m without implying stronger guarantees through retention."""
+    request = NormalizedRequest(model="m", stream=True, prompt_cache=PromptCache(ttl=ttl))
+
+    for client in (OpenAIResponsesClient, OpenAIChatCompletionsClient):
+        body = client._request_body(request)
+        assert body["prompt_cache_options"] == {"ttl": "30m"}
+        assert "prompt_cache_retention" not in body
+
+
+@pytest.mark.parametrize(
+    ("client", "input_field", "text_type"),
+    [
+        (OpenAIResponsesClient, "input", "input_text"),
+        (OpenAIChatCompletionsClient, "messages", "text"),
+    ],
+)
+def test_openai_clients_project_unmarked_instructions_as_text_parts(
+    client, input_field, text_type
+):
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            SystemPrompt(content="First instruction"),
+            SystemPrompt(content="Second instruction"),
+        ],
+    )
+
+    body = client._request_body(request)
+
+    assert body[input_field] == [
+        {"role": "developer", "content": [{"type": text_type, "text": text}]}
+        for text in ("First instruction", "Second instruction")
+    ]
+    assert "prompt_cache_options" not in body
+
+
+@pytest.mark.parametrize(
+    ("client", "input_field", "text_type", "image"),
+    [
+        (
+            OpenAIResponsesClient,
+            "input",
+            "input_text",
+            {
+                "type": "input_image",
+                "image_url": "https://example.com/image.png",
+                "detail": "high",
+            },
+        ),
+        (
+            OpenAIChatCompletionsClient,
+            "messages",
+            "text",
+            {
+                "type": "image_url",
+                "image_url": {"url": "https://example.com/image.png", "detail": "high"},
+            },
+        ),
+    ],
+)
+def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, text_type, image):
+    """Ensures both OpenAI endpoints retain marker positions and valid assistant shapes."""
+    marker = CacheBreakpoint()
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            SystemPrompt(content="Instructions", cache_breakpoint=marker),
+            SystemPrompt(content="Uncached instructions"),
+            UserInput(
+                content=[
+                    TextInput(content="Uncached part"),
+                    TextInput(content="Cached prefix", cache_breakpoint=marker),
+                    ImageUrlInput(
+                        url="https://example.com/image.png", detail="high", cache_breakpoint=marker
+                    ),
+                ]
+            ),
+            TextOutput(content="Previous answer", cache_breakpoint=marker),
+        ],
+    )
+
+    body = client._request_body(request)
+
+    assert body[input_field] == [
+        {
+            "role": "developer",
+            "content": [
+                {
+                    "type": text_type,
+                    "text": "Instructions",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        },
+        {
+            "role": "developer",
+            "content": [{"type": text_type, "text": "Uncached instructions"}],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": text_type, "text": "Uncached part"},
+                {
+                    "type": text_type,
+                    "text": "Cached prefix",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                },
+                {**image, "prompt_cache_breakpoint": {"mode": "explicit"}},
+            ],
+        },
+        {
+            "role": "assistant",
+            **({"type": "message", "status": "completed"} if input_field == "input" else {}),
+            "content": [
+                {
+                    "type": "output_text" if input_field == "input" else text_type,
+                    "text": "Previous answer",
+                    **({"annotations": [], "logprobs": []} if input_field == "input" else {}),
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        },
+    ]
+    assert "prompt_cache_options" not in body
+
+
+@pytest.mark.parametrize("client", [OpenAIResponsesClient, OpenAIChatCompletionsClient])
+@pytest.mark.parametrize("ttl", ["30m", "5m", "1h"])
+def test_openai_clients_map_breakpoint_lifetimes(client, ttl):
+    """Ensures shared-TTL mapping retains mode and key without inventing retention."""
+    request = NormalizedRequest(
+        model="m",
+        prompt_cache=PromptCache(mode="explicit", key="turn-1"),
+        input=[
+            UserInput(
+                content=[TextInput(content="Cached", cache_breakpoint=CacheBreakpoint(ttl=ttl))]
+            )
+        ],
+    )
+
+    body = client._request_body(request)
+    assert body["prompt_cache_options"] == {"mode": "explicit", "ttl": "30m"}
+    assert body["prompt_cache_key"] == "turn-1"
+    assert "prompt_cache_retention" not in body
+
+
+def test_openai_clients_preserve_tool_text_cache_breakpoint():
+    """Ensures tool text parts stay intact so markers delimit the same result prefix."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            ToolReturn(
+                tool_call_id="call_123",
+                content=[
+                    TextInput(content="First"),
+                    TextInput(content="Last", cache_breakpoint=CacheBreakpoint()),
+                ],
+            )
+        ],
+    )
+
+    assert OpenAIResponsesClient._request_body(request)["input"] == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": [
+                {"type": "input_text", "text": "First"},
+                {
+                    "type": "input_text",
+                    "text": "Last",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                },
+            ],
+        }
+    ]
+    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+        {
+            "role": "tool",
+            "tool_call_id": "call_123",
+            "content": [
+                {"type": "text", "text": "First"},
+                {"type": "text", "text": "Last", "prompt_cache_breakpoint": {"mode": "explicit"}},
+            ],
+        }
+    ]
+
+
+def test_responses_client_preserves_tool_image_cache_breakpoint():
+    """Ensures marked tool images remain in their original result to preserve cache prefixes."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            ToolReturn(
+                tool_call_id="call_123",
+                content=[
+                    ImageUrlInput(
+                        url="https://example.com/image.png", cache_breakpoint=CacheBreakpoint()
+                    ),
+                ],
+            )
+        ],
+    )
+
+    assert OpenAIResponsesClient._request_body(request)["input"] == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": [
+                {
+                    "type": "input_image",
+                    "image_url": "https://example.com/image.png",
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize("item_id", [None, "msg_123"])
+def test_responses_client_preserves_assistant_marker_and_history_id(item_id):
+    """Ensures marked assistant history retains output_text and its optional message ID."""
+    request = NormalizedRequest(
+        model="m",
+        input=[TextOutput(content="Answer", id=item_id, cache_breakpoint=CacheBreakpoint())],
+    )
+
+    assert OpenAIResponsesClient._request_body(request)["input"] == [
+        {
+            **({"id": item_id} if item_id is not None else {}),
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "Answer",
+                    "annotations": [],
+                    "logprobs": [],
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                }
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize("marker_position", ["image", "same_result_text", "next_result_text"])
+def test_chat_client_rejects_cache_breakpoint_after_relocated_tool_image(marker_position):
+    """Asserts that tool-image relocation cannot silently change marked cache prefixes."""
+    marker = CacheBreakpoint()
+    image_result = ToolReturn(
+        tool_call_id="call_a",
+        content=[
+            ImageUrlInput(
+                url="https://example.com/image.png",
+                cache_breakpoint=marker if marker_position == "image" else None,
+            )
+        ],
+    )
+    text = TextInput(content="Result", cache_breakpoint=marker)
+    request = NormalizedRequest(model="m", input=[image_result])
+    if marker_position == "same_result_text":
+        image_result.content.append(text)
+    elif marker_position == "next_result_text":
+        request.input.append(ToolReturn(tool_call_id="call_b", content=[text]))
+
+    with pytest.raises(
+        UnsupportedInput, match="tool-result images must move past the marked part"
+    ):
+        OpenAIChatCompletionsClient._request_body(request)
 
 
 @pytest.mark.parametrize(

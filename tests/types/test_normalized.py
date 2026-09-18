@@ -152,9 +152,43 @@ def test_request_uses_provider_neutral_function_tools():
             }
         },
         {"stream_options": {"include_obfuscation": True, "unknown": True}},
+        {"prompt_cache": {"mode": "implicit", "unknown": True}},
+        {
+            "input": [
+                {
+                    "content_type": "system-prompt",
+                    "content": "s",
+                    "cache_breakpoint": {"unknown": True},
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "text-output",
+                    "content": "a",
+                    "cache_breakpoint": {"unknown": True},
+                }
+            ]
+        },
+        {
+            "input": [
+                {
+                    "content_type": "user-input",
+                    "content": [
+                        {
+                            "content_type": "text-input",
+                            "content": "u",
+                            "cache_breakpoint": {"unknown": True},
+                        }
+                    ],
+                }
+            ]
+        },
     ],
 )
 def test_request_rejects_extra_fields_at_every_strict_boundary(request_data: dict):
+    """Asserts that unknown nested settings are rejected before translation can lose them."""
     with pytest.raises(ValidationError, match="extra_forbidden"):
         NormalizedRequest(**request_data)
 

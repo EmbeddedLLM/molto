@@ -13,7 +13,7 @@ IMAGE_URL = f"data:image/png;base64,{IMAGE_DATA}"
 
 openai_client = AsyncOpenAI(
     api_key=ENV_CONFIG.openai_api_key_plain,
-    base_url="http://localhost:8080/v1",
+    base_url="http://localhost:8080/v1/v2",
     # api_key=ENV_CONFIG.deepseek_api_key_plain,
     # base_url="https://api.deepseek.com",
 )
@@ -52,31 +52,35 @@ ANTHROPIC_TOOLS = [
     }
 ]
 
-OPENAI_MODEL = "gpt-5.6-luna"
-ANTHROPIC_MODEL = "claude-sonnet-5"
+OPENAI_MODEL = "kimi"
+ANTHROPIC_MODEL = "kimi"
 
 
 async def responses():
     input_items = [
         {
             "role": "user",
-            "content": [{"type": "input_text", "text": PROMPT}],
+            "content": [{"type": "input_text", "text": "Hi"}],
         }
     ]
     for turn in range(2):
-        response = await openai_client.responses.create(
-            model=OPENAI_MODEL,
-            input=input_items,
-            tools=RESPONSES_TOOLS,
-            # tool_choice=(
-            #     {"type": "function", "name": READ_IMAGE_FUNCTION["name"]} if turn == 0 else "none"
-            # ),
-            parallel_tool_calls=True,
-            reasoning=dict(effort="none"),
-            stream=True,
-            stream_options=dict(include_obfuscation=False),
-            max_output_tokens=4096,
-        )
+        try:
+            response = await openai_client.responses.create(
+                model=OPENAI_MODEL,
+                input=input_items,
+                # tools=RESPONSES_TOOLS,
+                # tool_choice=(
+                #     {"type": "function", "name": READ_IMAGE_FUNCTION["name"]} if turn == 0 else "none"
+                # ),
+                # parallel_tool_calls=True,
+                # reasoning=dict(effort="none"),
+                stream=True,
+                stream_options=dict(include_obfuscation=False),
+                max_output_tokens=1024,
+            )
+        except Exception as e:
+            print(e, getattr(e, "status_code", None))
+            return
         current_output = output_type = None
         completed_output = []
         async for event in response:
@@ -137,12 +141,12 @@ async def responses():
 
 
 async def chat_completions():
-    messages = [{"role": "user", "content": [{"type": "text", "text": PROMPT}]}]
+    messages = [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}]
     for turn in range(2):
         response = await openai_client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            tools=CHAT_COMPLETIONS_TOOLS,
+            # tools=CHAT_COMPLETIONS_TOOLS,
             # tool_choice=(
             #     {
             #         "type": "function",
@@ -151,11 +155,11 @@ async def chat_completions():
             #     if turn == 0
             #     else "none"
             # ),
-            reasoning_effort="none",
-            parallel_tool_calls=True,
+            # reasoning_effort="none",
+            # parallel_tool_calls=True,
             stream=True,
             stream_options=dict(include_obfuscation=False, include_usage=True),
-            max_completion_tokens=4096,
+            max_completion_tokens=1024,
         )
         current_output = output_type = None
         reasoning_content = ""
@@ -250,13 +254,13 @@ async def chat_completions():
 
 
 async def messages():
-    message_history = [{"role": "user", "content": [{"type": "text", "text": PROMPT}]}]
+    message_history = [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}]
     for turn in range(2):
         async with anthropic_client.messages.stream(
             model=ANTHROPIC_MODEL,
-            max_tokens=4096,
+            max_tokens=1024,
             messages=message_history,
-            tools=ANTHROPIC_TOOLS,
+            # tools=ANTHROPIC_TOOLS,
             # tool_choice=(
             #     {
             #         "type": "tool",
@@ -268,7 +272,7 @@ async def messages():
             # ),
             # thinking={"type": "adaptive", "display": "summarized"},
             # output_config={"effort": "high"},
-            thinking={"type": "disabled"},
+            # thinking={"type": "disabled"},
         ) as response:
             current_output = None
             thinking = ""
@@ -342,9 +346,9 @@ async def messages():
 
 
 async def main():
-    # await responses()
-    # await chat_completions()
-    await messages()
+    await responses()
+    await chat_completions()
+    # await messages()
 
 
 if __name__ == "__main__":

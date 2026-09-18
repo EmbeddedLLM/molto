@@ -18,6 +18,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -99,6 +100,33 @@ def _chat_tool_choice(request: NormalizedRequest) -> Any:
             "function": {"name": request.tool_choice.name},
         }
     return request.tool_choice
+
+
+def _prompt_cache_fields(request: NormalizedRequest) -> dict[str, Any]:
+    """Project normalized cache intent onto the fields both OpenAI protocols share."""
+    cache = request.prompt_cache
+    fields: dict[str, Any] = {}
+    options: dict[str, Any] = {}
+    ttls = [breakpoint.ttl for breakpoint in request.iter_cache_breakpoints()]
+    if cache is not None:
+        if cache.mode is not None:
+            options["mode"] = cache.mode
+        if cache.key is not None:
+            fields["prompt_cache_key"] = cache.key
+        if cache.retention is not None:
+            fields["prompt_cache_retention"] = cache.retention
+        ttls.append(cache.ttl)
+    if any(ttl is not None for ttl in ttls):
+        # OpenAI only supports one request-wide TTL. This rounds 5m up and
+        # approximates 1h with a shorter minimum under the documented cache policy.
+        options["ttl"] = "30m"
+    if options:
+        fields["prompt_cache_options"] = options
+    return fields
+
+
+def _prompt_cache_breakpoint_fields(breakpoint: CacheBreakpoint | None) -> dict[str, Any]:
+    return {"prompt_cache_breakpoint": {"mode": "explicit"}} if breakpoint is not None else {}
 
 
 def _validate_responses_function_call(
@@ -300,14 +328,35 @@ class OpenAIResponsesClient(
         items: list[dict[str, Any]] = []
         for item in request.input:
             if isinstance(item, SystemPrompt):
-                items.append({"role": "developer", "content": item.content})
+                items.append(
+                    {
+                        "role": "developer",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": item.content,
+                                **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                            }
+                        ],
+                    }
+                )
             elif isinstance(item, UserInput):
                 content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
-                        content.append({"type": "input_text", "text": part.content})
+                        content.append(
+                            {
+                                "type": "input_text",
+                                "text": part.content,
+                                **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                            }
+                        )
                     elif isinstance(part, ImageUrlInput):
-                        image = {"type": "input_image", "image_url": part.url}
+                        image = {
+                            "type": "input_image",
+                            "image_url": part.url,
+                            **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                        }
                         if part.detail is not None:
                             image["detail"] = part.detail
                         content.append(image)
@@ -341,6 +390,7 @@ class OpenAIResponsesClient(
                             "text": item.content,
                             "annotations": [],
                             "logprobs": [],
+                            **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
                         }
                     ],
                 }
@@ -366,9 +416,19 @@ class OpenAIResponsesClient(
                 output: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
-                        output.append({"type": "input_text", "text": part.content})
+                        output.append(
+                            {
+                                "type": "input_text",
+                                "text": part.content,
+                                **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                            }
+                        )
                     elif isinstance(part, ImageUrlInput):
-                        image = {"type": "input_image", "image_url": part.url}
+                        image = {
+                            "type": "input_image",
+                            "image_url": part.url,
+                            **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                        }
                         if part.detail is not None:
                             image["detail"] = part.detail
                         output.append(image)
@@ -413,6 +473,7 @@ class OpenAIResponsesClient(
             body["reasoning"] = request.reasoning.model_dump(exclude={"extra_fields"})
         if request.stream_options is not None:
             body["stream_options"] = request.stream_options.model_dump(exclude={"extra_fields"})
+        body.update(_prompt_cache_fields(request))
         try:
             return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
         except ValidationError as error:
@@ -689,18 +750,41 @@ class OpenAIChatCompletionsClient(
                 flush_deferred_images()
             if isinstance(item, SystemPrompt):
                 flush_assistant()
-                messages.append({"role": "developer", "content": item.content})
+                messages.append(
+                    {
+                        "role": "developer",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": item.content,
+                                **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                            }
+                        ],
+                    }
+                )
             elif isinstance(item, UserInput):
                 flush_assistant()
                 content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
-                        content.append({"type": "text", "text": part.content})
+                        content.append(
+                            {
+                                "type": "text",
+                                "text": part.content,
+                                **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                            }
+                        )
                     elif isinstance(part, ImageUrlInput):
                         image_url = {"url": part.url}
                         if part.detail is not None:
                             image_url["detail"] = part.detail
-                        content.append({"type": "image_url", "image_url": image_url})
+                        content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": image_url,
+                                **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                            }
+                        )
                 messages.append({"role": "user", "content": content})
             elif isinstance(item, Thinking):
                 pending_assistant()["reasoning_content"] = item.content or item.summary
@@ -709,7 +793,17 @@ class OpenAIChatCompletionsClient(
                 if "content" in message:
                     flush_assistant()
                     message = pending_assistant()
-                message["content"] = item.content
+                message["content"] = (
+                    [
+                        {
+                            "type": "text",
+                            "text": item.content,
+                            **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                        }
+                    ]
+                    if item.cache_breakpoint is not None
+                    else item.content
+                )
             elif isinstance(item, ToolCall):
                 message = pending_assistant()
                 message.setdefault("tool_calls", []).append(
@@ -728,11 +822,27 @@ class OpenAIChatCompletionsClient(
                     raise UnsupportedInput(
                         "OpenAI protocols cannot preserve non-successful tool outcomes."
                     )
+                if (
+                    deferred_image_messages
+                    or any(isinstance(part, ImageUrlInput) for part in item.content)
+                ) and any(part.cache_breakpoint is not None for part in item.content):
+                    # TODO: Some CC implementation such as vLLM and SGLang supports image tool content
+                    # TODO: Only raise this if the upstream CC does not support image tool content
+                    raise UnsupportedInput(
+                        "Chat Completions cannot preserve prompt cache breakpoints when "
+                        "tool-result images must move past the marked part."
+                    )
                 content: list[dict[str, Any]] = []
                 image_content: list[dict[str, Any]] = []
                 for part in item.content:
                     if isinstance(part, TextInput):
-                        content.append({"type": "text", "text": part.content})
+                        content.append(
+                            {
+                                "type": "text",
+                                "text": part.content,
+                                **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                            }
+                        )
                     elif isinstance(part, ImageUrlInput):
                         image_url = {"url": part.url}
                         if part.detail is not None:
@@ -808,6 +918,7 @@ class OpenAIChatCompletionsClient(
             body["temperature"] = request.temperature
         if request.top_p is not None:
             body["top_p"] = request.top_p
+        body.update(_prompt_cache_fields(request))
         try:
             return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
         except ValidationError as error:

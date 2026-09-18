@@ -26,6 +26,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -34,6 +35,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ReasoningEffort,
     ResponseEndEvent,
@@ -73,6 +75,7 @@ _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
 
 _MESSAGES_TRANSLATABLE_FIELDS = frozenset(
     {
+        "cache_control",
         "max_tokens",
         "messages",
         "model",
@@ -86,6 +89,19 @@ _MESSAGES_TRANSLATABLE_FIELDS = frozenset(
         "top_p",
     }
 )
+
+
+def _reject_cache_breakpoint(block: dict[str, Any]) -> None:
+    """Reject markers on blocks with no corresponding OpenAI content part."""
+    if block.get("cache_control") is not None:
+        raise UnsupportedInput(
+            f"Anthropic {block.get('type')} cache_control is not supported for translation."
+        )
+
+
+def _cache_breakpoint(block: dict[str, Any]) -> CacheBreakpoint | None:
+    control = block.get("cache_control")
+    return CacheBreakpoint(ttl=control.get("ttl")) if control is not None else None
 
 
 def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
@@ -235,14 +251,17 @@ class AnthropicMessagesAdapter(
     def _normalize_input_block(block: dict[str, Any]) -> TextInput | ImageUrlInput:
         block_type = block.get("type")
         if block_type == "text":
-            return TextInput(content=block["text"])
+            return TextInput(content=block["text"], cache_breakpoint=_cache_breakpoint(block))
         if block_type == "image":
             source = block.get("source") or {}
             source_type = source.get("type")
             if source_type == "base64":
-                return ImageUrlInput(url=f"data:{source['media_type']};base64,{source['data']}")
+                return ImageUrlInput(
+                    url=f"data:{source['media_type']};base64,{source['data']}",
+                    cache_breakpoint=_cache_breakpoint(block),
+                )
             if source_type == "url":
-                return ImageUrlInput(url=source["url"])
+                return ImageUrlInput(url=source["url"], cache_breakpoint=_cache_breakpoint(block))
             raise UnsupportedInput(f"Unsupported Anthropic image source: {source_type}")
         raise UnsupportedInput(f"Unsupported Anthropic user content block: {block_type}")
 
@@ -253,7 +272,10 @@ class AnthropicMessagesAdapter(
         ]
         if unsupported:
             raise UnsupportedInput(f"Unsupported Anthropic system content blocks: {unsupported}")
-        return [SystemPrompt(content=block["text"]) for block in content_blocks]
+        return [
+            SystemPrompt(content=block["text"], cache_breakpoint=_cache_breakpoint(block))
+            for block in content_blocks
+        ]
 
     def _normalize_user_blocks(
         self, content_blocks: list[dict[str, Any]]
@@ -277,6 +299,7 @@ class AnthropicMessagesAdapter(
         return items
 
     def _normalize_tool_result(self, block: dict[str, Any]) -> ToolReturn:
+        _reject_cache_breakpoint(block)
         content = block.get("content", "")
         if isinstance(content, str):
             normalized_content = [TextInput(content=content)]
@@ -296,13 +319,17 @@ class AnthropicMessagesAdapter(
         for block in content_blocks:
             block_type = block.get("type")
             if block_type == "thinking":
+                _reject_cache_breakpoint(block)
                 part = self._classify_thinking(block["thinking"], signature=block.get("signature"))
                 if self._capabilities.thinking == "summary" and not part.signature:
                     raise UnsupportedInput("An Anthropic reasoning summary requires a signature.")
                 items.append(part)
             elif block_type == "text":
-                items.append(TextOutput(content=block["text"]))
+                items.append(
+                    TextOutput(content=block["text"], cache_breakpoint=_cache_breakpoint(block))
+                )
             elif block_type == "tool_use":
+                _reject_cache_breakpoint(block)
                 caller = block.get("caller")
                 caller_type = (
                     caller.get("type")
@@ -348,8 +375,7 @@ class AnthropicMessagesAdapter(
         if isinstance(request.system, str):
             normalized_input.append(SystemPrompt(content=request.system))
         elif request.system is not None:
-            for block in request.system:
-                normalized_input.append(SystemPrompt(content=block["text"]))
+            normalized_input.extend(self._normalize_system_blocks(list(request.system)))
 
         for message in request.messages:
             if isinstance(message.content, str):
@@ -371,6 +397,13 @@ class AnthropicMessagesAdapter(
             "stream": request.stream,
             "stream_options": StreamOptions(include_obfuscation=False),
         }
+        if request.cache_control is not None:
+            # Top-level control is Anthropic's opt-in to provider-chosen breakpoints that
+            # advance with the conversation; its `ephemeral` type is pinned by the request model.
+            data["prompt_cache"] = PromptCache(
+                mode="implicit",
+                ttl=request.cache_control.get("ttl"),
+            )
         if request.tools is not None:
             data["tools"] = [_normalize_tool(tool) for tool in request.tools]
         if request.tool_choice is not None:
@@ -415,7 +448,14 @@ class AnthropicMessagesAdapter(
             data["temperature"] = request.temperature
         if request.top_p is not None:
             data["top_p"] = request.top_p
-        return NormalizedRequest.model_validate(data)
+        normalized = NormalizedRequest.model_validate(data)
+        if (
+            normalized.prompt_cache is None
+            and next(normalized.iter_cache_breakpoints(), None) is not None
+        ):
+            # Without top-level cache_control, Messages caches only the marked prefixes.
+            normalized.prompt_cache = PromptCache(mode="explicit")
+        return normalized
 
     async def _project_events(
         self,

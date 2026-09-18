@@ -58,6 +58,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - When a check cannot be run, report the exact command not run and the reason.
 - Distinguish failures introduced by the current change from pre-existing or environment-dependent failures.
 - Verify the behavior affected by the change, not merely that the code compiles.
+- All tests must have docstrings that state their intention, goal, purpose, or the regression they guard against. Use phrasing such as "Ensures ..." or "Asserts that ..." to describe the behavior being protected.
 - Add or update regression tests when fixing a reproducible defect. For any public provider behavior with an OpenAI SDK-equivalent contract, include cassette-backed parity coverage that compares Molto against parsed OpenAI SDK responses or events; IR and provider-setting unit tests may supplement this coverage, but must not replace it.
 - Read `tests/cassettes/README.md` before recording, editing, or reviewing cassette fixtures.
 - Never run tests in cassette-recording mode. Test runs must replay them only.

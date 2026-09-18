@@ -21,6 +21,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesResponse,
 )
+from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
@@ -59,6 +60,13 @@ TOOL_CALL_SCENARIOS: tuple[str, ...] = (
     "tool_call_image_result_parallel",
     "tool_call_parallel",
     "tool_call_with_reasoning_encrypted",
+)
+PROMPT_CACHE_SCENARIOS: tuple[str, ...] = (
+    "prompt_cache_implicit",
+    "prompt_cache_explicit",
+)
+PROMPT_CACHE_CASES: tuple[tuple[str, str], ...] = tuple(
+    product(PROMPT_CACHE_SCENARIOS, ("stream-00.yaml", "stream-01.yaml"))
 )
 
 
@@ -121,10 +129,12 @@ def _get_http_client(
     upstream: Protocol = "responses",
     *,
     translated: bool = False,
+    expected_body: dict[str, Any] | None = None,
     expected_extra_body: dict[str, Any] | None = None,
     requests: list[Request] | None = None,
     response_headers: dict[str, str] | None = None,
 ) -> AsyncClient:
+    """Replay `cassette_paths`, optionally asserting one exact outgoing request body."""
     cassette_paths = cassette_paths.copy()
 
     def cassette_handler(request: Request) -> Response:
@@ -141,10 +151,10 @@ def _get_http_client(
             )
             assert str(request.url) == f"{origin}{cassette['request']['path']}"
             assert request.url.path == cassette["request"]["path"]
-            expected_body = {
-                **cassette["request"]["body"],
-                **(expected_extra_body or {}),
-            }
+            expected = expected_body
+            if expected is None:
+                expected = cassette["request"]["body"]
+            expected = {**expected, **(expected_extra_body or {})}
             if (
                 translated
                 and upstream == "responses"
@@ -152,14 +162,14 @@ def _get_http_client(
             ):
                 _assert_reconstructable_encrypted_responses_request(
                     request_body,
-                    expected_body,
+                    expected,
                 )
             elif translated and upstream == "responses" and scenario in TOOL_CALL_SCENARIOS:
-                _assert_reconstructable_tool_responses_request(request_body, expected_body)
+                _assert_reconstructable_tool_responses_request(request_body, expected)
             elif translated and upstream == "chat/completions" and scenario in TOOL_CALL_SCENARIOS:
-                _assert_reconstructable_tool_chat_request(request_body, expected_body)
+                _assert_reconstructable_tool_chat_request(request_body, expected)
             else:
-                assert request_body == expected_body
+                assert request_body == expected
         except AssertionError as e:
             return Response(
                 400,
@@ -473,6 +483,7 @@ async def test_responses_translation_ignores_disabled_store(upstream: Protocol):
         ("tool_call", "stream-00.yaml"),
         ("tool_call", "stream-01.yaml"),
         ("tool_call", "stream-02.yaml"),
+        *PROMPT_CACHE_CASES,
     ],
 )
 async def test_native_stream_matches_provider_sdk(
@@ -732,6 +743,7 @@ async def _assert_matched_non_stream(
         ("tool_call", "stream-00.yaml"),
         ("tool_call", "stream-01.yaml"),
         ("tool_call", "stream-02.yaml"),
+        *PROMPT_CACHE_CASES,
     ],
 )
 def test_matched_request_body_matches_across_protocols(
@@ -834,6 +846,10 @@ async def _assert_stream_events(
             if downstream == "responses":
                 assert len(events) == len(expected_sse_events)
                 _assert_responses_stream_invariants(actual_sse_events)
+                if scenario in PROMPT_CACHE_SCENARIOS:
+                    usage = events[-1].response.usage
+                    assert usage.input_tokens_details.cached_tokens > 0
+                    assert usage.input_tokens_details.cache_write_tokens == 0
                 if upstream == "responses":
                     _assert_sse_events_contain(actual_sse_events, expected_sse_events)
                 elif upstream == "chat/completions":
@@ -965,6 +981,12 @@ async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("scenario", PROMPT_CACHE_SCENARIOS)
+async def test_prompt_cache_stream(scenario: str, downstream: Protocol, upstream: Protocol):
+    await _assert_matched_stream_events(scenario, downstream, upstream)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
 
@@ -1064,3 +1086,444 @@ async def test_instructions_stream():
         "instructions-stream-01.yaml",
     ]
     await _assert_responses_events(cassette_names)
+
+
+# --- Prompt caching --- #
+
+_OPENAI_PROMPT_CACHE: dict[str, Any] = {
+    "prompt_cache_key": "codex-turn-1",
+    "prompt_cache_options": {"mode": "implicit", "ttl": "30m"},
+    "prompt_cache_retention": "24h",
+}
+_MESSAGES_PROMPT_CACHE: dict[str, Any] = {"cache_control": {"type": "ephemeral"}}
+
+
+def _coordinator(client: Molto, protocol: Protocol):
+    return {
+        "responses": client.responses,
+        "chat/completions": client.chat_completions,
+        "messages": client.messages,
+    }[protocol]
+
+
+def _simple_text_cassette(protocol: Protocol) -> Path:
+    return _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
+
+
+async def _assert_prompt_cache_request(
+    downstream: Protocol,
+    upstream: Protocol,
+    additions: dict[str, Any],
+    expected_additions: dict[str, Any],
+) -> None:
+    """Assert the outgoing cache fields and parity with parsed downstream SDK events."""
+    downstream_path = _simple_text_cassette(downstream)
+    upstream_path = _simple_text_cassette(upstream)
+    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+    expected_body = deepcopy(_read_cassette(upstream_path)["request"]["body"]) | expected_additions
+
+    async with _get_http_client(
+        [upstream_path],
+        upstream,
+        translated=downstream != upstream,
+        expected_body=expected_body,
+    ) as http_client:
+        stream = await _coordinator(Molto(http_client=http_client), downstream)(
+            body=body,
+            endpoint=upstream,
+            provider=_provider_from_cassette_path(upstream_path),
+            api_key="test-api-key",
+        )
+        events = [event async for event in stream]
+
+    # Reuse the recorded response without rewriting fixtures: these tests exercise
+    # request projection and stream fidelity, not the provider's cache-hit decisions.
+    async with _get_http_client([downstream_path], downstream, expected_body=body) as http_client:
+        if downstream == "messages":
+            sdk_stream = await AsyncAnthropic(
+                api_key="test-api-key", http_client=http_client
+            ).messages.create(**body)
+        else:
+            sdk_client = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+            if downstream == "responses":
+                sdk_stream = await sdk_client.responses.create(**body)
+            else:
+                sdk_stream = await sdk_client.chat.completions.create(**body)
+        async with sdk_stream:
+            sdk_events = [event async for event in sdk_stream]
+
+    if downstream == upstream:
+        assert [type(event) for event in events] == [type(event) for event in sdk_events]
+        assert [event.model_dump(mode="json", exclude_unset=True) for event in events] == [
+            event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
+        ]
+        return
+
+    actual_sse = [dumps_sse(event) for event in events]
+    expected_sse = [dumps_sse(event) for event in sdk_events]
+    # The recorded response predates these request overrides, so compare its original
+    # reconstructible fields rather than treating its cache metadata as a fresh result.
+    recorded_body = _read_cassette(downstream_path)["request"]["body"]
+    if downstream == "responses":
+        _assert_responses_stream_invariants(actual_sse)
+        actual = [reconstructable_responses_event(sse, body=recorded_body) for sse in actual_sse]
+        expected = [
+            reconstructable_responses_event(sse, body=recorded_body) for sse in expected_sse
+        ]
+        if upstream == "messages":
+            for event in actual + expected:
+                if isinstance(event.get("response"), dict):
+                    event["response"].pop("created_at", None)
+    elif downstream == "chat/completions":
+        actual = [
+            chunk
+            for sse in actual_sse
+            for chunk in reconstructable_chat_completions_chunks(sse, body=body)
+        ]
+        expected = [
+            chunk
+            for sse in expected_sse
+            for chunk in reconstructable_chat_completions_chunks(sse, body=body)
+        ]
+        if upstream == "messages":
+            for chunk in actual + expected:
+                chunk.pop("created", None)
+    else:
+        actual = [reconstructable_anthropic_event(sse) for sse in actual_sse]
+        expected = [reconstructable_anthropic_event(sse) for sse in expected_sse]
+    assert actual == expected
+
+
+async def _assert_prompt_cache_rejected(
+    downstream: Protocol,
+    upstream: Protocol,
+    additions: dict[str, Any],
+    match: str,
+) -> None:
+    """Assert an unportable cache value fails before any upstream request is made."""
+    downstream_path = _simple_text_cassette(downstream)
+    upstream_path = _simple_text_cassette(upstream)
+    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+
+    async with _get_http_client([]) as http_client:
+        with pytest.raises(UnsupportedInput, match=match):
+            await _coordinator(Molto(http_client=http_client), downstream)(
+                body=body,
+                endpoint=upstream,
+                provider=_provider_from_cassette_path(upstream_path),
+                api_key="test-api-key",
+            )
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+async def test_prompt_cache_translates_across_protocols(
+    downstream: Protocol,
+    upstream: Protocol,
+):
+    """Ensures cache settings reach every upstream route while preserving SDK event parity."""
+    if downstream == "messages":
+        additions = deepcopy(_MESSAGES_PROMPT_CACHE)
+        expected_additions = (
+            additions if upstream == "messages" else {"prompt_cache_options": {"mode": "implicit"}}
+        )
+        await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+        return
+
+    additions = deepcopy(_OPENAI_PROMPT_CACHE)
+    if upstream == "messages":
+        additions.pop("prompt_cache_retention")
+        expected_additions = {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
+    else:
+        expected_additions = deepcopy(additions)
+    await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("key", [None, "codex-turn-1"])
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (None, {}),
+        ({}, {}),
+        ({"mode": "implicit"}, {"cache_control": {"type": "ephemeral"}}),
+        ({"ttl": "30m"}, {"cache_control": {"type": "ephemeral", "ttl": "1h"}}),
+        ({"mode": "explicit"}, {}),
+        ({"mode": "explicit", "ttl": "30m"}, {}),
+    ],
+)
+async def test_messages_prompt_cache_options(downstream, key, options, expected):
+    """Ensures Messages cache mode and lifetime are independent of the dropped caller key."""
+    additions = {}
+    if key is not None:
+        additions["prompt_cache_key"] = key
+    if options is not None:
+        additions["prompt_cache_options"] = options
+    await _assert_prompt_cache_request(
+        downstream,
+        "messages",
+        additions,
+        expected,
+    )
+
+
+@pytest.mark.parametrize(
+    ("downstream", "additions", "upstream", "match"),
+    [
+        ("responses", {"prompt_cache_retention": "24h"}, "messages", "prompt cache retention"),
+        (
+            "chat/completions",
+            {"prompt_cache_key": "turn", "prompt_cache_retention": "in_memory"},
+            "messages",
+            "prompt cache retention",
+        ),
+    ],
+)
+async def test_prompt_cache_rejects_unportable_values(
+    downstream: Protocol,
+    additions: dict[str, Any],
+    upstream: Protocol,
+    match: str,
+):
+    """Asserts that Messages routes reject retention guarantees they cannot preserve."""
+    await _assert_prompt_cache_rejected(downstream, upstream, additions, match)
+
+
+def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any]) -> dict[str, Any]:
+    text_type = "input_text" if protocol == "responses" else "text"
+    field = "cache_control" if protocol == "messages" else "prompt_cache_breakpoint"
+    part = {"type": text_type, "text": "Cached prefix.", field: marker}
+    suffix = {"type": text_type, "text": "Uncached suffix."}
+    if position in {"image", "tool_image"}:
+        part = (
+            {"type": "input_image", "image_url": "https://example.com/image.png", field: marker}
+            if protocol == "responses"
+            else {
+                "type": "image_url",
+                "image_url": {"url": "https://example.com/image.png"},
+                field: marker,
+            }
+            if protocol == "chat/completions"
+            else {
+                "type": "image",
+                "source": {"type": "url", "url": "https://example.com/image.png"},
+                field: marker,
+            }
+        )
+    user = {"role": "user", "content": [suffix]}
+    messages = [user]
+    if position in {"user", "image"}:
+        messages = [{"role": "user", "content": [part, suffix]}]
+    elif position == "system":
+        if protocol == "messages":
+            return {"system": [part, suffix], "messages": [user]}
+        messages = [
+            {"role": "developer", "content": [part]},
+            {"role": "developer", "content": [suffix]},
+            user,
+        ]
+    elif position == "assistant":
+        messages = [{"role": "assistant", "content": [part]}, user]
+        if protocol == "responses":
+            messages[0].update(type="message", status="completed")
+            part.update(type="output_text", annotations=[], logprobs=[])
+    elif position in {"tool", "tool_image"}:
+        if protocol == "responses":
+            messages = [
+                {
+                    "type": "function_call",
+                    "name": "lookup",
+                    "arguments": "{}",
+                    "call_id": "c1",
+                    "status": "completed",
+                },
+                {"type": "function_call_output", "call_id": "c1", "output": [part, suffix]},
+                user,
+            ]
+        elif protocol == "chat/completions":
+            messages = [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "c1", "content": [part, suffix]},
+                user,
+            ]
+        else:
+            messages = [
+                {
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "id": "c1", "name": "lookup", "input": {}}],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "c1", "content": [part, suffix]}
+                    ],
+                },
+                user,
+            ]
+    return {"input" if protocol == "responses" else "messages": messages}
+
+
+@pytest.mark.parametrize(
+    ("position", "downstream", "upstream"),
+    [
+        (position, downstream, upstream)
+        for position in ("user", "image", "system", "assistant", "tool", "tool_image")
+        for downstream, upstream in ROUTES
+        if position != "tool_image" or "chat/completions" not in (downstream, upstream)
+    ],
+)
+@pytest.mark.parametrize("mode", ["implicit", "explicit"])
+async def test_cache_breakpoint_translation(downstream, upstream, position, mode):
+    """Ensures translation preserves marker positions, cache modes, and SDK event parity."""
+    openai_marker = {"mode": "explicit"}
+    messages_marker = {"type": "ephemeral"}
+    additions = _breakpoint_input(
+        downstream, position, messages_marker if downstream == "messages" else openai_marker
+    )
+    if downstream == "messages":
+        if mode == "implicit":
+            additions["cache_control"] = {"type": "ephemeral"}
+    else:
+        additions["prompt_cache_options"] = {"mode": mode, "ttl": "30m"}
+    if downstream == upstream:
+        expected = deepcopy(additions)
+    else:
+        marker = {"type": "ephemeral", "ttl": "1h"} if upstream == "messages" else openai_marker
+        expected = _breakpoint_input(upstream, position, marker)
+        if upstream == "messages":
+            if mode == "implicit":
+                expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        else:
+            expected["prompt_cache_options"] = {"mode": mode}
+            if downstream != "messages":
+                expected["prompt_cache_options"]["ttl"] = "30m"
+    await _assert_prompt_cache_request(downstream, upstream, additions, expected)
+
+
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+async def test_responses_assistant_cache_marker_with_history_id(upstream):
+    """Ensures marked assistant history remains valid and Responses routes retain its ID."""
+    additions = _breakpoint_input("responses", "assistant", {"mode": "explicit"})
+    additions["input"][0]["id"] = "msg_123"
+    additions["prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
+    if upstream == "responses":
+        expected = deepcopy(additions)
+    else:
+        marker = (
+            {"type": "ephemeral", "ttl": "1h"} if upstream == "messages" else {"mode": "explicit"}
+        )
+        expected = _breakpoint_input(upstream, "assistant", marker)
+        if upstream == "chat/completions":
+            expected["prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
+    await _assert_prompt_cache_request("responses", upstream, additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize(("count", "mode"), [(5, "explicit"), (5, "implicit"), (4, "implicit")])
+async def test_messages_cache_breakpoint_count_is_left_to_upstream(downstream, count, mode):
+    """Ensures all markers reach Messages so the upstream owns changing count limits."""
+    text_type = "input_text" if downstream == "responses" else "text"
+    content = [
+        {
+            "type": text_type,
+            "text": str(i),
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        }
+        for i in range(count)
+    ]
+    content.append({"type": text_type, "text": "Uncached tail"})
+    additions = {
+        "input" if downstream == "responses" else "messages": [
+            {"role": "user", "content": content}
+        ],
+        "prompt_cache_options": {"mode": mode, "ttl": "30m"},
+    }
+    expected_content = [
+        {
+            "type": "text",
+            "text": str(i),
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+        for i in range(count)
+    ]
+    expected_content.append({"type": "text", "text": "Uncached tail"})
+    expected = {"messages": [{"role": "user", "content": expected_content}]}
+    if mode == "implicit":
+        expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+async def test_breakpoint_without_options_inherits_openai_defaults(downstream):
+    """Ensures marker-only requests carry OpenAI cache defaults to Messages."""
+    additions = _breakpoint_input(downstream, "user", {"mode": "explicit"})
+    expected = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
+    expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+
+
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+async def test_messages_request_cache_lifetime(upstream, ttl):
+    """Ensures native lifetimes survive and OpenAI routes use the documented approximation."""
+    additions = {"cache_control": {"type": "ephemeral", "ttl": ttl}}
+    expected = (
+        additions
+        if upstream == "messages"
+        else {"prompt_cache_options": {"mode": "implicit", "ttl": "30m"}}
+    )
+    await _assert_prompt_cache_request("messages", upstream, additions, expected)
+
+
+@pytest.mark.parametrize(
+    ("upstream", "position"),
+    [
+        (upstream, position)
+        for upstream in PROTOCOLS
+        for position in ("user", "image", "system", "assistant", "tool", "tool_image")
+        if upstream != "chat/completions" or position != "tool_image"
+    ],
+)
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+@pytest.mark.parametrize("mode", ["implicit", "explicit"])
+async def test_messages_block_cache_lifetime(upstream, position, ttl, mode):
+    """Ensures lifetime mapping preserves marker positions and automatic-cache mode."""
+    additions = _breakpoint_input("messages", position, {"type": "ephemeral", "ttl": ttl})
+    if mode == "implicit":
+        additions["cache_control"] = {"type": "ephemeral", "ttl": ttl}
+    if upstream == "messages":
+        expected = additions
+    else:
+        expected = _breakpoint_input(upstream, position, {"mode": "explicit"})
+        expected["prompt_cache_options"] = {"mode": mode, "ttl": "30m"}
+    await _assert_prompt_cache_request("messages", upstream, additions, expected)
+
+
+@pytest.mark.parametrize("upstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("automatic", [False, True])
+async def test_messages_mixed_cache_lifetimes_use_one_openai_lifetime(upstream, automatic):
+    """Ensures mixed lifetimes share one OpenAI TTL without losing markers or cache mode."""
+    additions = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
+    additions["messages"][0]["content"][1]["cache_control"] = {
+        "type": "ephemeral",
+        "ttl": "5m",
+    }
+    if automatic:
+        additions["cache_control"] = {"type": "ephemeral", "ttl": "5m"}
+    expected = _breakpoint_input(upstream, "user", {"mode": "explicit"})
+    expected["input" if upstream == "responses" else "messages"][0]["content"][1][
+        "prompt_cache_breakpoint"
+    ] = {"mode": "explicit"}
+    expected["prompt_cache_options"] = {
+        "mode": "implicit" if automatic else "explicit",
+        "ttl": "30m",
+    }
+    await _assert_prompt_cache_request("messages", upstream, additions, expected)

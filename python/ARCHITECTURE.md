@@ -10,7 +10,7 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
+Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, prompt-cache intent, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
 
 ## Route configuration
 
@@ -64,11 +64,11 @@ The native protocol passthrough is an identity optimization to this model. When 
 
 Cross-protocol translation follows one governing principle: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. This yields three architectural rules:
 
-- Normalized requests are closed and lossless-or-rejected.
+- Normalized requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](../docs/README.md#prompt-caching).
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-There are three explicit behavior-neutral exceptions to lossless-or-rejected input handling on translated Responses routes. Chat Completions and Messages may omit an optional Responses output-item ID because it has no equivalent and does not affect model behavior. `include=["reasoning.encrypted_content"]` may be ignored because Molto already preserves any encrypted reasoning present in the response, and `store=false` may be ignored because it requests no provider-side state; `store=true` remains unsupported. Native Responses passthrough forwards these fields unchanged. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+Documented exceptions allow omission at protocol boundaries. Chat Completions and Messages may omit optional Responses output-item IDs because they have no equivalent and do not affect model behavior. Messages silently drops caller-defined prompt-cache keys because Anthropic computes cache identity implicitly; dropping a key does not enable caching, and remaining cache options are processed independently. Translated Responses routes may ignore `include=["reasoning.encrypted_content"]` because Molto already preserves any encrypted reasoning present in the response, and `store=false` because it requests no provider-side state; `store=true` remains unsupported. Native passthrough forwards these fields unchanged. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
 Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
 
@@ -298,15 +298,18 @@ ChatCompletionChunk SDK stream
 - raw reasoning and reasoning summaries in requests and assistant history;
 - function tool definitions, tool selection, calls, and successful tool results;
 - ordered mixed text/image user messages, including remote URL and data-URL images;
-- role-less instructions; each instruction content part produces one `SystemPrompt`, with sequence position preserved (only the Messages projection hoists them into one top-level `system` string);
+- role-less instructions; each instruction content part produces one `SystemPrompt`, with sequence position preserved (only the Messages projection hoists them into top-level `system`, preserving separate blocks when any system block is marked);
 - model and streaming configuration;
-- output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`.
+- output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`;
+- prompt-cache intent: an affinity key, breakpoint mode, cache lifetime, retention policy, and positional markers on supported content parts.
 
 Assistant conversation history uses `TextOutput`, not a flag on `TextInput`. This keeps role semantics explicit when the Chat client reconstructs messages.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary.
 
-Tool results follow the same canonical-part rule. `ToolReturn.content` is an ordered list of `TextInput` and `ImageUrlInput` parts. Adapters wrap a native scalar result in one text part. Responses and Messages project both part types directly. Chat Completions tool messages accept only text content, so its upstream client leaves text in the tool message and relocates images into subsequent user messages. It emits every tool response for an assistant's tool-call block contiguously before those user messages.
+Responses and Chat Completions also project every normalized instruction as a `developer` message with one text part, whether or not it has a cache breakpoint. Markers remain attached only to their marked parts.
+
+Tool results follow the same canonical-part rule. `ToolReturn.content` is an ordered list of `TextInput` and `ImageUrlInput` parts. Adapters wrap a native scalar result in one text part. Responses and Messages project both part types directly. Chat Completions tool messages accept only text content, so its upstream client leaves text in the tool message and relocates images into subsequent user messages. It emits every tool response for an assistant's tool-call block contiguously before those user messages, and rejects cache markers whose prefix that relocation would change.
 
 User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 
@@ -314,11 +317,17 @@ Responses `phase` is intentionally not normalized or synthesized. Native passthr
 
 Normalized request models are strict. `NormalizedRequest` and every request-only model nested beneath it reject unknown fields. The output models inherit from `ExtraModel` and retain unknown provider fields in `extra_fields` as an escape hatch. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models remain lenient when handling output but reject extras when validated as conversation input.
 
-The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields. A downstream adapter must map every populated native input field into that representation, apply it while projecting downstream output, or reject it before it is lost. An upstream client must likewise map every populated normalized field into its target protocol or reject it explicitly, with the sole item-ID exception described below. Genuinely provider-specific output remains in `extra_fields` until a portable semantic model exists.
+The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields. A downstream adapter must map every populated native input field into that representation, apply it while projecting downstream output, or reject it before it is lost. An upstream client must likewise map every populated normalized field into its target protocol or reject it explicitly, with the documented omission exceptions and [cache-lifetime approximations](../docs/README.md#prompt-caching). Genuinely provider-specific output remains in `extra_fields` until a portable semantic model exists.
 
-Known normalized fields are subject to the same rule except for Responses output-item IDs. These IDs are distinct from portable tool-call IDs and do not affect model behavior: Responses preserves them when reconstructing Responses history, while Chat Completions and Messages omit them because neither protocol has an equivalent input field. Portable identifiers such as `ToolCall.tool_call_id` remain required and mapped. This is the only input field Molto may accept without effecting on every target protocol.
+Responses output-item IDs are distinct from portable tool-call IDs and do not affect model behavior: Responses preserves them when reconstructing history, including marked assistant text. Chat Completions and Messages omit them because neither protocol has an equivalent input field. Native passthrough preserves IDs unchanged. Portable identifiers such as `ToolCall.tool_call_id` remain required and mapped. The other omission exception is the caller-defined cache key on Messages, described below.
 
 Reasoning effort is the normalized control for Anthropic thinking. The Messages adapter records `output_config.effort` in `NormalizedRequest.reasoning`; the Anthropic client then selects adaptive thinking with explicit effort or manual extended thinking with a preset token budget according to the target model's capabilities. Thinking mode and `budget_tokens` remain provider projections rather than new IR fields.
+
+`NormalizedRequest.prompt_cache` holds request-wide `PromptCache` intent. A strict `CacheBreakpoint` with optional `ttl` lives on `SystemPrompt`, `TextInput`, `ImageUrlInput`, and `TextOutput` as `cache_breakpoint`. `NormalizedRequest.iter_cache_breakpoints()` traverses those markers in input order, including nested user and tool-result content. Adapters normalize supported native markers; clients project them as OpenAI content-part `prompt_cache_breakpoint` or Anthropic block `cache_control`.
+
+OpenAI marker presence resolves omitted mode to `implicit` and omitted lifetime to `30m`. Messages maps that minimum to `1h` on both marked blocks and top-level automatic caching; explicit mode omits the top-level control while retaining block markers. Anthropic block-only caching normalizes to explicit mode, while top-level caching selects implicit mode. OpenAI maps every explicit request or block lifetime to request-wide `30m`, retaining modes and marker positions. This rounds `5m` up but weakens a requested `1h` minimum; mixed block lifetimes collapse to one value. Omitted lifetimes remain unspecified unless another explicit lifetime sets that value. Retention is not synthesized to approximate a minimum lifetime. The [shared cache policy](../docs/README.md#prompt-caching) documents these default and pricing differences. Messages silently drops keys without enabling caching and rejects retention policies.
+
+Projection validates prefix constraints at the target boundary. Messages forwards all supported markers and leaves breakpoint-count limits to the upstream. It rejects conflicting final explicit/automatic lifetimes and one-hour markers after five-minute markers. It also rejects any mid-conversation instruction when markers are present; marked system blocks remain separate. Chat rejects marked tool returns affected by image relocation, including deferred images from earlier parallel tool returns. Responses attaches assistant markers to `output_text` parts and preserves optional output-item IDs. Anthropic outer tool-result, tool-use, thinking, and tool-definition markers remain unsupported because OpenAI has no corresponding content-part marker.
 
 ## Normalized event protocol
 
@@ -428,7 +437,7 @@ Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` di
 
 Request bodies are local Pydantic wrappers because Molto needs one validated model whose fields track the corresponding SDK `create()` signature. Nested parameter types come from the pinned OpenAI SDK.
 
-Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and otherwise SDK-compatible, eagerly validated fields. It does not use an untyped dictionary fallback for Responses input.
+Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and eagerly validated fields. Assistant `output_text` also accepts `prompt_cache_breakpoint`, which the live OpenAI API supports but the pinned SDK schema omits. It does not use an untyped dictionary fallback for Responses input.
 
 Response and stream result types are intentional SDK aliases:
 

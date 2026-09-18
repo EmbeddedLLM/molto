@@ -16,6 +16,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
@@ -24,6 +25,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     ResponseEndEvent,
     ResponseStartEvent,
     SystemPrompt,
@@ -237,6 +239,136 @@ def test_rejects_unsupported_custom_tool_fields():
         match=r"custom tool fields: \['cache_control', 'defer_loading'\]",
     ):
         _normalize(request, _CAPABILITIES)
+
+
+_EPHEMERAL = {"type": "ephemeral"}
+
+
+def test_normalizes_top_level_cache_control_as_implicit_prompt_cache():
+    """Ensures automatic cache intent and lifetimes survive cross-provider normalization."""
+    for cache_control, expected in (
+        (_EPHEMERAL, PromptCache(mode="implicit")),
+        ({"type": "ephemeral", "ttl": "1h"}, PromptCache(mode="implicit", ttl="1h")),
+    ):
+        normalized = _normalize(_request(cache_control=cache_control), _CAPABILITIES)
+        assert normalized.prompt_cache == expected
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param(
+            {"system": [{"type": "text", "text": "s", "cache_control": _EPHEMERAL}]},
+            id="system",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": "u", "cache_control": _EPHEMERAL}],
+                    }
+                ]
+            },
+            id="user-text",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {"type": "url", "url": "https://example.com/a.png"},
+                                "cache_control": _EPHEMERAL,
+                            }
+                        ],
+                    }
+                ]
+            },
+            id="image",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "c1",
+                                "content": "result",
+                                "cache_control": _EPHEMERAL,
+                            }
+                        ],
+                    }
+                ]
+            },
+            id="tool-result",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "a", "cache_control": _EPHEMERAL}],
+                    }
+                ]
+            },
+            id="assistant-text",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "c1",
+                                "name": "lookup",
+                                "input": {},
+                                "cache_control": _EPHEMERAL,
+                            }
+                        ],
+                    }
+                ]
+            },
+            id="tool-use",
+        ),
+        pytest.param(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "thinking",
+                                "thinking": "thought",
+                                "signature": "opaque-state",
+                                "cache_control": _EPHEMERAL,
+                            }
+                        ],
+                    }
+                ]
+            },
+            id="thinking",
+        ),
+    ],
+)
+def test_content_block_cache_control(overrides):
+    """Ensures portable markers survive and unrepresentable cache boundaries are rejected."""
+    block = (overrides.get("system") or overrides["messages"][0]["content"])[0]
+    if block["type"] in {"tool_result", "tool_use", "thinking"}:
+        with pytest.raises(
+            UnsupportedInput, match="cache_control is not supported for translation"
+        ):
+            _normalize(_request(**overrides), _CAPABILITIES)
+    else:
+        normalized = _normalize(_request(**overrides), _CAPABILITIES)
+        assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
+        assert normalized.prompt_cache == PromptCache(mode="explicit")
 
 
 def test_rejects_untranslated_request_fields():
