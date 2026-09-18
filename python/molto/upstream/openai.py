@@ -732,10 +732,6 @@ class OpenAIChatCompletionsClient(
             if assistant_message is None:
                 return
             if "content" not in assistant_message:
-                if "tool_calls" not in assistant_message:
-                    raise UnsupportedInput(
-                        "Chat Completions requires reasoning history with assistant output."
-                    )
                 assistant_message["content"] = None
             messages.append(assistant_message)
             assistant_message = None

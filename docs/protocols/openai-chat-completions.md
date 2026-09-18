@@ -167,7 +167,7 @@ An upstream Chat client converts another downstream protocol's normalized reques
 | Prompt cache                  | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
 | Content cache breakpoint      | `prompt_cache_breakpoint` on supported text/image parts              |
 
-The client groups pending assistant reasoning, text, and tool calls where the Chat shape permits it. A reasoning item is held for a following text item so both can inhabit one assistant message. Because the normalized representation does not retain the original assistant container, this reconstruction can merge or split source assistant messages.
+The client groups pending assistant reasoning, text, and tool calls where the Chat shape permits it. A reasoning item is held for a following text item so both can inhabit one assistant message. Without accompanying text or tool calls, it is forwarded as an assistant message with `reasoning_content`; the upstream decides whether to accept it. Because the normalized representation does not retain the original assistant container, this reconstruction can merge or split source assistant messages.
 
 OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 

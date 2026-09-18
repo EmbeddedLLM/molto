@@ -986,6 +986,64 @@ async def test_prompt_cache_stream(scenario: str, downstream: Protocol, upstream
     await _assert_matched_stream_events(scenario, downstream, upstream)
 
 
+@pytest.mark.parametrize(
+    ("downstream", "upstream", "representation"),
+    [(downstream, upstream, "raw") for downstream, upstream in ROUTES]
+    + [
+        (downstream, upstream, representation)
+        for downstream, upstream in RESPONSES_MESSAGES_ROUTES
+        for representation in ("summary", "signature")
+    ],
+)
+@pytest.mark.parametrize("followed_by_user", [False, True])
+async def test_reasoning_only_history(
+    downstream: Protocol,
+    upstream: Protocol,
+    representation: str,
+    followed_by_user: bool,
+) -> None:
+    """Ensures representable reasoning-only history reaches every upstream protocol."""
+    reasoning = "Prior thought" if representation != "signature" else ""
+    signed = representation != "raw"
+    responses_item = {
+        "type": "reasoning",
+        "status": "completed",
+        "content": [] if signed else [{"type": "reasoning_text", "text": reasoning}],
+        "summary": [{"type": "summary_text", "text": reasoning}] if reasoning and signed else [],
+        **({"encrypted_content": "opaque-state"} if signed else {}),
+    }
+    thinking_block = {
+        "type": "thinking",
+        "thinking": reasoning,
+        **({"signature": "opaque-state"} if signed else {}),
+    }
+    additions: dict[Protocol, dict[str, Any]] = {
+        "responses": {"input": [responses_item], "reasoning": {"effort": "none"}},
+        "chat/completions": {
+            "messages": [{"role": "assistant", "reasoning_content": reasoning}],
+            "reasoning_effort": "none",
+        },
+        "messages": {
+            "messages": [{"role": "assistant", "content": [thinking_block]}],
+            "thinking": {"type": "disabled"},
+        },
+    }
+    if followed_by_user:
+        for protocol, fields in additions.items():
+            key = "input" if protocol == "responses" else "messages"
+            part_type = "input_text" if protocol == "responses" else "text"
+            fields[key].append(
+                {"role": "user", "content": [{"type": part_type, "text": "Continue"}]}
+            )
+    await _assert_request_parity(
+        downstream,
+        upstream,
+        additions[downstream],
+        additions[upstream],
+        provider="openai" if signed else "vllm",
+    )
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
@@ -1110,13 +1168,15 @@ def _simple_text_cassette(protocol: Protocol) -> Path:
     return _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
 
 
-async def _assert_prompt_cache_request(
+async def _assert_request_parity(
     downstream: Protocol,
     upstream: Protocol,
     additions: dict[str, Any],
     expected_additions: dict[str, Any],
+    *,
+    provider: Provider | None = None,
 ) -> None:
-    """Assert the outgoing cache fields and parity with parsed downstream SDK events."""
+    """Assert the outgoing request and parity with parsed downstream SDK events."""
     downstream_path = _simple_text_cassette(downstream)
     upstream_path = _simple_text_cassette(upstream)
     body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
@@ -1131,13 +1191,13 @@ async def _assert_prompt_cache_request(
         stream = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body,
             endpoint=upstream,
-            provider=_provider_from_cassette_path(upstream_path),
+            provider=provider or _provider_from_cassette_path(upstream_path),
             api_key="test-api-key",
         )
         events = [event async for event in stream]
 
     # Reuse the recorded response without rewriting fixtures: these tests exercise
-    # request projection and stream fidelity, not the provider's cache-hit decisions.
+    # request projection and stream fidelity, not the provider's acceptance of the modified input.
     async with _get_http_client([downstream_path], downstream, expected_body=body) as http_client:
         if downstream == "messages":
             sdk_stream = await AsyncAnthropic(
@@ -1162,7 +1222,7 @@ async def _assert_prompt_cache_request(
     actual_sse = [dumps_sse(event) for event in events]
     expected_sse = [dumps_sse(event) for event in sdk_events]
     # The recorded response predates these request overrides, so compare its original
-    # reconstructible fields rather than treating its cache metadata as a fresh result.
+    # reconstructible fields rather than treating its request metadata as a fresh result.
     recorded_body = _read_cassette(downstream_path)["request"]["body"]
     if downstream == "responses":
         _assert_responses_stream_invariants(actual_sse)
@@ -1226,7 +1286,7 @@ async def test_prompt_cache_translates_across_protocols(
         expected_additions = (
             additions if upstream == "messages" else {"prompt_cache_options": {"mode": "implicit"}}
         )
-        await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+        await _assert_request_parity(downstream, upstream, additions, expected_additions)
         return
 
     additions = deepcopy(_OPENAI_PROMPT_CACHE)
@@ -1235,7 +1295,7 @@ async def test_prompt_cache_translates_across_protocols(
         expected_additions = {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
     else:
         expected_additions = deepcopy(additions)
-    await _assert_prompt_cache_request(downstream, upstream, additions, expected_additions)
+    await _assert_request_parity(downstream, upstream, additions, expected_additions)
 
 
 @pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
@@ -1258,7 +1318,7 @@ async def test_messages_prompt_cache_options(downstream, key, options, expected)
         additions["prompt_cache_key"] = key
     if options is not None:
         additions["prompt_cache_options"] = options
-    await _assert_prompt_cache_request(
+    await _assert_request_parity(
         downstream,
         "messages",
         additions,
@@ -1405,7 +1465,7 @@ async def test_cache_breakpoint_translation(downstream, upstream, position, mode
             expected["prompt_cache_options"] = {"mode": mode}
             if downstream != "messages":
                 expected["prompt_cache_options"]["ttl"] = "30m"
-    await _assert_prompt_cache_request(downstream, upstream, additions, expected)
+    await _assert_request_parity(downstream, upstream, additions, expected)
 
 
 @pytest.mark.parametrize("upstream", PROTOCOLS)
@@ -1423,7 +1483,7 @@ async def test_responses_assistant_cache_marker_with_history_id(upstream):
         expected = _breakpoint_input(upstream, "assistant", marker)
         if upstream == "chat/completions":
             expected["prompt_cache_options"] = {"mode": "explicit", "ttl": "30m"}
-    await _assert_prompt_cache_request("responses", upstream, additions, expected)
+    await _assert_request_parity("responses", upstream, additions, expected)
 
 
 @pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
@@ -1458,7 +1518,7 @@ async def test_messages_cache_breakpoint_count_is_left_to_upstream(downstream, c
     expected = {"messages": [{"role": "user", "content": expected_content}]}
     if mode == "implicit":
         expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
-    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+    await _assert_request_parity(downstream, "messages", additions, expected)
 
 
 @pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
@@ -1467,7 +1527,7 @@ async def test_breakpoint_without_options_inherits_openai_defaults(downstream):
     additions = _breakpoint_input(downstream, "user", {"mode": "explicit"})
     expected = _breakpoint_input("messages", "user", {"type": "ephemeral", "ttl": "1h"})
     expected["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
-    await _assert_prompt_cache_request(downstream, "messages", additions, expected)
+    await _assert_request_parity(downstream, "messages", additions, expected)
 
 
 @pytest.mark.parametrize("upstream", PROTOCOLS)
@@ -1480,7 +1540,7 @@ async def test_messages_request_cache_lifetime(upstream, ttl):
         if upstream == "messages"
         else {"prompt_cache_options": {"mode": "implicit", "ttl": "30m"}}
     )
-    await _assert_prompt_cache_request("messages", upstream, additions, expected)
+    await _assert_request_parity("messages", upstream, additions, expected)
 
 
 @pytest.mark.parametrize(
@@ -1504,7 +1564,7 @@ async def test_messages_block_cache_lifetime(upstream, position, ttl, mode):
     else:
         expected = _breakpoint_input(upstream, position, {"mode": "explicit"})
         expected["prompt_cache_options"] = {"mode": mode, "ttl": "30m"}
-    await _assert_prompt_cache_request("messages", upstream, additions, expected)
+    await _assert_request_parity("messages", upstream, additions, expected)
 
 
 @pytest.mark.parametrize("upstream", ["responses", "chat/completions"])
@@ -1526,4 +1586,4 @@ async def test_messages_mixed_cache_lifetimes_use_one_openai_lifetime(upstream, 
         "mode": "implicit" if automatic else "explicit",
         "ttl": "30m",
     }
-    await _assert_prompt_cache_request("messages", upstream, additions, expected)
+    await _assert_request_parity("messages", upstream, additions, expected)
