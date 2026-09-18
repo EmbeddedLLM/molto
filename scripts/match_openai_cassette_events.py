@@ -8,7 +8,8 @@ and one corresponding tool-call argument delta for every
 `response.function_call_arguments.delta` event, in the same order and with the
 same content. It also synchronizes fields that can pass through the conversion,
 including the response ID, creation time, model, target-default service tier, tool
-calls, and usage.
+calls, and usage. Cache requests also copy the canonical cache options, keys,
+retention, and content-part breakpoints without changing their prefix boundaries.
 
 Matched reasoning requests carry the canonical Responses effort as
 `reasoning_effort`. When a continuation contains reasoning history but omits a
@@ -49,7 +50,7 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
 
 def _response_message_content(
     content: Any, *, preserve_parts: bool = False
-) -> str | list[dict[str, str]]:
+) -> str | list[dict[str, Any]]:
     if isinstance(content, str):
         if preserve_parts:
             return [{"text": content, "type": "text"}]
@@ -57,7 +58,7 @@ def _response_message_content(
     if not isinstance(content, list):
         raise ValueError("Responses message content must be text or a list of text parts.")
 
-    text: list[str] = []
+    parts: list[dict[str, Any]] = []
     for part in content:
         if not isinstance(part, dict) or part.get("type") not in {
             "input_text",
@@ -68,10 +69,34 @@ def _response_message_content(
         part_text = part.get("text")
         if not isinstance(part_text, str):
             raise ValueError("Responses text content must contain a string text field.")
-        text.append(part_text)
+        mapped_part = {"text": part_text, "type": "text"}
+        if part.get("prompt_cache_breakpoint") is not None:
+            mapped_part["prompt_cache_breakpoint"] = deepcopy(part["prompt_cache_breakpoint"])
+            preserve_parts = True
+        parts.append(mapped_part)
     if preserve_parts:
-        return [{"text": part, "type": "text"} for part in text]
-    return "".join(text)
+        return parts
+    return "".join(part["text"] for part in parts)
+
+
+def _raw_reasoning_content(item: dict[str, Any]) -> str:
+    content = item.get("content")
+    if not isinstance(content, list):
+        raise ValueError("Responses reasoning item must contain a content list.")
+    if item.get("summary") not in (None, []):
+        raise ValueError("Responses reasoning summaries cannot map to Chat Completions.")
+    if item.get("encrypted_content") is not None:
+        raise ValueError("Encrypted Responses reasoning cannot map to Chat Completions.")
+
+    reasoning: list[str] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") != "reasoning_text":
+            raise ValueError("Only raw Responses reasoning can map to Chat Completions.")
+        text = part.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Responses reasoning text must be a string.")
+        reasoning.append(text)
+    return "".join(reasoning)
 
 
 def _raw_reasoning_content(item: dict[str, Any]) -> str:
@@ -165,7 +190,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
         message = {
             "content": _response_message_content(
-                item.get("content"), preserve_parts=role == "user"
+                item.get("content"), preserve_parts=role in {"system", "developer", "user"}
             ),
             "role": role,
         }
@@ -187,14 +212,36 @@ def _match_request_history(
     chat_request = _request_body(chat_cassette)
     responses_request = _request_body(responses_cassette)
     response_input = responses_request.get("input")
-    if not isinstance(response_input, list) or not any(
-        isinstance(item, dict)
-        and item.get("type") in {"reasoning", "function_call", "function_call_output"}
-        for item in response_input
+    has_cache = any(
+        field in responses_request
+        for field in ("prompt_cache_options", "prompt_cache_key", "prompt_cache_retention")
+    ) or _has_cache_breakpoint(response_input)
+    if not has_cache and (
+        not isinstance(response_input, list)
+        or not any(
+            isinstance(item, dict)
+            and item.get("type") in {"reasoning", "function_call", "function_call_output"}
+            for item in response_input
+        )
     ):
         return
 
     chat_request["messages"] = _chat_messages_from_response_input(response_input)
+    if has_cache:
+        chat_request["model"] = responses_request["model"]
+        for field in ("prompt_cache_options", "prompt_cache_key", "prompt_cache_retention"):
+            if field in responses_request:
+                chat_request[field] = deepcopy(responses_request[field])
+            else:
+                chat_request.pop(field, None)
+
+
+def _has_cache_breakpoint(value: Any) -> bool:
+    if isinstance(value, dict):
+        return value.get("prompt_cache_breakpoint") is not None or any(
+            _has_cache_breakpoint(item) for item in value.values()
+        )
+    return isinstance(value, list) and any(_has_cache_breakpoint(item) for item in value)
 
 
 def _parse_data_event(sse_entry: str) -> dict[str, Any] | None:
@@ -287,6 +334,8 @@ def _match_request_reasoning_effort(
 
 
 def _serialize_data_event(event: dict[str, Any], template: str) -> str:
+    if _parse_data_event(template) == event:
+        return template
     suffix = template[len(template.rstrip("\r\n")) :]
     return f"data: {json_dumps(event)}{suffix}"
 
@@ -469,16 +518,18 @@ def _map_usage(response_usage: dict[str, Any], chat_usage: dict[str, Any]) -> No
     chat_usage["total_tokens"] = response_usage["total_tokens"]
 
     input_details = response_usage.get("input_tokens_details") or {}
-    prompt_details = chat_usage.get("prompt_tokens_details")
-    if isinstance(prompt_details, dict):
+    if input_details:
+        prompt_details = chat_usage.get("prompt_tokens_details") or {}
         for field in ("cache_write_tokens", "cached_tokens"):
             if field in input_details:
                 prompt_details[field] = input_details[field]
+        chat_usage["prompt_tokens_details"] = prompt_details
 
     output_details = response_usage.get("output_tokens_details") or {}
-    completion_details = chat_usage.get("completion_tokens_details")
-    if isinstance(completion_details, dict) and "reasoning_tokens" in output_details:
+    if "reasoning_tokens" in output_details:
+        completion_details = chat_usage.get("completion_tokens_details") or {}
         completion_details["reasoning_tokens"] = output_details["reasoning_tokens"]
+        chat_usage["completion_tokens_details"] = completion_details
 
 
 def _replace_delta_events(

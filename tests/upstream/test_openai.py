@@ -1038,6 +1038,33 @@ def test_openai_clients_map_prompt_cache_ttl(ttl):
 
 
 @pytest.mark.parametrize(
+    ("client", "input_field", "text_type"),
+    [
+        (OpenAIResponsesClient, "input", "input_text"),
+        (OpenAIChatCompletionsClient, "messages", "text"),
+    ],
+)
+def test_openai_clients_project_unmarked_instructions_as_text_parts(
+    client, input_field, text_type
+):
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            SystemPrompt(content="First instruction"),
+            SystemPrompt(content="Second instruction"),
+        ],
+    )
+
+    body = client._request_body(request)
+
+    assert body[input_field] == [
+        {"role": "developer", "content": [{"type": text_type, "text": text}]}
+        for text in ("First instruction", "Second instruction")
+    ]
+    assert "prompt_cache_options" not in body
+
+
+@pytest.mark.parametrize(
     ("client", "input_field", "text_type", "image"),
     [
         (
@@ -1068,6 +1095,7 @@ def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, 
         model="m",
         input=[
             SystemPrompt(content="Instructions", cache_breakpoint=marker),
+            SystemPrompt(content="Uncached instructions"),
             UserInput(
                 content=[
                     TextInput(content="Uncached part"),
@@ -1093,6 +1121,10 @@ def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, 
                     "prompt_cache_breakpoint": {"mode": "explicit"},
                 }
             ],
+        },
+        {
+            "role": "developer",
+            "content": [{"type": text_type, "text": "Uncached instructions"}],
         },
         {
             "role": "user",

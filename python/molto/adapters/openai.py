@@ -576,6 +576,18 @@ class OpenAIResponsesAdapter(
                 "tools": self.native_request.tools or [],
                 "usage": None,
             }
+            data.update(
+                self.native_request.model_dump(
+                    include={"prompt_cache_key", "prompt_cache_retention"}
+                )
+            )
+            cache_options = self.native_request.prompt_cache_options
+            # Responses output requires both options, unlike its request schema.
+            # Echo complete caller intent without inventing upstream defaults.
+            if cache_options is not None and all(
+                cache_options.get(field) is not None for field in ("mode", "ttl")
+            ):
+                data["prompt_cache_options"] = cache_options
             if isinstance(metadata, ResponseEndEvent) and metadata.usage is not None:
                 usage = metadata.usage
                 data["usage"] = {

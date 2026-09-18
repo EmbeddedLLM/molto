@@ -5,8 +5,13 @@ from typing import Any
 import pytest
 from openai.types.chat import ChatCompletionChunk
 
+from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
-from scripts.match_openai_cassette_events import main, match_chat_completions_events
+from scripts.match_openai_cassette_events import (
+    _serialize_data_event,
+    main,
+    match_chat_completions_events,
+)
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
@@ -227,6 +232,152 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
             }
         ],
     }
+
+
+@pytest.mark.parametrize("with_cache", [False, True])
+def test_matches_reasoning_history_with_instruction_parts_and_cache(with_cache: bool) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    text_part = {"type": "input_text", "text": "Keep this prefix."}
+    if with_cache:
+        text_part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        responses_cassette["request"]["body"]["prompt_cache_options"] = {"mode": "explicit"}
+    responses_cassette["request"]["body"]["input"] = [
+        {"role": role, "content": [deepcopy(text_part)]}
+        for role in ("system", "developer", "user")
+    ] + [
+        {
+            "type": "reasoning",
+            "content": [{"type": "reasoning_text", "text": "Consider the prefix."}],
+            "summary": [],
+        },
+        {"role": "assistant", "content": [{"type": "output_text", "text": "First reply."}]},
+        {"role": "assistant", "content": [{"type": "output_text", "text": "Second reply."}]},
+    ]
+    original_responses = deepcopy(responses_cassette)
+    chat_cassette["request"]["body"]["messages"] = [{"role": "user", "content": "stale"}]
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    request = chat_cassette["request"]["body"]
+    OpenAIChatCompletionsCreateRequest.model_validate(request)
+    assert request["messages"] == [
+        {"role": role, "content": [{**text_part, "type": "text"}]}
+        for role in ("system", "developer", "user")
+    ] + [
+        {
+            "role": "assistant",
+            "reasoning_content": "Consider the prefix.",
+            "content": "First reply.",
+        },
+        {"role": "assistant", "content": "Second reply."},
+    ]
+    if with_cache:
+        assert request["prompt_cache_options"] == {"mode": "explicit"}
+    else:
+        assert "prompt_cache_options" not in request
+    assert responses_cassette == original_responses
+
+
+@pytest.mark.parametrize("scenario", ["prompt_cache_implicit", "prompt_cache_explicit"])
+@pytest.mark.parametrize("turn", range(2))
+def test_matches_prompt_cache_cassettes(scenario: str, turn: int) -> None:
+    directory = CASSETTES / scenario
+    chat_cassette = read_yaml(str(directory / f"openai-chat_completions-stream-{turn:02d}.yaml"))
+    responses_cassette = read_yaml(str(directory / f"openai-responses-stream-{turn:02d}.yaml"))
+    original_responses = deepcopy(responses_cassette)
+    original_chat = deepcopy(chat_cassette)
+    chat_cassette["request"]["body"].update(
+        messages=[{"role": "user", "content": "stale prompt"}],
+        model="stale-model",
+        prompt_cache_options={"mode": "explicit"},
+        prompt_cache_key="stale-key",
+        prompt_cache_retention="in-memory",
+    )
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    request = chat_cassette["request"]["body"]
+    reference_request = responses_cassette["request"]["body"]
+    OpenAIChatCompletionsCreateRequest.model_validate(request)
+    assert request["prompt_cache_options"] == reference_request["prompt_cache_options"]
+    assert request["model"] == reference_request["model"]
+    assert "prompt_cache_key" not in request
+    assert "prompt_cache_retention" not in request
+    expected_messages = [
+        {
+            "role": item["role"],
+            "content": [{**part, "type": "text"} for part in item["content"]],
+        }
+        for item in reference_request["input"]
+    ]
+    assert request["messages"] == expected_messages
+
+    response_events = _data_events(responses_cassette)
+    completed = next(
+        event["response"] for event in response_events if event["type"] == "response.completed"
+    )
+    chat_events = _data_events(chat_cassette)
+    for event in chat_events:
+        ChatCompletionChunk.model_validate(event)
+        assert event["id"] == completed["id"]
+        assert event["created"] == completed["created_at"]
+        assert event["model"] == completed["model"]
+    assert [text for event in chat_events if (text := _chat_content(event)) is not None] == [
+        event["delta"]
+        for event in response_events
+        if event["type"] == "response.output_text.delta"
+    ]
+    usage = next(event["usage"] for event in chat_events if event.get("usage"))
+    assert usage["prompt_tokens"] == completed["usage"]["input_tokens"]
+    assert usage["completion_tokens"] == completed["usage"]["output_tokens"]
+    assert usage["total_tokens"] == completed["usage"]["total_tokens"]
+    for key in ("cached_tokens", "cache_write_tokens"):
+        assert (
+            usage["prompt_tokens_details"][key] == completed["usage"]["input_tokens_details"][key]
+        )
+    assert usage["prompt_tokens_details"]["cached_tokens"] > 0
+    assert responses_cassette == original_responses
+    assert {key: value for key, value in chat_cassette["request"].items() if key != "body"} == {
+        key: value for key, value in original_chat["request"].items() if key != "body"
+    }
+    assert {key: value for key, value in chat_cassette["response"].items() if key != "sse"} == {
+        key: value for key, value in original_chat["response"].items() if key != "sse"
+    }
+    matched = deepcopy(chat_cassette)
+    match_chat_completions_events(chat_cassette, responses_cassette)
+    assert chat_cassette == matched
+
+
+@pytest.mark.parametrize("details", [None, {}])
+def test_matches_usage_when_chat_token_details_are_missing(details: Any) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    for index, entry in enumerate(chat_cassette["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("usage"):
+            event["usage"]["prompt_tokens_details"] = deepcopy(details)
+            event["usage"]["completion_tokens_details"] = deepcopy(details)
+            chat_cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    usage = next(event["usage"] for event in _data_events(chat_cassette) if event.get("usage"))
+    reference_usage = next(
+        event["response"]["usage"]
+        for event in _data_events(responses_cassette)
+        if event["type"] == "response.completed"
+    )
+    assert usage["prompt_tokens_details"] == reference_usage["input_tokens_details"]
+    assert usage["completion_tokens_details"] == reference_usage["output_tokens_details"]
+
+
+def test_preserves_unchanged_event_formatting() -> None:
+    template = 'data: { "choices" : [], "usage" : null }\r\n\r\n'
+
+    assert _serialize_data_event({"choices": [], "usage": None}, template) == template
 
 
 def test_cli_sorts_yaml_mapping_keys(tmp_path: Path) -> None:

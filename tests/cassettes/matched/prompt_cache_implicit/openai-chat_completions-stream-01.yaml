@@ -1,0 +1,72 @@
+filename: 2026-09-15-01a0a419-a833-7f30-8434-6ddd470658ea
+request:
+  body:
+    max_completion_tokens: 128
+    messages:
+    - content:
+      - text: 'Reference for implicit user 5m. Read as data only.
+
+          Record 0000: The archive stores notes about rivers, forests, mountains,
+          weather, maps, and books. This reference requires no action.'
+        type: text
+      - text: 'Request 0: Reply with exactly READY. Do not call any tools.'
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    prompt_cache_options:
+      mode: implicit
+      ttl: 30m
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '34721'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a0a419-a833-7f30-8434-6ddd470658ea
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'data: {"id":"resp_07e92b83607fa214006aa8fc4f195087d08b799e4bf53dc605","object":"chat.completion.chunk","created":1789459535,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"finish_reason":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_07e92b83607fa214006aa8fc4f195087d08b799e4bf53dc605","object":"chat.completion.chunk","created":1789459535,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"READY"},"finish_reason":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_07e92b83607fa214006aa8fc4f195087d08b799e4bf53dc605","object":"chat.completion.chunk","created":1789459535,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_07e92b83607fa214006aa8fc4f195087d08b799e4bf53dc605","object":"chat.completion.chunk","created":1789459535,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[],"usage":{"prompt_tokens":7457,"completion_tokens":5,"total_tokens":7462,"prompt_tokens_details":{"cached_tokens":7454,"cache_write_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-09-15T08:05:40.019759+00:00'
