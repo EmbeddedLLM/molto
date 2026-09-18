@@ -5,9 +5,9 @@ Molto is a Python library for translating between LLM API protocols without givi
 Molto has two design goals:
 
 - Support any implemented downstream protocol through any implemented upstream protocol with one provider-neutral translation model.
-- Bypass translation when both sides use the same protocol, preserving the native SDK request, event, and error contracts.
+- Bypass translation when both sides use the same protocol, preserving the native SDK request, event, response, and error contracts.
 
-Only streaming requests are currently supported.
+Streaming and non-streaming requests are supported on native and translated routes. Streaming is the translated execution primitive; translated non-streaming responses are collected from the downstream-native event stream produced by the same event projector.
 
 ## Cross-protocol contract
 
@@ -27,11 +27,11 @@ Cross-protocol semantic input rejections raise `molto.types.exceptions.Unsupport
 
 The public method selects the protocol returned to the application. The `endpoint` argument selects the protocol sent to the provider.
 
-| Application protocol | Molto method | Native endpoint | Stream values | Guide |
-| --- | --- | --- | --- | --- |
-| OpenAI Responses | `Molto.responses()` | `responses` | OpenAI Responses SDK events | [OpenAI Responses](protocols/openai-responses.md) |
-| OpenAI Chat Completions | `Molto.chat_completions()` | `chat/completions` | OpenAI `ChatCompletionChunk` values | [OpenAI Chat Completions](protocols/openai-chat-completions.md) |
-| Anthropic Messages | `Molto.messages()` | `messages` | Anthropic Messages SDK events | [Anthropic Messages](protocols/anthropic-messages.md) |
+| Application protocol | Molto method | Native endpoint | Stream values | Non-stream value | Guide |
+| --- | --- | --- | --- | --- | --- |
+| OpenAI Responses | `Molto.responses()` | `responses` | OpenAI Responses SDK events | OpenAI SDK `Response` | [OpenAI Responses](protocols/openai-responses.md) |
+| OpenAI Chat Completions | `Molto.chat_completions()` | `chat/completions` | OpenAI `ChatCompletionChunk` values | OpenAI SDK `ChatCompletion` | [OpenAI Chat Completions](protocols/openai-chat-completions.md) |
+| Anthropic Messages | `Molto.messages()` | `messages` | Anthropic Messages SDK events | Anthropic SDK `Message` | [Anthropic Messages](protocols/anthropic-messages.md) |
 
 Use Responses when an application benefits from typed output items and a rich streaming lifecycle. Use Chat Completions for applications built around the widely supported `messages` and choice-delta interface. Use Messages for applications that need the Anthropic SDK contract and its content-block model. The selected upstream endpoint does not have to match that choice.
 
@@ -76,12 +76,12 @@ A future `python -m molto.server` entry point will expose Molto as an OpenAI Res
 
 Four independent choices define a route:
 
-| Concept       | Responsibility                                                                    |
-| ------------- | --------------------------------------------------------------------------------- |
-| Public method | Selects the downstream request and SDK event contract exposed to the application. |
-| `endpoint`    | Selects the upstream wire protocol and upstream client.                           |
-| `provider`    | Selects the serving implementation and its immutable capability profile.          |
-| `base_url`    | Selects only the HTTP destination.                                                |
+| Concept       | Responsibility                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| Public method | Selects the downstream request and SDK event or response contract exposed to the application. |
+| `endpoint`    | Selects the upstream wire protocol and upstream client.                                       |
+| `provider`    | Selects the serving implementation and its immutable capability profile.                      |
+| `base_url`    | Selects only the HTTP destination.                                                            |
 
 Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
 
@@ -121,9 +121,9 @@ downstream protocol adapter
 application protocol events
 ```
 
-The public `Molto` facade validates the downstream body, resolves routing and transport configuration, and composes the adapter and client. Adapters own downstream request normalization and downstream event projection. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
+The public `Molto` facade validates the downstream body, resolves routing and transport configuration, and composes the adapter and client. Adapters own downstream request normalization, downstream event projection, and collection of projected native events into native responses. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
 
-When the application and provider protocols match, Molto skips the normalized representation. This native passthrough is an identity optimization: the request is still validated, but SDK-native events and errors are yielded without losing protocol-only structure.
+When the application and provider protocols match, Molto skips the normalized representation. This native passthrough is an identity optimization: the request is still validated, but the SDK-native event stream or non-streaming response is returned without losing protocol-only structure.
 
 Streaming is the execution primitive. The normalized event grammar is:
 
@@ -135,7 +135,27 @@ PartEndEvent
 ResponseEndEvent
 ```
 
-A generic collector may eventually derive non-streaming results from this grammar. Until that collector and a normalized response model exist, every coordinator rejects non-streaming requests.
+For a translated non-streaming request, the coordinator runs the selected upstream client in streaming mode and reuses the complete downstream event projection before collecting a response:
+
+```text
+normalized upstream event stream
+        |
+        v
+downstream adapter.project_events()
+        |
+        v
+downstream-native event stream
+        |
+        v
+downstream adapter.project_response()
+        |
+        v
+downstream-native response
+```
+
+Collection follows the downstream protocol's native event grammar. Responses returns the inner `Response` carried by the terminal `response.completed` or `response.incomplete` event. Chat Completions accumulates projected choice deltas, including content, reasoning, indexed tool calls, finish reason, and usage, into one `ChatCompletion`. Messages accumulates the projected message and content-block lifecycle through `message_stop` into one `Message`.
+
+This order makes projected native events the source of truth for both translated modes. It does not introduce a second normalized-to-response translation path. Native same-protocol non-streaming requests take a separate fidelity-preserving fast path and return the matching client's SDK response directly without streaming or crossing the normalized representation.
 
 ## Translation contract
 
@@ -184,7 +204,7 @@ Wire preservation does not guarantee a distinct model-visible turn. Anthropic ma
 
 The translated path currently supports:
 
-- streaming requests;
+- streaming and non-streaming requests;
 - string input and ordered text messages;
 - ordered mixed text and image user input using remote URLs or base64 data URLs;
 - system prompts and supported assistant history;
@@ -195,7 +215,7 @@ The translated path currently supports:
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, log probabilities, or non-streaming collection. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
+The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 

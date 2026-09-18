@@ -404,8 +404,8 @@ def _matched_request_body(
     if not isinstance(request_model, str):
         raise ValueError("Responses request must contain a string model.")
     stream = responses_request.get("stream")
-    if not isinstance(stream, bool):
-        raise ValueError("Responses request must contain a boolean stream field.")
+    if stream is not None and not isinstance(stream, bool):
+        raise ValueError("Responses request stream must be a boolean when provided.")
 
     matched_request = deepcopy(messages_request)
     response_input = responses_request.get("input")
@@ -447,7 +447,10 @@ def _matched_request_body(
         if options.get("ttl") is not None or has_markers:
             matched_request["cache_control"]["ttl"] = "1h"
     matched_request["model"] = request_model
-    matched_request["stream"] = stream
+    if stream is None:
+        matched_request.pop("stream", None)
+    else:
+        matched_request["stream"] = stream
     if responses_request.get("max_output_tokens") is not None:
         matched_request["max_tokens"] = responses_request["max_output_tokens"]
 

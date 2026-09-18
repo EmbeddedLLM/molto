@@ -189,6 +189,11 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
             "role": "user",
         },
         {
+            "content": [{"type": "reasoning_text", "text": "Use the tool."}],
+            "summary": [],
+            "type": "reasoning",
+        },
+        {
             "arguments": "{}",
             "call_id": "call_test",
             "name": "TestTool",
@@ -212,6 +217,66 @@ def test_event_matching_preserves_chat_user_message_and_part_boundaries() -> Non
         for message in chat_cassette["request"]["body"]["messages"]
         if message["role"] == "user"
     ] == user_messages
+    assert next(
+        message
+        for message in chat_cassette["request"]["body"]["messages"]
+        if message["role"] == "assistant"
+    ) == {
+        "reasoning_content": "Use the tool.",
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "function": {"arguments": "{}", "name": "TestTool"},
+                "id": "call_test",
+                "type": "function",
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("with_cache", [False, True])
+def test_matches_reasoning_history_with_instruction_parts_and_cache(with_cache: bool) -> None:
+    chat_cassette = read_yaml(str(CHAT_CASSETTE))
+    responses_cassette = read_yaml(str(RESPONSES_CASSETTE))
+    text_part = {"type": "input_text", "text": "Keep this prefix."}
+    if with_cache:
+        text_part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        responses_cassette["request"]["body"]["prompt_cache_options"] = {"mode": "explicit"}
+    responses_cassette["request"]["body"]["input"] = [
+        {"role": role, "content": [deepcopy(text_part)]}
+        for role in ("system", "developer", "user")
+    ] + [
+        {
+            "type": "reasoning",
+            "content": [{"type": "reasoning_text", "text": "Consider the prefix."}],
+            "summary": [],
+        },
+        {"role": "assistant", "content": [{"type": "output_text", "text": "First reply."}]},
+        {"role": "assistant", "content": [{"type": "output_text", "text": "Second reply."}]},
+    ]
+    original_responses = deepcopy(responses_cassette)
+    chat_cassette["request"]["body"]["messages"] = [{"role": "user", "content": "stale"}]
+
+    match_chat_completions_events(chat_cassette, responses_cassette)
+
+    request = chat_cassette["request"]["body"]
+    OpenAIChatCompletionsCreateRequest.model_validate(request)
+    assert request["messages"] == [
+        {"role": role, "content": [{**text_part, "type": "text"}]}
+        for role in ("system", "developer", "user")
+    ] + [
+        {
+            "role": "assistant",
+            "reasoning_content": "Consider the prefix.",
+            "content": "First reply.",
+        },
+        {"role": "assistant", "content": "Second reply."},
+    ]
+    if with_cache:
+        assert request["prompt_cache_options"] == {"mode": "explicit"}
+    else:
+        assert "prompt_cache_options" not in request
+    assert responses_cassette == original_responses
 
 
 @pytest.mark.parametrize("scenario", ["prompt_cache_implicit", "prompt_cache_explicit"])

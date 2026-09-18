@@ -13,9 +13,21 @@ from molto.providers import (
     Endpoint,
     Provider,
 )
-from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
-from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
-from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
+    AnthropicMessagesStreamEvent,
+)
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsCreateRequest,
+    OpenAIChatCompletionsResponse,
+    OpenAIChatCompletionsStreamChunk,
+)
+from molto.types.openai_responses import (
+    OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
+    OpenAIResponsesStreamEvent,
+)
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
@@ -178,7 +190,7 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-    ) -> MoltoStream[BaseModel]:
+    ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
         The upstream format can be OpenAI Responses, OpenAI Chat Completions,
@@ -196,9 +208,6 @@ class Molto:
                 headers are removed before the provider request.
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError("Only streaming Responses requests are currently supported.")
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -214,10 +223,12 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request)),
-                upstream.response_headers,
-            )
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request)),
+                    upstream.response_headers,
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
 
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -241,10 +252,13 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request),
-            upstream.response_headers,
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events, upstream.response_headers)
+        return await adapter.project_response(projected_events, normalized_request)
 
     async def chat_completions(
         self,
@@ -255,7 +269,7 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-    ) -> MoltoStream[BaseModel]:
+    ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
@@ -263,11 +277,6 @@ class Molto:
         HTTP destination.
         """
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError(
-                "Only streaming Chat Completions requests are currently supported."
-            )
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -282,10 +291,12 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request)),
-                upstream.response_headers,
-            )
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request)),
+                    upstream.response_headers,
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -309,10 +320,13 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request),
-            upstream.response_headers,
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events, upstream.response_headers)
+        return await adapter.project_response(projected_events, normalized_request)
 
     async def messages(
         self,
@@ -323,7 +337,7 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-    ) -> MoltoStream[BaseModel]:
+    ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
@@ -331,9 +345,6 @@ class Molto:
         HTTP destination.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
-        if request.stream is not True:
-            raise NotImplementedError("Only streaming Messages requests are currently supported.")
-
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -348,10 +359,12 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = AnthropicMessagesAdapter(capabilities)
-            return await _prefetch_stream(
-                adapter.project_native_events(upstream.native_events(request)),
-                upstream.response_headers,
-            )
+            if request.stream is True:
+                return await _prefetch_stream(
+                    adapter.project_native_events(upstream.native_events(request)),
+                    upstream.response_headers,
+                )
+            return await adapter.project_native_response(upstream.native_response(request))
 
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
@@ -375,7 +388,10 @@ class Molto:
             )
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return await _prefetch_stream(
-            adapter.project_events(upstream.events(normalized_request), normalized_request),
-            upstream.response_headers,
+        projected_events = adapter.project_events(
+            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            normalized_request,
         )
+        if request.stream is True:
+            return await _prefetch_stream(projected_events, upstream.response_headers)
+        return await adapter.project_response(projected_events, normalized_request)

@@ -10,6 +10,7 @@ from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
+    AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
@@ -43,6 +44,40 @@ from molto.types.normalized import (
 from molto.upstream.anthropic import AnthropicMessagesClient
 
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
+
+
+async def test_native_response_uses_anthropic_sdk_model():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_123",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": "model",
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = AnthropicMessagesClient(
+            http_client,
+            capabilities=PROVIDER_CAPABILITIES["anthropic"],
+            api_key="test-api-key",
+        )
+        request = AnthropicMessagesCreateRequest(
+            max_tokens=10,
+            messages=[{"role": "user", "content": "Hi"}],
+            model="model",
+            stream=False,
+        )
+        response = await client.native_response(request)
+
+    assert type(response) is AnthropicMessagesResponse
+    assert response.id == "msg_123"
 
 
 @pytest.mark.parametrize(
