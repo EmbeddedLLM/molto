@@ -245,6 +245,7 @@ _EPHEMERAL = {"type": "ephemeral"}
 
 
 def test_normalizes_top_level_cache_control_as_implicit_prompt_cache():
+    """Ensures automatic cache intent and lifetimes survive cross-provider normalization."""
     for cache_control, expected in (
         (_EPHEMERAL, PromptCache(mode="implicit")),
         ({"type": "ephemeral", "ttl": "1h"}, PromptCache(mode="implicit", ttl="1h")),
@@ -357,6 +358,7 @@ def test_normalizes_top_level_cache_control_as_implicit_prompt_cache():
     ],
 )
 def test_content_block_cache_control(overrides):
+    """Ensures portable markers survive and unrepresentable cache boundaries are rejected."""
     block = (overrides.get("system") or overrides["messages"][0]["content"])[0]
     if block["type"] in {"tool_result", "tool_use", "thinking"}:
         with pytest.raises(

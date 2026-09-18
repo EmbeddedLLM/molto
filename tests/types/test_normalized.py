@@ -188,6 +188,7 @@ def test_request_uses_provider_neutral_function_tools():
     ],
 )
 def test_request_rejects_extra_fields_at_every_strict_boundary(request_data: dict):
+    """Asserts that unknown nested settings are rejected before translation can lose them."""
     with pytest.raises(ValidationError, match="extra_forbidden"):
         NormalizedRequest(**request_data)
 

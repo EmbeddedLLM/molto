@@ -72,6 +72,8 @@ Treat OpenAI Responses as the canonical behavioral reference when matching other
 
 When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every Chat message to an untyped dictionary.
 
+Never switch input shapes solely to satisfy SDK or local schema restrictions. Preserve the semantically correct wire representation and supported fields; when verified provider behavior differs from the schema, add a narrow schema extension instead.
+
 Prefer concrete lists over SDK `Iterable` annotations in local compatibility models. Concrete lists validate nested content at request construction time and avoid lazy validation or iterator consumption while Pydantic evaluates union branches.
 
 ## Pydantic field metadata
@@ -128,7 +130,7 @@ Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of prov
 
 Map prompt-cache intent according to the [shared cache policy](../docs/README.md#prompt-caching). Keep positional markers in `CacheBreakpoint` on supported content parts, and use `NormalizedRequest.iter_cache_breakpoints()` for shared traversal. OpenAI marker presence resolves omitted mode and lifetime to implicit and `30m`; Messages maps that lifetime to `1h` for blocks and automatic caching. Explicit mode preserves markers while omitting automatic caching. Anthropic block-only input selects explicit mode. OpenAI projects every explicit request or block lifetime as one request-wide `30m` TTL, preserving mode and marker positions. This rounds `5m` up but weakens the requested `1h` minimum and collapses mixed lifetimes. Leave an omitted lifetime unspecified unless another explicit lifetime supplies the shared TTL; do not synthesize retention to approximate a minimum lifetime. Document retention and pricing differences.
 
-Preserve the prefix ending at each marker. Keep marked system blocks separate; reject hoisting mid-conversation instructions when markers exist and marked Chat tool returns affected by image relocation. Validate Messages cache controls after projection: at most four slots including automatic caching, except when the final eligible block already has a same-lifetime marker; matching final explicit/automatic lifetimes; and one-hour markers before five-minute markers. Reject Anthropic markers on outer tool-result, tool-use, thinking, and tool-definition objects without corresponding OpenAI parts. Responses marked assistant history must use easy `input_text` content and reject an ID that this schema cannot preserve. Messages silently drops caller-defined keys without enabling caching, processes remaining options independently, and rejects retention policies.
+Preserve the prefix ending at each marker. Keep marked system blocks separate; reject hoisting mid-conversation instructions when markers exist and marked Chat tool returns affected by image relocation. Validate Messages cache controls after projection: matching final explicit/automatic lifetimes and one-hour markers before five-minute markers. Forward all supported markers and leave breakpoint-count limits to the upstream. Reject Anthropic markers on outer tool-result, tool-use, thinking, and tool-definition objects without corresponding OpenAI parts. Responses assistant history must use `output_text` content, preserving markers and optional output-item IDs. OpenAI rejects assistant `input_text` content even though the SDK easy input-message schema permits it. Messages silently drops caller-defined keys without enabling caching, processes remaining options independently, and rejects retention policies.
 
 Map usage semantically and construct the public usage payload explicitly. This prevents internal `extra_fields` containers and source-only usage details from leaking into the target protocol.
 
@@ -158,6 +160,8 @@ Let the SDK own request serialization, authentication, HTTP, SSE decoding, termi
 Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid duplicate serialization and validation on every event or delta. Before yielding a Responses completion event, normalize the documented compatible-provider omission where `cache_write_tokens` is `None` to `0`. Do not rewrite an accurate cassette merely to satisfy a newer SDK schema.
 
 ## Unsupported semantics
+
+Avoid rejecting inputs based on provider restrictions that may change, such as cache-breakpoint counts or model-specific limits. Leave those checks to the upstream when Molto can faithfully forward the input. Local validation should enforce Molto's translation requirements, not duplicate evolving provider policy.
 
 Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. This rule is aspirational for the Messages client's stream loop: it inspects only the six handled `RawMessageStreamEvent` types and silently ignores any other variant (documented in the [Messages guide](../docs/protocols/anthropic-messages.md)), diverging from the Responses client, which raises for unknown stream events. Tightening the Messages path is tracked future work. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
 

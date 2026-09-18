@@ -99,6 +99,26 @@ def _raw_reasoning_content(item: dict[str, Any]) -> str:
     return "".join(reasoning)
 
 
+def _raw_reasoning_content(item: dict[str, Any]) -> str:
+    content = item.get("content")
+    if not isinstance(content, list):
+        raise ValueError("Responses reasoning item must contain a content list.")
+    if item.get("summary") not in (None, []):
+        raise ValueError("Responses reasoning summaries cannot map to Chat Completions.")
+    if item.get("encrypted_content") is not None:
+        raise ValueError("Encrypted Responses reasoning cannot map to Chat Completions.")
+
+    reasoning: list[str] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") != "reasoning_text":
+            raise ValueError("Only raw Responses reasoning can map to Chat Completions.")
+        text = part.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Responses reasoning text must be a string.")
+        reasoning.append(text)
+    return "".join(reasoning)
+
+
 def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]

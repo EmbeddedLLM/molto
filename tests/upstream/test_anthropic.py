@@ -795,6 +795,8 @@ def test_client_projects_user_text_as_content_block_list():
 
 
 def test_client_projects_prompt_cache_as_automatic_cache_control():
+    """Ensures automatic caching follows mode and lifetime intent, never a caller key."""
+
     def body(prompt_cache: PromptCache) -> dict[str, object]:
         return AnthropicMessagesClient._request_body(
             NormalizedRequest(
@@ -1759,6 +1761,7 @@ async def test_native_events_normalize_known_sdk_errors():
 
 @pytest.mark.parametrize("mode", ["implicit", "explicit"])
 def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
+    """Ensures inherited cache lifetimes apply consistently without merging instruction parts."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,
@@ -1785,6 +1788,7 @@ def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
 
 
 def test_rejects_cache_prefix_changes_from_hoisted_instructions():
+    """Asserts that instruction hoisting cannot silently change a marked cache prefix."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,
@@ -1798,16 +1802,17 @@ def test_rejects_cache_prefix_changes_from_hoisted_instructions():
 
 
 @pytest.mark.parametrize(
-    ("count", "mode", "unmarked_tail", "allowed"),
+    ("count", "mode", "unmarked_tail"),
     [
-        (4, "explicit", True, True),
-        (5, "explicit", False, False),
-        (3, "implicit", True, True),
-        (4, "implicit", True, False),
-        (4, "implicit", False, True),
+        (4, "explicit", True),
+        (5, "explicit", False),
+        (3, "implicit", True),
+        (4, "implicit", True),
+        (4, "implicit", False),
     ],
 )
-def test_cache_breakpoint_slot_limit(count, mode, unmarked_tail, allowed):
+def test_cache_breakpoint_count_is_left_to_upstream(count, mode, unmarked_tail):
+    """Ensures every marker and unmarked tail survives while Messages enforces count limits."""
     content = [TextInput(content=str(i), cache_breakpoint=CacheBreakpoint()) for i in range(count)]
     if unmarked_tail:
         content.append(TextInput(content="Uncached tail"))
@@ -1817,16 +1822,20 @@ def test_cache_breakpoint_slot_limit(count, mode, unmarked_tail, allowed):
         input=[UserInput(content=content)],
         prompt_cache=PromptCache(mode=mode),
     )
-    if allowed:
-        body = AnthropicMessagesClient._request_body(request)
-        assert sum("cache_control" in part for part in body["messages"][0]["content"]) == count
-    else:
-        with pytest.raises(UnsupportedInput, match="at most four"):
-            AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._request_body(request)
+    expected = [
+        {"type": "text", "text": str(i), "cache_control": {"type": "ephemeral"}}
+        for i in range(count)
+    ]
+    if unmarked_tail:
+        expected.append({"type": "text", "text": "Uncached tail"})
+    assert body["messages"][0]["content"] == expected
+    assert body.get("cache_control") == ({"type": "ephemeral"} if mode == "implicit" else None)
 
 
 @pytest.mark.parametrize("ttls", [("1h", "5m"), ("5m", "1h")])
 def test_block_lifetimes_must_decrease_in_prompt_order(ttls):
+    """Asserts that lifetime-order validation preserves prompt order instead of rearranging it."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,
@@ -1851,6 +1860,7 @@ def test_block_lifetimes_must_decrease_in_prompt_order(ttls):
 
 
 def test_automatic_and_final_block_cache_lifetimes_must_match():
+    """Asserts that conflicting final explicit and automatic cache lifetimes are rejected."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,

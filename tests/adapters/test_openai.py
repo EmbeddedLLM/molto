@@ -224,6 +224,7 @@ def test_responses_adapter_rejects_untranslated_include_values():
     ids=["text", "image"],
 )
 def test_responses_adapter_normalizes_prompt_cache_breakpoint(part):
+    """Ensures text and image markers retain the OpenAI defaults needed for translation."""
     request = OpenAIResponsesCreateRequest(model="m", input=[{"role": "user", "content": [part]}])
     normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
     assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
@@ -250,6 +251,7 @@ def test_responses_adapter_normalizes_prompt_cache_breakpoint(part):
     ids=["user", "tool"],
 )
 def test_chat_adapter_normalizes_prompt_cache_breakpoint(message):
+    """Ensures normalization preserves user and tool-result cache boundaries."""
     normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(
         OpenAIChatCompletionsCreateRequest(model="m", messages=[message], stream=True)
     )
@@ -258,6 +260,7 @@ def test_chat_adapter_normalizes_prompt_cache_breakpoint(message):
 
 
 def test_openai_adapters_normalize_prompt_cache_fields():
+    """Ensures both OpenAI protocols normalize cache intent without losing settings."""
     cache = {
         "prompt_cache_key": "turn-1",
         "prompt_cache_options": {"mode": "explicit", "ttl": "30m"},
@@ -281,6 +284,7 @@ def test_openai_adapters_normalize_prompt_cache_fields():
 
 
 def test_openai_adapters_omit_unconfigured_prompt_cache():
+    """Ensures empty or omitted options do not introduce cache intent."""
     empty_options = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
         OpenAIResponsesCreateRequest(model="m", input="hi", prompt_cache_options={})
     )
@@ -1304,6 +1308,7 @@ async def test_error_projection_selects_subclass_from_status(native: bool) -> No
 
 @pytest.mark.parametrize("role", ["system", "developer", "assistant"])
 def test_chat_normalizes_marked_text_arrays_without_merging_parts(role):
+    """Ensures text parts stay separate so instruction and assistant cache prefixes survive."""
     request = OpenAIChatCompletionsCreateRequest(
         model="m",
         messages=[

@@ -175,7 +175,7 @@ Cross-protocol parity means preserving semantics that the target can represent; 
 | Unsupported input    | Reject before translation, except for documented omissions and [cache-lifetime approximations](#prompt-caching). |
 | Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.                      |
 
-Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped, handled under a documented exception, or explicitly rejected by the target client. The [input contract](#cross-protocol-contract) describes permitted omissions, and the [cache policy](#prompt-caching) describes lifetime approximations. Responses preserves its output-item IDs, and both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
+Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped, handled under a documented exception, or explicitly rejected by the target client. The [input contract](#cross-protocol-contract) describes permitted omissions, and the [cache policy](#prompt-caching) describes lifetime approximations. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
 
 Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
@@ -267,12 +267,11 @@ An omitted Anthropic lifetime remains unspecified unless another request or bloc
 Supported marker positions are system/developer text, user text/images, assistant text, and nested tool-result text/images. Chat tool messages support only text. Translation rejects markers that cannot retain their prefix:
 
 - Anthropic outer `tool_result`, `tool_use`, thinking blocks, and tool definitions have no corresponding OpenAI content-part marker.
-- Messages allows at most four cache breakpoints, counting automatic caching unless the final eligible block already has a marker with the same lifetime. A different automatic and final explicit lifetime is rejected. One-hour breakpoints must precede five-minute breakpoints.
+- Messages rejects a different automatic and final explicit lifetime. One-hour breakpoints must precede five-minute breakpoints.
 - Messages rejects mid-conversation instructions whenever any marker is present, because hoisting would change the cached prefix.
 - Chat rejects marked tool returns when image relocation would move content past a marker, including a marked later parallel tool return with earlier images still waiting to be emitted.
-- Responses rejects marked assistant history with an output-item ID, because its marker-capable easy input-message schema cannot preserve that ID.
 
-Messages keeps system blocks separate when any system block is marked. Native passthrough forwards provider-native cache fields unchanged.
+Messages forwards all supported markers and leaves breakpoint-count limits to the upstream. It keeps system blocks separate when any system block is marked. Responses projects assistant history as `output_text` parts, preserving both markers and optional output-item IDs. Native passthrough forwards provider-native cache fields unchanged.
 
 ### Service tiers
 
