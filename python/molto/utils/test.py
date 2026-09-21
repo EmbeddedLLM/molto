@@ -152,6 +152,13 @@ def reconstructable_responses_event(
             response["reasoning"] = {
                 key: value for key, value in reasoning.items() if key == "effort"
             }
+        if (
+            event["type"] in {"response.created", "response.in_progress"}
+            and response.get("service_tier") == "auto"
+        ):
+            # Native Responses may report an unresolved tier before completion;
+            # translated responses use the documented target default throughout.
+            response["service_tier"] = "default"
         for output_item in response.get("output") or []:
             output_item.pop("id", None)
             output_item.pop("phase", None)

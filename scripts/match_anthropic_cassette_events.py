@@ -19,6 +19,10 @@ because Messages has no corresponding stop reason.
 Matched reasoning requests use adaptive summarized thinking and carry normalized
 reasoning effort in `output_config.effort`; reasoning history defaults that
 effort to `high` when the canonical request omits it.
+System/developer input becomes top-level system content, preserving marked block
+boundaries. OpenAI cache options and markers map to automatic/block cache controls;
+30m maps to 1h under Molto's documented lifetime approximation. Cache usage,
+including an existing creation-lifetime breakdown, follows the Responses counts.
 
 The matched fixtures assume OpenAI serves both the Responses and Messages
 endpoints. Under that same-provider contract, Responses `encrypted_content`
@@ -143,6 +147,8 @@ def _message_content(content: Any) -> list[dict[str, Any]]:
             blocks.append({"type": "text", "text": text})
         else:
             raise ValueError("Responses message content cannot map to Messages.")
+        if part.get("prompt_cache_breakpoint") is not None:
+            blocks[-1]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
     return blocks
 
 
@@ -402,7 +408,44 @@ def _matched_request_body(
         raise ValueError("Responses request stream must be a boolean when provided.")
 
     matched_request = deepcopy(messages_request)
-    matched_request["messages"] = _messages_from_response_input(responses_request.get("input"))
+    response_input = responses_request.get("input")
+    system = (
+        _message_content(responses_request["instructions"])
+        if responses_request.get("instructions")
+        else []
+    )
+    has_markers = _has_cache_breakpoint(response_input)
+    if isinstance(response_input, list):
+        message_input = []
+        for item in response_input:
+            if isinstance(item, dict) and item.get("role") in {"system", "developer"}:
+                if message_input and has_markers:
+                    raise ValueError(
+                        "Cannot hoist mid-conversation instructions with cache breakpoints."
+                    )
+                system.extend(_message_content(item.get("content")))
+            else:
+                message_input.append(item)
+        response_input = message_input
+    if system:
+        matched_request["system"] = (
+            system
+            if any("cache_control" in block for block in system)
+            else "\n\n".join(block["text"] for block in system)
+        )
+    else:
+        matched_request.pop("system", None)
+    matched_request["messages"] = _messages_from_response_input(response_input)
+    if responses_request.get("prompt_cache_retention") is not None:
+        raise ValueError("Messages cannot represent prompt cache retention.")
+    options = responses_request.get("prompt_cache_options") or {}
+    matched_request.pop("cache_control", None)
+    if options.get("mode") != "explicit" and (
+        options.get("mode") == "implicit" or options.get("ttl") is not None or has_markers
+    ):
+        matched_request["cache_control"] = {"type": "ephemeral"}
+        if options.get("ttl") is not None or has_markers:
+            matched_request["cache_control"]["ttl"] = "1h"
     matched_request["model"] = request_model
     if stream is None:
         matched_request.pop("stream", None)
@@ -454,6 +497,14 @@ def _matched_request_body(
         output_config["effort"] = effort
         matched_request["output_config"] = output_config
     return matched_request
+
+
+def _has_cache_breakpoint(value: Any) -> bool:
+    if isinstance(value, dict):
+        return value.get("prompt_cache_breakpoint") is not None or any(
+            _has_cache_breakpoint(item) for item in value.values()
+        )
+    return isinstance(value, list) and any(_has_cache_breakpoint(item) for item in value)
 
 
 def _data_events(cassette: dict[str, Any]) -> list[tuple[int, dict[str, Any]]]:
@@ -539,6 +590,8 @@ def _response_terminal(
 
 
 def _serialize_data_event(event: dict[str, Any], template: str) -> str:
+    if _parse_data_event(template) == event:
+        return template
     suffix = template[len(template.rstrip("\r\n")) :]
     return f"data: {json_dumps(event)}{suffix}"
 
@@ -910,7 +963,9 @@ def _message_event(units: list[_SSEEventUnit], event_type: str) -> dict[str, Any
     return matches[0]
 
 
-def _map_input_usage(response_usage: dict[str, Any], message_usage: dict[str, Any]) -> None:
+def _map_input_usage(
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+) -> None:
     input_details = response_usage.get("input_tokens_details") or {}
     if not isinstance(input_details, dict):
         raise ValueError("Responses input token details must be an object.")
@@ -931,10 +986,18 @@ def _map_input_usage(response_usage: dict[str, Any], message_usage: dict[str, An
     message_usage["input_tokens"] = message_input_tokens
     message_usage["cache_creation_input_tokens"] = cache_creation_tokens
     message_usage["cache_read_input_tokens"] = cache_read_tokens
+    if isinstance(message_usage.get("cache_creation"), dict):
+        # OpenAI has one shared lifetime, so every projected write has the same TTL.
+        message_usage["cache_creation"] = {
+            "ephemeral_5m_input_tokens": cache_creation_tokens if cache_ttl == "5m" else 0,
+            "ephemeral_1h_input_tokens": cache_creation_tokens if cache_ttl == "1h" else 0,
+        }
 
 
-def _map_usage(response_usage: dict[str, Any], message_usage: dict[str, Any]) -> None:
-    _map_input_usage(response_usage, message_usage)
+def _map_usage(
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+) -> None:
+    _map_input_usage(response_usage, message_usage, cache_ttl)
 
     output_tokens = response_usage["output_tokens"]
     total_tokens = response_usage["total_tokens"]
@@ -986,6 +1049,11 @@ def match_messages_events(
     messages_request = _request_body(messages_cassette)
     responses_request = _request_body(responses_cassette)
     matched_request = _matched_request_body(messages_request, responses_request)
+    cache_ttl = (
+        "1h"
+        if _has_cache_breakpoint(responses_request.get("input"))
+        else matched_request.get("cache_control", {}).get("ttl", "5m")
+    )
 
     prefix, message_units = _message_event_units(messages_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
@@ -1060,11 +1128,14 @@ def match_messages_events(
     message_start["model"] = terminal_response["model"]
     message_start["stop_reason"] = None
     message_start["stop_sequence"] = None
+    # Empty server-container metadata has no counterpart in Responses or Chat.
+    if message_start.get("container") is None:
+        message_start.pop("container", None)
 
     message_start_usage = message_start.get("usage")
     if not isinstance(message_start_usage, dict):
         raise ValueError("message_start.message must contain usage.")
-    _map_input_usage(response_usage, message_start_usage)
+    _map_input_usage(response_usage, message_start_usage, cache_ttl)
     message_start_usage["output_tokens"] = 0
     message_start_usage["service_tier"] = "standard"
 
@@ -1074,11 +1145,13 @@ def match_messages_events(
         raise ValueError("message_delta must contain a delta object.")
     message_delta_value["stop_reason"] = stop_reason
     message_delta_value["stop_sequence"] = None
+    if message_delta_value.get("container") is None:
+        message_delta_value.pop("container", None)
 
     message_delta_usage = message_delta.get("usage")
     if not isinstance(message_delta_usage, dict):
         raise ValueError("message_delta must contain usage.")
-    _map_usage(response_usage, message_delta_usage)
+    _map_usage(response_usage, message_delta_usage, cache_ttl)
 
     messages_cassette["request"]["body"] = matched_request
     _write_message_event_units(messages_cassette, prefix, message_units)

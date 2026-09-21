@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from textwrap import dedent
 from time import time
 from typing import Annotated, Any, Literal, Self, TypeAlias
@@ -7,11 +7,27 @@ from pydantic import BeforeValidator, Discriminator, Field, model_validator
 
 from molto.types.base import ExtraModel, StrictModel, ZeroIfNoneInt
 
+PromptCacheTtl: TypeAlias = Literal["5m", "1h", "30m"]
+
+
+class CacheBreakpoint(StrictModel):
+    """The end of a reusable prefix, attached to its final content part."""
+
+    ttl: Annotated[
+        PromptCacheTtl | None,
+        Field(
+            description="Requested minimum cache lifetime, overriding the request lifetime if set."
+        ),
+    ] = None
+
 
 class SystemPrompt(StrictModel):
     """A system prompt, generally written by the application developer."""
 
     content: Annotated[str, Field(description="The content of the prompt.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     content_type: Annotated[
         Literal["system-prompt"],
         Field(description="Content type identifier as a discriminator."),
@@ -22,6 +38,9 @@ class TextInput(StrictModel):
     """Text content sent to the model."""
 
     content: Annotated[str, Field(description="The content sent to the model.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     content_type: Annotated[
         Literal["text-input"],
         Field(description="Content type identifier as a discriminator."),
@@ -32,6 +51,9 @@ class ImageUrlInput(StrictModel):
     """An image supplied by remote URL or data URL."""
 
     url: Annotated[str, Field(description="The remote URL or data URL of the image.")]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None, Field(description="Cache the prefix ending at this part.")
+    ] = None
     detail: Annotated[
         Literal["auto", "low", "high", "original"] | None,
         Field(description="The requested image fidelity, when specified."),
@@ -177,19 +199,6 @@ class UserInput(StrictModel):
 #     ] = "uploaded-file"
 
 
-# class CachePointInput(ExtraModel):
-#     """A prompt-caching boundary marker."""
-
-#     content_type: Annotated[
-#         Literal["cache-point"],
-#         Field(description="Content type identifier as a discriminator."),
-#     ] = "cache-point"
-#     ttl: Annotated[
-#         Literal["5m", "1h"],
-#         Field(description="The cache time-to-live."),
-#     ] = "5m"
-
-
 class ToolReturn(StrictModel):
     """Tool return parts."""
 
@@ -232,6 +241,10 @@ class TextOutput(ExtraModel):
         str,
         Field(description="The text content of the response."),
     ]
+    cache_breakpoint: Annotated[
+        CacheBreakpoint | None,
+        Field(description="Cache the prefix ending at this part when used as history."),
+    ] = None
     id: Annotated[
         str | None,
         Field(description="An optional identifier of the text part."),
@@ -429,6 +442,44 @@ class StreamOptions(StrictModel):
     ] = None
 
 
+PromptCacheMode: TypeAlias = Literal["implicit", "explicit"]
+PromptCacheRetention: TypeAlias = Literal["in_memory", "24h"]
+
+
+class PromptCache(StrictModel):
+    """Prompt-caching intent for one request.
+
+    Caching changes cost and latency, never model-visible content, so every field is
+    optional and each target protocol projects only the subset it represents. Providers
+    disagree on the vocabulary: `key` and `retention` exist solely on the OpenAI side,
+    and the supported `ttl` values do not overlap between OpenAI (`30m`) and Anthropic
+    (`5m`, `1h`). Clients map requested lifetimes under the documented cache policy:
+    OpenAI uses `30m` even for a requested `1h` minimum, while Messages rounds `30m`
+    up to `1h`. Messages drops the caller key without enabling caching on its own.
+    """
+
+    key: Annotated[
+        str | None,
+        Field(description="A caller-supplied key that partitions the provider's cache."),
+    ] = None
+    mode: Annotated[
+        PromptCacheMode | None,
+        Field(
+            description=("Whether the provider or the request marks the cached prefix boundary.")
+        ),
+    ] = None
+    ttl: Annotated[
+        PromptCacheTtl | None,
+        Field(
+            description="Requested minimum lifetime of a cached prefix; target mappings may approximate it."
+        ),
+    ] = None
+    retention: Annotated[
+        PromptCacheRetention | None,
+        Field(description="Where the provider may retain the cached prefix."),
+    ] = None
+
+
 class NormalizedRequest(StrictModel):
     input: Annotated[
         Input | None,
@@ -449,6 +500,10 @@ class NormalizedRequest(StrictModel):
     parallel_tool_calls: Annotated[
         bool | None,
         Field(description="Whether the model may run tool calls in parallel."),
+    ] = None
+    prompt_cache: Annotated[
+        PromptCache | None,
+        Field(description="Prompt-caching intent for the request."),
     ] = None
     reasoning: Annotated[
         Reasoning | None,
@@ -478,6 +533,18 @@ class NormalizedRequest(StrictModel):
         float | None,
         Field(description="The nucleus-sampling probability mass."),
     ] = None
+
+    def iter_cache_breakpoints(self) -> Iterator[CacheBreakpoint]:
+        """Yield explicit markers in input order, including nested content parts."""
+        for item in self.input or []:
+            if isinstance(item, (UserInput, ToolReturn)):
+                for part in item.content:
+                    if part.cache_breakpoint is not None:
+                        yield part.cache_breakpoint
+            elif (
+                isinstance(item, (SystemPrompt, TextOutput)) and item.cache_breakpoint is not None
+            ):
+                yield item.cache_breakpoint
 
 
 class TextDelta(ExtraModel):

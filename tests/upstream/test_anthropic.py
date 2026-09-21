@@ -25,6 +25,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -32,10 +33,12 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
     StreamOptions,
+    SystemPrompt,
     TerminationReason,
     TextDelta,
     TextInput,
@@ -800,6 +803,36 @@ def test_client_projects_user_text_as_content_block_list():
     ]
 
 
+def test_client_projects_prompt_cache_as_automatic_cache_control():
+    """Ensures automatic caching follows mode and lifetime intent, never a caller key."""
+
+    def body(prompt_cache: PromptCache) -> dict[str, object]:
+        return AnthropicMessagesClient._request_body(
+            NormalizedRequest(
+                max_output_tokens=2048,
+                model="compatible-model",
+                stream=True,
+                prompt_cache=prompt_cache,
+            )
+        )
+
+    assert body(PromptCache(mode="implicit"))["cache_control"] == {"type": "ephemeral"}
+    assert body(PromptCache(ttl="1h"))["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert body(PromptCache(key="turn-1", ttl="30m"))["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "1h",
+    }
+    assert body(PromptCache(mode="implicit", ttl="5m"))["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "5m",
+    }
+    # Explicit mode asks for caller-marked breakpoints, which Messages only represents on
+    # individual content blocks, so projecting no automatic cache control is faithful.
+    assert "cache_control" not in body(PromptCache(mode="explicit", ttl="30m"))
+    assert "cache_control" not in body(PromptCache(key="turn-1"))
+    assert "cache_control" not in body(PromptCache())
+
+
 def test_adapter_preserves_user_message_and_part_boundaries():
     request = AnthropicMessagesCreateRequest(
         max_tokens=2048,
@@ -1511,6 +1544,10 @@ def test_client_accepts_disabled_stream_obfuscation():
     [
         (NormalizedRequest(model="model", max_tool_calls=1), "max_tool_calls"),
         (
+            NormalizedRequest(model="model", prompt_cache=PromptCache(retention="24h")),
+            "prompt cache retention",
+        ),
+        (
             NormalizedRequest(
                 model="model",
                 stream_options=StreamOptions(include_obfuscation=True),
@@ -1810,3 +1847,119 @@ async def test_missing_credentials_recognizes_type_error_subclasses():
             client._handle_error(error)
     assert exc_info.value.__cause__ is error
     assert exc_info.value.response is None
+@pytest.mark.parametrize("mode", ["implicit", "explicit"])
+def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
+    """Ensures inherited cache lifetimes apply consistently without merging instruction parts."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            SystemPrompt(content="Cached instructions", cache_breakpoint=CacheBreakpoint()),
+            SystemPrompt(content="Uncached instructions"),
+            UserInput(content=[TextInput(content="Question", cache_breakpoint=CacheBreakpoint())]),
+        ],
+        prompt_cache=PromptCache(mode=mode, ttl="30m"),
+    )
+    body = AnthropicMessagesClient._request_body(request)
+    control = {"type": "ephemeral", "ttl": "1h"}
+    assert body["system"] == [
+        {"type": "text", "text": "Cached instructions", "cache_control": control},
+        {"type": "text", "text": "Uncached instructions"},
+    ]
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": "Question", "cache_control": control}],
+        }
+    ]
+    assert body.get("cache_control") == (control if mode == "implicit" else None)
+
+
+def test_rejects_cache_prefix_changes_from_hoisted_instructions():
+    """Asserts that instruction hoisting cannot silently change a marked cache prefix."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(content=[TextInput(content="Question", cache_breakpoint=CacheBreakpoint())]),
+            SystemPrompt(content="Later instructions"),
+        ],
+    )
+    with pytest.raises(UnsupportedInput, match="hoisting"):
+        AnthropicMessagesClient._request_body(request)
+
+
+@pytest.mark.parametrize(
+    ("count", "mode", "unmarked_tail"),
+    [
+        (4, "explicit", True),
+        (5, "explicit", False),
+        (3, "implicit", True),
+        (4, "implicit", True),
+        (4, "implicit", False),
+    ],
+)
+def test_cache_breakpoint_count_is_left_to_upstream(count, mode, unmarked_tail):
+    """Ensures every marker and unmarked tail survives while Messages enforces count limits."""
+    content = [TextInput(content=str(i), cache_breakpoint=CacheBreakpoint()) for i in range(count)]
+    if unmarked_tail:
+        content.append(TextInput(content="Uncached tail"))
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[UserInput(content=content)],
+        prompt_cache=PromptCache(mode=mode),
+    )
+    body = AnthropicMessagesClient._request_body(request)
+    expected = [
+        {"type": "text", "text": str(i), "cache_control": {"type": "ephemeral"}}
+        for i in range(count)
+    ]
+    if unmarked_tail:
+        expected.append({"type": "text", "text": "Uncached tail"})
+    assert body["messages"][0]["content"] == expected
+    assert body.get("cache_control") == ({"type": "ephemeral"} if mode == "implicit" else None)
+
+
+@pytest.mark.parametrize("ttls", [("1h", "5m"), ("5m", "1h")])
+def test_block_lifetimes_must_decrease_in_prompt_order(ttls):
+    """Asserts that lifetime-order validation preserves prompt order instead of rearranging it."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(
+                content=[
+                    TextInput(content=str(i), cache_breakpoint=CacheBreakpoint(ttl=ttl))
+                    for i, ttl in enumerate(ttls)
+                ]
+            )
+        ],
+        prompt_cache=PromptCache(mode="explicit"),
+    )
+    if ttls == ("1h", "5m"):
+        body = AnthropicMessagesClient._request_body(request)
+        assert [part["cache_control"]["ttl"] for part in body["messages"][0]["content"]] == list(
+            ttls
+        )
+    else:
+        with pytest.raises(UnsupportedInput, match="must precede"):
+            AnthropicMessagesClient._request_body(request)
+
+
+def test_automatic_and_final_block_cache_lifetimes_must_match():
+    """Asserts that conflicting final explicit and automatic cache lifetimes are rejected."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            UserInput(
+                content=[
+                    TextInput(content="Question", cache_breakpoint=CacheBreakpoint(ttl="1h")),
+                ]
+            )
+        ],
+        prompt_cache=PromptCache(mode="implicit", ttl="5m"),
+    )
+    with pytest.raises(UnsupportedInput, match="must match"):
+        AnthropicMessagesClient._request_body(request)

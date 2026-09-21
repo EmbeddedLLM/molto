@@ -88,9 +88,19 @@ The `matched/{scenario}/` directories currently exercise these scenarios. One sc
 | `tool_call_parallel` | Two function calls and results with `parallel_tool_calls` enabled. |
 | `tool_call_image_result_parallel` | Parallel tool calls where a result carries an image, exercising the Chat image-tool-result relocation. |
 | `tool_call_with_reasoning_encrypted` | A tool call whose conversation carries encrypted reasoning continuation across three turns. |
+| `prompt_cache_implicit` | Two requests with automatic caching of a user prefix. |
+| `prompt_cache_explicit` | Two requests with an explicit breakpoint on a system prefix and a changing user suffix. |
 | `error-invalid_request_error` | A native invalid-request error scenario (`error-invalid_request_error`) used to exercise native error passthrough on the relevant route. |
 
 The `reasoning_raw` scenario is named with `vllm-*` filenames and its test derives `provider="vllm"` from that filename prefix, selecting the raw reasoning profile across all three protocols. A base URL never selects either behavior.
+
+### Prompt caching
+
+`matched/prompt_cache_implicit/` and `matched/prompt_cache_explicit/` each contain two streaming requests per protocol, numbered `-00` and `-01` in recording order. Responses remains unmodified and supplies the canonical request content, response ID, model, text deltas, and token counts. Chat also carries the Responses creation timestamp; Messages has no timestamp field.
+
+Both OpenAI protocols use `30m`; matching projects that lifetime to Messages' `1h` under the translation policy, including in the implicit scenario. Automatic caching stays at the request level, and the explicit system breakpoint retains its marked block boundary. Both OpenAI counterparts represent every instruction as a text-part list, including unmarked instructions.
+
+All four canonical Responses streams report cache hits and zero cache writes. The matched counterparts use those counts, including Messages' separate uncached input count and cache-creation lifetime breakdown. These fixtures cover warm-cache replay; positive cache creation is covered separately by synthetic usage tests.
 
 ## Specifications and tooling
 

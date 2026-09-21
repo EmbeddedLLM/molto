@@ -13,14 +13,15 @@ Every row below holds for a translated route (one protocol to another through th
 | Ordered image parts | Preserved | Remote URL or base64 data URL | Chat tool messages cannot carry images; image tool results are relocated |
 | Consecutive user messages | Not merged by Molto | One `UserInput` per message | Upstream provider or renderer may combine them |
 | `system` versus `developer` identity | Lost; one instruction concept | Role-less `SystemPrompt` | Native passthrough preserves the distinction |
-| Instruction position | Preserved for Responses and Chat targets; hoisted for Messages | `SystemPrompt` sequence position | Messages hoists all instructions into one top-level `system` string |
-| Multipart instruction boundaries | Lost | One `SystemPrompt` per instruction part | Native Chat preserves content-part arrays; translated Chat rejects non-string instruction content |
+| Instruction position | Preserved for Responses and Chat targets; hoisted for Messages | `SystemPrompt` sequence position | Messages uses top-level `system`, keeps marked system blocks separate, and rejects mid-conversation instructions when markers exist |
+| Multipart instruction boundaries | Lost | One `SystemPrompt` per instruction part | Text-part content and markers survive; the enclosing instruction-message boundary does not |
 | Assistant-message container | Lost | Flattened into adjacent thinking/text/tool items | Only Messages groups adjacent items back into one assistant message |
 | Ordered assistant text and thinking parts | Usually retained by adjacency, but may be merged or split during projection | Adjacent `Thinking`/`TextOutput` | A source assistant message with several parts may split into several target messages |
 | Raw versus summary reasoning | Classified by provider capability profile | Capability profile | OpenAI/Anthropic profiles = summary; vLLM = raw; explicit Responses events are authoritative |
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
 | Termination reason | Projected per the shared table | Provider-neutral termination | Reasons without a target equivalent are coerced to that target's normal completion |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized |
+| Prompt-cache intent | Projected under the [shared policy](../README.md#prompt-caching) | `PromptCache` plus positional `CacheBreakpoint` | Messages silently drops keys and maps `30m` minimum lifetime to `1h` on blocks and automatic caching; key-only requests do not enable caching; supported text/image markers preserve position; retention and unsupported marker positions are rejected; OpenAI collapses explicit request/block lifetimes to `30m`, rounding `5m` up and weakening the `1h` minimum |
 | Response ID and model | Preserved | Source response | A Messages upstream has no creation timestamp; `created_at` is captured locally |
 | Exact response-completion timestamp | Unavailable and omitted | None | Responses `created` is not `completed_at` |
 | Assistant `phase` | Not normalizable | None | Native Responses passthrough retains it; Chat and Messages omit it |
@@ -44,6 +45,7 @@ Full boundary fidelity would require more than the current normalized representa
 | Keepalive | None specific on translated output | None specific on translated output | `ping` is transport-only, filtered by the SDK, never synthesized |
 | Multiple candidates | Not supported | Only `choices[0]` normalized; `n > 1` should not use translation | Not supported |
 | Tools | `function_call` items | `tool_calls[]` in assistant messages | `tool_use` / `tool_result` blocks |
+| Request prompt caching | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | top-level or per-block `cache_control` |
 
 Responses is the richer lifecycle protocol. Translating into Responses requires synthesizing output-item IDs, sequence numbers, item/content lifecycles, and empty target-only containers; translating into Chat or Messages flattens that lifecycle into deltas or blocks. The conversion is not symmetric: a native result must be mapped, defaulted, generated, or rejected rather than copied.
 
@@ -55,8 +57,8 @@ The normalized representation has one instruction type (role-less `SystemPrompt`
 | --- | --- | --- | --- |
 | Native passthrough | Preserved with its role and position | Preserved with its role and position | Same-protocol identity optimization retains native structure |
 | Responses (translated) | Emitted as role-less instruction; projects as `developer` at the same position | Instruction; projects as `developer` | Original `system` identity is not reconstructible |
-| Chat Completions (translated) | Emitted as role-less instruction with position retained | Instruction with position retained | Projection re-emits every instruction as `developer`; translated adapter rejects non-string instruction content |
-| Messages (translated) | Hoisted into one top-level `system` string | Hoisted into the same top-level `system` string | Loses placement, priority, system boundary, and cache-prefix meaning |
+| Chat Completions (translated) | Emitted as role-less instruction with position retained | Instruction with position retained | Projection re-emits every instruction as `developer`; text-part arrays and markers are supported |
+| Messages (translated) | Top-level `system`; separate blocks when system markers exist | Hoisted only when no markers exist; otherwise rejected | Unmarked hoisting loses placement, priority, and block boundaries |
 
 ## Provider and model renderers
 

@@ -75,6 +75,8 @@ Treat OpenAI Responses as the canonical behavioral reference when matching other
 
 When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every Chat message to an untyped dictionary.
 
+Never switch input shapes solely to satisfy SDK or local schema restrictions. Preserve the semantically correct wire representation and supported fields; when verified provider behavior differs from the schema, add a narrow schema extension instead.
+
 Prefer concrete lists over SDK `Iterable` annotations in local compatibility models. Concrete lists validate nested content at request construction time and avoid lazy validation or iterator consumption while Pydantic evaluates union branches.
 
 ## Pydantic field metadata
@@ -103,7 +105,7 @@ Models used as API request bodies inherit from `ExcludeNoneModel`, which rejects
 
 The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
 
-- Normalized requests are closed and lossless-or-rejected.
+- Normalized requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](../docs/README.md#prompt-caching).
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
@@ -128,6 +130,10 @@ A Responses reasoning lifecycle must use exactly one valid representation: raw r
 Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models. Current cross-protocol paths through Chat therefore support only unsigned raw reasoning; reject summaries rather than discarding required opaque state.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
+
+Map prompt-cache intent according to the [shared cache policy](../docs/README.md#prompt-caching). Keep positional markers in `CacheBreakpoint` on supported content parts, and use `NormalizedRequest.iter_cache_breakpoints()` for shared traversal. OpenAI marker presence resolves omitted mode and lifetime to implicit and `30m`; Messages maps that lifetime to `1h` for blocks and automatic caching. Explicit mode preserves markers while omitting automatic caching. Anthropic block-only input selects explicit mode. OpenAI projects every explicit request or block lifetime as one request-wide `30m` TTL, preserving mode and marker positions. This rounds `5m` up but weakens the requested `1h` minimum and collapses mixed lifetimes. Leave an omitted lifetime unspecified unless another explicit lifetime supplies the shared TTL; do not synthesize retention to approximate a minimum lifetime. Document retention and pricing differences.
+
+Preserve the prefix ending at each marker. Keep marked system blocks separate; reject hoisting mid-conversation instructions when markers exist and marked Chat tool returns affected by image relocation. Validate Messages cache controls after projection: matching final explicit/automatic lifetimes and one-hour markers before five-minute markers. Forward all supported markers and leave breakpoint-count limits to the upstream. Reject Anthropic markers on outer tool-result, tool-use, thinking, and tool-definition objects without corresponding OpenAI parts. Responses assistant history must use `output_text` content, preserving markers and optional output-item IDs. OpenAI rejects assistant `input_text` content even though the SDK easy input-message schema permits it. Messages silently drops caller-defined keys without enabling caching, processes remaining options independently, and rejects retention policies.
 
 Map usage semantically and construct the public usage payload explicitly. This prevents internal `extra_fields` containers and source-only usage details from leaking into the target protocol.
 
@@ -158,9 +164,11 @@ Yield SDK Responses events and `ChatCompletionChunk` models directly to avoid du
 
 ## Unsupported semantics
 
+Avoid rejecting inputs based on provider restrictions that may change, such as cache-breakpoint counts or model-specific limits. Leave those checks to the upstream when Molto can faithfully forward the input. Local validation should enforce Molto's translation requirements, not duplicate evolving provider policy.
+
 Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. This rule is aspirational for the Messages client's stream loop: it inspects only the six handled `RawMessageStreamEvent` types and silently ignores any other variant (documented in the [Messages guide](../docs/protocols/anthropic-messages.md)), diverging from the Responses client, which raises for unknown stream events. Tightening the Messages path is tracked future work. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
 
-For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics. The explicit behavior-neutral exceptions on translated Responses routes are an optional output-item `id`, `include=["reasoning.encrypted_content"]`, and `store=false`; native Responses passthrough forwards them unchanged, and `store=true` remains unsupported for translation. The ID exception does not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks beside that client's request construction rather than in the provider-neutral normalized models.
+For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics, except under the documented [cache-lifetime approximation policy](../docs/README.md#prompt-caching). The documented omission exceptions are optional Responses output-item `id` values on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, and `store=true` remains unsupported for translation. Messages computes cache identity implicitly and must not enable caching from a key alone. These exceptions do not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks beside that client's request construction rather than in the provider-neutral normalized models.
 
 Prefer semantic normalized types over SDK parameter types. Any SDK type retained inside the normalized IR is transitional coupling and should not spread to new adapters or clients.
 
@@ -204,7 +212,7 @@ Use the following workflow when adding a feature shared by Responses and one or 
 4. Review every resulting cassette diff before implementation. The diff must contain only intentional, representable alignment changes and must not remove meaningful native fields. If it does not, correct the matching logic and repeat the matching and review steps. Commit the reviewed matching-tool and cassette changes before implementation.
 5. Add a failing interface test covering all applicable routes: same-protocol passthrough for every participating protocol and both translation directions between Responses and each counterpart protocol. Assert translated upstream request bodies exactly; response parity alone cannot prove that request features reached the upstream protocol.
 6. Implement request schemas and native transport support until all same-protocol routes pass without crossing the normalized IR.
-7. Add the smallest provider-neutral representation and the required downstream-adapter and upstream-client mappings until all cross-protocol routes pass. Explicitly reject semantics that a target protocol cannot represent; never silently drop them.
+7. Add the smallest provider-neutral representation and the required downstream-adapter and upstream-client mappings until all cross-protocol routes pass. Explicitly reject semantics that a target protocol cannot represent, except for the documented omission and cache-lifetime approximation policies above.
 
 Schema-union note: a shared field name does not guarantee an identical nested shape. Validate each nested union before copying a shared-name field into another protocol. For example, Chat only emits non-empty `logprobs` when a request also sets `logprobs: true`, so copying `top_logprobs` alone is insufficient once structured-output or log-probability support is added.
 

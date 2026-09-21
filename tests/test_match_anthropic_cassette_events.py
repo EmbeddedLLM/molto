@@ -384,6 +384,16 @@ def test_updates_event_name_when_event_type_changes() -> None:
     assert cassette["response"]["sse"] == _sse_unit(replacement_event)
 
 
+def test_preserves_unchanged_event_formatting() -> None:
+    entries = ["event: ping\n\n", 'data: { "type" : "ping" }\n\n', "\n"]
+    cassette = {"response": {"sse": entries.copy()}}
+    prefix, units = _message_event_units(cassette)
+
+    _write_message_event_units(cassette, prefix, units)
+
+    assert cassette["response"]["sse"] == entries
+
+
 def _data_events(cassette: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         json_loads(entry.strip().removeprefix("data:").lstrip())
@@ -1368,6 +1378,154 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
         )
         for item in request_function_outputs
     ]
+
+
+@pytest.mark.parametrize("scenario", ["prompt_cache_implicit", "prompt_cache_explicit"])
+@pytest.mark.parametrize("turn", range(2))
+def test_matches_prompt_cache_cassettes(scenario: str, turn: int) -> None:
+    directory = MATCHED_CASSETTES / scenario
+    messages_cassette = read_yaml(str(directory / f"anthropic-messages-stream-{turn:02d}.yaml"))
+    responses_cassette = read_yaml(str(directory / f"openai-responses-stream-{turn:02d}.yaml"))
+    original_messages = deepcopy(messages_cassette)
+    original_responses = deepcopy(responses_cassette)
+    messages_cassette["request"]["body"].update(
+        messages=[{"role": "user", "content": "stale prompt"}],
+        system="stale system",
+        cache_control={"type": "ephemeral", "ttl": "5m"},
+    )
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    request = messages_cassette["request"]["body"]
+    reference_request = responses_cassette["request"]["body"]
+    AnthropicMessagesCreateRequest.model_validate(request)
+    assert request["model"] == reference_request["model"]
+    assert request["max_tokens"] == reference_request["max_output_tokens"]
+    assert request["messages"] == [
+        {
+            "role": "user",
+            "content": [{"type": "text", "text": part["text"]} for part in item["content"]],
+        }
+        for item in reference_request["input"]
+        if item["role"] == "user"
+    ]
+    if reference_request["prompt_cache_options"]["mode"] == "implicit":
+        assert request["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+        assert "system" not in request
+    else:
+        assert "cache_control" not in request
+        assert request["system"] == [
+            {
+                "type": "text",
+                "text": reference_request["input"][0]["content"][0]["text"],
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            },
+            {"type": "text", "text": reference_request["input"][1]["content"][0]["text"]},
+        ]
+
+    events = _data_events(messages_cassette)
+    response_events = _data_events(responses_cassette)
+    completed = next(
+        event["response"] for event in response_events if event["type"] == "response.completed"
+    )
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    message = next(event["message"] for event in events if event["type"] == "message_start")
+    terminal = next(event for event in events if event["type"] == "message_delta")
+    assert message["id"] == completed["id"]
+    assert message["model"] == completed["model"]
+    assert message["usage"]["output_tokens"] == 0
+    assert terminal["usage"]["output_tokens"] == completed["usage"]["output_tokens"]
+    for usage in (message["usage"], terminal["usage"]):
+        assert (
+            usage["cache_read_input_tokens"]
+            == completed["usage"]["input_tokens_details"]["cached_tokens"]
+        )
+        assert (
+            usage["cache_creation_input_tokens"]
+            == completed["usage"]["input_tokens_details"]["cache_write_tokens"]
+        )
+        assert (
+            usage["input_tokens"]
+            + usage["cache_read_input_tokens"]
+            + usage["cache_creation_input_tokens"]
+            == completed["usage"]["input_tokens"]
+        )
+    assert message["usage"]["cache_read_input_tokens"] > 0
+    assert message["usage"]["cache_creation"] == {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0,
+    }
+    assert [
+        event["delta"]["text"]
+        for event in events
+        if event["type"] == "content_block_delta" and event["delta"]["type"] == "text_delta"
+    ] == [
+        event["delta"]
+        for event in response_events
+        if event["type"] == "response.output_text.delta"
+    ]
+    assert responses_cassette == original_responses
+    assert {
+        key: value for key, value in messages_cassette["request"].items() if key != "body"
+    } == {key: value for key, value in original_messages["request"].items() if key != "body"}
+    assert {
+        key: value for key, value in messages_cassette["response"].items() if key != "sse"
+    } == {key: value for key, value in original_messages["response"].items() if key != "sse"}
+    matched = deepcopy(messages_cassette)
+    match_messages_events(messages_cassette, responses_cassette)
+    assert messages_cassette == matched
+
+
+@pytest.mark.parametrize(
+    ("options", "marked", "ttl"),
+    [
+        ({"mode": "implicit"}, False, "5m"),
+        ({"mode": "implicit", "ttl": "30m"}, False, "1h"),
+        ({"mode": "explicit", "ttl": "30m"}, True, "1h"),
+        (None, True, "1h"),
+    ],
+)
+def test_matches_cache_creation_lifetime_breakdown(
+    options: dict[str, str] | None, marked: bool, ttl: str
+) -> None:
+    messages_cassette = _messages_cassette(thinking_deltas=None, text_deltas=["old"])
+    part = {"type": "input_text", "text": "cacheable prefix"}
+    if marked:
+        part["prompt_cache_breakpoint"] = {}
+    responses_cassette = _responses_cassette(
+        reasoning_deltas=None,
+        text_deltas=["new"],
+        request_input=[{"role": "user", "content": [part]}],
+    )
+    if options is not None:
+        responses_cassette["request"]["body"]["prompt_cache_options"] = options
+    prefix, units = _message_event_units(messages_cassette)
+    for unit in units:
+        event = unit.event
+        if event["type"] in {"message_start", "message_delta"}:
+            usage = (
+                event["message"]["usage"] if event["type"] == "message_start" else event["usage"]
+            )
+            usage["cache_creation"] = {
+                "ephemeral_5m_input_tokens": 100,
+                "ephemeral_1h_input_tokens": 200,
+            }
+    _write_message_event_units(messages_cassette, prefix, units)
+
+    match_messages_events(messages_cassette, responses_cassette)
+
+    for event in _data_events(messages_cassette):
+        if event["type"] in {"message_start", "message_delta"}:
+            usage = (
+                event["message"]["usage"] if event["type"] == "message_start" else event["usage"]
+            )
+            assert usage["cache_creation_input_tokens"] == 7
+            assert usage["cache_creation"] == {
+                "ephemeral_5m_input_tokens": 7 if ttl == "5m" else 0,
+                "ephemeral_1h_input_tokens": 7 if ttl == "1h" else 0,
+            }
 
 
 def test_matches_real_two_turn_request_body() -> None:

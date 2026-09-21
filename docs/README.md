@@ -15,11 +15,11 @@ Streaming and non-streaming requests are supported on native and translated rout
 
 Three rules make this principle concrete:
 
-- Normalized requests are closed and lossless-or-rejected.
+- Normalized requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](#prompt-caching).
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Translated Responses routes have three deliberate behavior-neutral exceptions: Chat Completions and Messages may omit an optional output-item ID, and Molto may ignore `include=["reasoning.encrypted_content"]` or `store=false`. Native Responses passthrough forwards those fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of the ID exception.
+“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of these exceptions.
 
 Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model. Molto's local public request models always reject unknown top-level fields; this behavior is not configurable through environment settings.
 
@@ -165,17 +165,17 @@ These guides describe **target parity requirements**: their tables state what a 
 
 Cross-protocol parity means preserving semantics that the target can represent; it does not mean reproducing an independently generated response or identical SSE bytes. Every mapped value belongs to one of these classes:
 
-| Class                | Required behavior                                                                             |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.     |
-| Request-backed       | Retain a downstream request value when the target result contract must echo it.               |
-| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.        |
-| Translator-generated | Generate required target structure using a stable, internally consistent policy.              |
-| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations.   |
-| Unsupported input    | Reject before translation, except for optional Responses output-item IDs as documented below. |
-| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.   |
+| Class                | Required behavior                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Source-backed        | Preserve the upstream request or result value after the documented schema transformation.                        |
+| Request-backed       | Retain a downstream request value when the target result contract must echo it.                                  |
+| Target-default       | Emit a documented target value when source and target vocabularies are not equivalent.                           |
+| Translator-generated | Generate required target structure using a stable, internally consistent policy.                                 |
+| Provider-owned       | Translate only under an explicit contract that the same provider owns both representations.                      |
+| Unsupported input    | Reject before translation, except for documented omissions and [cache-lifetime approximations](#prompt-caching). |
+| Unavailable output   | Preserve, omit, coerce, or expose through a documented extension; never claim exact parity.                      |
 
-Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped or explicitly rejected by the target client. The sole exception is an optional Responses output-item ID: Responses preserves it, while Chat Completions and Messages may omit it because it does not affect model behavior and has no target equivalent. Portable call identities such as `tool_call_id` are not part of this exception.
+Normalized requests reject unknown fields, including unknown fields nested in request models. Every accepted input field must be mapped, handled under a documented exception, or explicitly rejected by the target client. The [input contract](#cross-protocol-contract) describes permitted omissions, and the [cache policy](#prompt-caching) describes lifetime approximations. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `tool_call_id` remain lossless-or-rejected.
 
 Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
@@ -211,10 +211,11 @@ The translated path currently supports:
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
+- prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client map or reject them explicitly.
+The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 
@@ -238,6 +239,39 @@ Although a provider profile can classify Chat `reasoning_content` as a summary, 
 Responses `encrypted_content` and a Messages thinking `signature` are provider-issued continuation state. They are opaque; applications must not inspect or synthesize these values. They are not generally portable across providers. Molto currently carries the value through the normalized representation without tracking or validating its issuer. Callers must not reuse translated continuation state across providers. Matched fixtures map it only under the explicit assumption that OpenAI owns both endpoints.
 
 Opaque state is represented as replacement snapshots, not append-only text. A Messages `signature_delta` replaces the block-start signature. Responses exposes three encrypted snapshots where Messages exposes two corresponding slots; translated streams preserve the Responses `added` and `done` snapshots and reuse `done` at terminal projection instead of buffering for a third value.
+
+### Prompt caching
+
+Prompt caching changes cost and latency without changing model-visible content or conversation history. Messages silently drops caller-defined cache keys because Anthropic computes cache identity implicitly. Dropping a key does not enable caching or discard the remaining options.
+
+`NormalizedRequest.prompt_cache` carries request-wide intent; `CacheBreakpoint` on supported content parts carries the position and optional lifetime of an explicit marker:
+
+| Normalized field | Responses and Chat Completions | Anthropic Messages |
+| --- | --- | --- |
+| `PromptCache.key` | `prompt_cache_key` | Silently dropped |
+| `PromptCache.mode` | `prompt_cache_options.mode` | `implicit` enables top-level automatic `cache_control`; `explicit` caches only marked blocks |
+| `PromptCache.ttl` | `5m`, `30m`, and `1h` map to request-wide `prompt_cache_options.ttl: "30m"` | `30m` maps to `1h`; `5m` and `1h` pass through |
+| `PromptCache.retention` | `prompt_cache_retention` | Rejected |
+| Content `cache_breakpoint` | `prompt_cache_breakpoint: {"mode": "explicit"}` | Block `cache_control: {"type": "ephemeral", "ttl": ...}` |
+
+A key-only request or empty options object without markers does not enable Messages caching. Implicit mode enables automatic caching; a lifetime without a mode also enables it. Without markers, implicit mode with no lifetime uses Anthropic's five-minute default. Explicit mode omits top-level automatic caching but preserves marked blocks. When projecting normalized input to Messages, a block lifetime overrides the normalized request lifetime; an omitted block lifetime inherits it.
+
+When an OpenAI request has any content marker, normalization resolves omitted mode to `implicit` and omitted lifetime to OpenAI's `30m` default. Messages therefore uses `1h` for both marked blocks and automatic caching, unless the caller selected explicit mode to disable the latter. An Anthropic request with only block markers normalizes to explicit mode; adding top-level `cache_control` selects implicit mode while retaining the blocks.
+
+OpenAI defines `30m` as a minimum lifetime, so Molto maps it to Anthropic `1h`. This selects longer retention and cache-write pricing of 2x the base input-token price, compared with 1.25x for Anthropic's five-minute default. It is a documented mapping policy, not exact lifetime or pricing equivalence. See [OpenAI cache lifetime](https://developers.openai.com/api/docs/guides/prompt-caching#cache-lifetime) and [Anthropic cache pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+In the reverse direction, OpenAI supports only `30m` in `prompt_cache_options.ttl`. Molto maps every explicit normalized request or block lifetime (`5m`, `30m`, or `1h`) to that request-wide value. This rounds `5m` up but approximates `1h` with a shorter minimum: an OpenAI target does not guarantee the requested hour. Mixed block lifetimes collapse to one `30m` value for automatic caching and all explicit breakpoints, while mode and marker positions remain intact. This is a documented exception to the lossless-or-rejected input contract. Molto does not synthesize `prompt_cache_retention: "24h"`: retention is a separate maximum policy and does not establish a one-hour minimum.
+
+An omitted Anthropic lifetime remains unspecified unless another request or block lifetime supplies the shared OpenAI TTL; otherwise OpenAI's `30m` default applies. Molto does not invent an explicit five-minute requirement from Anthropic's default. Native passthrough retains the original provider lifetimes.
+
+Supported marker positions are system/developer text, user text/images, assistant text, and nested tool-result text/images. Chat tool messages support only text. Translation rejects markers that cannot retain their prefix:
+
+- Anthropic outer `tool_result`, `tool_use`, thinking blocks, and tool definitions have no corresponding OpenAI content-part marker.
+- Messages rejects a different automatic and final explicit lifetime. One-hour breakpoints must precede five-minute breakpoints.
+- Messages rejects mid-conversation instructions whenever any marker is present, because hoisting would change the cached prefix.
+- Chat rejects marked tool returns when image relocation would move content past a marker, including a marked later parallel tool return with earlier images still waiting to be emitted.
+
+Messages forwards all supported markers and leaves breakpoint-count limits to the upstream. It keeps system blocks separate when any system block is marked. Responses projects assistant history as `output_text` parts, preserving both markers and optional output-item IDs. Native passthrough forwards provider-native cache fields unchanged.
 
 ### Service tiers
 
@@ -327,6 +361,10 @@ The protocol-specific contracts are:
 - [OpenAI Chat Completions](protocols/openai-chat-completions.md)
 - [Anthropic Messages](protocols/anthropic-messages.md)
 - [Cross-protocol comparison](protocols/comparison.md)
+
+## Future work
+
+The [Codex server roadmap](roadmap/codex-server.md) describes a proposed stateless HTTP Responses server, its library prerequisites, and the milestones required for Codex CLI compatibility. The server is not yet implemented.
 
 ## Primary references
 

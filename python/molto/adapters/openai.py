@@ -28,6 +28,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -36,6 +37,7 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    PromptCache,
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
@@ -116,6 +118,9 @@ _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
         "max_tool_calls",
         "model",
         "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_options",
+        "prompt_cache_retention",
         "reasoning",
         "store",
         "stream",
@@ -134,6 +139,9 @@ _CHAT_TRANSLATABLE_FIELDS = frozenset(
         "max_completion_tokens",
         "max_tokens",
         "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_options",
+        "prompt_cache_retention",
         "reasoning_effort",
         "stream",
         "stream_options",
@@ -203,6 +211,37 @@ def _chat_tool_choice(choice: Any) -> ToolChoice | None:
     if choice.get("type") != "function":
         raise UnsupportedInput(f"Unsupported Chat Completions tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["function"]["name"])
+
+
+def _cache_breakpoint(part: dict[str, Any]) -> CacheBreakpoint | None:
+    return CacheBreakpoint() if part.get("prompt_cache_breakpoint") is not None else None
+
+
+def _with_breakpoint_defaults(request: NormalizedRequest) -> NormalizedRequest:
+    if next(request.iter_cache_breakpoints(), None) is not None:
+        # OpenAI markers inherit the request defaults, including automatic caching.
+        cache = request.prompt_cache or PromptCache()
+        cache.mode = cache.mode or "implicit"
+        cache.ttl = cache.ttl or "30m"
+        request.prompt_cache = cache
+    return request
+
+
+def _prompt_cache(
+    key: str | None,
+    options: dict[str, Any] | None,
+    retention: str | None,
+) -> PromptCache | None:
+    """Normalize the cache fields that Responses and Chat Completions spell identically."""
+    options = dict(options or {})
+    if key is None and retention is None and not options:
+        return None
+    return PromptCache(
+        key=key,
+        mode=options.get("mode"),
+        ttl=options.get("ttl"),
+        retention=retention,
+    )
 
 
 def _validate_responses_function_metadata(
@@ -357,12 +396,22 @@ class OpenAIResponsesAdapter(
                 for part in output:
                     part_type = part.get("type") if isinstance(part, dict) else None
                     if part_type == "input_text":
-                        content.append(TextInput(content=part["text"]))
+                        content.append(
+                            TextInput(
+                                content=part["text"], cache_breakpoint=_cache_breakpoint(part)
+                            )
+                        )
                     elif part_type == "input_image":
                         image_url = part.get("image_url")
                         if image_url is None:
                             raise UnsupportedInput("Responses input_image requires image_url.")
-                        content.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
+                        content.append(
+                            ImageUrlInput(
+                                url=image_url,
+                                detail=part.get("detail"),
+                                cache_breakpoint=_cache_breakpoint(part),
+                            )
+                        )
                     else:
                         raise UnsupportedInput(
                             f"Unsupported Responses function output content: {part_type}."
@@ -384,7 +433,7 @@ class OpenAIResponsesAdapter(
         role = message.get("role")
         content = message.get("content")
         if isinstance(content, str):
-            text_parts = [content]
+            text_parts = [TextInput(content=content)]
         elif isinstance(content, list):
             if role == "user":
                 parts: list[TextInput | ImageUrlInput] = []
@@ -392,18 +441,23 @@ class OpenAIResponsesAdapter(
                     if isinstance(part, BaseModel):
                         part = part.model_dump()
                     part_type = part.get("type") if isinstance(part, dict) else None
-                    if isinstance(part, dict) and "prompt_cache_breakpoint" in part:
-                        raise UnsupportedInput(
-                            f"Responses {part_type} prompt_cache_breakpoint is not "
-                            "supported for translation."
-                        )
                     if part_type == "input_text":
-                        parts.append(TextInput(content=part["text"]))
+                        parts.append(
+                            TextInput(
+                                content=part["text"], cache_breakpoint=_cache_breakpoint(part)
+                            )
+                        )
                     elif part_type == "input_image":
                         image_url = part.get("image_url")
                         if image_url is None:
                             raise UnsupportedInput("Responses input_image requires image_url.")
-                        parts.append(ImageUrlInput(url=image_url, detail=part.get("detail")))
+                        parts.append(
+                            ImageUrlInput(
+                                url=image_url,
+                                detail=part.get("detail"),
+                                cache_breakpoint=_cache_breakpoint(part),
+                            )
+                        )
                     else:
                         raise UnsupportedInput(
                             f"Unsupported Responses user content type: {part_type}"
@@ -412,22 +466,33 @@ class OpenAIResponsesAdapter(
             if role not in {"system", "developer", "assistant"}:
                 raise UnsupportedInput(f"Unsupported Responses message role: {role}")
 
-            expected_part_type = "output_text" if role == "assistant" else "input_text"
+            expected_part_types = (
+                {"input_text", "output_text"} if role == "assistant" else {"input_text"}
+            )
             if any(
-                not isinstance(part, dict) or part.get("type") != expected_part_type
+                not isinstance(part, dict) or part.get("type") not in expected_part_types
                 for part in content
             ):
                 raise UnsupportedInput(f"Responses {role} message content cannot be translated.")
-            text_parts = [part["text"] for part in content]
+            text_parts = [
+                TextInput(content=part["text"], cache_breakpoint=_cache_breakpoint(part))
+                for part in content
+            ]
         else:
             raise UnsupportedInput("Responses message content must be text.")
 
         if role in {"system", "developer"}:
-            return [SystemPrompt(content=text) for text in text_parts]
+            return [
+                SystemPrompt(content=part.content, cache_breakpoint=part.cache_breakpoint)
+                for part in text_parts
+            ]
         if role == "user":
-            return [UserInput(content=[TextInput(content=text) for text in text_parts])]
+            return [UserInput(content=text_parts)]
         if role == "assistant":
-            return [TextOutput(content=text) for text in text_parts]
+            return [
+                TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
+                for part in text_parts
+            ]
         raise UnsupportedInput(f"Unsupported Responses message role: {role}")
 
     def _normalize_request(self, request: OpenAIResponsesCreateRequest) -> NormalizedRequest:
@@ -468,19 +533,26 @@ class OpenAIResponsesAdapter(
                 *(normalized_input or []),
             ]
 
-        return NormalizedRequest(
-            input=normalized_input,
-            max_output_tokens=request.max_output_tokens,
-            max_tool_calls=request.max_tool_calls,
-            model=request.model,
-            parallel_tool_calls=request.parallel_tool_calls,
-            reasoning=request.reasoning,
-            stream=request.stream,
-            stream_options=request.stream_options,
-            temperature=request.temperature,
-            tool_choice=_responses_tool_choice(request.tool_choice),
-            tools=_responses_tools(request.tools),
-            top_p=request.top_p,
+        return _with_breakpoint_defaults(
+            NormalizedRequest(
+                input=normalized_input,
+                max_output_tokens=request.max_output_tokens,
+                max_tool_calls=request.max_tool_calls,
+                model=request.model,
+                parallel_tool_calls=request.parallel_tool_calls,
+                prompt_cache=_prompt_cache(
+                    request.prompt_cache_key,
+                    request.prompt_cache_options,
+                    request.prompt_cache_retention,
+                ),
+                reasoning=request.reasoning,
+                stream=request.stream,
+                stream_options=request.stream_options,
+                temperature=request.temperature,
+                tool_choice=_responses_tool_choice(request.tool_choice),
+                tools=_responses_tools(request.tools),
+                top_p=request.top_p,
+            )
         )
 
     async def _project_events(
@@ -524,6 +596,18 @@ class OpenAIResponsesAdapter(
                 "tools": self.native_request.tools or [],
                 "usage": None,
             }
+            data.update(
+                self.native_request.model_dump(
+                    include={"prompt_cache_key", "prompt_cache_retention"}
+                )
+            )
+            cache_options = self.native_request.prompt_cache_options
+            # Responses output requires both options, unlike its request schema.
+            # Echo complete caller intent without inventing upstream defaults.
+            if cache_options is not None and all(
+                cache_options.get(field) is not None for field in ("mode", "ttl")
+            ):
+                data["prompt_cache_options"] = cache_options
             if isinstance(metadata, ResponseEndEvent) and metadata.usage is not None:
                 usage = metadata.usage
                 data["usage"] = {
@@ -924,10 +1008,18 @@ class OpenAIChatCompletionsAdapter(
                     part = part.model_dump()
                 part_type = part.get("type") if isinstance(part, dict) else None
                 if part_type == "text":
-                    parts.append(TextInput(content=part["text"]))
+                    parts.append(
+                        TextInput(content=part["text"], cache_breakpoint=_cache_breakpoint(part))
+                    )
                 elif part_type == "image_url":
                     image = part["image_url"]
-                    parts.append(ImageUrlInput(url=image["url"], detail=image.get("detail")))
+                    parts.append(
+                        ImageUrlInput(
+                            url=image["url"],
+                            detail=image.get("detail"),
+                            cache_breakpoint=_cache_breakpoint(part),
+                        )
+                    )
                 else:
                     raise UnsupportedInput(f"Unsupported Chat user content type: {part_type}")
             return [UserInput(content=parts)]
@@ -936,12 +1028,11 @@ class OpenAIChatCompletionsAdapter(
             if isinstance(content, str):
                 tool_content = [TextInput(content=content)]
             elif isinstance(content, list):
-                if any(
-                    isinstance(part, dict) and part.get("type") == "image_url" for part in content
-                ):
-                    raise UnsupportedInput(
-                        "Chat Completions cannot represent image tool result content."
-                    )
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "image_url":
+                        raise UnsupportedInput(
+                            "Chat Completions cannot represent image tool result content."
+                        )
                 text_parts = [
                     part.get("text")
                     for part in content
@@ -951,7 +1042,10 @@ class OpenAIChatCompletionsAdapter(
                     isinstance(text, str) for text in text_parts
                 ):
                     raise UnsupportedInput("Only text Chat Completions tool content is supported.")
-                tool_content = [TextInput(content=text) for text in text_parts]
+                tool_content = [
+                    TextInput(content=part["text"], cache_breakpoint=_cache_breakpoint(part))
+                    for part in content
+                ]
             else:
                 raise UnsupportedInput("Chat Completions tool content must be text.")
             return [
@@ -962,26 +1056,38 @@ class OpenAIChatCompletionsAdapter(
                 )
             ]
 
-        if role != "assistant" and not isinstance(content, str):
-            raise UnsupportedInput("Only string non-user Chat Completions content is supported.")
+        if isinstance(content, list):
+            if any(not isinstance(part, dict) or part.get("type") != "text" for part in content):
+                raise UnsupportedInput("Only text Chat Completions content parts are supported.")
+            text_parts = [
+                TextInput(content=part["text"], cache_breakpoint=_cache_breakpoint(part))
+                for part in content
+            ]
+        elif isinstance(content, str):
+            text_parts = [TextInput(content=content)]
+        elif content is None and role == "assistant":
+            text_parts = []
+        else:
+            raise UnsupportedInput("Chat Completions message content must be text.")
 
         if role in {"system", "developer"}:
-            return [SystemPrompt(content=content)]
+            return [
+                SystemPrompt(content=part.content, cache_breakpoint=part.cache_breakpoint)
+                for part in text_parts
+            ]
         if role == "user":
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
-            if content is not None and not isinstance(content, str):
-                raise UnsupportedInput(
-                    "Only string Chat Completions assistant content is supported."
-                )
             items: list[Thinking | TextOutput | ToolCall] = []
             reasoning_content = message.get("reasoning_content")
             if reasoning_content is not None:
                 if not isinstance(reasoning_content, str):
                     raise UnsupportedInput("Chat Completions reasoning_content must be a string.")
                 items.append(self._classify_thinking(reasoning_content))
-            if content is not None:
-                items.append(TextOutput(content=content))
+            items.extend(
+                TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
+                for part in text_parts
+            )
             for tool_call in message.get("tool_calls") or []:
                 tool_call = dict(tool_call)
                 if tool_call.get("type") != "function":
@@ -1035,6 +1141,13 @@ class OpenAIChatCompletionsAdapter(
             data["max_output_tokens"] = max_output_tokens
         if request.parallel_tool_calls is not None:
             data["parallel_tool_calls"] = request.parallel_tool_calls
+        prompt_cache = _prompt_cache(
+            request.prompt_cache_key,
+            request.prompt_cache_options,
+            request.prompt_cache_retention,
+        )
+        if prompt_cache is not None:
+            data["prompt_cache"] = prompt_cache
         if request.tools is not None:
             data["tools"] = _chat_tools(request.tools)
         if request.tool_choice is not None:
@@ -1052,7 +1165,7 @@ class OpenAIChatCompletionsAdapter(
             data["temperature"] = request.temperature
         if request.top_p is not None:
             data["top_p"] = request.top_p
-        return NormalizedRequest.model_validate(data)
+        return _with_breakpoint_defaults(NormalizedRequest.model_validate(data))
 
     async def _project_events(
         self,
