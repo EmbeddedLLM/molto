@@ -1847,6 +1847,8 @@ async def test_missing_credentials_recognizes_type_error_subclasses():
             client._handle_error(error)
     assert exc_info.value.__cause__ is error
     assert exc_info.value.response is None
+
+
 @pytest.mark.parametrize("mode", ["implicit", "explicit"])
 def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
     """Ensures inherited cache lifetimes apply consistently without merging instruction parts."""
