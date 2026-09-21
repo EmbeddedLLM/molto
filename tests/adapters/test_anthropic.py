@@ -16,6 +16,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionToolChoice,
     ImageUrlInput,
@@ -88,6 +89,7 @@ def test_normalizes_top_level_system_prompts(system, expected):
 
 
 def test_normalizes_mid_conversation_system_message():
+    """Ensures system messages and surrounding message boundaries survive normalization."""
     request = _request(
         messages=[
             {"role": "user", "content": "Hi"},
@@ -101,8 +103,55 @@ def test_normalizes_mid_conversation_system_message():
     assert normalized.input == [
         UserInput(content=[TextInput(content="Hi")]),
         SystemPrompt(content="New rules."),
-        TextOutput(content="Understood."),
+        AssistantInput(content=[TextOutput(content="Understood.")]),
     ]
+
+
+def test_normalizes_assistant_messages_with_ordered_parts_and_boundaries():
+    """Ensures Messages keeps mixed blocks, adjacent text, empty and reasoning-only messages."""
+    normalized = _normalize(
+        _request(
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "thinking", "thinking": "Plan", "signature": "sig_1"},
+                        {
+                            "type": "text",
+                            "text": "First",
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                        {"type": "text", "text": "Second"},
+                        {"type": "tool_use", "id": "call_1", "name": "weather", "input": {}},
+                        {"type": "text", "text": "After call"},
+                    ],
+                },
+                {"role": "assistant", "content": "Follow-up"},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "thinking", "thinking": "Next", "signature": "sig_2"}],
+                },
+                {"role": "assistant", "content": []},
+            ]
+        ),
+        _CAPABILITIES,
+    )
+
+    assert normalized.input == [
+        AssistantInput(
+            content=[
+                Thinking(content="", summary="Plan", signature="sig_1"),
+                TextOutput(content="First", cache_breakpoint=CacheBreakpoint()),
+                TextOutput(content="Second"),
+                ToolCall(tool_name="weather", args="{}", tool_call_id="call_1"),
+                TextOutput(content="After call"),
+            ]
+        ),
+        AssistantInput(content=[TextOutput(content="Follow-up")]),
+        AssistantInput(content=[Thinking(content="", summary="Next", signature="sig_2")]),
+        AssistantInput(content=[]),
+    ]
+    assert list(normalized.iter_cache_breakpoints()) == [CacheBreakpoint()]
 
 
 def test_rejects_non_text_system_message_blocks():

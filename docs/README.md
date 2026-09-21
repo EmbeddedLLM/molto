@@ -189,13 +189,12 @@ Conversation behavior has three distinct kinds of boundary:
 2. A model-visible turn is produced after a provider or model renderer applies role, merging, and chat-template rules.
 3. A streaming boundary describes generated output items, parts, blocks, choices, and deltas. It is not an arbitrary conversation-message boundary.
 
-Molto currently preserves each normalized user message and the ordered text or image parts inside it. Same-protocol passthrough retains more native structure. On translated routes, the current representation does not fully preserve:
+Molto preserves each normalized user message and its ordered text or image parts. Assistant history likewise retains each source message and its ordered reasoning, text, and tool-call parts, including text-part cache markers. Adjacent explicit assistant messages are not merged. Messages preserves these ordered parts directly; Chat rejects ordering that its reasoning, content, and tool-call fields cannot represent within one message. Responses projects mixed assistant content as contiguous text messages interleaved with standalone reasoning and function-call items because its protocol has no shared container for them. Same-protocol passthrough retains more native structure. On translated routes, the current representation does not fully preserve:
 
 - `system` versus `developer` identity;
 - multipart instruction-message boundaries;
-- assistant-message containers;
 - valid mid-sequence instruction placement when targeting Messages;
-- Responses inner content-part indexes; or
+- generated Responses assistant containers and inner content-part indexes; or
 - Chat Completions choices beyond index zero.
 
 Wire preservation does not guarantee a distinct model-visible turn. Anthropic may combine consecutive messages with the same role, and open-model renderers may merge, move, or rewrite instructions.

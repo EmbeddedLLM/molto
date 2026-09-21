@@ -8,6 +8,7 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     ModelResponseStreamEvent,
     PartDeltaEvent,
@@ -69,6 +70,104 @@ def test_responses_developer_role_normalization(content):
         OpenAIResponsesCreateRequest(input=content, model="m")
     )
     assert request.input == [SystemPrompt(content="a")]
+
+
+def test_responses_normalizes_assistant_messages_without_flattening_parts():
+    """Ensures Responses preserves message boundaries, IDs, markers, and standalone items."""
+    request = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(
+            model="m",
+            input=[
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "content": [{"type": "reasoning_text", "text": "Plan"}],
+                    "summary": [],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "id": "msg_1",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "First",
+                            "annotations": [],
+                            "prompt_cache_breakpoint": {"mode": "explicit"},
+                        },
+                        {"type": "output_text", "text": "Second", "annotations": []},
+                    ],
+                },
+                {"role": "assistant", "content": "Follow-up"},
+                {"role": "assistant", "content": []},
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "call_id": "call_1",
+                    "name": "weather",
+                    "arguments": "{}",
+                },
+            ],
+        )
+    )
+
+    assert request.input == [
+        Thinking(content="Plan", summary="", id="rs_1"),
+        AssistantInput(
+            id="msg_1",
+            content=[
+                TextOutput(content="First", cache_breakpoint=CacheBreakpoint()),
+                TextOutput(content="Second"),
+            ],
+        ),
+        AssistantInput(content=[TextOutput(content="Follow-up")]),
+        AssistantInput(content=[]),
+        ToolCall(tool_name="weather", args="{}", tool_call_id="call_1", id="fc_1"),
+    ]
+
+
+def test_chat_normalizes_complete_assistant_messages_without_flattening_parts():
+    """Ensures Chat retains multipart, reasoning-only, empty, and adjacent assistant messages."""
+    request = OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            model="m",
+            messages=[
+                {
+                    "role": "assistant",
+                    "reasoning_content": "Plan",
+                    "content": [
+                        {"type": "text", "text": "First"},
+                        {"type": "text", "text": "Second"},
+                    ],
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "call_1",
+                            "function": {"name": "weather", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "assistant", "content": "Follow-up"},
+                {"role": "assistant", "reasoning_content": "Another thought"},
+                {"role": "assistant", "content": None},
+            ],
+        )
+    )
+
+    assert request.input == [
+        AssistantInput(
+            content=[
+                Thinking(content="Plan", summary=""),
+                TextOutput(content="First"),
+                TextOutput(content="Second"),
+                ToolCall(tool_name="weather", args="{}", tool_call_id="call_1"),
+            ]
+        ),
+        AssistantInput(content=[TextOutput(content="Follow-up")]),
+        AssistantInput(content=[Thinking(content="Another thought", summary="")]),
+        AssistantInput(content=[]),
+    ]
 
 
 def test_adapters_preserve_multimodal_input_boundaries_and_order():
@@ -395,10 +494,11 @@ def test_chat_adapter_accepts_explicit_usage():
     ("role", "part_type", "expected_type"),
     [
         ("developer", "input_text", "system-prompt"),
-        ("assistant", "output_text", "text-output"),
+        ("assistant", "output_text", "assistant-input"),
     ],
 )
 def test_responses_adapter_validates_content_parts_by_message_role(role, part_type, expected_type):
+    """Ensures supported text parts are normalized into the corresponding role container."""
     [item] = OpenAIResponsesAdapter(_CAPABILITIES)._normalize_message(
         {"type": "message", "role": role, "content": [{"type": part_type, "text": "x"}]}
     )
@@ -1327,8 +1427,9 @@ def test_chat_normalizes_marked_text_arrays_without_merging_parts(role):
     )
     normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
     item_type = TextOutput if role == "assistant" else SystemPrompt
-    assert normalized.input == [
+    parts = [
         item_type(content="Cached", cache_breakpoint=CacheBreakpoint()),
         item_type(content="Uncached"),
     ]
+    assert normalized.input == ([AssistantInput(content=parts)] if role == "assistant" else parts)
     assert normalized.prompt_cache == PromptCache(mode="implicit", ttl="30m")

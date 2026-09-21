@@ -1045,6 +1045,255 @@ async def test_reasoning_only_history(
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("marked", [False, True])
+async def test_assistant_history_message_boundaries(
+    downstream: Protocol, upstream: Protocol, marked: bool
+) -> None:
+    """Ensures multipart assistant history retains parts, markers, and adjacent messages."""
+
+    def history(protocol: Protocol) -> dict[str, Any]:
+        messages = []
+        for texts in (("First part.", "Second part."), ("Separate message.",)):
+            content = []
+            for index, text in enumerate(texts):
+                part: dict[str, Any] = {"type": "text", "text": text}
+                if protocol == "responses":
+                    part.update(type="output_text", annotations=[], logprobs=[])
+                if marked and index == 0:
+                    if protocol == "messages":
+                        part["cache_control"] = {"type": "ephemeral"}
+                    else:
+                        part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+                content.append(part)
+            message: dict[str, Any] = {"role": "assistant", "content": content}
+            if protocol == "responses":
+                message.update(type="message", status="completed")
+            elif protocol == "chat/completions" and len(content) == 1 and not marked:
+                message["content"] = texts[0]
+            messages.append(message)
+        additions = {"input" if protocol == "responses" else "messages": messages}
+        if marked and protocol != "messages":
+            additions["prompt_cache_options"] = {"mode": "explicit"}
+        return additions
+
+    additions = history(downstream)
+    expected = history(upstream)
+    if marked and downstream != upstream and downstream != "messages":
+        if upstream == "messages":
+            for message in expected["messages"]:
+                message["content"][0]["cache_control"]["ttl"] = "1h"
+        else:
+            expected["prompt_cache_options"]["ttl"] = "30m"
+    await _assert_request_parity(downstream, upstream, additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["chat/completions", "messages"])
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+async def test_separate_reasoning_and_text_history_messages(
+    downstream: Protocol, upstream: Protocol
+) -> None:
+    """Ensures an explicit reasoning-only assistant message never absorbs the next message."""
+    history: dict[Protocol, dict[str, Any]] = {
+        "chat/completions": {
+            "messages": [
+                {"role": "assistant", "reasoning_content": "Prior thought"},
+                {"role": "assistant", "content": "Prior answer"},
+            ],
+            "reasoning_effort": "none",
+        },
+        "messages": {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [{"type": "thinking", "thinking": "Prior thought"}],
+                },
+                {"role": "assistant", "content": [{"type": "text", "text": "Prior answer"}]},
+            ],
+            "thinking": {"type": "disabled"},
+        },
+        "responses": {
+            "input": [
+                {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "content": [{"type": "reasoning_text", "text": "Prior thought"}],
+                    "summary": [],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Prior answer",
+                            "annotations": [],
+                            "logprobs": [],
+                        }
+                    ],
+                },
+            ],
+            "reasoning": {"effort": "none"},
+        },
+    }
+    await _assert_request_parity(
+        downstream, upstream, history[downstream], history[upstream], provider="vllm"
+    )
+
+
+@pytest.mark.parametrize("with_text_and_tools", [False, True])
+@pytest.mark.parametrize(
+    ("reasoning_parts", "expected_reasoning"),
+    [(["First", "second"], "First\nsecond"), (["First", "", "second"], "First\n\nsecond")],
+)
+async def test_chat_groups_consecutive_assistant_parts(
+    with_text_and_tools: bool, reasoning_parts: list[str], expected_reasoning: str
+) -> None:
+    """Ensures reasoning joins with newlines while parts stay within their source message."""
+    parts: list[dict[str, Any]] = [
+        {"type": "thinking", "thinking": text} for text in reasoning_parts
+    ]
+    expected_message: dict[str, Any] = {
+        "role": "assistant",
+        "reasoning_content": expected_reasoning,
+    }
+    if with_text_and_tools:
+        text_parts = [{"type": "text", "text": text} for text in ("Answer ", "continued")]
+        calls = [
+            {"type": "tool_use", "id": call_id, "name": "lookup", "input": {}}
+            for call_id in ("c1", "c2")
+        ]
+        parts.extend([*text_parts, *calls])
+        expected_message["content"] = text_parts
+        expected_message["tool_calls"] = [
+            {
+                "type": "function",
+                "id": call["id"],
+                "function": {"name": "lookup", "arguments": "{}"},
+            }
+            for call in calls
+        ]
+    await _assert_request_parity(
+        "messages",
+        "chat/completions",
+        {
+            "messages": [
+                {"role": "assistant", "content": parts},
+                {"role": "assistant", "content": [{"type": "thinking", "thinking": "Separate"}]},
+            ],
+            "thinking": {"type": "disabled"},
+        },
+        {
+            "messages": [
+                expected_message,
+                {"role": "assistant", "reasoning_content": "Separate"},
+            ],
+            "reasoning_effort": "none",
+        },
+        provider="vllm",
+    )
+
+
+@pytest.mark.parametrize(
+    ("content", "match"),
+    [
+        (
+            [{"type": "text", "text": "Answer"}, {"type": "thinking", "thinking": "Later"}],
+            "cannot preserve this assistant reasoning order",
+        ),
+        (
+            [
+                {"type": "tool_use", "id": "c1", "name": "lookup", "input": {}},
+                {"type": "thinking", "thinking": "After tool"},
+            ],
+            "cannot preserve this assistant reasoning order",
+        ),
+        (
+            [
+                {"type": "tool_use", "id": "c1", "name": "lookup", "input": {}},
+                {"type": "text", "text": "After tool"},
+            ],
+            "cannot preserve assistant text after tool calls",
+        ),
+    ],
+)
+async def test_chat_rejects_unrepresentable_assistant_part_order(content, match) -> None:
+    """Ensures Chat rejects assistant order it cannot preserve within one message."""
+    body = deepcopy(_read_cassette(_simple_text_cassette("messages"))["request"]["body"])
+    body["messages"] = [{"role": "assistant", "content": content}]
+    async with _get_http_client([]) as http_client:
+        with pytest.raises(UnsupportedInput, match=match):
+            await Molto(http_client=http_client).messages(
+                body=body,
+                endpoint="chat/completions",
+                provider="vllm",
+                api_key="test-api-key",
+            )
+
+
+@pytest.mark.parametrize("upstream", ["responses", "messages"])
+async def test_interleaved_assistant_history(upstream: Protocol) -> None:
+    """Ensures mixed assistant parts retain text runs and order around reasoning and calls."""
+    first_texts = [{"type": "text", "text": text} for text in ("First", "Second")]
+    last_texts = [{"type": "text", "text": text} for text in ("Third", "Fourth")]
+    additions = {
+        "messages": [
+            {
+                "role": "assistant",
+                "content": [
+                    *first_texts,
+                    {"type": "thinking", "thinking": "A thought"},
+                    {"type": "tool_use", "id": "c1", "name": "lookup", "input": {}},
+                    *last_texts,
+                ],
+            }
+        ],
+        "thinking": {"type": "disabled"},
+    }
+    if upstream == "messages":
+        expected = additions
+    else:
+        text_messages = [
+            {
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": part["text"],
+                        "annotations": [],
+                        "logprobs": [],
+                    }
+                    for part in parts
+                ],
+            }
+            for parts in (first_texts, last_texts)
+        ]
+        expected = {
+            "input": [
+                text_messages[0],
+                {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "content": [{"type": "reasoning_text", "text": "A thought"}],
+                    "summary": [],
+                },
+                {
+                    "type": "function_call",
+                    "name": "lookup",
+                    "arguments": "{}",
+                    "call_id": "c1",
+                    "status": "completed",
+                },
+                text_messages[1],
+            ],
+            "reasoning": {"effort": "none"},
+        }
+    await _assert_request_parity("messages", upstream, additions, expected, provider="vllm")
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
     await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
 

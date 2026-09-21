@@ -11,6 +11,7 @@ from molto.core import VLLM_DUMMY_API_KEY
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.exceptions import AuthenticationError, ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
@@ -173,6 +174,7 @@ async def test_responses_adapter_does_not_synthesize_output_phase():
 
 
 def test_chat_completions_adapter_preserves_user_message_and_part_boundaries():
+    """Ensures Chat normalization retains each user and assistant container."""
     request = OpenAIChatCompletionsCreateRequest(
         messages=[
             {
@@ -194,7 +196,7 @@ def test_chat_completions_adapter_preserves_user_message_and_part_boundaries():
     assert normalized.input == [
         UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
         UserInput(content=[TextInput(content="Follow-up")]),
-        TextOutput(content="Answer"),
+        AssistantInput(content=[TextOutput(content="Answer")]),
     ]
 
 
@@ -209,6 +211,7 @@ def test_chat_completions_adapter_classifies_ambiguous_reasoning_history(
     provider: str,
     expected: Thinking,
 ) -> None:
+    """Ensures Chat reasoning is classified inside its original assistant message."""
     request = OpenAIChatCompletionsCreateRequest(
         messages=[{"role": "assistant", "content": "Answer", "reasoning_content": "Reasoning"}],
         model="m",
@@ -219,10 +222,11 @@ def test_chat_completions_adapter_classifies_ambiguous_reasoning_history(
         request
     )
 
-    assert normalized.input == [expected, TextOutput(content="Answer")]
+    assert normalized.input == [AssistantInput(content=[expected, TextOutput(content="Answer")])]
 
 
 def test_responses_adapter_preserves_user_message_and_part_boundaries():
+    """Ensures Responses normalization retains user parts and assistant containers."""
     request = OpenAIResponsesCreateRequest(
         input=[
             {
@@ -247,11 +251,12 @@ def test_responses_adapter_preserves_user_message_and_part_boundaries():
     assert normalized.input == [
         UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
         UserInput(content=[TextInput(content="Follow-up")]),
-        TextOutput(content="Answer"),
+        AssistantInput(content=[TextOutput(content="Answer")]),
     ]
 
 
 def test_responses_client_projects_typed_text_history_without_phase():
+    """Ensures assistant history uses output text without inventing phase metadata."""
     body = OpenAIResponsesClient._request_body(
         NormalizedRequest(
             input=[
@@ -262,7 +267,7 @@ def test_responses_client_projects_typed_text_history_without_phase():
                     ]
                 ),
                 UserInput(content=[TextInput(content="Follow-up")]),
-                TextOutput(content="Answer"),
+                AssistantInput(content=[TextOutput(content="Answer")]),
             ],
             model="m",
         )
@@ -297,11 +302,15 @@ def test_responses_client_projects_typed_text_history_without_phase():
 
 
 def test_responses_client_preserves_history_item_ids():
+    """Ensures reasoning item and assistant message identities survive projection."""
     body = OpenAIResponsesClient._request_body(
         NormalizedRequest(
             input=[
                 Thinking(content="Prior thought", summary="", id="rs_123"),
-                TextOutput(content="Answer", id="msg_123"),
+                AssistantInput(
+                    content=[TextOutput(content="Answer")],
+                    id="msg_123",
+                ),
             ],
             model="m",
         )
@@ -312,12 +321,13 @@ def test_responses_client_preserves_history_item_ids():
 
 
 def test_chat_completions_client_preserves_user_message_and_part_boundaries():
+    """Ensures Chat projection retains user parts and assistant message boundaries."""
     messages = OpenAIChatCompletionsClient._messages(
         NormalizedRequest(
             input=[
                 UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
                 UserInput(content=[TextInput(content="Follow-up")]),
-                TextOutput(content="Answer"),
+                AssistantInput(content=[TextOutput(content="Answer")]),
             ]
         )
     )
@@ -342,6 +352,154 @@ def test_chat_completions_client_maps_supported_reasoning_configuration(summary)
     )
 
     assert body["reasoning_effort"] == "high"
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_openai_clients_preserve_assistant_message_and_text_part_boundaries(empty):
+    """Ensures adjacent assistant containers retain empty parts and positional cache markers."""
+    content = (
+        []
+        if empty
+        else [
+            TextOutput(content=""),
+            TextOutput(content="Cached", cache_breakpoint=CacheBreakpoint()),
+            TextOutput(content="Tail"),
+        ]
+    )
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            AssistantInput(content=content, id="msg_first"),
+            AssistantInput(content=[TextOutput(content="Next")], id="msg_next"),
+        ],
+    )
+    parts = (
+        []
+        if empty
+        else [
+            {"type": "text", "text": ""},
+            {"type": "text", "text": "Cached", "prompt_cache_breakpoint": {"mode": "explicit"}},
+            {"type": "text", "text": "Tail"},
+        ]
+    )
+
+    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+        {"role": "assistant", "content": parts},
+        {"role": "assistant", "content": "Next"},
+    ]
+    assert OpenAIResponsesClient._request_body(request)["input"] == [
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "id": "msg_first",
+            "content": [
+                {**part, "type": "output_text", "annotations": [], "logprobs": []}
+                for part in parts
+            ],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "id": "msg_next",
+            "content": [
+                {"type": "output_text", "text": "Next", "annotations": [], "logprobs": []}
+            ],
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [TextOutput(content="Text"), Thinking(content="Later", summary="")],
+        [
+            ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
+            Thinking(content="Later", summary=""),
+        ],
+        [
+            ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
+            TextOutput(content="Later"),
+        ],
+    ],
+)
+def test_chat_client_rejects_unrepresentable_order_within_assistant_message(content):
+    """Ensures Chat never reorders or overwrites parts from one explicit assistant message."""
+    request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
+
+    with pytest.raises(UnsupportedInput):
+        OpenAIChatCompletionsClient._request_body(request)
+
+
+def test_chat_client_preserves_adjacent_reasoning_only_assistant_messages():
+    """Ensures adjacent explicit reasoning messages cannot overwrite one another."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            AssistantInput(content=[Thinking(content="First", summary="")]),
+            AssistantInput(content=[Thinking(content="Second", summary="")]),
+            AssistantInput(content=[TextOutput(content="Answer")]),
+        ],
+    )
+
+    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+        {"role": "assistant", "reasoning_content": "First"},
+        {"role": "assistant", "reasoning_content": "Second"},
+        {"role": "assistant", "content": "Answer"},
+    ]
+
+
+def test_responses_client_preserves_ordered_assistant_text_runs():
+    """Ensures reasoning and calls separate contiguous text runs without flattening text parts."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            AssistantInput(
+                content=[
+                    TextOutput(content="First"),
+                    TextOutput(content=""),
+                    Thinking(content="Thought", summary=""),
+                    TextOutput(content="Second"),
+                    ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
+                    TextOutput(content="Third"),
+                ]
+            )
+        ],
+    )
+
+    items = OpenAIResponsesClient._request_body(request)["input"]
+
+    assert [item["type"] for item in items] == [
+        "message",
+        "reasoning",
+        "message",
+        "function_call",
+        "message",
+    ]
+    assert [
+        [part["text"] for part in item["content"]] for item in items if item["type"] == "message"
+    ] == [["First", ""], ["Second"], ["Third"]]
+    assert items[1]["content"] == [{"type": "reasoning_text", "text": "Thought"}]
+    assert items[3]["call_id"] == "call_1"
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        Thinking(content="Thought", summary=""),
+        ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
+    ],
+)
+def test_responses_client_rejects_message_identity_on_mixed_assistant_content(part):
+    """Ensures one message ID is never assigned across multiple Responses output items."""
+    request = NormalizedRequest(
+        model="m",
+        input=[AssistantInput(id="msg_1", content=[TextOutput(content="Text"), part])],
+    )
+
+    with pytest.raises(UnsupportedInput, match="message ID"):
+        OpenAIResponsesClient._request_body(request)
 
 
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
@@ -536,6 +694,7 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
 
 
 def test_chat_completions_client_flushes_image_results_before_later_assistant_history():
+    """Ensures relocated tool images precede subsequent assistant messages."""
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call both tools.")]),
@@ -568,7 +727,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
                 tool_call_id="call_c",
                 content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
-            TextOutput(content="Assistant reply."),
+            AssistantInput(content=[TextOutput(content="Assistant reply.")]),
             UserInput(content=[TextInput(content="Summarize both results.")]),
         ],
         model="m",
@@ -696,6 +855,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
 
 
 def test_openai_adapters_normalize_function_tools_and_history():
+    """Ensures function history retains native item or assistant message grouping."""
     responses = OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
         OpenAIResponsesCreateRequest(
             input=[
@@ -776,8 +936,12 @@ def test_openai_adapters_normalize_function_tools_and_history():
         ),
     ]
     assert chat.input == [
-        TextOutput(content="Calling lookup."),
-        ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+        AssistantInput(
+            content=[
+                TextOutput(content="Calling lookup."),
+                ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+            ]
+        ),
         ToolReturn(
             tool_call_id="call_123",
             tool_name=None,
@@ -878,10 +1042,15 @@ def test_responses_adapter_normalizes_text_part_function_output():
 
 
 def test_openai_clients_project_function_tools_and_history():
+    """Ensures grouped assistant text and function calls project through both OpenAI protocols."""
     request = NormalizedRequest(
         input=[
-            TextOutput(content="Calling lookup."),
-            ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+            AssistantInput(
+                content=[
+                    TextOutput(content="Calling lookup."),
+                    ToolCall(tool_call_id="call_123", tool_name="lookup", args="{}"),
+                ]
+            ),
             ToolReturn(
                 tool_call_id="call_123",
                 tool_name=None,
@@ -1105,7 +1274,9 @@ def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, 
                     ),
                 ]
             ),
-            TextOutput(content="Previous answer", cache_breakpoint=marker),
+            AssistantInput(
+                content=[TextOutput(content="Previous answer", cache_breakpoint=marker)]
+            ),
         ],
     )
 
@@ -1251,7 +1422,12 @@ def test_responses_client_preserves_assistant_marker_and_history_id(item_id):
     """Ensures marked assistant history retains output_text and its optional message ID."""
     request = NormalizedRequest(
         model="m",
-        input=[TextOutput(content="Answer", id=item_id, cache_breakpoint=CacheBreakpoint())],
+        input=[
+            AssistantInput(
+                content=[TextOutput(content="Answer", cache_breakpoint=CacheBreakpoint())],
+                id=item_id,
+            )
+        ],
     )
 
     assert OpenAIResponsesClient._request_body(request)["input"] == [
@@ -1344,16 +1520,20 @@ def test_chat_completions_client_rejects_unrepresentable_request_fields(
 
 
 def test_chat_completions_client_ignores_responses_history_item_ids():
+    """Ensures Chat omits optional item and message IDs without changing call identities."""
+
     def request(item_id: str | None) -> NormalizedRequest:
         return NormalizedRequest(
             input=[
-                Thinking(content="thought", summary="", id=item_id),
-                TextOutput(content="answer", id=item_id),
-                ToolCall(
+                AssistantInput(
+                    content=[
+                        Thinking(content="thought", summary="", id=item_id),
+                        TextOutput(content="answer"),
+                        ToolCall(
+                            id=item_id, tool_call_id="call_123", tool_name="lookup", args="{}"
+                        ),
+                    ],
                     id=item_id,
-                    tool_call_id="call_123",
-                    tool_name="lookup",
-                    args="{}",
                 ),
                 ToolReturn(
                     id=item_id,
@@ -2586,6 +2766,7 @@ async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    """Ensures request and response projection preserve opaque reasoning continuation."""
     captured_requests: list[OpenAIResponsesCreateRequest] = []
 
     async def stub_native_events(
@@ -2603,12 +2784,14 @@ async def test_responses_events_forward_same_provider_opaque_reasoning_state(
             async for event in client.events(
                 NormalizedRequest(
                     input=[
-                        Thinking(
-                            content="",
-                            summary="Prior thought",
-                            signature="request-state",
+                        AssistantInput(
+                            content=[
+                                Thinking(
+                                    content="", summary="Prior thought", signature="request-state"
+                                ),
+                                TextOutput(content="Prior answer"),
+                            ]
                         ),
-                        TextOutput(content="Prior answer"),
                     ],
                     model="m",
                 )
