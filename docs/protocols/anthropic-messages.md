@@ -212,6 +212,17 @@ Normalized system prompts are projected into top-level `system`. If any system b
 
 Without markers, mid-conversation instructions are hoisted, losing their original placement and later-instruction priority. If any marker is present, the client rejects mid-conversation instructions because hoisting would change the cached prefix. A native Messages route does not hoist or merge system content through the normalized representation.
 
+For example, translating either Responses or Chat to Messages without cache markers collects both instruction roles into the top-level `system` field:
+
+```text
+Source sequence: system A → user → assistant → developer B → user
+Messages request:
+  system = "A\n\nB"
+  messages = [user, assistant, user]
+```
+
+The instructions retain their order relative to each other, but `B` loses its position after the assistant message. The `system` field is separate from the `messages` array. With any cache marker present in the request, this translation is rejected.
+
 ### Stream normalization
 
 The client preserves the response ID, model, and supported block order. Each emitted block keeps a stable index across its lifecycle. Text delta boundaries, thinking delta boundaries, tool call identity, and every partial-JSON delta are also preserved. Anthropic does not provide a creation timestamp, so Molto captures local wall-clock time when it observes `message_start` for downstream protocols that require one.
