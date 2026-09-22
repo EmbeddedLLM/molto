@@ -16,6 +16,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
@@ -96,6 +97,7 @@ def test_adapter_classifies_ambiguous_thinking_history(
     signature: str | None,
     expected: Thinking,
 ) -> None:
+    """Ensures Messages thinking is classified inside its original assistant message."""
     thinking_block = {"type": "thinking", "thinking": "Reasoning"}
     if signature is not None:
         thinking_block["signature"] = signature
@@ -118,7 +120,7 @@ def test_adapter_classifies_ambiguous_thinking_history(
         request
     )
 
-    assert normalized.input == [expected, TextOutput(content="Answer")]
+    assert normalized.input == [AssistantInput(content=[expected, TextOutput(content="Answer")])]
 
 
 async def test_events_merge_start_usage_without_mutating_started_parts(
@@ -768,12 +770,13 @@ def test_client_selects_model_supported_thinking_configuration(
 
 
 def test_client_projects_user_text_as_content_block_list():
+    """Ensures Messages projection retains user parts and assistant message boundaries."""
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
             input=[
                 UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
                 UserInput(content=[TextInput(content="Follow-up")]),
-                TextOutput(content="Answer"),
+                AssistantInput(content=[TextOutput(content="Answer")]),
             ],
             max_output_tokens=2048,
             model="compatible-model",
@@ -824,7 +827,44 @@ def test_client_projects_prompt_cache_as_automatic_cache_control():
     assert "cache_control" not in body(PromptCache())
 
 
+def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
+    """Ensures Messages retains adjacent containers, empty text, markers, and block ordering."""
+    request = NormalizedRequest(
+        model="compatible-model",
+        max_output_tokens=2048,
+        input=[
+            AssistantInput(content=[]),
+            AssistantInput(
+                content=[
+                    TextOutput(content=""),
+                    Thinking(content="Thought", summary=""),
+                    TextOutput(content="Cached", cache_breakpoint=CacheBreakpoint()),
+                    ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
+                    TextOutput(content="After tool"),
+                ]
+            ),
+            AssistantInput(content=[TextOutput(content="Next message")]),
+        ],
+    )
+
+    assert AnthropicMessagesClient._request_body(request)["messages"] == [
+        {"role": "assistant", "content": []},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": ""},
+                {"type": "thinking", "thinking": "Thought"},
+                {"type": "text", "text": "Cached", "cache_control": {"type": "ephemeral"}},
+                {"type": "tool_use", "id": "call_1", "name": "lookup", "input": {}},
+                {"type": "text", "text": "After tool"},
+            ],
+        },
+        {"role": "assistant", "content": [{"type": "text", "text": "Next message"}]},
+    ]
+
+
 def test_adapter_preserves_user_message_and_part_boundaries():
+    """Ensures Messages normalization retains user parts and assistant containers."""
     request = AnthropicMessagesCreateRequest(
         max_tokens=2048,
         messages=[
@@ -847,7 +887,7 @@ def test_adapter_preserves_user_message_and_part_boundaries():
     assert normalized.input == [
         UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
         UserInput(content=[TextInput(content="Follow-up")]),
-        TextOutput(content="Answer"),
+        AssistantInput(content=[TextOutput(content="Answer")]),
     ]
 
 
@@ -1009,9 +1049,17 @@ def test_client_maps_effort_to_extended_thinking_budget(
 
 
 def test_client_enables_adaptive_thinking_for_reasoning_history():
+    """Ensures nested assistant reasoning enables adaptive thinking for supported models."""
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
-            input=[Thinking(content="Prior thought", summary=""), TextOutput(content="Answer")],
+            input=[
+                AssistantInput(
+                    content=[
+                        Thinking(content="Prior thought", summary=""),
+                        TextOutput(content="Answer"),
+                    ]
+                )
+            ],
             max_output_tokens=2048,
             model="compatible-model",
             stream=True,
@@ -1023,11 +1071,16 @@ def test_client_enables_adaptive_thinking_for_reasoning_history():
 
 
 def test_client_uses_summary_when_reasoning_history_omits_raw_content():
+    """Ensures nested signed summaries preserve text and signature in thinking blocks."""
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
             input=[
-                Thinking(content="", summary="Prior summary", signature="opaque-state"),
-                TextOutput(content="Prior answer"),
+                AssistantInput(
+                    content=[
+                        Thinking(content="", summary="Prior summary", signature="opaque-state"),
+                        TextOutput(content="Prior answer"),
+                    ]
+                ),
             ],
             max_output_tokens=2048,
             model="compatible-model",
@@ -1083,6 +1136,7 @@ def test_client_rejects_extended_thinking_budget_at_output_limit():
 
 
 def test_adapter_maps_request_signatures_to_ir():
+    """Ensures request signatures remain attached to thinking inside the assistant container."""
     request = AnthropicMessagesCreateRequest(
         max_tokens=10,
         messages=[
@@ -1109,7 +1163,10 @@ def test_adapter_maps_request_signatures_to_ir():
     ).normalize_request(request)
 
     assert isinstance(normalized_request.input, list)
-    thinking = next(item for item in normalized_request.input if isinstance(item, Thinking))
+    assistant = normalized_request.input[1]
+    assert isinstance(assistant, AssistantInput)
+    thinking = assistant.content[0]
+    assert isinstance(thinking, Thinking)
     assert thinking.summary == "Prior thought"
     assert thinking.signature == "opaque-state"
 
@@ -1169,6 +1226,7 @@ async def test_adapter_maps_same_provider_opaque_reasoning_state():
 async def test_client_forwards_same_provider_opaque_reasoning_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    """Ensures Messages preserves opaque continuation in nested request and streamed output."""
     captured_requests: list[AnthropicMessagesCreateRequest] = []
 
     async def stub_native_events(
@@ -1186,8 +1244,12 @@ async def test_client_forwards_same_provider_opaque_reasoning_state(
             async for event in client.events(
                 NormalizedRequest(
                     input=[
-                        Thinking(content="Prior thought", summary=""),
-                        TextOutput(content="Prior answer"),
+                        AssistantInput(
+                            content=[
+                                Thinking(content="Prior thought", summary=""),
+                                TextOutput(content="Prior answer"),
+                            ]
+                        ),
                     ],
                     max_output_tokens=10,
                     model="model",
@@ -1278,6 +1340,7 @@ async def test_adapter_coerces_unrepresentable_content_filter_termination_to_end
 
 
 def test_adapter_normalizes_function_tools_and_tool_history():
+    """Ensures Messages normalization retains grouped assistant text and function calls."""
     request = AnthropicMessagesCreateRequest(
         max_tokens=2048,
         messages=[
@@ -1339,9 +1402,13 @@ def test_adapter_normalizes_function_tools_and_tool_history():
 
     assert normalized.input == [
         UserInput(content=[TextInput(content="Run both tools.")]),
-        TextOutput(content="Running them."),
-        ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
-        ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+        AssistantInput(
+            content=[
+                TextOutput(content="Running them."),
+                ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+                ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+            ]
+        ),
         ToolReturn(
             content=[TextInput(content="one")],
             tool_call_id="call_one",
@@ -1397,13 +1464,18 @@ def test_adapter_rejects_server_generated_tool_history():
 
 
 def test_client_projects_function_tools_and_tool_history_without_caller():
+    """Ensures grouped assistant tool history projects without synthesizing caller metadata."""
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
             input=[
                 UserInput(content=[TextInput(content="Run both tools.")]),
-                TextOutput(content="Running them."),
-                ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
-                ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+                AssistantInput(
+                    content=[
+                        TextOutput(content="Running them."),
+                        ToolCall(tool_name="First", args='{"value":1}', tool_call_id="call_one"),
+                        ToolCall(tool_name="Second", args="{}", tool_call_id="call_two"),
+                    ]
+                ),
                 ToolReturn(content=[TextInput(content="one")], tool_call_id="call_one"),
                 ToolReturn(
                     content=[TextInput(content="two")],
@@ -1573,16 +1645,20 @@ def test_client_rejects_unrepresentable_normalized_request_fields(
 
 
 def test_anthropic_client_ignores_responses_history_item_ids():
+    """Ensures Messages omits optional item and message IDs while preserving call identities."""
+
     def request(item_id: str | None) -> NormalizedRequest:
         return NormalizedRequest(
             input=[
-                Thinking(content="thought", summary="", id=item_id),
-                TextOutput(content="answer", id=item_id),
-                ToolCall(
+                AssistantInput(
+                    content=[
+                        Thinking(content="thought", summary="", id=item_id),
+                        TextOutput(content="answer"),
+                        ToolCall(
+                            id=item_id, tool_call_id="call_123", tool_name="lookup", args="{}"
+                        ),
+                    ],
                     id=item_id,
-                    tool_call_id="call_123",
-                    tool_name="lookup",
-                    args="{}",
                 ),
                 ToolReturn(
                     id=item_id,

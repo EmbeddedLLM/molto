@@ -358,8 +358,31 @@ _ToolCallInput = Annotated[
 ]
 
 
+AssistantContent = Annotated[
+    _ThinkingInput | _TextOutputInput | _ToolCallInput,
+    Discriminator("content_type"),
+]
+
+
+class AssistantInput(StrictModel):
+    """One assistant history message containing its ordered output content parts."""
+
+    content: Annotated[
+        list[AssistantContent],
+        Field(description="The ordered content parts in the assistant message."),
+    ]
+    id: Annotated[
+        str | None,
+        Field(description="An optional identifier of the assistant message."),
+    ] = None
+    content_type: Annotated[
+        Literal["assistant-input"],
+        Field(description="Content type identifier as a discriminator."),
+    ] = "assistant-input"
+
+
 InputItem = Annotated[
-    SystemPrompt | UserInput | _ThinkingInput | _TextOutputInput | _ToolCallInput | ToolReturn,
+    SystemPrompt | UserInput | AssistantInput | _ThinkingInput | _ToolCallInput | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
@@ -537,13 +560,14 @@ class NormalizedRequest(StrictModel):
     def iter_cache_breakpoints(self) -> Iterator[CacheBreakpoint]:
         """Yield explicit markers in input order, including nested content parts."""
         for item in self.input or []:
-            if isinstance(item, (UserInput, ToolReturn)):
+            if isinstance(item, (UserInput, AssistantInput, ToolReturn)):
                 for part in item.content:
-                    if part.cache_breakpoint is not None:
+                    if (
+                        isinstance(part, (TextInput, ImageUrlInput, TextOutput))
+                        and part.cache_breakpoint is not None
+                    ):
                         yield part.cache_breakpoint
-            elif (
-                isinstance(item, (SystemPrompt, TextOutput)) and item.cache_breakpoint is not None
-            ):
+            elif isinstance(item, SystemPrompt) and item.cache_breakpoint is not None:
                 yield item.cache_breakpoint
 
 

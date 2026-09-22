@@ -18,6 +18,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
@@ -321,6 +322,80 @@ class OpenAIResponsesClient(
             self._handle_error(error)
 
     @staticmethod
+    def _assistant_items(
+        parts: list[Thinking | TextOutput | ToolCall], *, message_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        if message_id is not None and any(not isinstance(part, TextOutput) for part in parts):
+            raise UnsupportedInput(
+                "A Responses assistant message ID requires text-only message content."
+            )
+        items: list[dict[str, Any]] = []
+        message: dict[str, Any] | None = None
+        for item in parts:
+            if not isinstance(item, TextOutput):
+                message = None
+            if isinstance(item, TextOutput):
+                if message is None:
+                    message = {
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [],
+                    }
+                    if message_id is not None:
+                        message["id"] = message_id
+                    items.append(message)
+                message["content"].append(
+                    {
+                        "type": "output_text",
+                        "text": item.content,
+                        "annotations": [],
+                        "logprobs": [],
+                        **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
+                    }
+                )
+            elif isinstance(item, Thinking):
+                if item.summary and not item.signature:
+                    raise UnsupportedInput("A Responses reasoning summary requires a signature.")
+                reasoning_item = {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "summary": (
+                        [{"type": "summary_text", "text": item.summary}] if item.summary else []
+                    ),
+                    "content": (
+                        [{"type": "reasoning_text", "text": item.content}] if item.content else []
+                    ),
+                }
+                if item.id is not None:
+                    reasoning_item["id"] = item.id
+                if item.signature is not None:
+                    reasoning_item["encrypted_content"] = item.signature
+                items.append(reasoning_item)
+            elif isinstance(item, ToolCall):
+                function_call = {
+                    "type": "function_call",
+                    "status": "completed",
+                    "arguments": item.args or "",
+                    "call_id": item.tool_call_id,
+                    "name": item.tool_name,
+                }
+                if item.id is not None:
+                    function_call["id"] = item.id
+                items.append(function_call)
+        if not parts:
+            message = {
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [],
+            }
+            if message_id is not None:
+                message["id"] = message_id
+            items.append(message)
+        return items
+
+    @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
         if request.input is None:
             return None
@@ -361,53 +436,12 @@ class OpenAIResponsesClient(
                             image["detail"] = part.detail
                         content.append(image)
                 items.append({"role": "user", "content": content})
-            elif isinstance(item, Thinking):
-                if item.summary and not item.signature:
-                    raise UnsupportedInput("A Responses reasoning summary requires a signature.")
-                reasoning_item = {
-                    "type": "reasoning",
-                    "status": "completed",
-                    "summary": (
-                        [{"type": "summary_text", "text": item.summary}] if item.summary else []
-                    ),
-                    "content": (
-                        [{"type": "reasoning_text", "text": item.content}] if item.content else []
-                    ),
-                }
-                if item.id is not None:
-                    reasoning_item["id"] = item.id
-                if item.signature is not None:
-                    reasoning_item["encrypted_content"] = item.signature
-                items.append(reasoning_item)
-            elif isinstance(item, TextOutput):
-                message = {
-                    "type": "message",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": item.content,
-                            "annotations": [],
-                            "logprobs": [],
-                            **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
-                        }
-                    ],
-                }
-                if item.id is not None:
-                    message["id"] = item.id
-                items.append(message)
-            elif isinstance(item, ToolCall):
-                function_call = {
-                    "type": "function_call",
-                    "status": "completed",
-                    "arguments": item.args or "",
-                    "call_id": item.tool_call_id,
-                    "name": item.tool_name,
-                }
-                if item.id is not None:
-                    function_call["id"] = item.id
-                items.append(function_call)
+            elif isinstance(item, AssistantInput):
+                items.extend(
+                    OpenAIResponsesClient._assistant_items(item.content, message_id=item.id)
+                )
+            elif isinstance(item, (Thinking, ToolCall)):
+                items.extend(OpenAIResponsesClient._assistant_items([item]))
             elif isinstance(item, ToolReturn):
                 if item.outcome != "success":
                     raise UnsupportedInput(
@@ -714,31 +748,64 @@ class OpenAIChatCompletionsClient(
             self._handle_error(error)
 
     @staticmethod
+    def _assistant_message(parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
+        message: dict[str, Any] = {"role": "assistant"}
+        reasoning_parts: list[str] = []
+        text_parts: list[dict[str, Any]] = []
+        for part in parts:
+            if isinstance(part, Thinking):
+                if part.signature is not None:
+                    raise UnsupportedInput(
+                        "Chat Completions cannot represent thinking signatures."
+                    )
+                if text_parts or "tool_calls" in message:
+                    raise UnsupportedInput(
+                        "Chat Completions cannot preserve this assistant reasoning order."
+                    )
+                reasoning_parts.append(part.content or part.summary)
+            elif isinstance(part, TextOutput):
+                if "tool_calls" in message:
+                    raise UnsupportedInput(
+                        "Chat Completions cannot preserve assistant text after tool calls."
+                    )
+                text_parts.append(
+                    {
+                        "type": "text",
+                        "text": part.content,
+                        **_prompt_cache_breakpoint_fields(part.cache_breakpoint),
+                    }
+                )
+            elif isinstance(part, ToolCall):
+                message.setdefault("tool_calls", []).append(
+                    {
+                        "id": part.tool_call_id,
+                        "type": "function",
+                        "function": {"name": part.tool_name, "arguments": part.args or ""},
+                    }
+                )
+        if reasoning_parts:
+            message["reasoning_content"] = "\n".join(reasoning_parts)
+        if len(text_parts) == 1 and "prompt_cache_breakpoint" not in text_parts[0]:
+            message["content"] = text_parts[0]["text"]
+        else:
+            message["content"] = text_parts if text_parts or not parts else None
+        return message
+
+    @staticmethod
     def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
-        assistant_message: dict[str, Any] | None = None
+        assistant_parts: list[Thinking | TextOutput | ToolCall] = []
+        explicit_assistant = False
         # Chat requires the complete tool-response block immediately after the
         # assistant, so image-bearing user messages wait until that block ends.
         deferred_image_messages: list[dict[str, Any]] = []
 
-        def pending_assistant() -> dict[str, Any]:
-            nonlocal assistant_message
-            if assistant_message is None:
-                assistant_message = {"role": "assistant"}
-            return assistant_message
-
         def flush_assistant() -> None:
-            nonlocal assistant_message
-            if assistant_message is None:
-                return
-            if "content" not in assistant_message:
-                if "tool_calls" not in assistant_message:
-                    raise UnsupportedInput(
-                        "Chat Completions requires reasoning history with assistant output."
-                    )
-                assistant_message["content"] = None
-            messages.append(assistant_message)
-            assistant_message = None
+            nonlocal explicit_assistant
+            if explicit_assistant or assistant_parts:
+                messages.append(OpenAIChatCompletionsClient._assistant_message(assistant_parts))
+                assistant_parts.clear()
+                explicit_assistant = False
 
         def flush_deferred_images() -> None:
             if deferred_image_messages:
@@ -786,36 +853,22 @@ class OpenAIChatCompletionsClient(
                             }
                         )
                 messages.append({"role": "user", "content": content})
-            elif isinstance(item, Thinking):
-                pending_assistant()["reasoning_content"] = item.content or item.summary
-            elif isinstance(item, TextOutput):
-                message = pending_assistant()
-                if "content" in message:
+            elif isinstance(item, AssistantInput):
+                # Standalone Responses reasoning/calls can share a wire message,
+                # but two explicit source messages must retain their boundary.
+                if (
+                    explicit_assistant
+                    or any(isinstance(part, ToolCall) for part in assistant_parts)
+                    or any(isinstance(part, Thinking) for part in item.content)
+                ):
                     flush_assistant()
-                    message = pending_assistant()
-                message["content"] = (
-                    [
-                        {
-                            "type": "text",
-                            "text": item.content,
-                            **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
-                        }
-                    ]
-                    if item.cache_breakpoint is not None
-                    else item.content
-                )
+                assistant_parts.extend(item.content)
+                explicit_assistant = True
+            elif isinstance(item, Thinking):
+                flush_assistant()
+                assistant_parts.append(item)
             elif isinstance(item, ToolCall):
-                message = pending_assistant()
-                message.setdefault("tool_calls", []).append(
-                    {
-                        "id": item.tool_call_id,
-                        "type": "function",
-                        "function": {
-                            "name": item.tool_name,
-                            "arguments": item.args or "",
-                        },
-                    }
-                )
+                assistant_parts.append(item)
             elif isinstance(item, ToolReturn):
                 flush_assistant()
                 if item.outcome != "success":
@@ -937,14 +990,8 @@ class OpenAIChatCompletionsClient(
                 "Chat Completions cannot represent concise reasoning summaries."
             )
         for item in request.input or []:
-            if isinstance(item, Thinking):
-                if item.signature is not None:
-                    raise UnsupportedInput(
-                        "Chat Completions cannot represent thinking signatures."
-                    )
-            elif isinstance(item, ToolReturn):
-                if item.tool_name is not None:
-                    raise UnsupportedInput("Chat Completions cannot represent tool return names.")
+            if isinstance(item, ToolReturn) and item.tool_name is not None:
+                raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None

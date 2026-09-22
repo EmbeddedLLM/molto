@@ -34,6 +34,7 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    AssistantInput,
     FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
@@ -350,40 +351,14 @@ class AnthropicMessagesClient(
             self._handle_error(error)
 
     @staticmethod
-    def _request_parts(
+    def _assistant_blocks(
+        parts: list[Thinking | TextOutput | ToolCall],
         request: NormalizedRequest,
-        *,
-        capabilities: ProviderCapabilities | None = None,
-    ) -> tuple[str | list[dict[str, Any]] | None, list[dict[str, Any]], bool]:
-        system_parts: list[SystemPrompt] = []
-        messages: list[dict[str, Any]] = []
-        assistant_blocks: list[dict[str, Any]] = []
-        tool_result_blocks: list[dict[str, Any]] = []
-        has_thinking = False
-
-        def flush_assistant() -> None:
-            if assistant_blocks:
-                messages.append({"role": "assistant", "content": assistant_blocks.copy()})
-                assistant_blocks.clear()
-
-        def flush_tool_results() -> None:
-            if tool_result_blocks:
-                messages.append({"role": "user", "content": tool_result_blocks.copy()})
-                tool_result_blocks.clear()
-
-        for item in request.input or []:
-            if isinstance(item, SystemPrompt):
-                flush_assistant()
-                flush_tool_results()
-                system_parts.append(item)
-            elif isinstance(item, UserInput):
-                flush_assistant()
-                flush_tool_results()
-                content = [_content_block(part, request) for part in item.content]
-                messages.append({"role": "user", "content": content})
-            elif isinstance(item, Thinking):
-                flush_tool_results()
-                has_thinking = True
+        capabilities: ProviderCapabilities | None,
+    ) -> list[dict[str, Any]]:
+        blocks: list[dict[str, Any]] = []
+        for item in parts:
+            if isinstance(item, Thinking):
                 representation = (
                     "raw"
                     if item.content
@@ -408,22 +383,74 @@ class AnthropicMessagesClient(
                 }
                 if representation == "summary":
                     block["signature"] = item.signature
-                assistant_blocks.append(block)
+                blocks.append(block)
             elif isinstance(item, TextOutput):
-                flush_tool_results()
-                assistant_blocks.append(_content_block(item, request))
+                blocks.append(_content_block(item, request))
             elif isinstance(item, ToolCall):
-                flush_tool_results()
                 tool_input = {} if item.args is None else json_loads(item.args)
                 if not isinstance(tool_input, dict):
                     raise UnsupportedInput("Anthropic tool arguments must contain a JSON object.")
-                assistant_blocks.append(
+                blocks.append(
                     {
                         "type": "tool_use",
                         "id": item.tool_call_id,
                         "name": item.tool_name,
                         "input": tool_input,
                     }
+                )
+        return blocks
+
+    @staticmethod
+    def _request_parts(
+        request: NormalizedRequest,
+        *,
+        capabilities: ProviderCapabilities | None = None,
+    ) -> tuple[str | list[dict[str, Any]] | None, list[dict[str, Any]], bool]:
+        system_parts: list[SystemPrompt] = []
+        messages: list[dict[str, Any]] = []
+        assistant_blocks: list[dict[str, Any]] = []
+        explicit_assistant = False
+        tool_result_blocks: list[dict[str, Any]] = []
+        has_thinking = False
+
+        def flush_assistant() -> None:
+            nonlocal explicit_assistant
+            if explicit_assistant or assistant_blocks:
+                messages.append({"role": "assistant", "content": assistant_blocks.copy()})
+                assistant_blocks.clear()
+                explicit_assistant = False
+
+        def flush_tool_results() -> None:
+            if tool_result_blocks:
+                messages.append({"role": "user", "content": tool_result_blocks.copy()})
+                tool_result_blocks.clear()
+
+        for item in request.input or []:
+            if isinstance(item, SystemPrompt):
+                flush_assistant()
+                flush_tool_results()
+                system_parts.append(item)
+            elif isinstance(item, UserInput):
+                flush_assistant()
+                flush_tool_results()
+                content = [_content_block(part, request) for part in item.content]
+                messages.append({"role": "user", "content": content})
+            elif isinstance(item, AssistantInput):
+                flush_tool_results()
+                if explicit_assistant:
+                    flush_assistant()
+                has_thinking |= any(isinstance(part, Thinking) for part in item.content)
+                assistant_blocks.extend(
+                    AnthropicMessagesClient._assistant_blocks(item.content, request, capabilities)
+                )
+                explicit_assistant = True
+            elif isinstance(item, (Thinking, ToolCall)):
+                flush_tool_results()
+                if isinstance(item, Thinking) and explicit_assistant:
+                    flush_assistant()
+                has_thinking |= isinstance(item, Thinking)
+                assistant_blocks.extend(
+                    AnthropicMessagesClient._assistant_blocks([item], request, capabilities)
                 )
             elif isinstance(item, ToolReturn):
                 flush_assistant()
