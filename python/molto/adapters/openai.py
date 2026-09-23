@@ -11,6 +11,8 @@ from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 from uuid import uuid4
 
+from httpx import Response
+from openai import APIError as OpenAIAPIError
 from openai import APIStatusError as OpenAIAPIStatusError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import BadRequestError as OpenAIBadRequestError
@@ -22,6 +24,7 @@ from molto.adapters.base import BaseAdapter
 from molto.providers import ReasoningRepresentation
 from molto.types.exceptions import (
     APIException,
+    AuthenticationError,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -78,6 +81,23 @@ def _raise_openai_error(error: Exception) -> NoReturn:
     cause = error.__cause__
     if (not isinstance(error, APIException)) or cause is None:
         raise error
+    if error.response is None:
+        if isinstance(error, AuthenticationError):
+            assert error.request is not None
+            # SDK auth errors require HTTP metadata even for local credential failures.
+            # Keep the synthetic response out of the normalized upstream evidence.
+            raise OpenAIAuthenticationError(
+                error.message,
+                response=Response(401, request=error.request),
+                body=error.body,
+            ) from error
+        raise error
+    if getattr(cause, "status_code", None) is None:
+        raise OpenAIAPIError(
+            error.message,
+            request=error.response.request,
+            body=error.body,
+        ) from error
     error_map = {
         400: OpenAIBadRequestError,
         401: OpenAIAuthenticationError,
@@ -941,9 +961,6 @@ class OpenAIResponsesAdapter(
             # fresh instance rather than re-raise the cause: chaining it
             # `from error` would make the two exceptions each other's cause.
             # This only works on errors that have a Normalized exception class in molto
-            # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
-            # has no `APIStatusError` cause and passes through unchanged until
-            # an IR recognition rule exists.
             raise type(cause)(
                 cause.message,
                 response=cause.response,
@@ -1371,8 +1388,6 @@ class OpenAIChatCompletionsAdapter(
     def _handle_error(self, error: Exception) -> NoReturn:
         cause = error.__cause__
         if self.native_request is None and isinstance(cause, OpenAIAPIStatusError):
-            # TODO: Handle bare `APIError` (e.g. mid-stream error events); see
-            # OpenAIResponsesAdapter._handle_error for the passthrough rule.
             raise type(cause)(
                 cause.message,
                 response=cause.response,

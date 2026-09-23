@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import Any, NoReturn
 
 from anthropic import APIStatusError, AsyncAnthropic, AsyncStream
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import BadRequestError as AnthropicBadRequestError
+from anthropic import NotFoundError as AnthropicNotFoundError
 from anthropic.types import (
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
@@ -29,6 +32,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import (
     AuthenticationError,
+    ContextLengthExceededError,
     ModelNotFoundError,
     ResourceNotFoundError,
     UnsupportedInput,
@@ -756,20 +760,40 @@ class AnthropicMessagesClient(
                     )
 
     def _handle_error(self, error: Exception) -> NoReturn:
+        if isinstance(error, TypeError) and str(error).startswith(
+            '"Could not resolve authentication method.'
+        ):
+            raise AuthenticationError(
+                str(error),
+                response=None,
+                body=None,
+                request=self._make_authentication_request("v1/messages"),
+            ) from error
         if isinstance(error, APIStatusError):
-            if error.status_code == 401:
-                raise AuthenticationError(
+            # Anthropic uses generic error types, so class-and-message checks
+            # identify specific categories before broader SDK class fallbacks.
+            if (
+                isinstance(error, AnthropicBadRequestError)
+                and "prompt is too long:" in error.message
+            ):
+                raise ContextLengthExceededError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 404 and "model:" in error.message:
+            if isinstance(error, AnthropicNotFoundError) and "model:" in error.message:
                 raise ModelNotFoundError(
                     error.message,
                     response=error.response,
                     body=error.body,
                 ) from error
-            if error.status_code == 404:
+            if isinstance(error, AnthropicAuthenticationError):
+                raise AuthenticationError(
+                    error.message,
+                    response=error.response,
+                    body=error.body,
+                ) from error
+            if isinstance(error, AnthropicNotFoundError):
                 raise ResourceNotFoundError(
                     error.message,
                     response=error.response,

@@ -1,0 +1,29 @@
+filename: 2026-09-15-01a0a2fd-9721-7092-83f8-69ec50950d0f
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Say hello.
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '143'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/molto-missing-endpoint/chat/completions
+  query_params: {}
+request_id: 01a0a2fd-9721-7092-83f8-69ec50950d0f
+response:
+  body: ''
+  headers:
+    connection: keep-alive
+  status_code: 404
+timestamp: '2026-09-15T02:55:23.425148+00:00'

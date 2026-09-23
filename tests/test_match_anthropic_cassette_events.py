@@ -1663,3 +1663,28 @@ def test_opaque_reasoning_history_uses_prior_done_snapshot(cassette_dir: Path) -
     assert responses_history_signature == done_signature
     assert messages_history_signature == done_signature
     assert terminal_signature == done_signature
+
+
+def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
+    cassette_dir = Path(__file__).parent / "cassettes" / "errors" / "context_length_exceeded"
+    expected = read_yaml(str(cassette_dir / "anthropic-messages-stream-00.yaml"))
+    responses_path = cassette_dir / "openai-responses-stream-00.yaml"
+    original_responses = responses_path.read_bytes()
+    unmatched = deepcopy(expected)
+    unmatched["request"]["body"]["model"] = "unmatched-model"
+    unmatched["request"]["body"]["messages"] = [{"role": "user", "content": "Unmatched input"}]
+    unmatched["request"]["body"]["max_tokens"] = 99
+    input_path = tmp_path / "input.yaml"
+    output_path = tmp_path / "matched.yaml"
+    dump_yaml(unmatched, str(input_path))
+
+    assert (
+        main(
+            [str(input_path), str(responses_path), "--request-only", "--output", str(output_path)]
+        )
+        == 0
+    )
+
+    assert read_yaml(str(output_path)) == expected
+    assert read_yaml(str(input_path)) == unmatched
+    assert responses_path.read_bytes() == original_responses

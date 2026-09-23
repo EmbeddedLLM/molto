@@ -4,6 +4,9 @@ from time import time
 import httpx
 import pytest
 from anthropic import APIStatusError as AnthropicAPIStatusError
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import BadRequestError as AnthropicBadRequestError
+from anthropic import NotFoundError as AnthropicNotFoundError
 from pydantic import ValidationError
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
@@ -14,7 +17,13 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesStreamEvent,
     AnthropicMessagesStreamEventAdapter,
 )
-from molto.types.exceptions import ModelNotFoundError, UnsupportedInput
+from molto.types.exceptions import (
+    AuthenticationError,
+    ContextLengthExceededError,
+    ModelNotFoundError,
+    ResourceNotFoundError,
+    UnsupportedInput,
+)
 from molto.types.normalized import (
     AssistantInput,
     CacheBreakpoint,
@@ -1833,6 +1842,87 @@ async def test_native_events_normalize_known_sdk_errors():
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, AnthropicAPIStatusError)
+
+
+@pytest.mark.parametrize(
+    ("sdk_error_type", "status", "message"),
+    [
+        (AnthropicAPIStatusError, 400, "prompt is too long: 2 > 1"),
+        (AnthropicBadRequestError, 400, "max_tokens is invalid"),
+        (AnthropicAPIStatusError, 401, "Invalid key"),
+        (AnthropicAPIStatusError, 404, "model: m"),
+    ],
+)
+async def test_error_recognition_requires_sdk_class_and_message(sdk_error_type, status, message):
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = sdk_error_type(message, response=response, body=None)
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(AnthropicAPIStatusError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+@pytest.mark.parametrize("status", [400, 401, 404, 422])
+@pytest.mark.parametrize(
+    ("sdk_error_type", "message", "normalized_type"),
+    [
+        (AnthropicBadRequestError, "prompt is too long: 2 > 1", ContextLengthExceededError),
+        (AnthropicAuthenticationError, "Invalid key", AuthenticationError),
+        (AnthropicNotFoundError, "model: m", ModelNotFoundError),
+        (AnthropicNotFoundError, "Resource missing", ResourceNotFoundError),
+    ],
+)
+async def test_error_recognition_uses_sdk_class(sdk_error_type, status, message, normalized_type):
+    class ProviderError(sdk_error_type):
+        pass
+
+    response = httpx.Response(status, request=httpx.Request("POST", "https://example.test"))
+    error = ProviderError(message, response=response, body=None)
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(normalized_type) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is response
+    assert exc_info.value.response.status_code == status
+    assert exc_info.value.body is error.body
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TypeError("Messages request did not return a stream."),
+        ValueError('"Could not resolve authentication method.'),
+    ],
+)
+async def test_missing_credentials_recognition_requires_type_and_message(error):
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(type(error)) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value is error
+
+
+async def test_missing_credentials_recognizes_type_error_subclasses():
+    class CredentialsError(TypeError):
+        pass
+
+    error = CredentialsError('"Could not resolve authentication method.')
+    async with httpx.AsyncClient() as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+        )
+        with pytest.raises(AuthenticationError) as exc_info:
+            client._handle_error(error)
+    assert exc_info.value.__cause__ is error
+    assert exc_info.value.response is None
 
 
 @pytest.mark.parametrize("mode", ["implicit", "explicit"])

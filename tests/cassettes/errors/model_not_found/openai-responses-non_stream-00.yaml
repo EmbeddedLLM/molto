@@ -1,0 +1,36 @@
+filename: 2026-09-14-01a09ebf-d5e6-7673-ba67-020c2e8ab295
+request:
+  body:
+    input:
+    - content:
+      - text: Say hello.
+        type: input_text
+      role: user
+    max_output_tokens: 16
+    model: molto-model-that-does-not-exist
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '161'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a09ebf-d5e6-7673-ba67-020c2e8ab295
+response:
+  body:
+    error:
+      code: model_not_found
+      message: The model `molto-model-that-does-not-exist` does not exist or you do
+        not have access to it.
+      param: null
+      type: invalid_request_error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 404
+timestamp: '2026-09-14T07:09:27.398865+00:00'

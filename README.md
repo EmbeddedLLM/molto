@@ -69,11 +69,9 @@ These settings are independent. Use the same protocol for the method and `endpoi
 
 ## Error handling
 
-On every route, Molto recognizes selected provider errors and raises them in the downstream SDK namespace. This translation is semantic, not a rewrite of the provider's HTTP response: the status code, message, response, and body still come from the upstream protocol.
+Molto exposes recognized errors in the downstream SDK namespace, with a normalized Molto cause for portable classification. HTTP errors preserve their upstream status and body.
 
-For example, Anthropic reports a missing model with status `404`, while OpenAI Responses reports it with status `400`. An Anthropic Messages upstream routed through the OpenAI Responses downstream therefore raises an OpenAI `APIStatusError` whose status remains `404` and whose body remains Anthropic-shaped.
-
-The translated exception's cause identifies the normalized error more precisely:
+For example, an Anthropic missing-model `404` becomes an OpenAI `NotFoundError` with its original Anthropic body:
 
 ```python
 import openai
@@ -88,4 +86,4 @@ except openai.APIStatusError as error:
         print("The upstream provider does not recognize this model.")
 ```
 
-Normalized API errors inherit from `APIException` and retain the original upstream SDK exception as their cause. Native passthrough routes receive the same normalized cause, so classification works identically for every upstream; only unrecognized errors do not receive it. See [Error translation](python/ARCHITECTURE.md#error-translation) for the complete mapping and cause chain.
+Unknown errors pass through unchanged. See the [shared error contract](docs/errors.md) for HTTP mappings, Responses failures during streaming, and the deliberate synthetic `401` for missing SDK credentials.

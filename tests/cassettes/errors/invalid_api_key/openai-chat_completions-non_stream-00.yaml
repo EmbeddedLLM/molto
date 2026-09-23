@@ -1,0 +1,34 @@
+filename: 2026-09-14-01a09eb8-66ce-70b3-82d0-4c87b0355732
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Say hello.
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '143'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a09eb8-66ce-70b3-82d0-4c87b0355732
+response:
+  body: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided: invalid-***-key.\
+    \ You can find your API key at https://platform.openai.com/account/api-keys.\"\
+    ,\n        \"type\": \"invalid_request_error\",\n        \"param\": null,\n  \
+    \      \"code\": \"invalid_api_key\"\n    }\n}\n"
+  headers:
+    connection: keep-alive
+    content-length: '265'
+    content-type: application/json; charset=utf-8
+  status_code: 401
+timestamp: '2026-09-14T07:01:20.206240+00:00'

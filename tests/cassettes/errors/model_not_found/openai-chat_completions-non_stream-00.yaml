@@ -1,0 +1,32 @@
+filename: 2026-09-14-01a09ebf-d89a-79f2-a235-2c58bbbd1573
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Say hello.
+        type: text
+      role: user
+    model: molto-model-that-does-not-exist
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '162'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a09ebf-d89a-79f2-a235-2c58bbbd1573
+response:
+  body: "{\n    \"error\": {\n        \"message\": \"The model `molto-model-that-does-not-exist`\
+    \ does not exist or you do not have access to it.\",\n        \"type\": \"invalid_request_error\"\
+    ,\n        \"param\": null,\n        \"code\": \"model_not_found\"\n    }\n}\n"
+  headers:
+    connection: keep-alive
+    content-type: application/json; charset=utf-8
+  status_code: 404
+timestamp: '2026-09-14T07:09:28.090275+00:00'

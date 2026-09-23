@@ -1,0 +1,28 @@
+filename: 2026-09-15-01a0a2fd-980a-7070-93da-95b2485c72ef
+request:
+  body:
+    max_tokens: 16
+    messages:
+    - content:
+      - text: Say hello.
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '135'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /molto-missing-endpoint/v1/messages
+  query_params: {}
+request_id: 01a0a2fd-980a-7070-93da-95b2485c72ef
+response:
+  body: ''
+  headers:
+    connection: keep-alive
+  status_code: 404
+timestamp: '2026-09-15T02:55:23.658807+00:00'

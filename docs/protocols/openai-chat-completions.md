@@ -94,7 +94,7 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest` and calls the OpenAI SDK's `chat.completions.create()`. It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
-This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, provider extensions accepted by the pinned SDK, and upstream SDK exception types. A recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
+This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, and provider extensions accepted by the pinned SDK. Errors follow the [shared policy](../errors.md). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
 ## When the application speaks Chat Completions
 
@@ -272,12 +272,7 @@ Chat stream options expose `include_obfuscation`, but the generated `ChatComplet
 
 ## Errors
 
-Molto currently recognizes one portable error category, on native passthrough and translated routes alike:
-
-- A Chat upstream `openai.APIStatusError` with status `404` and `code == "model_not_found"` becomes `ModelNotFoundError` internally.
-- A normalized error projected to Chat retains the original provider's HTTP error shape. Its outward OpenAI SDK class is selected from the preserved status: `BadRequestError` for `400`, `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise.
-
-The projected exception retains the upstream status, message, response, and body; Molto does not fabricate a Chat-shaped HTTP error. Its `__cause__` is the normalized error, whose cause is the original upstream SDK exception. Unknown errors are re-raised unchanged. See the [shared error contract](../README.md#errors) and the [architecture details](../../python/ARCHITECTURE.md#error-translation).
+Recognized errors use the OpenAI SDK namespace and the [shared error contract](../errors.md). A Responses upstream's [mid-stream context-length failure](../errors.md#responses-failures-during-streaming) remains a plain `openai.APIError`; only [missing SDK credentials](../errors.md#missing-sdk-credentials) receive a synthetic `401`.
 
 ## Fidelity
 

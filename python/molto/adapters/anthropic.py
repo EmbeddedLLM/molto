@@ -9,9 +9,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any, NoReturn
 
+from anthropic import APIError as AnthropicAPIError
 from anthropic import APIStatusError as AnthropicAPIStatusError
 from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import NotFoundError as AnthropicNotFoundError
+from httpx import Response
 from pydantic_core import from_json
 
 from molto.adapters.base import BaseAdapter
@@ -23,6 +25,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.types.exceptions import (
     APIException,
+    AuthenticationError,
     UnsupportedInput,
 )
 from molto.types.normalized import (
@@ -684,6 +687,23 @@ class AnthropicMessagesAdapter(
         cause = error.__cause__
         if (not isinstance(error, APIException)) or cause is None:
             raise error
+        if error.response is None:
+            if isinstance(error, AuthenticationError):
+                assert error.request is not None
+                # SDK auth errors require HTTP metadata even for local credential failures.
+                # Keep the synthetic response out of the normalized upstream evidence.
+                raise AnthropicAuthenticationError(
+                    error.message,
+                    response=Response(401, request=error.request),
+                    body=error.body,
+                ) from error
+            raise error
+        if getattr(cause, "status_code", None) is None:
+            raise AnthropicAPIError(
+                error.message,
+                request=error.response.request,
+                body=error.body,
+            ) from error
         error_map = {
             401: AnthropicAuthenticationError,
             404: AnthropicNotFoundError,
@@ -698,9 +718,6 @@ class AnthropicMessagesAdapter(
                 response=cause.response,
                 body=cause.body,
             ) from error
-        # TODO: Handle bare `APIError` (e.g. mid-stream error events): it
-        # has no `APIStatusError` cause and passes through unchanged until
-        # an IR recognition rule exists.
         else:
             error_type = error_map.get(
                 getattr(cause, "status_code", None), AnthropicAPIStatusError

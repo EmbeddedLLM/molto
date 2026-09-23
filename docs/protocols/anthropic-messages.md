@@ -145,7 +145,7 @@ The native stream may start a block with content already present in the `content
 
 `Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest` and calls `AsyncAnthropic.messages.create()`. It yields the Anthropic SDK's native events directly for a streaming request and returns the SDK's native `Message` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
-This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. It also preserves native Anthropic exception types; a recognized error is re-projected as a fresh instance of its original SDK class with the normalized cause chain described under [Errors](#errors). The request is still validated rather than passed through as an untyped HTTP proxy.
+This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. Errors follow the [shared policy](../errors.md). The request is still validated rather than passed through as an untyped HTTP proxy.
 
 ## When the application speaks Messages
 
@@ -324,15 +324,7 @@ Cache-creation TTL breakdowns, `inference_geo`, and `server_tool_use` have no cu
 
 ## Errors
 
-Molto uses this cause chain for a recognized error, on same-protocol passthrough and translated routes alike:
-
-```text
-downstream SDK APIStatusError
-        caused by normalized Molto error
-        caused by upstream SDK exception
-```
-
-The Messages client currently recognizes a missing model only when Anthropic raises `anthropic.APIStatusError` with status `404` and a message containing `model:`. On a translated route with Messages as the downstream protocol, Molto preserves the original OpenAI status, message, response, and body without translating their shape. The Messages adapter selects only the outward Anthropic SDK class from that status: `AuthenticationError` for `401`, `NotFoundError` for `404`, and the base `APIStatusError` otherwise. A Responses model-not-found status `400` therefore remains an Anthropic `APIStatusError`, while a Chat Completions status `404` becomes `anthropic.NotFoundError`. Unknown errors are re-raised unchanged. See the [shared error contract](../README.md#errors) for the full route table.
+Recognized errors use the Anthropic SDK namespace and the [shared error contract](../errors.md). A Responses upstream's [mid-stream context-length failure](../errors.md#responses-failures-during-streaming) becomes a plain `anthropic.APIError`; only [missing SDK credentials](../errors.md#missing-sdk-credentials) receive a synthetic `401`.
 
 ## Fidelity
 

@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator, Mapping
 from contextlib import aclosing
 from typing import Any, NoReturn
 
-from httpx import AsyncClient, Headers
+from httpx import URL, AsyncClient, Headers, Request
 from openai import AsyncOpenAI, omit
 from pydantic import BaseModel
 
@@ -58,6 +58,18 @@ class BaseClient[
             },
             http_client=self._http_client,
         )
+
+    def _make_authentication_request(self, path: str) -> Request:
+        # Only for missing SDK credentials, which fail before an HTTP request is sent.
+        # The downstream SDK AuthenticationError requires a response with a request;
+        # this unsent request supplies its intended URL for our synthetic 401 response.
+        # HTTP and stream errors retain their real requests instead. Match SDK path
+        # appending here, including custom base prefixes and trailing slashes.
+        base_url = URL(self._base_url or self.DEFAULT_BASE_URL)
+        raw_path = base_url.raw_path
+        if not raw_path.endswith(b"/"):
+            raw_path += b"/"
+        return Request("POST", base_url.copy_with(raw_path=raw_path + path.encode()))
 
     def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:
         """Place a protocol's ambiguous reasoning text in the provider's representation.

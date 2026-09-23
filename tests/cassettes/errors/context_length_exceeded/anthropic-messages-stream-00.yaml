@@ -1,0 +1,34 @@
+filename: 2026-09-09-01a084f3-2d8b-7d72-b9e0-2b92e6441c9b
+request:
+  body:
+    max_tokens: 16
+    messages:
+    - content:
+      - text: Reply with OK. x
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '4000140'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a084f3-2d8b-7d72-b9e0-2b92e6441c9b
+response:
+  body:
+    error:
+      message: 'prompt is too long: 2000065 tokens > 1000000 maximum'
+      type: invalid_request_error
+    request_id: req_011CesRmJMe8pBLL9PyAjHy3
+    type: error
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-09-09T06:55:24.555147+00:00'
