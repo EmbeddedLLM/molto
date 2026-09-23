@@ -28,10 +28,12 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
+    Input,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -359,7 +361,7 @@ class OpenAIResponsesAdapter(
     def _normalize_message(
         self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn]:
+    ) -> Input:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -490,8 +492,13 @@ class OpenAIResponsesAdapter(
             return [UserInput(content=text_parts)]
         if role == "assistant":
             return [
-                TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
-                for part in text_parts
+                AssistantInput(
+                    id=message.get("id"),
+                    content=[
+                        TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
+                        for part in text_parts
+                    ],
+                )
             ]
         raise UnsupportedInput(f"Unsupported Responses message role: {role}")
 
@@ -511,9 +518,7 @@ class OpenAIResponsesAdapter(
             raise UnsupportedInput(
                 "Cross-protocol Responses requests do not support `store=true`."
             )
-        normalized_input: (
-            list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn] | None
-        )
+        normalized_input: Input | None
         if isinstance(request.input, str):
             normalized_input = [UserInput(content=[TextInput(content=request.input)])]
         elif request.input is None:
@@ -997,7 +1002,7 @@ class OpenAIChatCompletionsAdapter(
     def _normalize_message(
         self,
         message: dict[str, Any],
-    ) -> list[SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn]:
+    ) -> Input:
         role = message.get("role")
         content = message.get("content")
 
@@ -1102,7 +1107,7 @@ class OpenAIChatCompletionsAdapter(
                         tool_call_id=tool_call["id"],
                     )
                 )
-            return items
+            return [AssistantInput(content=items)]
         raise UnsupportedInput(f"Unsupported Chat Completions message role: {role}")
 
     def _normalize_request(self, request: OpenAIChatCompletionsCreateRequest) -> NormalizedRequest:
@@ -1115,9 +1120,7 @@ class OpenAIChatCompletionsAdapter(
             raise UnsupportedInput(
                 "Chat Completions cannot set both `max_completion_tokens` and `max_tokens`."
             )
-        normalized_input: list[
-            SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
-        ] = []
+        normalized_input: Input = []
         for message in request.messages:
             normalized_input.extend(self._normalize_message(dict(message)))
 

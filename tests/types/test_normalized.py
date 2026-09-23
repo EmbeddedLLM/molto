@@ -2,11 +2,14 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from molto.types.normalized import (
+    AssistantInput,
+    CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     InputItem,
     NormalizedRequest,
     PartStartEvent,
+    SystemPrompt,
     TextDelta,
     TextInput,
     TextOutput,
@@ -30,6 +33,68 @@ def test_user_input_preserves_message_boundary_around_text_parts():
 def test_text_input_is_not_a_top_level_input_item():
     with pytest.raises(ValidationError, match="union_tag_invalid"):
         NormalizedRequest(input=[TextInput(content="Unwrapped")])
+
+
+def test_text_output_requires_an_assistant_message_boundary():
+    """Ensures assistant history cannot discard its message boundary at construction."""
+    with pytest.raises(ValidationError, match="union_tag_invalid"):
+        NormalizedRequest(input=[TextOutput(content="Unwrapped")])
+
+
+def test_assistant_input_preserves_message_boundaries_and_ordered_parts():
+    """Ensures assistant messages retain mixed content, adjacent text, IDs, and empty bodies."""
+    first = AssistantInput(
+        id="msg_1",
+        content=[
+            Thinking(content="Plan", summary=""),
+            TextOutput(content="First", id="output_part_1"),
+            TextOutput(content="Second"),
+            ToolCall(tool_name="weather", args="{}", tool_call_id="call_1"),
+            TextOutput(content="After call"),
+        ],
+    )
+    second = AssistantInput(content=[TextOutput(content="Follow-up")])
+    empty = AssistantInput(content=[])
+
+    request = NormalizedRequest(input=[first, second, empty])
+
+    assert request.input == [first, second, empty]
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"content": [], "unknown": True},
+        {"content": "Unwrapped"},
+        {"content": [{"content_type": "text-input", "content": "Wrong role"}]},
+        {"content": [{"content_type": "text-output", "content": "Hi", "extra_fields": {}}]},
+    ],
+)
+def test_assistant_input_rejects_invalid_container_and_parts(values):
+    """Ensures assistant containers accept only ordered, strictly validated output parts."""
+    with pytest.raises(ValidationError):
+        AssistantInput(**values)
+
+
+def test_cache_breakpoints_include_nested_assistant_text_in_order():
+    """Ensures shared cache traversal visits assistant text without flattening message parts."""
+    system_marker = CacheBreakpoint(ttl="1h")
+    assistant_marker = CacheBreakpoint(ttl="5m")
+    request = NormalizedRequest(
+        input=[
+            SystemPrompt(content="Rules", cache_breakpoint=system_marker),
+            AssistantInput(
+                content=[
+                    Thinking(content="Plan", summary=""),
+                    TextOutput(content="Cached", cache_breakpoint=assistant_marker),
+                    ToolCall(tool_name="weather", args="{}", tool_call_id="call_1"),
+                    TextOutput(content="Uncached"),
+                ]
+            ),
+        ]
+    )
+
+    assert list(request.iter_cache_breakpoints()) == [system_marker, assistant_marker]
 
 
 def test_request_rejects_top_level_text():
@@ -165,9 +230,14 @@ def test_request_uses_provider_neutral_function_tools():
         {
             "input": [
                 {
-                    "content_type": "text-output",
-                    "content": "a",
-                    "cache_breakpoint": {"unknown": True},
+                    "content_type": "assistant-input",
+                    "content": [
+                        {
+                            "content_type": "text-output",
+                            "content": "a",
+                            "cache_breakpoint": {"unknown": True},
+                        }
+                    ],
                 }
             ]
         },
@@ -217,8 +287,9 @@ def test_request_rejects_extra_fields_at_every_strict_boundary(request_data: dic
     ],
 )
 def test_request_rejects_extra_fields_on_raw_output_history(item: dict):
+    """Ensures nested assistant history rejects provider extensions from raw dictionaries."""
     with pytest.raises(ValidationError, match="provider_field"):
-        NormalizedRequest(input=[item])
+        NormalizedRequest(input=[{"content_type": "assistant-input", "content": [item]}])
 
 
 @pytest.mark.parametrize(
@@ -235,8 +306,9 @@ def test_request_rejects_extra_fields_on_raw_output_history(item: dict):
     ],
 )
 def test_request_rejects_extra_fields_on_preconstructed_output_history(item):
+    """Ensures output models with extensions cannot bypass assistant history validation."""
     with pytest.raises(ValidationError, match="provider_field"):
-        NormalizedRequest(input=[item])
+        AssistantInput(content=[item])
 
 
 def test_output_types_preserve_extra_fields():

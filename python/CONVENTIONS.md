@@ -109,13 +109,13 @@ The cross-protocol contract is: Molto is strict during input validation but leni
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when they are validated through `InputItem`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
+Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when validated as request parts, including within `AssistantInput`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
 
 Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts, and assistant conversation history is `TextOutput`; do not encode roles as content-part metadata.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts. One assistant-history message is an `AssistantInput` containing ordered `Thinking`, `TextOutput`, and `ToolCall` parts; do not encode roles as content-part metadata. Preserve explicit assistant boundaries and per-part markers. Keep standalone Responses reasoning and function calls as top-level items. A Responses projection emits contiguous text runs from mixed assistant content as messages interleaved with standalone reasoning and calls. Within one explicit assistant message, Chat accepts reasoning, text, and tool-call runs in that order. Adjacent reasoning parts concatenate with a newline separator; text parts retain their boundaries and markers, and tool calls retain distinct IDs. Never merge separate explicit assistant messages. Reject reasoning after text or calls and text after calls rather than splitting or reordering the message. These request containers do not change the normalized output-event grammar.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 

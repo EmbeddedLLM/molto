@@ -156,7 +156,7 @@ The implemented normalized path accepts:
 
 One user message remains one user message, and its ordered text and image parts remain ordered. Consecutive user messages are not merged by Molto, although an upstream provider or model renderer may combine them into one model-visible turn.
 
-System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values. Assistant message containers are flattened: each assistant text part becomes a separate text output, and multiple reasoning parts of the same representation are joined within a normalized reasoning value. These transformations preserve supported content but lose the original instruction role, multipart instruction boundary, and enclosing assistant-message boundary.
+System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values, losing its role and enclosing boundary. Each assistant message becomes one `AssistantInput` retaining its optional message ID and ordered text parts, including part markers. Standalone reasoning and function-call items remain separate normalized items; multiple reasoning parts of the same representation are joined within their normalized reasoning value.
 
 Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, and caller-defined prompt-cache keys on Messages. Output-item IDs remain valid normalized history and are preserved by Responses, including marked assistant history; Messages drops cache keys without enabling caching and processes cache options independently. Encrypted-reasoning inclusion is ignored because Molto already preserves any encrypted reasoning returned by the provider, while disabled storage is ignored because it requests no provider-side state; `store=true` is rejected. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. Supported content-part `prompt_cache_breakpoint` values become normalized positional markers. Assistant markers use `output_text` parts and preserve optional output-item IDs.
 
@@ -283,7 +283,7 @@ These values are opaque, provider-issued continuation state. Mapping Responses `
 
 One normalized user input maps to exactly one Responses user message. Each ordered text or image value maps to exactly one `input_text` or `input_image` part, preserving order. Tool-result parts follow the same explicit-list policy.
 
-Cross-protocol translation does not preserve the distinction between `system` and `developer`, an assistant-message container, multipart assistant content inside one output item, or the original Responses inner `content_index`. Provider rendering can cause further model-visible changes after Molto has constructed a valid wire request. See [boundaries and ordering](../README.md#boundaries-and-ordering) and [provider and model renderers](../README.md#provider-and-model-renderers).
+Assistant-history text parts remain in their original message, and adjacent assistant messages remain separate. When another protocol supplies one assistant message containing interleaved text, reasoning, or calls, the Responses client emits each contiguous text run as one message and reasoning or calls as standalone items, preserving order. Responses cannot retain their shared source container. Generated-output translation still does not retain native assistant containers or the original Responses inner `content_index`; instruction translation also loses the distinction between `system` and `developer`. Provider rendering can cause further model-visible changes after Molto has constructed a valid wire request. See [boundaries and ordering](../README.md#boundaries-and-ordering) and [provider and model renderers](../README.md#provider-and-model-renderers).
 
 ### Tools and identifiers
 
@@ -368,7 +368,7 @@ A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the c
 ### Coerced or structurally changed
 
 - `system` and `developer` become one instruction concept and project as `developer` when Responses is upstream.
-- Assistant message and multipart content containers can split or flatten.
+- Mixed assistant-history containers split into contiguous text messages and standalone reasoning or call items. Multipart text stays together; generated-output containers can still split or flatten.
 - Termination reasons without a Responses incomplete equivalent become normal completion.
 - A provider renderer may merge or relocate model-visible turns after receiving the translated wire request.
 

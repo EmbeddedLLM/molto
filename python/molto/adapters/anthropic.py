@@ -29,10 +29,12 @@ from molto.types.exceptions import (
     UnsupportedInput,
 )
 from molto.types.normalized import (
+    AssistantInput,
     CacheBreakpoint,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
+    Input,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -372,9 +374,7 @@ class AnthropicMessagesAdapter(
                 "Unsupported Anthropic output_config fields for cross-protocol translation: "
                 f"{sorted(unsupported_output_config)}."
             )
-        normalized_input: list[
-            SystemPrompt | UserInput | Thinking | TextOutput | ToolCall | ToolReturn
-        ] = []
+        normalized_input: Input = []
         if isinstance(request.system, str):
             normalized_input.append(SystemPrompt(content=request.system))
         elif request.system is not None:
@@ -391,7 +391,9 @@ class AnthropicMessagesAdapter(
             elif message.role == "user":
                 normalized_input.extend(self._normalize_user_blocks(content_blocks))
             else:
-                normalized_input.extend(self._normalize_assistant_blocks(content_blocks))
+                normalized_input.append(
+                    AssistantInput(content=self._normalize_assistant_blocks(content_blocks))
+                )
 
         data: dict[str, Any] = {
             "input": normalized_input,

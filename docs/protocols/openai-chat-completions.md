@@ -127,7 +127,7 @@ One user message becomes one normalized user input. Ordered text and image parts
 
 System and developer messages accept scalar text or ordered text-part lists and become role-less instructions. Their sequence position and part markers are retained while targeting Responses or Chat, but their original role identity is lost. A later Chat projection emits every normalized instruction as `developer`. Messages projects instructions into top-level `system`, retaining separate blocks when any system block is marked. With any cache markers present, mid-conversation instructions are rejected because hoisting would change the cached prefix.
 
-Assistant history is flattened into adjacent reasoning, text, and tool-call items. The enclosing assistant-message boundary is not represented. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, and function tool calls. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
+Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, and function tool calls. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
 Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
 
@@ -153,21 +153,34 @@ An upstream Chat client converts another downstream protocol's normalized reques
 
 ### Upstream request construction
 
-| Normalized input              | Chat request                                                         |
-| ----------------------------- | -------------------------------------------------------------------- |
-| Instruction                   | `developer` message at the same sequence position                    |
-| User input                    | One `user` message with an explicit ordered content-part array       |
-| Portable image                | `image_url` part, preserving URL or data URL and optional detail     |
-| Reasoning plus following text | One assistant message with `reasoning_content` and `content`         |
-| Adjacent assistant text items | Separate assistant messages                                          |
-| Function call                 | Assistant `tool_calls[]` entry                                       |
-| Successful text tool result   | `tool` message with the original `tool_call_id`                      |
-| Output-token limit            | `max_completion_tokens`                                              |
-| Streaming usage               | `stream_options.include_usage=true`                                  |
-| Prompt cache                  | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
-| Content cache breakpoint      | `prompt_cache_breakpoint` on supported text/image parts              |
+| Normalized input            | Chat request                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| Instruction                 | `developer` message at the same sequence position                                  |
+| User input                  | One `user` message with an explicit ordered content-part array                     |
+| Portable image              | `image_url` part, preserving URL or data URL and optional detail                   |
+| Assistant history message   | One assistant message with supported reasoning, ordered text parts, and tool calls |
+| Adjacent assistant messages | Separate assistant messages                                                        |
+| Function call               | Assistant `tool_calls[]` entry                                                     |
+| Successful text tool result | `tool` message with the original `tool_call_id`                                    |
+| Output-token limit          | `max_completion_tokens`                                                            |
+| Streaming usage             | `stream_options.include_usage=true`                                                |
+| Prompt cache                | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`               |
+| Content cache breakpoint    | `prompt_cache_breakpoint` on supported text/image parts                            |
 
-The client groups pending assistant reasoning, text, and tool calls where the Chat shape permits it. A reasoning item is held for a following text item so both can inhabit one assistant message. Because the normalized representation does not retain the original assistant container, this reconstruction can merge or split source assistant messages.
+The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
+
+These examples apply within one explicit assistant message:
+
+| Ordered parts                             | Chat projection                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `Thinking("First") -> Thinking("second")` | Accepted as `reasoning_content="First\nsecond"`; a newline separates the parts.           |
+| `Text("First") -> Text("Second")`         | Accepted as two ordered parts in one `content` array; each part retains its cache marker. |
+| `ToolCall(id="a") -> ToolCall(id="b")`    | Accepted as two entries in one `tool_calls` array; IDs `a` and `b` remain distinct.       |
+| `Text -> Thinking`                        | Rejected: Chat has no slot for reasoning after text.                                      |
+| `ToolCall -> Thinking`                    | Rejected: Chat has no slot for reasoning after tool calls.                                |
+| `ToolCall -> Text`                        | Rejected: Chat has no slot for text after tool calls.                                     |
+
+Molto rejects those incompatible orders rather than splitting or reordering the source message. Grouping parts never merges separate explicit assistant messages. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message. These Responses items have no explicit shared message boundary to preserve. A reasoning-only message is forwarded with `reasoning_content`; the upstream decides whether to accept it.
 
 OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 
@@ -290,7 +303,7 @@ These are implementation gaps rather than inherent claims about the Chat protoco
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and normalized terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
 - Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
-- There is no focused regression coverage for role-preserving instruction round trips, adjacent assistant-message boundaries, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
+- There is no focused regression coverage for role-preserving instruction round trips, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
 
 ## Compatibility and references
 

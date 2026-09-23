@@ -158,7 +158,7 @@ The adapter currently applies these rules:
 - A string message becomes one text block.
 - One user message becomes one normalized user input. Ordered text and image blocks remain ordered, and remote URL and base64 image sources remain distinguishable.
 - Top-level system text is placed before conversation input. Each system text block and each mid-conversation system text block becomes a role-less system prompt. The distinction between top-level and inline system instructions is lost.
-- An assistant message is flattened into adjacent thinking, text, and direct client tool-call items. Its enclosing assistant-message boundary is lost.
+- An assistant message becomes one `AssistantInput` with ordered thinking, text, and direct client tool-call parts. Its enclosing boundary and text-part markers are retained.
 - A `tool_result` becomes a tool return with ordered text or image content. `is_error=true` becomes a failed outcome.
 - `tool_use` history preserves its ID, name, and JSON input. Only direct caller metadata is translatable; server or other caller types are rejected. Reconstructed request-history `tool_use` blocks carry only `id`, `name`, and `input`; `caller` is omitted.
 - Custom tool definitions preserve name, description, input schema, and strict validation. Unsupported custom-tool fields and non-custom tools are rejected.
@@ -200,7 +200,7 @@ The client applies these Messages-specific rules:
 
 - Each normalized user input becomes one user message. Ordered text and image parts become ordered `text` and `image` blocks.
 - Base64 data URLs become Anthropic base64 image sources and remote URLs become URL sources. Messages has no image-fidelity control, so an explicit non-default image `detail` is rejected.
-- Adjacent assistant thinking, text, and tool-call items are grouped into one assistant message.
+- Each explicit assistant input becomes one assistant message with ordered thinking, text, and tool-use blocks. Adjacent explicit assistant messages stay separate. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message; those items have no explicit shared container.
 - Adjacent tool returns are grouped into one user message containing `tool_result` blocks. Successful and failed outcomes map directly; `is_error=true` represents failure. Denied and interrupted outcomes are rejected because Messages cannot preserve them.
 - Tool parameters become `input_schema`; required use becomes `any`; and parallel-call control becomes the inverse `disable_parallel_tool_use` value.
 - Tool choice has edge rules: a required or named choice with no tools raises; when only parallelism is set, `disable_parallel_tool_use` rides on an explicit `auto` choice; the flag is omitted when tool use is disabled; and `tool_choice` is dropped entirely when no tools are present.
@@ -211,6 +211,17 @@ Messages requires an integer `max_tokens`. Responses and Chat Completions make t
 Normalized system prompts are projected into top-level `system`. If any system block is marked, the client keeps all system blocks separate and projects their markers. Otherwise it joins instruction text with blank lines. Instruction role and enclosing message boundaries remain unavailable in the normalized representation.
 
 Without markers, mid-conversation instructions are hoisted, losing their original placement and later-instruction priority. If any marker is present, the client rejects mid-conversation instructions because hoisting would change the cached prefix. A native Messages route does not hoist or merge system content through the normalized representation.
+
+For example, translating either Responses or Chat to Messages without cache markers collects both instruction roles into the top-level `system` field:
+
+```text
+Source sequence: system A → user → assistant → developer B → user
+Messages request:
+  system = "A\n\nB"
+  messages = [user, assistant, user]
+```
+
+The instructions retain their order relative to each other, but `B` loses its position after the assistant message. The `system` field is separate from the `messages` array. With any cache marker present in the request, this translation is rejected.
 
 ### Stream normalization
 
@@ -338,7 +349,7 @@ Recognized errors use the Anthropic SDK namespace and the [shared error contract
 - Messages has no `developer` instruction role or image detail control.
 - Responses output-item IDs are accepted in normalized history but omitted when Messages is the target; portable tool-call IDs remain mapped.
 - Anthropic can merge consecutive same-role wire messages and interprets a final assistant message as prefill.
-- The normalized representation does not retain the enclosing assistant message boundary.
+- Responses has no shared assistant container for reasoning, text messages, and calls, so reconstructing those standalone items cannot recover an original Messages container. Generated-output normalization also does not retain arbitrary assistant-message boundaries.
 - Unmarked translation may hoist instructions and lose placement, priority, and block boundaries. Marked system blocks stay separate; requests with any markers and mid-conversation instructions are rejected.
 - Caller-defined prompt-cache keys are silently dropped because Anthropic computes cache identity implicitly; dropping a key does not enable caching.
 - Markers on outer tool-result, tool-use, thinking, and tool-definition objects have no supported OpenAI equivalent.
