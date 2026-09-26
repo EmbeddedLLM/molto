@@ -46,7 +46,9 @@ The user's job as a senior software engineer is dependent on you implementing cl
 ### 3. Task Tracking
 
 - Use `tasks/todo.md` for substantial, multi-stage work when persistent tracking is useful.
-- Do not create or modify task-tracking files for small or routine changes.
+- Do not create or modify `tasks/todo.md` for small or routine changes; the completion record below is still required.
+- At the end of every feature, bug fix, or task, before the final handoff, create `tasks/YYYY-MM-DD-<task-name>.md`. Use the completion date and a short, descriptive, lowercase task name with hyphens.
+- Write the completion record using the structure and wording rules in [PR Descriptions](#pr-descriptions).
 - Record only durable, project-specific lessons in `tasks/lessons.md`.
 - Do not record one-off user preferences, speculative conclusions, or conversational details.
 - A user correction is evidence to reconsider the approach, not an automatic reason to create a permanent rule.
@@ -103,7 +105,16 @@ Before reporting completion, review the final diff and ask:
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
-### 7. Linting Workflow
+### 7. Task Management
+
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Create the dated completion record in `tasks/` using the required [PR description format](#pr-descriptions).
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+### 8. Linting Workflow
 
 - Run formatting, linting, and static analysis after implementation and before reporting completion.
 - The `.github/workflows/lint.yml` workflow is the source of truth. Before running checks, inspect it and use the commands, installation method, configuration, and tool versions selected by that workflow. Do not substitute globally installed tools or copy version numbers into this document.
@@ -131,6 +142,26 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - Do not commit, push, create branches, or open pull requests unless requested.
 - Avoid modifying generated files unless the project workflow requires regeneration.
 - Keep unrelated formatting, refactors, dependency updates, and lockfile changes out of the diff.
+
+# PR Descriptions
+
+- Use the structure below for GitHub PR descriptions and dated task completion records.
+- Use declarative statements to describe completed changes, their purpose, and resulting behavior. For example "Replaced ..." or "The workflow now uses ...".
+- Lead with the concrete problem and resulting behavior. Write for a reviewer who has not read the conversation, and keep details proportional to the change.
+- Keep the title and description aligned with the final diff. Omit conversational history and abandoned approaches unless they explain a necessary trade-off.
+- List verification commands and their actual outcomes. Include failed or skipped checks and their reasons; never claim an unrun check passed. Distinguish completed implementation from unverified deployment or runtime behavior.
+
+```markdown
+# <PR title>
+
+## Summary
+
+- <Completed change and its purpose>
+
+## Verification
+
+- `<command>`: <outcome, or reason it was not run>
+```
 
 ## Coding Conventions
 
