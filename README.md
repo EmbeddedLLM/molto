@@ -87,3 +87,9 @@ except openai.APIStatusError as error:
 ```
 
 Unknown errors pass through unchanged. See the [shared error contract](docs/errors.md) for HTTP mappings, Responses failures during streaming, and the deliberate synthetic `401` for missing SDK credentials.
+
+## OpenAI schema monitoring
+
+The [OpenAI OpenAPI compatibility workflow](.github/workflows/weekly-provider-tests.yml) runs on every pull request, every push to `main`, Tuesdays at 09:00 UTC, and manual dispatch. It compares a pinned OpenAPI snapshot against upstream `main` for Chat Completions and Responses. It needs no API credentials and makes no model requests.
+
+The check reports programmatic schema changes, including additions, while ignoring documentation changes. A failure signals upstream drift to review; it does not by itself prove a runtime regression. Update `BASELINE_OPENAPI_URL` to a new immutable commit only after reviewing the differences and verifying affected Molto behavior. Advancing this reference acknowledges existing drift without changing SDK dependencies or adding support for new API features. Offline cassette tests remain a separate CI check.
