@@ -1,0 +1,60 @@
+filename: 2026-09-24-01a0d1b5-b074-7623-9003-74e15f7f99d0
+request:
+  body:
+    messages:
+    - content: 'Use hosted web search to find the official release date of Python
+        3.13.0. Make exactly one search call with this single query string: site:python.org
+        Python 3.13.0 release date. Do not batch multiple queries or run additional
+        searches. Use web-page search results with source URLs. Use the returned search
+        snippets; do not open pages or use find-in-page actions. Answer in one short
+        sentence and attach at least one native URL citation to the official python.org
+        source supporting the date. You must search even if you already know the answer.'
+      role: user
+    model: gpt-5.6-luna
+    stream: false
+    web_search_options: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '652'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a0d1b5-b074-7623-9003-74e15f7f99d0
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: Python 3.13.0 was officially released on **October 7, 2024**. ([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))
+        refusal: null
+        role: assistant
+    created: 1790224745
+    id: resp_051fb1f64410d261006ab4a969589487d0a6667657ebf56cd1
+    model: gpt-5.6-luna
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: null
+    usage:
+      completion_tokens: 75
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 36
+        rejected_prediction_tokens: 0
+      prompt_tokens: 8533
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 118
+        cached_tokens: 4251
+      total_tokens: 8608
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-09-24T04:39:00.468916+00:00'

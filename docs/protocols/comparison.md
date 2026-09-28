@@ -19,7 +19,7 @@ Every row below holds for a translated route (one protocol to another through th
 | Ordered assistant-history parts | Preserved, including multipart text and markers | Ordered `AssistantInput.content` | Responses emits each contiguous text run as one message interleaved with standalone reasoning and calls; generated-output containers remain a separate limitation |
 | Raw versus summary reasoning | Classified by provider capability profile | Capability profile | OpenAI/Anthropic profiles = summary; vLLM = raw; explicit Responses events are authoritative |
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
-| Termination reason | Projected per the shared table | Provider-neutral termination | Reasons without a target equivalent are coerced to that target's normal completion |
+| Termination reason | Projected per the shared table | Provider-neutral termination | Pauses retain unfinished generation; other unrepresentable reasons use the documented coercions |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized |
 | Prompt-cache intent | Projected under the [shared policy](../README.md#prompt-caching) | `PromptCache` plus positional `CacheBreakpoint` | Messages silently drops keys and maps `30m` minimum lifetime to `1h` on blocks and automatic caching; key-only requests do not enable caching; supported text/image markers preserve position; retention and unsupported marker positions are rejected; OpenAI collapses explicit request/block lifetimes to `30m`, rounding `5m` up and weakening the `1h` minimum |
 | Response ID and model | Preserved | Source response | A Messages upstream has no creation timestamp; `created_at` is captured locally |
@@ -48,6 +48,10 @@ Full boundary fidelity would require more than the current normalized representa
 | Request prompt caching | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | `prompt_cache_key`, `prompt_cache_options`, per-part `prompt_cache_breakpoint` | top-level or per-block `cache_control` |
 
 Responses is the richer lifecycle protocol. Translating into Responses requires synthesizing output-item IDs, sequence numbers, item/content lifecycles, and empty target-only containers; translating into Chat or Messages flattens that lifecycle into deltas or blocks. The conversion is not symmetric: a native result must be mapped, defaulted, generated, or rejected rather than copied.
+
+## Hosted-search fidelity
+
+Responses and Messages translate basic search calls, results, and URL attribution. Messages excerpts and opaque references cannot be reconstructed from Responses; Chat retains only answer text and inline links. See [Hosted web search](../web-search.md) for directional mappings and limitations.
 
 ## Role and placement
 

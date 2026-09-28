@@ -1590,7 +1590,6 @@ async def test_responses_adapter_projects_incomplete_termination(
     "termination_reason",
     [
         "model_context_window_exceeded",
-        "pause",
         "refusal",
         "stop_sequence",
         "tool_call",
@@ -1624,7 +1623,7 @@ async def test_responses_adapter_coerces_unrepresentable_termination_to_complete
 
 @pytest.mark.parametrize(
     "termination_reason",
-    ["model_context_window_exceeded", "pause", "refusal"],
+    ["model_context_window_exceeded", "refusal"],
 )
 async def test_chat_completions_adapter_coerces_unrepresentable_termination_to_stop(
     termination_reason: TerminationReason,

@@ -231,7 +231,7 @@ Only successful tool results are portable to OpenAI protocols. Function `call_id
 
 If a normalized request came from Messages, Molto sets `stream_options.include_obfuscation=false` because Messages has no obfuscation setting; omitting the field could select a provider default that is not equivalent to Anthropic's stream. More generally, only explicitly normalized request fields are emitted.
 
-Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
+Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools other than basic web search, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
 ### Upstream event normalization
 
@@ -294,7 +294,7 @@ Function-call history preserves call IDs, function names, JSON arguments, succes
 - `call_id` is the portable identity that pairs a function call with its result.
 - The Responses function-call item `id` identifies the enclosing output item and has no Chat Completions equivalent.
 
-Hosted tools, custom-text tools, server tools, and failed tool-result semantics outside Messages are not currently portable.
+Hosted tools other than basic web search, custom-text tools, and failed client-function result semantics outside Messages are not currently portable.
 
 ### Prompt caching
 
@@ -329,10 +329,16 @@ Termination projection is:
 | `stop_sequence`                 | `response.completed`, coerced              |
 | `tool_call`                     | `response.completed`, coerced              |
 | `model_context_window_exceeded` | `response.completed`, coerced              |
-| `pause`                         | `response.completed`, coerced              |
+| `pause`                         | `response.incomplete` with null details    |
 | `refusal`                       | `response.completed`, coerced              |
 
-Molto retains the more specific source reason in the normalized stream. The coercion occurs only because the pinned Responses schema cannot represent that reason as an incomplete status.
+Molto retains the more specific source reason in the normalized stream. Reasons without a corresponding Responses termination value use the coercions above.
+
+## Hosted web search
+
+Declare `{"type":"web_search"}` in `tools`. Translation to Messages supports allowed domains, approximate location, and search budgets; explicit context size is rejected.
+
+Messages search calls and results become `web_search_call` items, and citations become local URL ranges. Search errors mark the linked item as failed; `pause_turn` produces an incomplete response. See [Hosted web search](../web-search.md) for mappings, attribution losses, and continuation limits.
 
 ## Errors
 
@@ -378,7 +384,7 @@ The following are implementation gaps, not general claims that the source data c
 
 - multiple Chat Completions choices; the current translated client reads only `choices[0]`;
 - summarized reasoning through Chat Completions; Chat has no signature slot, so current translation fails in either direction rather than discarding required continuation state;
-- refusals as content, hosted and server tools, failed tool-result semantics, redacted thinking, citations, annotations, moderation, and other multimodal output;
+- refusals as content, hosted tools other than basic search, failed client-function result semantics, redacted thinking, non-web annotations, moderation, and other multimodal output;
 - log probability transport across the normalized representation;
 - Chat audio and accepted or rejected prediction-token details;
 - Responses conversation references, previous-response state, background execution, and other Responses-only server state;

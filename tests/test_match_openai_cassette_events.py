@@ -4,6 +4,8 @@ from typing import Any
 
 import pytest
 from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
+from pydantic import TypeAdapter
 
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
@@ -840,3 +842,141 @@ def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
     assert read_yaml(str(output_path)) == expected
     assert read_yaml(str(input_path)) == unmatched
     assert responses_path.read_bytes() == original_responses
+
+
+def test_matches_web_search_stream_without_mutating_recordings(tmp_path: Path) -> None:
+    """Ensures recorded search projects SDK-valid Chat text without hosted calls or citations."""
+    from hashlib import sha256
+
+    chat_path = CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"
+    responses_path = CASSETTES / "web_search" / "openai-responses-stream-00.yaml"
+    originals = {path: sha256(path.read_bytes()).digest() for path in (chat_path, responses_path)}
+    output_path = tmp_path / "search.yaml"
+
+    assert main([str(chat_path), str(responses_path), "--output", str(output_path)]) == 0
+
+    chat = read_yaml(str(output_path))
+    responses = read_yaml(str(responses_path))
+    TypeAdapter(CompletionCreateParamsStreaming).validate_python(chat["request"]["body"])
+    events = _data_events(chat)
+    parsed = [ChatCompletionChunk.model_validate(event) for event in events]
+    assert "".join(choice.delta.content or "" for event in parsed for choice in event.choices) == (
+        "".join(
+            event["delta"]
+            for event in _data_events(responses)
+            if event["type"] == "response.output_text.delta"
+        )
+    )
+    assert all(
+        "annotations" not in choice["delta"] and "tool_calls" not in choice["delta"]
+        for event in events
+        for choice in event["choices"]
+    )
+    assert chat["request"]["body"]["web_search_options"] == {}
+    assert chat["request"]["body"]["model"] == responses["request"]["body"]["model"]
+    assert "tool_choice" not in chat["request"]["body"]
+    assert chat["response"]["headers"] == read_yaml(str(chat_path))["response"]["headers"]
+    matched = deepcopy(chat)
+    match_chat_completions_events(chat, responses)
+    assert chat == matched
+    assert originals == {path: sha256(path.read_bytes()).digest() for path in originals}
+
+
+def test_search_stream_removes_stale_recorded_annotations() -> None:
+    """Ensures annotations on retained role and finish chunks cannot leak downstream."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        for choice in event["choices"]:
+            choice["delta"]["annotations"] = [{"type": "url_citation"}]
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat, responses)
+
+    assert all(
+        "annotations" not in choice["delta"]
+        for event in _data_events(chat)
+        for choice in event["choices"]
+    )
+
+
+def test_search_stream_with_no_answer_removes_recorded_text() -> None:
+    """Ensures a failed search without text finishes Chat without inventing an answer."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    events = []
+    for event in _data_events(responses):
+        if event["type"].startswith(("response.output_text.", "response.content_part.")):
+            continue
+        if event.get("item", {}).get("type") == "message":
+            continue
+        if event.get("item", {}).get("type") == "web_search_call":
+            event["item"]["status"] = "failed"
+        if event["type"] == "response.completed":
+            event["response"]["output"] = []
+        events.append(event)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    matched = [ChatCompletionChunk.model_validate(event) for event in _data_events(chat)]
+    assert not any(choice.delta.content for event in matched for choice in event.choices)
+    assert not any(choice.delta.tool_calls for event in matched for choice in event.choices)
+    assert [
+        choice.finish_reason
+        for event in matched
+        for choice in event.choices
+        if choice.finish_reason
+    ] == ["stop"]
+
+
+def test_search_stream_keeps_text_from_multiple_output_parts() -> None:
+    """Ensures pre-search assistant text and cited answer parts retain their source order."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    events = _data_events(responses)
+    expected = "Checking. " + "".join(
+        event["delta"] for event in events if event["type"] == "response.output_text.delta"
+    )
+    events[1:1] = [
+        {
+            "type": "response.output_text.delta",
+            "item_id": "prelude",
+            "content_index": 0,
+            "delta": "Checking. ",
+        },
+        {
+            "type": "response.output_text.done",
+            "item_id": "prelude",
+            "content_index": 0,
+            "text": "Checking. ",
+        },
+    ]
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    assert "".join(_chat_content(event) or "" for event in _data_events(chat)) == expected
+
+
+def test_search_paused_stream_maps_to_length() -> None:
+    """Ensures a paused search's incomplete terminal state cannot become Chat stop."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].update(status="incomplete", incomplete_details=None)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    assert [
+        choice["finish_reason"]
+        for event in _data_events(chat)
+        for choice in event["choices"]
+        if choice.get("finish_reason")
+    ] == ["length"]

@@ -209,12 +209,13 @@ The translated path currently supports:
 - system prompts and supported assistant history;
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
+- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
 - prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
+The shared translated path does not currently implement image output, hosted tools other than basic web search, non-web citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic client-function error results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 
@@ -295,7 +296,7 @@ Molto first preserves a provider-neutral termination reason, then projects it in
 | `stop_sequence`                 | `stop_sequence` | `stop`           | completed                       |
 | `tool_call`                     | `tool_use`      | `tool_calls`     | completed                       |
 | `model_context_window_exceeded` | same value      | `stop`           | completed                       |
-| `pause`                         | `pause_turn`    | `stop`           | completed                       |
+| `pause`                         | `pause_turn`    | `length`         | incomplete with null details    |
 | `refusal`                       | `refusal`       | `stop`           | completed                       |
 | `content_filter`                | `end_turn`      | `content_filter` | incomplete: `content_filter`    |
 

@@ -9,6 +9,9 @@ from molto.types.normalized import (
     InputItem,
     NormalizedRequest,
     PartStartEvent,
+    ProviderToolChoice,
+    SearchCall,
+    SearchResult,
     SystemPrompt,
     TextDelta,
     TextInput,
@@ -18,7 +21,88 @@ from molto.types.normalized import (
     ToolCall,
     ToolReturn,
     UserInput,
+    WebCitation,
+    WebSearchSource,
+    WebSearchTool,
+    WebSearchToolChoice,
 )
+
+
+def test_search_history_preserves_hosted_ownership_and_placeholder_state():
+    """Ensures replayed search state stays assistant content without validity checks."""
+    call = SearchCall(id="search_1", query="", status="completed")
+    result = SearchResult(
+        tool_call_id=call.id,
+        sources=[WebSearchSource(url="https://example.com", encrypted_content="N/A")],
+    )
+    text = TextOutput(
+        content="Answer",
+        citations=[
+            WebCitation(
+                url="https://example.com",
+                start_index=0,
+                end_index=6,
+                cited_text="Answer",
+                encrypted_index="N/A",
+            )
+        ],
+    )
+    request = NormalizedRequest(
+        tools=[WebSearchTool()],
+        tool_choice=WebSearchToolChoice(),
+        input=[AssistantInput(content=[call, result, text])],
+    )
+    assert request.input[0].content == [call, result, text]
+    assert call.query == ""
+    assert result.sources[0].encrypted_content == "N/A"
+    assert text.citations[0].encrypted_index == "N/A"
+
+
+def test_search_choice_distinguishes_hosted_search_from_same_named_function():
+    """Ensures a client function named web_search does not become a hosted tool."""
+    function = FunctionTool(name="web_search", parameters={})
+    request = NormalizedRequest(
+        tools=[function, WebSearchTool()], tool_choice=WebSearchToolChoice()
+    )
+    assert isinstance(request.tools[0], FunctionTool)
+    assert isinstance(request.tools[1], WebSearchTool)
+    assert isinstance(request.tool_choice, ProviderToolChoice)
+    assert not isinstance(FunctionToolChoice(name="web_search"), ProviderToolChoice)
+    assert request.tool_choice != FunctionToolChoice(name="web_search")
+
+
+def test_provider_tool_choice_requires_protocol_conversions():
+    """Ensures provider tool choices cannot be instantiated without wire conversions."""
+    with pytest.raises(TypeError, match="abstract"):
+        ProviderToolChoice()
+
+
+def test_provider_tool_choice_round_trip_preserves_concrete_type():
+    """Ensures serialized provider choices retain strict validation and their subtype."""
+    request = NormalizedRequest(tool_choice=WebSearchToolChoice(type="web_search"))
+    restored = NormalizedRequest.model_validate_json(request.model_dump_json())
+
+    assert isinstance(restored.tool_choice, WebSearchToolChoice)
+    assert isinstance(restored.tool_choice, ProviderToolChoice)
+    assert restored.tool_choice == request.tool_choice
+    with pytest.raises(ValidationError):
+        NormalizedRequest(tool_choice={"type": "unknown_provider_tool"})
+    with pytest.raises(ValidationError):
+        NormalizedRequest(tool_choice={"type": "web_search", "unknown": True})
+
+
+def test_search_history_rejects_output_extensions_without_rejecting_output():
+    """Ensures provider output extensions cannot silently become input semantics."""
+    call = SearchCall(id="search_1", future_metadata=True)
+    assert call.extra_fields == {"future_metadata": True}
+    with pytest.raises(ValidationError, match="Extra request fields"):
+        NormalizedRequest(input=[call])
+
+
+def test_search_result_distinguishes_missing_sources_from_observed_empty_results():
+    """Ensures an unknown result cannot masquerade as an observed successful empty list."""
+    assert SearchResult(tool_call_id="search_1").sources is None
+    assert SearchResult(tool_call_id="search_1", sources=[]).sources == []
 
 
 def test_user_input_preserves_message_boundary_around_text_parts():

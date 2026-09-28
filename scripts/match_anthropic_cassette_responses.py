@@ -3,7 +3,9 @@
 
 The Responses cassette is canonical. This script rewrites the representable
 request and JSON response fields in a Messages cassette while preserving its
-native wire format and transport metadata.
+native wire format and transport metadata. Hosted search uses the planned reduced
+Messages contract: observed sources, answer-range citations, and N/A state
+placeholders. Missing sources on a completed search are an evidence error.
 """
 
 from __future__ import annotations
@@ -61,7 +63,11 @@ def _message_content(content: Any) -> list[dict[str, Any]]:
             text = part.get("text")
             if not isinstance(text, str):
                 raise ValueError("Responses text content must contain a string text field.")
-            blocks.append({"type": "text", "text": text})
+            blocks.extend(
+                _cited_text_content(part)
+                if part.get("annotations")
+                else [{"type": "text", "text": text}]
+            )
         else:
             raise ValueError("Responses message content cannot map to Messages.")
     return blocks
@@ -178,6 +184,12 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
         if item_type == "reasoning":
             pending_assistant_content.append(_reasoning_content(item))
             continue
+        if item_type == "web_search_call":
+            _append_assistant_content(
+                messages, [*pending_assistant_content, *_search_content(item)]
+            )
+            pending_assistant_content = []
+            continue
         if item_type == "function_call":
             _append_assistant_content(
                 messages,
@@ -212,6 +224,152 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     return messages
 
 
+def _web_search_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    """Map the basic hosted-search declaration without inventing option defaults."""
+    if "search_context_size" in tool:
+        raise ValueError("Messages cannot translate explicit search_context_size; omit it.")
+    unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
+    if unsupported:
+        raise ValueError(f"Unsupported Responses web search fields: {sorted(unsupported)}")
+    result: dict[str, Any] = {"type": "web_search_20250305", "name": "web_search"}
+    filters = tool.get("filters")
+    if filters is not None:
+        if not isinstance(filters, dict) or set(filters) - {"allowed_domains"}:
+            raise ValueError("Messages web search supports only allowed_domains filters.")
+        if filters.get("allowed_domains") is not None:
+            result["allowed_domains"] = deepcopy(filters["allowed_domains"])
+    if tool.get("user_location") is not None:
+        result["user_location"] = deepcopy(tool["user_location"])
+    return result
+
+
+def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
+    action = item.get("action")
+    if not isinstance(action, dict):
+        raise ValueError("Cannot classify a Responses web search call without its action.")
+    if action.get("type") in {"open_page", "find_in_page"}:
+        return []
+    if action.get("type") != "search":
+        raise ValueError(f"Unsupported Responses web search action: {action.get('type')!r}")
+    queries = action.get("queries")
+    if queries is not None and not isinstance(queries, list):
+        raise ValueError("Responses search queries must be a list.")
+    if queries and len(queries) > 1:
+        raise ValueError(
+            f"Cannot translate search {item.get('id')!r} to Messages: Messages search accepts one query "
+            "per invocation, but this operation contains multiple queries. "
+            "Issue multiple single-query searches instead."
+        )
+    query = queries[0] if queries else action.get("query")
+    if query is not None and not isinstance(query, str):
+        raise ValueError("Responses search query must be a string when present.")
+    call_id = item.get("id")
+    if not isinstance(call_id, str):
+        raise ValueError("Responses web search calls must contain a string id.")
+    blocks = [
+        {
+            "type": "server_tool_use",
+            "id": call_id,
+            "name": "web_search",
+            "input": {} if query is None else {"query": query},
+        }
+    ]
+    status = item.get("status")
+    if status in {"in_progress", "searching"}:
+        return blocks
+    if status == "failed":
+        content: Any = {"type": "web_search_tool_result_error", "error_code": "unavailable"}
+    elif status == "completed":
+        sources = action.get("sources")
+        if not isinstance(sources, list):
+            raise ValueError(
+                "Completed Responses search is missing action.sources; record with "
+                "include=['web_search_call.action.sources']. Missing sources are not empty results."
+            )
+        content = []
+        for source in sources:
+            if not isinstance(source, dict) or not isinstance(source.get("url"), str):
+                raise ValueError("Responses web search sources must contain a string url.")
+            result = {
+                "type": "web_search_result",
+                "url": source["url"],
+                "title": source.get("title") or "",
+                "encrypted_content": "N/A",
+            }
+            if source.get("page_age") is not None:
+                result["page_age"] = source["page_age"]
+            content.append(result)
+    else:
+        raise ValueError(f"Unsupported Responses web search status: {status!r}")
+    blocks.append({"type": "web_search_tool_result", "tool_use_id": call_id, "content": content})
+    return blocks
+
+
+def _cited_text_content(part: dict[str, Any]) -> list[dict[str, Any]]:
+    text = part.get("text")
+    if not isinstance(text, str):
+        raise ValueError("Responses output text must contain a string text field.")
+    annotations = part.get("annotations") or []
+    if not isinstance(annotations, list):
+        raise ValueError("Responses annotations must be a list.")
+    boundaries = {0, len(text)}
+    for annotation in annotations:
+        if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+            raise ValueError("Only Responses URL citations can map to Messages citations.")
+        start, end = annotation.get("start_index"), annotation.get("end_index")
+        if (
+            not isinstance(start, int)
+            or not isinstance(end, int)
+            or not 0 <= start <= end <= len(text)
+        ):
+            raise ValueError("Responses URL citation range must be within its text part.")
+        if not isinstance(annotation.get("url"), str):
+            raise ValueError("Responses URL citations must contain a string url.")
+        boundaries.update((start, end))
+    if not annotations:
+        return [{"type": "text", "text": text}]
+    blocks = []
+    boundaries = sorted(boundaries)
+    intervals = set(zip(boundaries, boundaries[1:], strict=False))
+    # Point citations retain attribution even though they cover no answer characters.
+    intervals.update(
+        (annotation["start_index"], annotation["end_index"])
+        for annotation in annotations
+        if annotation["start_index"] == annotation["end_index"]
+    )
+    for start, end in sorted(intervals):
+        block: dict[str, Any] = {"type": "text", "text": text[start:end]}
+        citations = [
+            {
+                "type": "web_search_result_location",
+                "url": annotation["url"],
+                "title": annotation.get("title") or "",
+                "encrypted_index": "N/A",
+                "cited_text": text[annotation["start_index"] : annotation["end_index"]],
+            }
+            for annotation in annotations
+            if annotation["start_index"] <= start
+            and end <= annotation["end_index"]
+            and (start < end or annotation["start_index"] == annotation["end_index"])
+        ]
+        if citations:
+            block["citations"] = citations
+        blocks.append(block)
+    return blocks
+
+
+def _map_search_usage(response: dict[str, Any], usage: dict[str, Any]) -> None:
+    # Counter snapshots are authoritative; activity blocks cannot establish usage.
+    tool_usage = response.get("tool_usage") or {}
+    search_usage = tool_usage.get("web_search") or {}
+    count = search_usage.get("num_requests")
+    usage.pop("server_tool_use", None)
+    if count is not None:
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise ValueError("Responses web search num_requests must be a nonnegative integer.")
+        usage["server_tool_use"] = {"web_search_requests": count, "web_fetch_requests": 0}
+
+
 def _messages_tools(response_tools: Any) -> list[dict[str, Any]] | None:
     if response_tools is None:
         return None
@@ -220,6 +378,9 @@ def _messages_tools(response_tools: Any) -> list[dict[str, Any]] | None:
 
     tools: list[dict[str, Any]] = []
     for tool in response_tools:
+        if isinstance(tool, dict) and tool.get("type") in {"web_search"}:
+            tools.append(_web_search_tool(tool))
+            continue
         if not isinstance(tool, dict) or tool.get("type") != "function":
             raise ValueError("Only Responses function tools can map to Messages tools.")
         name = tool.get("name")
@@ -260,12 +421,32 @@ def _messages_tool_choice(responses_request: dict[str, Any]) -> dict[str, Any] |
     response_choice = responses_request.get("tool_choice")
     if response_choice is None:
         messages_choice = None
+    elif (
+        response_choice == "required"
+        and len(responses_request.get("tools", [])) == 1
+        and responses_request["tools"][0].get("type") == "web_search"
+    ):
+        messages_choice = {"type": "tool", "name": "web_search"}
     elif isinstance(response_choice, str):
         try:
             choice_type = {"auto": "auto", "none": "none", "required": "any"}[response_choice]
         except KeyError as exc:
             raise ValueError(f"Unsupported Responses tool choice: {response_choice!r}.") from exc
         messages_choice = {"type": choice_type}
+    elif (
+        isinstance(response_choice, dict)
+        and response_choice.get("type") == "allowed_tools"
+        and response_choice.get("mode") == "required"
+        and response_choice.get("tools") == [{"type": "web_search"}]
+    ):
+        if any(
+            tool.get("type") == "function" and tool.get("name") == "web_search"
+            for tool in responses_request.get("tools", [])
+        ):
+            raise ValueError(
+                "Messages cannot select hosted search alongside a function named web_search."
+            )
+        messages_choice = {"type": "tool", "name": "web_search"}
     elif isinstance(response_choice, dict) and response_choice.get("type") == "function":
         name = response_choice.get("name")
         if not isinstance(name, str):
@@ -310,6 +491,10 @@ def _matched_request_body(
         matched_request.pop("tools", None)
     else:
         matched_request["tools"] = matched_tools
+    if matched_tools and responses_request.get("max_tool_calls") is not None:
+        for tool in matched_tools:
+            if tool.get("type") == "web_search_20250305":
+                tool["max_uses"] = responses_request["max_tool_calls"]
     matched_tool_choice = _messages_tool_choice(responses_request)
     if matched_tool_choice is None:
         matched_request.pop("tool_choice", None)
@@ -350,7 +535,9 @@ def _matched_request_body(
     return matched_request
 
 
-def _map_input_usage(response_usage: dict[str, Any], message_usage: dict[str, Any]) -> None:
+def _map_input_usage(
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+) -> None:
     input_details = response_usage.get("input_tokens_details") or {}
     if not isinstance(input_details, dict):
         raise ValueError("Responses input token details must be an object.")
@@ -370,10 +557,18 @@ def _map_input_usage(response_usage: dict[str, Any], message_usage: dict[str, An
     message_usage["input_tokens"] = message_input_tokens
     message_usage["cache_creation_input_tokens"] = cache_creation_tokens
     message_usage["cache_read_input_tokens"] = cache_read_tokens
+    if isinstance(message_usage.get("cache_creation"), dict):
+        # Keep the lifetime breakdown consistent with the canonical cache-write total.
+        message_usage["cache_creation"] = {
+            "ephemeral_5m_input_tokens": cache_creation_tokens if cache_ttl == "5m" else 0,
+            "ephemeral_1h_input_tokens": cache_creation_tokens if cache_ttl == "1h" else 0,
+        }
 
 
-def _map_usage(response_usage: dict[str, Any], message_usage: dict[str, Any]) -> None:
-    _map_input_usage(response_usage, message_usage)
+def _map_usage(
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+) -> None:
+    _map_input_usage(response_usage, message_usage, cache_ttl)
 
     output_tokens = response_usage["output_tokens"]
     total_tokens = response_usage["total_tokens"]
@@ -425,6 +620,9 @@ def _response_content(response: dict[str, Any]) -> tuple[list[dict[str, Any]], b
         if item_type == "reasoning":
             blocks.append(_reasoning_content(item))
             continue
+        if item_type == "web_search_call":
+            blocks.extend(_search_content(item))
+            continue
         if item_type == "function_call":
             tool_use = _function_call_content(item)
             tool_use["caller"] = {"type": "direct"}
@@ -443,15 +641,15 @@ def _response_content(response: dict[str, Any]) -> tuple[list[dict[str, Any]], b
             text = part.get("text")
             if not isinstance(text, str):
                 raise ValueError("Responses output text must contain a string text field.")
-            if part.get("annotations") not in (None, []):
-                raise ValueError("Annotated Responses output cannot map to Messages.")
             if part.get("logprobs") not in (None, []):
                 raise ValueError("Responses output logprobs cannot map to Messages.")
-            blocks.append({"text": text, "type": "text"})
+            blocks.extend(_cited_text_content(part))
     return blocks, has_tool_calls
 
 
-def _stop_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
+def _stop_reason(
+    response: dict[str, Any], *, has_tool_calls: bool, has_search: bool = False
+) -> str:
     status = response.get("status")
     if status == "completed":
         return "tool_use" if has_tool_calls else "end_turn"
@@ -459,6 +657,8 @@ def _stop_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
+    if incomplete_details is None and has_search:
+        return "pause_turn"
     if not isinstance(incomplete_details, dict):
         raise ValueError("Incomplete Responses responses must contain incomplete_details.")
     if incomplete_details.get("reason") == "max_output_tokens":
@@ -491,15 +691,34 @@ def match_messages_response(
     if not isinstance(response_id, str) or not isinstance(model, str):
         raise ValueError("Responses response must contain string id and model fields.")
 
+    has_search = (
+        any(tool.get("type") == "web_search" for tool in responses_request.get("tools", []))
+        or any(item.get("type") == "web_search_call" for item in response.get("output", []))
+        or any(
+            block.get("type") in {"server_tool_use", "web_search_tool_result"}
+            for block in message.get("content", [])
+        )
+    )
     content, has_tool_calls = _response_content(response)
     message["id"] = response_id
     message["model"] = model
     message["role"] = "assistant"
     message["type"] = "message"
     message["content"] = content
-    message["stop_reason"] = _stop_reason(response, has_tool_calls=has_tool_calls)
+    message["stop_reason"] = _stop_reason(
+        response,
+        has_tool_calls=has_tool_calls,
+        has_search=any(
+            tool.get("type") == "web_search" for tool in responses_request.get("tools", [])
+        )
+        or any(item.get("type") == "web_search_call" for item in response.get("output", [])),
+    )
     message["stop_sequence"] = None
-    _map_usage(response_usage, message_usage)
+    _map_usage(
+        response_usage, message_usage, matched_request.get("cache_control", {}).get("ttl", "5m")
+    )
+    if has_search:
+        _map_search_usage(response, message_usage)
     message_usage["service_tier"] = "standard"
 
     messages_cassette["request"]["body"] = matched_request
@@ -508,8 +727,8 @@ def match_messages_response(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare an Anthropic Messages cassette for exact non-streaming "
-            "Messages-to-Responses parity. The Messages cassette is updated in place "
+            "Prepare an Anthropic Messages cassette for non-streaming "
+            "protocol parity, including reduced hosted-search projection. The Messages cassette is updated in place "
             "unless --output is provided."
         )
     )

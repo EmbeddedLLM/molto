@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from molto.types.exceptions import (
 from molto.types.normalized import (
     AssistantInput,
     CacheBreakpoint,
+    CitationDelta,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -34,8 +36,11 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    ProviderToolChoice,
     ResponseEndEvent,
     ResponseStartEvent,
+    SearchCall,
+    SearchResult,
     SystemPrompt,
     TerminationReason,
     TextDelta,
@@ -48,6 +53,8 @@ from molto.types.normalized import (
     ToolReturn,
     Usage,
     UserInput,
+    WebCitation,
+    WebSearchTool,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -66,6 +73,14 @@ _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
 }
 
 
+@dataclass
+class _SearchSnapshot:
+    """Search state observed at item completion or response termination."""
+
+    output_index: int
+    item: Any
+
+
 def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
     """Project one function tool definition into the shared OpenAI field shape."""
     payload: dict[str, Any] = {
@@ -81,10 +96,18 @@ def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
 def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
     if request.tools is None:
         return None
-    return [{"type": "function", **_function_tool_payload(tool)} for tool in request.tools]
+    result = []
+    for tool in request.tools:
+        if isinstance(tool, FunctionTool):
+            result.append({"type": "function", **_function_tool_payload(tool)})
+        else:
+            result.append(tool.to_responses())
+    return result
 
 
 def _responses_tool_choice(request: NormalizedRequest) -> Any:
+    if isinstance(request.tool_choice, ProviderToolChoice):
+        return request.tool_choice.to_responses()
     if isinstance(request.tool_choice, FunctionToolChoice):
         return {"type": "function", "name": request.tool_choice.name}
     return request.tool_choice
@@ -200,14 +223,123 @@ def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     if item.type == "reasoning":
         return _validate_completed_responses_reasoning(_reasoning_part(item))
     if item.type == "message":
-        return TextOutput(
-            content="".join(part.text for part in item.content if part.type == "output_text"),
-            id=item.id,
-        )
+        text = ""
+        citations = []
+        for part in item.content:
+            if part.type != "output_text":
+                continue
+            for annotation in part.annotations:
+                if annotation.type == "url_citation":
+                    citation = WebCitation.from_responses(annotation.model_dump())
+                    citation.start_index += len(text)
+                    citation.end_index += len(text)
+                    citations.append(citation)
+            text += part.text
+        return TextOutput(content=text, id=item.id, citations=citations)
     if item.type == "function_call":
         _validate_responses_function_call(item, statuses={None, "completed"})
         return _function_call_part(item)
     raise ValueError(f"Unsupported Responses output item: {item.type}")
+
+
+def _search_parts(item: Any) -> tuple[SearchCall, SearchResult | None]:
+    """Split a Responses item into a normalized invocation and optional linked result.
+
+    Responses bundles both into one SDK item; Molto models them separately.
+    For example, a completed search becomes a call carrying the query and a
+    result carrying source URLs, linked by the call ID. Failed searches produce
+    a result with error="unavailable"; unfinished searches and browsing actions
+    produce only a call. Missing sources stay None rather than becoming [].
+    The caller emits each returned part's start/end events.
+    """
+    data = item.model_dump()
+    call = SearchCall.from_responses(data)
+    result = None
+    if call.action == "search" and call.status in {"completed", "failed"}:
+        result = SearchResult.from_responses(data)
+    return call, result
+
+
+async def _ordered_items(
+    events: AsyncIterator[ResponseStreamEvent],
+) -> AsyncIterator[ResponseStreamEvent | _SearchSnapshot]:
+    """Stream items in start order, yielding search snapshots once classified."""
+    # A search at index 1 may start without an action, then answer text at index 2
+    # may arrive before the search's query and sources. Emitting that text now
+    # would put the answer before its search in the normalized stream. Keep an
+    # item FIFO: ordinary items stream at the head, while searches wait for their
+    # final snapshot to distinguish search from browsing and link any results.
+    # Interrupted searches may obtain that snapshot only from the terminal response.
+    pending: dict[int, deque[ResponseStreamEvent | _SearchSnapshot]] = {}
+    searches: dict[int, Any] = {}
+    async for event in events:
+        terminal = event.type in {"response.completed", "response.incomplete"}
+        index = getattr(event, "output_index", None)
+        if terminal:
+            final_items = {item.id: item for item in event.response.output}
+            for search_index, initial in searches.items():
+                pending[search_index].append(
+                    _SearchSnapshot(search_index, final_items.get(initial.id, initial))
+                )
+            searches.clear()
+        elif event.type.startswith("response.web_search_call."):
+            continue
+        elif index is None:
+            yield event
+            continue
+        else:
+            chunks = pending.setdefault(index, deque())
+            if event.type == "response.output_item.added" and event.item.type == "web_search_call":
+                searches[index] = event.item
+            elif (
+                event.type == "response.output_item.done" and event.item.type == "web_search_call"
+            ):
+                searches.pop(index, None)
+                chunks.append(_SearchSnapshot(index, event.item))
+            else:
+                chunks.append(event)
+        while pending:
+            index = next(iter(pending))
+            chunks = pending[index]
+            if not chunks:
+                if terminal:
+                    del pending[index]
+                    continue
+                break
+            current = chunks.popleft()
+            if isinstance(current, _SearchSnapshot) or current.type == "response.output_item.done":
+                del pending[index]
+            yield current
+        if terminal:
+            yield event
+    if any(pending.values()):
+        raise ValueError("Responses stream ended before queued items could be emitted.")
+
+
+def _merge_search_result(items: list[dict[str, Any]], result: SearchResult) -> None:
+    """Fold a normalized history result into a Responses search item in place.
+
+    Responses bundles invocation and result together. For example, a result
+    linked to call "s1" adds source URLs to that item's action and marks it
+    completed, or failed when an error is present. Update the most recent
+    matching call; if none exists, append one with the same ID and no query.
+    Supplied sources replace the list (including []); None leaves it unchanged.
+    """
+    search_item = None
+    for item in reversed(items):
+        if item.get("type") == "web_search_call" and item["id"] == result.tool_call_id:
+            search_item = item
+            break
+
+    if search_item is None:
+        # Responses stores the invocation and result in one item. Standalone
+        # history results retain their identity without inventing query metadata.
+        search_item = SearchCall(id=result.tool_call_id).to_responses()
+        items.append(search_item)
+
+    search_item["status"] = "failed" if result.error is not None else "completed"
+    if result.sources is not None:
+        search_item["action"]["sources"] = [source.to_responses() for source in result.sources]
 
 
 def _responses_usage(raw_usage: Any) -> Usage | None:
@@ -254,7 +386,6 @@ def _chat_usage(raw_usage: Any) -> Usage:
 _IGNORED_RESPONSES_EVENTS = frozenset(
     {
         "response.in_progress",
-        "response.content_part.done",
         "response.reasoning_text.done",
         "response.reasoning_summary_part.done",
         "response.reasoning_summary_text.done",
@@ -329,7 +460,9 @@ class OpenAIResponsesClient(
 
     @staticmethod
     def _assistant_items(
-        parts: list[Thinking | TextOutput | ToolCall], *, message_id: str | None = None
+        parts: list[Thinking | TextOutput | ToolCall | SearchCall | SearchResult],
+        *,
+        message_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if message_id is not None and any(not isinstance(part, TextOutput) for part in parts):
             raise UnsupportedInput(
@@ -355,11 +488,15 @@ class OpenAIResponsesClient(
                     {
                         "type": "output_text",
                         "text": item.content,
-                        "annotations": [],
+                        "annotations": [citation.to_responses() for citation in item.citations],
                         "logprobs": [],
                         **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
                     }
                 )
+            elif isinstance(item, SearchCall):
+                items.append(item.to_responses())
+            elif isinstance(item, SearchResult):
+                _merge_search_result(items, item)
             elif isinstance(item, Thinking):
                 if item.summary and not item.signature:
                     raise UnsupportedInput("A Responses reasoning summary requires a signature.")
@@ -446,8 +583,10 @@ class OpenAIResponsesClient(
                 items.extend(
                     OpenAIResponsesClient._assistant_items(item.content, message_id=item.id)
                 )
-            elif isinstance(item, (Thinking, ToolCall)):
+            elif isinstance(item, (Thinking, ToolCall, SearchCall)):
                 items.extend(OpenAIResponsesClient._assistant_items([item]))
+            elif isinstance(item, SearchResult):
+                _merge_search_result(items, item)
             elif isinstance(item, ToolReturn):
                 if item.outcome != "success":
                     raise UnsupportedInput(
@@ -513,6 +652,8 @@ class OpenAIResponsesClient(
             body["reasoning"] = request.reasoning.model_dump(exclude={"extra_fields"})
         if request.stream_options is not None:
             body["stream_options"] = request.stream_options.model_dump(exclude={"extra_fields"})
+        if any(isinstance(tool, WebSearchTool) for tool in request.tools or []):
+            body["include"] = ["web_search_call.action.sources"]
         body.update(_prompt_cache_fields(request))
         try:
             return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
@@ -521,6 +662,14 @@ class OpenAIResponsesClient(
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        search_enabled = any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
+        if search_enabled and self._extra_body is not None:
+            # SDK extra_body wins over typed request parameters. Retain caller
+            # include entries while keeping search sources enabled on translation.
+            includes = list(native_request.include or [])
+            includes.extend(self._extra_body.get("include") or [])
+            unique_includes = list(dict.fromkeys(includes))
+            self._extra_body = {**self._extra_body, "include": unique_includes}
         # Only a reasoning item whose `added` snapshot is completely empty (no
         # content, summary, or encrypted state) is deferred: if nothing ever
         # arrives, its part lifecycle is omitted from the IR entirely. An item
@@ -530,11 +679,23 @@ class OpenAIResponsesClient(
         # Source output indices map to dense normalized indices so an omitted
         # reasoning item cannot leave a gap for downstream projections.
         part_indices: dict[int, int] = {}
+        text_indices: dict[tuple[int, int], int] = {}
+        ended_text_items: set[int] = set()
+        next_index = 0
+        defer_citations = search_enabled or any(
+            isinstance(part, (SearchCall, SearchResult))
+            or isinstance(part, TextOutput)
+            and bool(part.citations)
+            for item in request.input or []
+            for part in (item.content if isinstance(item, AssistantInput) else [item])
+        )
 
         def start_part(
-            source_index: int, part: Thinking | TextOutput | ToolCall
+            source_index: int, part: Thinking | TextOutput | ToolCall | SearchCall | SearchResult
         ) -> PartStartEvent:
-            part_indices[source_index] = len(part_indices)
+            nonlocal next_index
+            part_indices[source_index] = next_index
+            next_index += 1
             return PartStartEvent(index=part_indices[source_index], part=part)
 
         def part_index(source_index: int) -> int:
@@ -542,10 +703,24 @@ class OpenAIResponsesClient(
             # seen; keep its source index rather than inventing a dense one.
             return part_indices.get(source_index, source_index)
 
-        async with aclosing(self.native_events(native_request)) as native_events:
-            async for event in native_events:
+        async with (
+            aclosing(self.native_events(native_request)) as native_events,
+            aclosing(_ordered_items(native_events)) as ordered_events,
+        ):
+            async for event in ordered_events:
+                if isinstance(event, _SearchSnapshot):
+                    if getattr(event.item, "action", None) is None:
+                        continue
+                    call, result = _search_parts(event.item)
+                    yield start_part(event.output_index, call)
+                    yield PartEndEvent(index=part_index(event.output_index), part=call)
+                    if result is not None:
+                        index = next_index
+                        next_index += 1
+                        yield PartStartEvent(index=index, part=result)
+                        yield PartEndEvent(index=index, part=result)
+                    continue
                 event_type = event.type
-
                 if event_type == "response.created":
                     metadata = event.response
                     yield ResponseStartEvent(
@@ -556,6 +731,8 @@ class OpenAIResponsesClient(
                     )
                 elif event_type == "response.output_item.added":
                     part = _started_output_item(event.item)
+                    if isinstance(part, TextOutput):
+                        part.defer_citations = defer_citations
                     if isinstance(part, Thinking):
                         _validate_responses_reasoning_capability(part, self._capabilities.thinking)
                     if (
@@ -606,11 +783,35 @@ class OpenAIResponsesClient(
                             index=part_index(event.output_index),
                             delta=ThinkingDelta(content_delta=added_part.text),
                         )
-                    elif added_part.type == "output_text" and added_part.text:
-                        yield PartDeltaEvent(
-                            index=part_index(event.output_index),
-                            delta=TextDelta(content_delta=added_part.text),
-                        )
+                    elif added_part.type == "output_text":
+                        key = (event.output_index, event.content_index)
+                        if event.content_index == 0:
+                            text_indices[key] = part_index(event.output_index)
+                        else:
+                            index = next_index
+                            next_index += 1
+                            text_indices[key] = index
+                            yield PartStartEvent(
+                                index=index,
+                                part=TextOutput(
+                                    content="", id=event.item_id, defer_citations=defer_citations
+                                ),
+                            )
+                        if added_part.text:
+                            yield PartDeltaEvent(
+                                index=text_indices[key],
+                                delta=TextDelta(content_delta=added_part.text),
+                            )
+                        for annotation in added_part.annotations:
+                            if annotation.type == "url_citation":
+                                yield PartDeltaEvent(
+                                    index=text_indices[key],
+                                    delta=CitationDelta(
+                                        citation=WebCitation.from_responses(
+                                            annotation.model_dump()
+                                        )
+                                    ),
+                                )
                 elif event_type == "response.reasoning_summary_part.added":
                     added_part = event.part
                     if added_part.type == "summary_text" and added_part.text:
@@ -624,15 +825,52 @@ class OpenAIResponsesClient(
                         )
                 elif event_type == "response.output_text.delta":
                     yield PartDeltaEvent(
-                        index=part_index(event.output_index),
+                        index=text_indices.get(
+                            (event.output_index, event.content_index),
+                            part_index(event.output_index),
+                        ),
                         delta=TextDelta(content_delta=event.delta),
                     )
+                elif event_type == "response.output_text.annotation.added":
+                    if (
+                        not isinstance(event.annotation, dict)
+                        or event.annotation.get("type") != "url_citation"
+                    ):
+                        raise ValueError(f"Unsupported Responses annotation: {event.annotation}")
+                    yield PartDeltaEvent(
+                        index=text_indices.get(
+                            (event.output_index, event.content_index),
+                            part_index(event.output_index),
+                        ),
+                        delta=CitationDelta(citation=WebCitation.from_responses(event.annotation)),
+                    )
+                elif event_type == "response.content_part.done":
+                    if event.part.type == "output_text" and event.output_index in part_indices:
+                        ended_text_items.add(event.output_index)
+                        yield PartEndEvent(
+                            index=text_indices.get(
+                                (event.output_index, event.content_index),
+                                part_index(event.output_index),
+                            ),
+                            part=TextOutput(
+                                content=event.part.text,
+                                id=event.item_id,
+                                defer_citations=defer_citations,
+                                citations=[
+                                    WebCitation.from_responses(annotation.model_dump())
+                                    for annotation in event.part.annotations
+                                    if annotation.type == "url_citation"
+                                ],
+                            ),
+                        )
                 elif event_type == "response.function_call_arguments.delta":
                     yield PartDeltaEvent(
                         index=part_index(event.output_index),
                         delta=ToolCallDelta(args_delta=event.delta),
                     )
                 elif event_type == "response.output_item.done":
+                    if event.item.type == "message" and event.output_index in ended_text_items:
+                        continue
                     start = pending_reasoning.pop(event.output_index, None)
                     part = _completed_output_item(event.item)
                     if isinstance(part, Thinking):
@@ -665,15 +903,34 @@ class OpenAIResponsesClient(
                     else:
                         incomplete_details = metadata.incomplete_details
                         if incomplete_details is None or incomplete_details.reason is None:
-                            raise ValueError("Incomplete Responses stream omitted its reason.")
-                        termination_reason = incomplete_details.reason
+                            termination_reason = "pause"
+                        else:
+                            termination_reason = incomplete_details.reason
+                    usage = _responses_usage(metadata.usage)
+                    tool_usage = getattr(metadata, "tool_usage", None)
+                    search_usage = (
+                        (tool_usage.get("web_search") or {})
+                        if isinstance(tool_usage, dict)
+                        else {}
+                    )
+                    if (
+                        defer_citations
+                        and usage is not None
+                        and search_usage.get("num_requests") is not None
+                    ):
+                        usage.extra_fields["web_search_requests"] = search_usage["num_requests"]
                     yield ResponseEndEvent(
                         id=metadata.id,
                         created_at=int(metadata.created_at),
                         model=metadata.model,
                         service_tier=metadata.service_tier,
                         termination_reason=termination_reason,
-                        usage=_responses_usage(metadata.usage),
+                        usage=usage,
+                        **(
+                            {"web_search_requests": search_usage["num_requests"]}
+                            if defer_citations and search_usage.get("num_requests") is not None
+                            else {}
+                        ),
                     )
                 elif event_type in _IGNORED_RESPONSES_EVENTS:
                     continue
@@ -744,6 +1001,13 @@ class OpenAIChatCompletionsClient(
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
+        if (
+            request.web_search_options is not None
+            or (self._extra_body or {}).get("web_search_options") is not None
+        ):
+            raise UnsupportedInput(
+                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
+            )
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.chat.completions.create(
@@ -765,6 +1029,13 @@ class OpenAIChatCompletionsClient(
     async def native_response(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> OpenAIChatCompletionsResponse:
+        if (
+            request.web_search_options is not None
+            or (self._extra_body or {}).get("web_search_options") is not None
+        ):
+            raise UnsupportedInput(
+                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
+            )
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.chat.completions.create(
@@ -1012,6 +1283,20 @@ class OpenAIChatCompletionsClient(
 
     @staticmethod
     def _validate_request(request: NormalizedRequest) -> None:
+        if (
+            any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
+            or isinstance(request.tool_choice, ProviderToolChoice)
+            or any(
+                isinstance(part, (SearchCall, SearchResult))
+                or isinstance(part, TextOutput)
+                and bool(part.citations)
+                for item in request.input or []
+                for part in (item.content if isinstance(item, AssistantInput) else [item])
+            )
+        ):
+            raise UnsupportedInput(
+                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
+            )
         if request.max_tool_calls is not None:
             raise UnsupportedInput("Chat Completions cannot represent max_tool_calls.")
         if request.reasoning is not None and request.reasoning.summary not in (

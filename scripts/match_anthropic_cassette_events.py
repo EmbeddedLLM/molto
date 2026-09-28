@@ -44,6 +44,11 @@ envelope fields such as item IDs, sequence numbers, and timestamps cannot be
 encoded in Messages events; the converter must generate those fields
 deterministically for parity. Messages-only lifecycle and transport events remain
 native, and all transport metadata is intentionally left unchanged.
+
+Hosted search uses a reduced Messages projection with observed sources,
+answer-range citations and N/A state placeholders. Completed searches lacking
+source data fail matching. Cited text parts wait for complete annotations;
+unannotated text, reasoning, and client function deltas retain their boundaries.
 """
 
 from __future__ import annotations
@@ -55,6 +60,25 @@ from pathlib import Path
 from typing import Any
 
 from molto.utils.io import dump_yaml, json_dumps, json_loads, read_yaml
+
+if __package__:
+    from scripts.match_anthropic_cassette_responses import (
+        _cited_text_content,
+        _map_search_usage,
+        _messages_tool_choice,
+        _response_content,
+        _search_content,
+        _web_search_tool,
+    )
+else:
+    from match_anthropic_cassette_responses import (
+        _cited_text_content,
+        _map_search_usage,
+        _messages_tool_choice,
+        _response_content,
+        _search_content,
+        _web_search_tool,
+    )
 
 
 @dataclass
@@ -144,7 +168,11 @@ def _message_content(content: Any) -> list[dict[str, Any]]:
             text = part.get("text")
             if not isinstance(text, str):
                 raise ValueError("Responses text content must contain a string text field.")
-            blocks.append({"type": "text", "text": text})
+            blocks.extend(
+                _cited_text_content(part)
+                if part.get("annotations")
+                else [{"type": "text", "text": text}]
+            )
         else:
             raise ValueError("Responses message content cannot map to Messages.")
         if part.get("prompt_cache_breakpoint") is not None:
@@ -275,6 +303,12 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
         if item_type == "reasoning":
             pending_assistant_content.append(_reasoning_content(item))
             continue
+        if item_type == "web_search_call":
+            _append_assistant_content(
+                messages, [*pending_assistant_content, *_search_content(item)]
+            )
+            pending_assistant_content = []
+            continue
         if item_type == "function_call":
             _append_assistant_content(
                 messages,
@@ -317,6 +351,9 @@ def _messages_tools(response_tools: Any) -> list[dict[str, Any]] | None:
 
     tools: list[dict[str, Any]] = []
     for tool in response_tools:
+        if isinstance(tool, dict) and tool.get("type") in {"web_search"}:
+            tools.append(_web_search_tool(tool))
+            continue
         if not isinstance(tool, dict) or tool.get("type") != "function":
             raise ValueError("Only Responses function tools can map to Messages tools.")
 
@@ -362,39 +399,6 @@ def _messages_tools(response_tools: Any) -> list[dict[str, Any]] | None:
             )
         tools.append(messages_tool)
     return tools
-
-
-def _messages_tool_choice(responses_request: dict[str, Any]) -> dict[str, Any] | None:
-    response_choice = responses_request.get("tool_choice")
-    if response_choice is None:
-        messages_choice = None
-    elif isinstance(response_choice, str):
-        try:
-            choice_type = {
-                "auto": "auto",
-                "none": "none",
-                "required": "any",
-            }[response_choice]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported Responses tool choice: {response_choice!r}.") from exc
-        messages_choice = {"type": choice_type}
-    elif isinstance(response_choice, dict) and response_choice.get("type") == "function":
-        name = response_choice.get("name")
-        if not isinstance(name, str):
-            raise ValueError("A Responses function tool choice must contain a string name.")
-        messages_choice = {"name": name, "type": "tool"}
-    else:
-        raise ValueError("Only Responses function tool choices can map to Messages.")
-
-    parallel_tool_calls = responses_request.get("parallel_tool_calls")
-    if parallel_tool_calls is not None:
-        if not isinstance(parallel_tool_calls, bool):
-            raise ValueError("Responses parallel_tool_calls must be a boolean.")
-        if messages_choice is None:
-            messages_choice = {"type": "auto"}
-        if messages_choice["type"] != "none":
-            messages_choice["disable_parallel_tool_use"] = not parallel_tool_calls
-    return messages_choice
 
 
 def _matched_request_body(
@@ -459,6 +463,10 @@ def _matched_request_body(
         matched_request.pop("tools", None)
     else:
         matched_request["tools"] = matched_tools
+    if matched_tools and responses_request.get("max_tool_calls") is not None:
+        for tool in matched_tools:
+            if tool.get("type") == "web_search_20250305":
+                tool["max_uses"] = responses_request["max_tool_calls"]
     matched_tool_choice = _messages_tool_choice(responses_request)
     if matched_tool_choice is None:
         matched_request.pop("tool_choice", None)
@@ -561,6 +569,8 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
 
 def _response_terminal(
     events: list[dict[str, Any]],
+    *,
+    has_search: bool = False,
 ) -> tuple[dict[str, Any], str]:
     terminal_events = [
         event
@@ -581,6 +591,11 @@ def _response_terminal(
         return response, "end_turn"
 
     incomplete_details = response.get("incomplete_details")
+    if incomplete_details is None and (
+        has_search
+        or any(item.get("type") == "web_search_call" for item in response.get("output", []))
+    ):
+        return response, "pause_turn"
     if not isinstance(incomplete_details, dict):
         raise ValueError("response.incomplete must contain incomplete_details.")
     reason = incomplete_details.get("reason")
@@ -1042,6 +1057,131 @@ def _write_message_event_units(
     cassette["response"]["sse"] = sse_entries
 
 
+def _replace_search_content(
+    units: list[_SSEEventUnit], events: list[dict[str, Any]], response: dict[str, Any]
+) -> None:
+    """Rebuild balanced blocks while retaining reconstructible native delta boundaries."""
+    projected: list[_SSEEventUnit] = []
+
+    def append(event: dict[str, Any]) -> None:
+        projected.append(
+            _SSEEventUnit(
+                [f"event: {event['type']}\n", f"data: {json_dumps(event)}\n", "\n"], 1, event
+            )
+        )
+
+    def emit(block: dict[str, Any], deltas: list[dict[str, Any]]) -> None:
+        nonlocal index
+        append({"type": "content_block_start", "index": index, "content_block": block})
+        for delta in deltas:
+            append({"type": "content_block_delta", "index": index, "delta": delta})
+        append({"type": "content_block_stop", "index": index})
+        index += 1
+
+    index = 0
+    for output_index, terminal_item in enumerate(response["output"]):
+        item_events = [event for event in events if event.get("output_index") == output_index]
+        # Item-done owns opaque reasoning state, rather than the later terminal snapshot.
+        item = next(
+            (
+                event["item"]
+                for event in item_events
+                if event.get("type") == "response.output_item.done"
+            ),
+            terminal_item,
+        )
+        if item["type"] == "message":
+            for content_index, part in enumerate(item["content"]):
+                part_events = [
+                    event for event in item_events if event.get("content_index") == content_index
+                ]
+                chunks = _response_text_deltas(part_events, "response.output_text", optional=True)
+                if chunks is not None and "".join(chunks) != part["text"]:
+                    raise ValueError(
+                        "Responses text deltas disagree with the output item snapshot."
+                    )
+                if part.get("logprobs") not in (None, []):
+                    raise ValueError("Responses output logprobs cannot map to Messages.")
+                for block in _cited_text_content(part):
+                    # Only annotated parts need buffering and citation-range splitting.
+                    text_chunks = (
+                        [block["text"]] if part.get("annotations") or chunks is None else chunks
+                    )
+                    deltas = [{"type": "text_delta", "text": chunk} for chunk in text_chunks]
+                    deltas.extend(
+                        {"type": "citations_delta", "citation": citation}
+                        for citation in block.get("citations", [])
+                    )
+                    emit({"type": "text", "text": ""}, deltas)
+            continue
+        blocks, _ = _response_content({"output": [item]})
+        for block in blocks:
+            start = deepcopy(block)
+            deltas = []
+            if block["type"] in {"server_tool_use", "tool_use"}:
+                start["input"] = {}
+                if block["type"] == "tool_use":
+                    chunks = [
+                        event["delta"]
+                        for event in item_events
+                        if event.get("type") == "response.function_call_arguments.delta"
+                    ]
+                    added_arguments = next(
+                        (
+                            event["item"].get("arguments", "")
+                            for event in item_events
+                            if event.get("type") == "response.output_item.added"
+                        ),
+                        "",
+                    )
+                    if added_arguments:
+                        chunks.insert(0, added_arguments)
+                    if chunks and "".join(chunks) != item["arguments"]:
+                        raise ValueError(
+                            "Responses function argument deltas disagree with its item snapshot."
+                        )
+                else:
+                    chunks = []
+                deltas.extend(
+                    {"type": "input_json_delta", "partial_json": chunk}
+                    for chunk in chunks or [json_dumps(block["input"])]
+                )
+            elif block["type"] == "thinking":
+                start["thinking"] = ""
+                added = next(
+                    (
+                        event["item"]
+                        for event in item_events
+                        if event.get("type") == "response.output_item.added"
+                    ),
+                    {},
+                )
+                start["signature"] = added.get("encrypted_content", "")
+                chunks = _response_reasoning_deltas(item_events) or []
+                if chunks and "".join(chunks) != block["thinking"]:
+                    raise ValueError("Responses reasoning deltas disagree with its item snapshot.")
+                deltas.extend(
+                    {"type": "thinking_delta", "thinking": chunk}
+                    for chunk in chunks or ([block["thinking"]] if block["thinking"] else [])
+                )
+                if "signature" in block:
+                    deltas.append({"type": "signature_delta", "signature": block["signature"]})
+            emit(start, deltas)
+    # Keep native envelope/ping events and replace only content lifecycle events.
+    insertion = next(
+        (
+            i
+            for i, unit in enumerate(units)
+            if unit.event.get("type", "").startswith("content_block_")
+        ),
+        next(i for i, unit in enumerate(units) if unit.event.get("type") == "message_delta"),
+    )
+    units[:] = [
+        unit for unit in units if not unit.event.get("type", "").startswith("content_block_")
+    ]
+    units[insertion:insertion] = projected
+
+
 def match_messages_events(
     messages_cassette: dict[str, Any], responses_cassette: dict[str, Any]
 ) -> None:
@@ -1060,7 +1200,12 @@ def match_messages_events(
 
     created_event = _response_event(response_events, "response.created")
     created_response = created_event.get("response")
-    terminal_response, stop_reason = _response_terminal(response_events)
+    terminal_response, stop_reason = _response_terminal(
+        response_events,
+        has_search=any(
+            tool.get("type") == "web_search" for tool in responses_request.get("tools", [])
+        ),
+    )
     if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):
@@ -1071,55 +1216,78 @@ def match_messages_events(
     if not isinstance(response_usage, dict):
         raise ValueError("Responses terminal event must contain usage for stream matching.")
 
-    response_text_deltas = _response_text_deltas(
-        response_events, "response.output_text", optional=True
+    has_search = (
+        any(item.get("type") == "web_search_call" for item in terminal_response.get("output", []))
+        or any(tool.get("type") == "web_search" for tool in responses_request.get("tools", []))
+        or any(
+            unit.event.get("content_block", {}).get("type")
+            in {"server_tool_use", "web_search_tool_result"}
+            for unit in message_units
+        )
     )
-    response_reasoning_deltas = _response_reasoning_deltas(response_events)
-    response_tool_calls = _response_tool_calls(response_events)
-    if response_tool_calls and any(
-        event.get("type") == "response.completed" for event in response_events
-    ):
-        stop_reason = "tool_use"
-    if response_reasoning_deltas == []:
-        _insert_empty_thinking_block(message_units)
-    _replace_content_deltas(
-        message_units,
-        response_reasoning_deltas,
-        block_type="thinking",
-        delta_type="thinking_delta",
-        delta_field="thinking",
+    has_citations = any(
+        part.get("annotations")
+        for item in terminal_response.get("output", [])
+        for part in item.get("content", [])
     )
-    if response_reasoning_deltas is None:
-        response_reasoning_done_encrypted_content = None
+    if has_search or has_citations:
+        _replace_search_content(message_units, response_events, terminal_response)
+        if stop_reason == "end_turn" and any(
+            item.get("type") == "function_call" for item in terminal_response["output"]
+        ):
+            stop_reason = "tool_use"
     else:
-        _replace_thinking_start_signature(
+        response_text_deltas = _response_text_deltas(
+            response_events, "response.output_text", optional=True
+        )
+        response_reasoning_deltas = _response_reasoning_deltas(response_events)
+        response_tool_calls = _response_tool_calls(response_events)
+        if response_tool_calls and any(
+            event.get("type") == "response.completed" for event in response_events
+        ):
+            stop_reason = "tool_use"
+        if response_reasoning_deltas == []:
+            _insert_empty_thinking_block(message_units)
+        _replace_content_deltas(
             message_units,
-            _response_reasoning_encrypted_content(response_events, "response.output_item.added"),
+            response_reasoning_deltas,
+            block_type="thinking",
+            delta_type="thinking_delta",
+            delta_field="thinking",
         )
-        response_reasoning_done_encrypted_content = _response_reasoning_encrypted_content(
-            response_events, "response.output_item.done"
+        if response_reasoning_deltas is None:
+            response_reasoning_done_encrypted_content = None
+        else:
+            _replace_thinking_start_signature(
+                message_units,
+                _response_reasoning_encrypted_content(
+                    response_events, "response.output_item.added"
+                ),
+            )
+            response_reasoning_done_encrypted_content = _response_reasoning_encrypted_content(
+                response_events, "response.output_item.done"
+            )
+        _replace_content_deltas(
+            message_units,
+            None
+            if response_reasoning_deltas is None
+            else (
+                [response_reasoning_done_encrypted_content]
+                if response_reasoning_done_encrypted_content is not None
+                else []
+            ),
+            block_type="thinking",
+            delta_type="signature_delta",
+            delta_field="signature",
         )
-    _replace_content_deltas(
-        message_units,
-        None
-        if response_reasoning_deltas is None
-        else (
-            [response_reasoning_done_encrypted_content]
-            if response_reasoning_done_encrypted_content is not None
-            else []
-        ),
-        block_type="thinking",
-        delta_type="signature_delta",
-        delta_field="signature",
-    )
-    _replace_content_deltas(
-        message_units,
-        response_text_deltas,
-        block_type="text",
-        delta_type="text_delta",
-        delta_field="text",
-    )
-    _replace_tool_calls(message_units, response_tool_calls)
+        _replace_content_deltas(
+            message_units,
+            response_text_deltas,
+            block_type="text",
+            delta_type="text_delta",
+            delta_field="text",
+        )
+        _replace_tool_calls(message_units, response_tool_calls)
 
     message_start = _message_event(message_units, "message_start").get("message")
     if not isinstance(message_start, dict):
@@ -1136,6 +1304,8 @@ def match_messages_events(
     if not isinstance(message_start_usage, dict):
         raise ValueError("message_start.message must contain usage.")
     _map_input_usage(response_usage, message_start_usage, cache_ttl)
+    if has_search:
+        _map_search_usage(created_response, message_start_usage)
     message_start_usage["output_tokens"] = 0
     message_start_usage["service_tier"] = "standard"
 
@@ -1152,6 +1322,8 @@ def match_messages_events(
     if not isinstance(message_delta_usage, dict):
         raise ValueError("message_delta must contain usage.")
     _map_usage(response_usage, message_delta_usage, cache_ttl)
+    if has_search:
+        _map_search_usage(terminal_response, message_delta_usage)
 
     messages_cassette["request"]["body"] = matched_request
     _write_message_event_units(messages_cassette, prefix, message_units)
@@ -1160,8 +1332,8 @@ def match_messages_events(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare an Anthropic Messages input cassette for exact "
-            "Messages-to-Responses stream parity. The Messages cassette is updated in "
+            "Prepare an Anthropic Messages input cassette for "
+            "protocol stream parity, including reduced hosted-search projection. The Messages cassette is updated in "
             "place unless --output is provided."
         )
     )
