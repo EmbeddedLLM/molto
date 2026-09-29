@@ -220,45 +220,6 @@ def _validate_cache_controls(body: dict[str, Any]) -> None:
             raise UnsupportedInput("Anthropic 1h cache breakpoints must precede 5m breakpoints.")
 
 
-def _messages_web_search_tool(
-    search: WebSearchTool, *, max_tool_calls: int | None = None
-) -> dict[str, Any]:
-    """Build a Messages tool declaration with the request's optional search budget."""
-    if search.search_context_size is not None:
-        raise UnsupportedInput(
-            "tools.web_search.search_context_size cannot be represented by Anthropic Messages."
-        )
-    tool: dict[str, Any] = {"type": "web_search_20250305", "name": "web_search"}
-    for key in ("allowed_domains", "blocked_domains"):
-        if (value := getattr(search, key)) is not None:
-            tool[key] = value
-    if search.user_location is not None:
-        tool["user_location"] = {"type": "approximate", **search.user_location.model_dump()}
-    if max_tool_calls is not None:
-        tool["max_uses"] = max_tool_calls
-    return tool
-
-
-def _tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
-    if request.tools is None:
-        return None
-    tools: list[dict[str, Any]] = []
-    for tool in request.tools:
-        if isinstance(tool, WebSearchTool):
-            tools.append(_messages_web_search_tool(tool, max_tool_calls=request.max_tool_calls))
-            continue
-        native_tool: dict[str, Any] = {
-            "name": tool.name,
-            "input_schema": tool.parameters,
-        }
-        if tool.description is not None:
-            native_tool["description"] = tool.description
-        if tool.strict:
-            native_tool["strict"] = True
-        tools.append(native_tool)
-    return tools
-
-
 def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
     has_tools = bool(request.tools)
     if not has_tools and (
@@ -406,6 +367,35 @@ class AnthropicMessagesClient(
             return response
         except Exception as error:
             self._handle_error(error)
+
+    @staticmethod
+    def _translate_tool(
+        tool: FunctionTool | WebSearchTool, *, max_tool_calls: int | None = None
+    ) -> dict[str, Any]:
+        """Translate a normalized tool into a Messages tool declaration."""
+        if isinstance(tool, WebSearchTool):
+            if tool.search_context_size is not None:
+                raise UnsupportedInput(
+                    "tools.web_search.search_context_size cannot be represented by Anthropic Messages."
+                )
+            native_tool: dict[str, Any] = {"type": "web_search_20250305", "name": "web_search"}
+            for key in ("allowed_domains", "blocked_domains"):
+                if (value := getattr(tool, key)) is not None:
+                    native_tool[key] = value
+            if tool.user_location is not None:
+                native_tool["user_location"] = {
+                    "type": "approximate",
+                    **tool.user_location.model_dump(),
+                }
+            if max_tool_calls is not None:
+                native_tool["max_uses"] = max_tool_calls
+            return native_tool
+        native_tool = {"name": tool.name, "input_schema": tool.parameters}
+        if tool.description is not None:
+            native_tool["description"] = tool.description
+        if tool.strict:
+            native_tool["strict"] = True
+        return native_tool
 
     @staticmethod
     def _assistant_blocks(
@@ -591,9 +581,11 @@ class AnthropicMessagesClient(
         }
         if system is not None:
             body["system"] = system
-        tools = _tools(request)
-        if tools is not None:
-            body["tools"] = tools
+        if request.tools is not None:
+            body["tools"] = [
+                cls._translate_tool(tool, max_tool_calls=request.max_tool_calls)
+                for tool in request.tools
+            ]
         tool_choice = _tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice

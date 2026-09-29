@@ -16,7 +16,7 @@
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
 - Type modules define schemas and validation. Normalized types must not contain protocol conversions, select routes, or instantiate clients.
 
-Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation.
+Each protocol adapter and upstream client translates individual tool declarations through its `_translate_tool` method. Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation.
 
 A future `chat()` method is a dispatcher over those coordinators. It should select and delegate to a protocol method rather than duplicate that method's validation, normalization, composition, or projection logic.
 

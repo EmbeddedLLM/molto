@@ -183,58 +183,6 @@ def _function_tool(function: dict[str, Any]) -> FunctionTool:
     )
 
 
-def _normalize_responses_web_search_tool(tool: dict[str, Any]) -> WebSearchTool:
-    """Normalize a validated Responses web-search declaration."""
-    unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
-    if unsupported:
-        raise UnsupportedInput(f"Unsupported Responses web search options: {sorted(unsupported)}")
-    filters = tool.get("filters") or {}
-    if set(filters) - {"allowed_domains"}:
-        raise UnsupportedInput("Unsupported Responses web search filters.")
-    location = tool.get("user_location")
-    return WebSearchTool(
-        allowed_domains=filters.get("allowed_domains"),
-        search_context_size=tool.get("search_context_size"),
-        user_location=SearchLocation.model_validate(
-            {key: value for key, value in location.items() if key != "type"}
-        )
-        if location
-        else None,
-    )
-
-
-def _normalize_chat_web_search_tool(options: dict[str, Any]) -> WebSearchTool:
-    """Normalize validated Chat web_search_options."""
-    location = options.get("user_location")
-    return WebSearchTool(
-        search_context_size=options.get("search_context_size"),
-        user_location=SearchLocation.model_validate(location["approximate"]) if location else None,
-    )
-
-
-def _responses_tools(tools: list[Any] | None) -> list[FunctionTool | WebSearchTool] | None:
-    if tools is None:
-        return None
-    normalized: list[FunctionTool | WebSearchTool] = []
-    for tool in tools:
-        tool = dict(tool)
-        if tool.get("type") == "web_search":
-            normalized.append(_normalize_responses_web_search_tool(tool))
-            continue
-        if tool.get("type") != "function":
-            raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
-        if tool.get("allowed_callers") not in (None, ["direct"]):
-            raise UnsupportedInput(
-                "Only directly callable Responses function tools are supported."
-            )
-        if tool.get("defer_loading"):
-            raise UnsupportedInput("Deferred Responses function tools are not supported.")
-        if tool.get("output_schema") is not None:
-            raise UnsupportedInput("Responses function output schemas are not supported.")
-        normalized.append(_function_tool(tool))
-    return normalized
-
-
 def _responses_tool_choice(choice: Any) -> ToolChoice | None:
     if choice is None or isinstance(choice, str):
         return choice
@@ -246,18 +194,6 @@ def _responses_tool_choice(choice: Any) -> ToolChoice | None:
     if choice.get("type") != "function":
         raise UnsupportedInput(f"Unsupported Responses tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["name"])
-
-
-def _chat_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
-    if tools is None:
-        return None
-    normalized: list[FunctionTool] = []
-    for tool in tools:
-        tool = dict(tool)
-        if tool.get("type") != "function":
-            raise UnsupportedInput(f"Unsupported Chat Completions tool type: {tool.get('type')}")
-        normalized.append(_function_tool(dict(tool["function"])))
-    return normalized
 
 
 def _chat_tool_choice(choice: Any) -> ToolChoice | None:
@@ -406,6 +342,40 @@ class OpenAIResponsesAdapter(
     ]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
+        """Translate one Responses tool declaration into normalized semantics."""
+        if tool.get("type") == "web_search":
+            unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
+            if unsupported:
+                raise UnsupportedInput(
+                    f"Unsupported Responses web search options: {sorted(unsupported)}"
+                )
+            filters = tool.get("filters") or {}
+            if set(filters) - {"allowed_domains"}:
+                raise UnsupportedInput("Unsupported Responses web search filters.")
+            location = tool.get("user_location")
+            return WebSearchTool(
+                allowed_domains=filters.get("allowed_domains"),
+                search_context_size=tool.get("search_context_size"),
+                user_location=SearchLocation.model_validate(
+                    {key: value for key, value in location.items() if key != "type"}
+                )
+                if location
+                else None,
+            )
+        if tool.get("type") != "function":
+            raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
+        if tool.get("allowed_callers") not in (None, ["direct"]):
+            raise UnsupportedInput(
+                "Only directly callable Responses function tools are supported."
+            )
+        if tool.get("defer_loading"):
+            raise UnsupportedInput("Deferred Responses function tools are not supported.")
+        if tool.get("output_schema") is not None:
+            raise UnsupportedInput("Responses function output schemas are not supported.")
+        return _function_tool(tool)
 
     async def _project_response(
         self,
@@ -632,7 +602,9 @@ class OpenAIResponsesAdapter(
                 stream_options=request.stream_options,
                 temperature=request.temperature,
                 tool_choice=_responses_tool_choice(request.tool_choice),
-                tools=_responses_tools(request.tools),
+                tools=[self._translate_tool(dict(tool)) for tool in request.tools]
+                if request.tools is not None
+                else None,
                 top_p=request.top_p,
             )
         )
@@ -1176,6 +1148,13 @@ class OpenAIChatCompletionsAdapter(
 ):
     """Translate Chat Completions requests and normalized response events."""
 
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool:
+        """Translate one Chat Completions tool declaration into normalized semantics."""
+        if tool.get("type") != "function":
+            raise UnsupportedInput(f"Unsupported Chat Completions tool type: {tool.get('type')}")
+        return _function_tool(dict(tool["function"]))
+
     async def _project_response(
         self,
         events: AsyncIterator[OpenAIChatCompletionsStreamChunk],
@@ -1350,7 +1329,7 @@ class OpenAIChatCompletionsAdapter(
         if prompt_cache is not None:
             data["prompt_cache"] = prompt_cache
         if request.tools is not None:
-            data["tools"] = _chat_tools(request.tools)
+            data["tools"] = [self._translate_tool(dict(tool)) for tool in request.tools]
         if request.tool_choice is not None:
             data["tool_choice"] = _chat_tool_choice(request.tool_choice)
         if request.web_search_options is not None:
@@ -1358,9 +1337,15 @@ class OpenAIChatCompletionsAdapter(
                 raise UnsupportedInput(
                     "Chat web_search_options requires hosted search and conflicts with tool_choice."
                 )
+            location = request.web_search_options.get("user_location")
             data["tools"] = [
                 *(data.get("tools") or []),
-                _normalize_chat_web_search_tool(request.web_search_options),
+                WebSearchTool(
+                    search_context_size=request.web_search_options.get("search_context_size"),
+                    user_location=SearchLocation.model_validate(location["approximate"])
+                    if location
+                    else None,
+                ),
             ]
             data["tool_choice"] = WebSearchToolChoice()
         if request.reasoning_effort is not None:

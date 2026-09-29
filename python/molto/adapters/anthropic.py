@@ -134,61 +134,6 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     )
 
 
-def _normalize_web_search_tool(tool: dict[str, Any]) -> WebSearchTool:
-    """Normalize a validated Messages search declaration; its budget is request-wide."""
-    unsupported = set(tool) - {
-        "type",
-        "name",
-        "allowed_domains",
-        "blocked_domains",
-        "user_location",
-        "max_uses",
-        "allowed_callers",
-    }
-    if unsupported or tool.get("allowed_callers") not in (None, [], ["direct"]):
-        raise UnsupportedInput(
-            f"Unsupported Anthropic search tool fields: {sorted(unsupported or {'allowed_callers'})}."
-        )
-    location = tool.get("user_location")
-    return WebSearchTool(
-        allowed_domains=tool.get("allowed_domains"),
-        blocked_domains=tool.get("blocked_domains"),
-        user_location=SearchLocation(
-            **{key: value for key, value in location.items() if key != "type"}
-        )
-        if location is not None
-        else None,
-    )
-
-
-def _normalize_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
-    if tool.get("type") == "web_search_20250305":
-        return _normalize_web_search_tool(tool)
-    if tool.get("type") not in {None, "custom"}:
-        raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
-    unsupported_fields = {
-        field
-        for field in (
-            "allowed_callers",
-            "cache_control",
-            "defer_loading",
-            "eager_input_streaming",
-            "input_examples",
-        )
-        if tool.get(field) not in (None, False, [])
-    }
-    if unsupported_fields:
-        raise UnsupportedInput(
-            f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
-        )
-    return FunctionTool(
-        name=tool["name"],
-        description=tool.get("description"),
-        parameters=tool["input_schema"],
-        strict=tool.get("strict", False),
-    )
-
-
 def _validate_search_source(source: dict[str, Any]) -> None:
     """Reject unsupported source fields in Messages request history."""
     unsupported_fields = {
@@ -266,6 +211,57 @@ class AnthropicMessagesAdapter(
     ]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
+        """Translate a Messages tool declaration into its normalized schema."""
+        if tool.get("type") == "web_search_20250305":
+            unsupported = set(tool) - {
+                "type",
+                "name",
+                "allowed_domains",
+                "blocked_domains",
+                "user_location",
+                "max_uses",
+                "allowed_callers",
+            }
+            if unsupported or tool.get("allowed_callers") not in (None, [], ["direct"]):
+                raise UnsupportedInput(
+                    f"Unsupported Anthropic search tool fields: {sorted(unsupported or {'allowed_callers'})}."
+                )
+            location = tool.get("user_location")
+            return WebSearchTool(
+                allowed_domains=tool.get("allowed_domains"),
+                blocked_domains=tool.get("blocked_domains"),
+                user_location=SearchLocation(
+                    **{key: value for key, value in location.items() if key != "type"}
+                )
+                if location is not None
+                else None,
+            )
+        if tool.get("type") not in {None, "custom"}:
+            raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
+        unsupported_fields = {
+            field
+            for field in (
+                "allowed_callers",
+                "cache_control",
+                "defer_loading",
+                "eager_input_streaming",
+                "input_examples",
+            )
+            if tool.get(field) not in (None, False, [])
+        }
+        if unsupported_fields:
+            raise UnsupportedInput(
+                f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
+            )
+        return FunctionTool(
+            name=tool["name"],
+            description=tool.get("description"),
+            parameters=tool["input_schema"],
+            strict=tool.get("strict", False),
+        )
 
     async def _project_response(
         self,
@@ -548,7 +544,7 @@ class AnthropicMessagesAdapter(
                 ttl=request.cache_control.get("ttl"),
             )
         if request.tools is not None:
-            data["tools"] = [_normalize_tool(tool) for tool in request.tools]
+            data["tools"] = [self._translate_tool(tool) for tool in request.tools]
             searches = [
                 tool for tool in request.tools if tool.get("type") == "web_search_20250305"
             ]

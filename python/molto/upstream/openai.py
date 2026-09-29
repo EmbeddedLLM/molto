@@ -100,48 +100,12 @@ def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
     return payload
 
 
-def _responses_web_search_tool(search: WebSearchTool) -> dict[str, Any]:
-    """Build a Responses tool declaration, rejecting unrepresentable options."""
-    if search.blocked_domains is not None:
-        raise UnsupportedInput(
-            "Messages tools[].blocked_domains cannot be represented by Responses web search."
-        )
-    tool: dict[str, Any] = {"type": "web_search"}
-    if search.allowed_domains is not None:
-        tool["filters"] = {"allowed_domains": search.allowed_domains}
-    if search.search_context_size is not None:
-        tool["search_context_size"] = search.search_context_size
-    if search.user_location is not None:
-        tool["user_location"] = {"type": "approximate", **search.user_location.model_dump()}
-    return tool
-
-
-def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
-    if request.tools is None:
-        return None
-    result = []
-    for tool in request.tools:
-        if isinstance(tool, FunctionTool):
-            result.append({"type": "function", **_function_tool_payload(tool)})
-        else:
-            result.append(_responses_web_search_tool(tool))
-    return result
-
-
 def _responses_tool_choice(request: NormalizedRequest) -> Any:
     if isinstance(request.tool_choice, WebSearchToolChoice):
         return {"type": "allowed_tools", "mode": "required", "tools": [{"type": "web_search"}]}
     if isinstance(request.tool_choice, FunctionToolChoice):
         return {"type": "function", "name": request.tool_choice.name}
     return request.tool_choice
-
-
-def _chat_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
-    if request.tools is None:
-        return None
-    return [
-        {"type": "function", "function": _function_tool_payload(tool)} for tool in request.tools
-    ]
 
 
 def _chat_tool_choice(request: NormalizedRequest) -> Any:
@@ -435,6 +399,24 @@ class OpenAIResponsesClient(
 ):
     """OpenAI Responses transport for native and normalized streaming paths."""
 
+    @staticmethod
+    def _translate_tool(tool: FunctionTool | WebSearchTool) -> dict[str, Any]:
+        """Translate one normalized tool into a Responses declaration."""
+        if isinstance(tool, FunctionTool):
+            return {"type": "function", **_function_tool_payload(tool)}
+        if tool.blocked_domains is not None:
+            raise UnsupportedInput(
+                "Messages tools[].blocked_domains cannot be represented by Responses web search."
+            )
+        payload: dict[str, Any] = {"type": "web_search"}
+        if tool.allowed_domains is not None:
+            payload["filters"] = {"allowed_domains": tool.allowed_domains}
+        if tool.search_context_size is not None:
+            payload["search_context_size"] = tool.search_context_size
+        if tool.user_location is not None:
+            payload["user_location"] = {"type": "approximate", **tool.user_location.model_dump()}
+        return payload
+
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
     async def native_events(
@@ -669,9 +651,8 @@ class OpenAIResponsesClient(
             value = getattr(request, field)
             if value is not None:
                 body[field] = value
-        tools = _responses_tools(request)
-        if tools is not None:
-            body["tools"] = tools
+        if request.tools is not None:
+            body["tools"] = [cls._translate_tool(tool) for tool in request.tools]
         tool_choice = _responses_tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
@@ -1021,6 +1002,11 @@ class OpenAIChatCompletionsClient(
 ):
     """OpenAI Chat Completions transport for native and normalized streaming paths."""
 
+    @staticmethod
+    def _translate_tool(tool: FunctionTool) -> dict[str, Any]:
+        """Translate one normalized function tool into a Chat Completions declaration."""
+        return {"type": "function", "function": _function_tool_payload(tool)}
+
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
     async def native_events(
@@ -1288,9 +1274,8 @@ class OpenAIChatCompletionsClient(
             body["max_completion_tokens"] = request.max_output_tokens
         if request.parallel_tool_calls is not None:
             body["parallel_tool_calls"] = request.parallel_tool_calls
-        tools = _chat_tools(request)
-        if tools is not None:
-            body["tools"] = tools
+        if request.tools is not None:
+            body["tools"] = [cls._translate_tool(tool) for tool in request.tools]
         tool_choice = _chat_tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
