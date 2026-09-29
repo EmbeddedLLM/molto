@@ -36,7 +36,6 @@ from molto.types.normalized import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
-    ProviderToolChoice,
     ResponseEndEvent,
     ResponseStartEvent,
     SearchCall,
@@ -53,8 +52,8 @@ from molto.types.normalized import (
     ToolReturn,
     Usage,
     UserInput,
-    WebCitation,
     WebSearchTool,
+    WebSearchToolChoice,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -63,6 +62,14 @@ from molto.types.openai_chat_completions import (
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
 from molto.upstream.base import BaseClient
+from molto.utils.web_search import (
+    citation_from_responses,
+    citation_to_responses,
+    search_call_from_responses,
+    search_call_to_responses,
+    search_result_from_responses,
+    search_source_to_responses,
+)
 
 _CHAT_TERMINATION_REASONS: dict[str, TerminationReason] = {
     "content_filter": "content_filter",
@@ -93,6 +100,22 @@ def _function_tool_payload(tool: FunctionTool) -> dict[str, Any]:
     return payload
 
 
+def _responses_web_search_tool(search: WebSearchTool) -> dict[str, Any]:
+    """Build a Responses tool declaration, rejecting unrepresentable options."""
+    if search.blocked_domains is not None:
+        raise UnsupportedInput(
+            "Messages tools[].blocked_domains cannot be represented by Responses web search."
+        )
+    tool: dict[str, Any] = {"type": "web_search"}
+    if search.allowed_domains is not None:
+        tool["filters"] = {"allowed_domains": search.allowed_domains}
+    if search.search_context_size is not None:
+        tool["search_context_size"] = search.search_context_size
+    if search.user_location is not None:
+        tool["user_location"] = {"type": "approximate", **search.user_location.model_dump()}
+    return tool
+
+
 def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
     if request.tools is None:
         return None
@@ -101,13 +124,13 @@ def _responses_tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
         if isinstance(tool, FunctionTool):
             result.append({"type": "function", **_function_tool_payload(tool)})
         else:
-            result.append(tool.to_responses())
+            result.append(_responses_web_search_tool(tool))
     return result
 
 
 def _responses_tool_choice(request: NormalizedRequest) -> Any:
-    if isinstance(request.tool_choice, ProviderToolChoice):
-        return request.tool_choice.to_responses()
+    if isinstance(request.tool_choice, WebSearchToolChoice):
+        return {"type": "allowed_tools", "mode": "required", "tools": [{"type": "web_search"}]}
     if isinstance(request.tool_choice, FunctionToolChoice):
         return {"type": "function", "name": request.tool_choice.name}
     return request.tool_choice
@@ -230,7 +253,7 @@ def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
                 continue
             for annotation in part.annotations:
                 if annotation.type == "url_citation":
-                    citation = WebCitation.from_responses(annotation.model_dump())
+                    citation = citation_from_responses(annotation.model_dump())
                     citation.start_index += len(text)
                     citation.end_index += len(text)
                     citations.append(citation)
@@ -253,10 +276,10 @@ def _search_parts(item: Any) -> tuple[SearchCall, SearchResult | None]:
     The caller emits each returned part's start/end events.
     """
     data = item.model_dump()
-    call = SearchCall.from_responses(data)
+    call = search_call_from_responses(data)
     result = None
     if call.action == "search" and call.status in {"completed", "failed"}:
-        result = SearchResult.from_responses(data)
+        result = search_result_from_responses(data)
     return call, result
 
 
@@ -334,12 +357,14 @@ def _merge_search_result(items: list[dict[str, Any]], result: SearchResult) -> N
     if search_item is None:
         # Responses stores the invocation and result in one item. Standalone
         # history results retain their identity without inventing query metadata.
-        search_item = SearchCall(id=result.tool_call_id).to_responses()
+        search_item = search_call_to_responses(SearchCall(id=result.tool_call_id))
         items.append(search_item)
 
     search_item["status"] = "failed" if result.error is not None else "completed"
     if result.sources is not None:
-        search_item["action"]["sources"] = [source.to_responses() for source in result.sources]
+        search_item["action"]["sources"] = [
+            search_source_to_responses(source) for source in result.sources
+        ]
 
 
 def _responses_usage(raw_usage: Any) -> Usage | None:
@@ -488,13 +513,15 @@ class OpenAIResponsesClient(
                     {
                         "type": "output_text",
                         "text": item.content,
-                        "annotations": [citation.to_responses() for citation in item.citations],
+                        "annotations": [
+                            citation_to_responses(citation) for citation in item.citations
+                        ],
                         "logprobs": [],
                         **_prompt_cache_breakpoint_fields(item.cache_breakpoint),
                     }
                 )
             elif isinstance(item, SearchCall):
-                items.append(item.to_responses())
+                items.append(search_call_to_responses(item))
             elif isinstance(item, SearchResult):
                 _merge_search_result(items, item)
             elif isinstance(item, Thinking):
@@ -807,9 +834,7 @@ class OpenAIResponsesClient(
                                 yield PartDeltaEvent(
                                     index=text_indices[key],
                                     delta=CitationDelta(
-                                        citation=WebCitation.from_responses(
-                                            annotation.model_dump()
-                                        )
+                                        citation=citation_from_responses(annotation.model_dump())
                                     ),
                                 )
                 elif event_type == "response.reasoning_summary_part.added":
@@ -842,7 +867,7 @@ class OpenAIResponsesClient(
                             (event.output_index, event.content_index),
                             part_index(event.output_index),
                         ),
-                        delta=CitationDelta(citation=WebCitation.from_responses(event.annotation)),
+                        delta=CitationDelta(citation=citation_from_responses(event.annotation)),
                     )
                 elif event_type == "response.content_part.done":
                     if event.part.type == "output_text" and event.output_index in part_indices:
@@ -857,7 +882,7 @@ class OpenAIResponsesClient(
                                 id=event.item_id,
                                 defer_citations=defer_citations,
                                 citations=[
-                                    WebCitation.from_responses(annotation.model_dump())
+                                    citation_from_responses(annotation.model_dump())
                                     for annotation in event.part.annotations
                                     if annotation.type == "url_citation"
                                 ],
@@ -1285,7 +1310,7 @@ class OpenAIChatCompletionsClient(
     def _validate_request(request: NormalizedRequest) -> None:
         if (
             any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
-            or isinstance(request.tool_choice, ProviderToolChoice)
+            or isinstance(request.tool_choice, WebSearchToolChoice)
             or any(
                 isinstance(part, (SearchCall, SearchResult))
                 or isinstance(part, TextOutput)

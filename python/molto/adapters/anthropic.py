@@ -49,6 +49,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SearchCall,
+    SearchLocation,
     SearchResult,
     StreamOptions,
     SystemPrompt,
@@ -68,7 +69,14 @@ from molto.types.normalized import (
     WebSearchToolChoice,
 )
 from molto.utils.io import json_dumps
-from molto.utils.web_search import messages_text_blocks
+from molto.utils.web_search import (
+    citation_from_messages,
+    messages_text_blocks,
+    search_call_from_messages,
+    search_call_to_messages,
+    search_result_from_messages,
+    search_result_to_messages,
+)
 
 _STOP_REASONS: dict[TerminationReason, str] = {
     "max_output_tokens": "max_tokens",
@@ -126,9 +134,36 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     )
 
 
+def _normalize_web_search_tool(tool: dict[str, Any]) -> WebSearchTool:
+    """Normalize a validated Messages search declaration; its budget is request-wide."""
+    unsupported = set(tool) - {
+        "type",
+        "name",
+        "allowed_domains",
+        "blocked_domains",
+        "user_location",
+        "max_uses",
+        "allowed_callers",
+    }
+    if unsupported or tool.get("allowed_callers") not in (None, [], ["direct"]):
+        raise UnsupportedInput(
+            f"Unsupported Anthropic search tool fields: {sorted(unsupported or {'allowed_callers'})}."
+        )
+    location = tool.get("user_location")
+    return WebSearchTool(
+        allowed_domains=tool.get("allowed_domains"),
+        blocked_domains=tool.get("blocked_domains"),
+        user_location=SearchLocation(
+            **{key: value for key, value in location.items() if key != "type"}
+        )
+        if location is not None
+        else None,
+    )
+
+
 def _normalize_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
     if tool.get("type") == "web_search_20250305":
-        return WebSearchTool.from_messages(tool)
+        return _normalize_web_search_tool(tool)
     if tool.get("type") not in {None, "custom"}:
         raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
     unsupported_fields = {
@@ -154,13 +189,24 @@ def _normalize_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
     )
 
 
+def _validate_search_source(source: dict[str, Any]) -> None:
+    """Reject unsupported source fields in Messages request history."""
+    unsupported_fields = {
+        key for key in source if key not in WebSearchSource.model_fields and key != "type"
+    }
+    if unsupported_fields:
+        raise UnsupportedInput(
+            f"Unsupported Anthropic search-result source fields: {sorted(unsupported_fields)}."
+        )
+
+
 def _citations(citations: list[dict[str, Any]] | None, text: str) -> list[WebCitation]:
     result = []
     for citation in citations or []:
         citation = dict(citation)
         if citation["type"] != "web_search_result_location":
             raise UnsupportedInput(f"Unsupported Anthropic citation: {citation['type']}.")
-        result.append(WebCitation.from_messages(citation, text=text))
+        result.append(citation_from_messages(citation, text=text))
     return result
 
 
@@ -414,17 +460,17 @@ class AnthropicMessagesAdapter(
                     raise UnsupportedInput(
                         "Only directly invoked Anthropic hosted searches can be translated."
                     )
-                items.append(SearchCall.from_messages(block))
+                items.append(search_call_from_messages(block))
             elif block_type == "web_search_tool_result":
                 _reject_cache_breakpoint(block)
                 content = block["content"]
                 if isinstance(content, list):
                     content = [dict(source) for source in content]
                     for source in content:
-                        WebSearchSource.validate_messages_input(source)
+                        _validate_search_source(source)
                 else:
                     content = dict(content)
-                items.append(SearchResult.from_messages({**block, "content": content}))
+                items.append(search_result_from_messages({**block, "content": content}))
             elif block_type == "tool_use":
                 _reject_cache_breakpoint(block)
                 caller = block.get("caller")
@@ -753,13 +799,13 @@ class AnthropicMessagesAdapter(
                             if part.action != "search":
                                 omitted_calls.add(part.id)
                                 continue
-                            blocks = [part.to_messages()]
+                            blocks = [search_call_to_messages(part)]
                         elif isinstance(part, SearchResult):
                             if part.tool_call_id in omitted_calls or (
                                 part.sources is None and part.error is None
                             ):
                                 continue
-                            blocks = [part.to_messages()]
+                            blocks = [search_result_to_messages(part)]
                         else:
                             raise ValueError(f"Unsupported output part: {type(part)}")
                         for block in blocks:

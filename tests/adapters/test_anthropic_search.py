@@ -23,7 +23,10 @@ from molto.types.normalized import (
     WebSearchTool,
     WebSearchToolChoice,
 )
-from molto.utils.web_search import messages_text_blocks
+from molto.utils.web_search import (
+    messages_text_blocks,
+    search_call_to_messages,
+)
 
 
 def setup_adapter():
@@ -121,7 +124,10 @@ def test_search_configuration_and_history():
 )
 def test_missing_empty_and_single_queries(query, queries, expected):
     """Ensures missing query metadata differs from an explicitly empty query."""
-    assert SearchCall(id="s", query=query, queries=queries).to_messages()["input"] == expected
+    assert (
+        search_call_to_messages(SearchCall(id="s", query=query, queries=queries))["input"]
+        == expected
+    )
 
 
 def test_overlapping_unicode_citations():

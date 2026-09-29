@@ -102,7 +102,7 @@ The layers have distinct ownership:
 | `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
 | `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
-| `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, usage, and wire helpers | Transport or SDK lifecycle objects |
+| `types/normalized.py` | Provider-neutral schemas and validation for request content, response parts, deltas, lifecycle metadata, and usage | Protocol conversions, transport, or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
@@ -282,7 +282,7 @@ Responses output-item IDs are distinct from portable tool-call IDs and do not af
 
 Reasoning effort is the normalized control for Anthropic thinking. The Messages adapter records `output_config.effort` in `NormalizedRequest.reasoning`; the Anthropic client then selects adaptive thinking with explicit effort or manual extended thinking with a preset token budget according to the target model's capabilities. Thinking mode and `budget_tokens` remain provider projections rather than new IR fields.
 
-`NormalizedRequest.prompt_cache` holds request-wide `PromptCache` intent. A strict `CacheBreakpoint` with optional `ttl` lives on `SystemPrompt`, `TextInput`, `ImageUrlInput`, and `TextOutput` as `cache_breakpoint`. `NormalizedRequest.iter_cache_breakpoints()` traverses those markers in input order, including nested user, assistant, and tool-result content. Adapters normalize supported native markers; clients project them as OpenAI content-part `prompt_cache_breakpoint` or Anthropic block `cache_control`.
+`NormalizedRequest.prompt_cache` holds request-wide `PromptCache` intent. A strict `CacheBreakpoint` with optional `ttl` lives on `SystemPrompt`, `TextInput`, `ImageUrlInput`, and `TextOutput` as `cache_breakpoint`. `iter_cache_breakpoints(request)` in `utils/cache.py` traverses those markers in input order, including nested user, assistant, and tool-result content. Adapters normalize supported native markers; clients project them as OpenAI content-part `prompt_cache_breakpoint` or Anthropic block `cache_control`.
 
 OpenAI marker presence resolves omitted mode to `implicit` and omitted lifetime to `30m`. Messages maps that minimum to `1h` on both marked blocks and top-level automatic caching; explicit mode omits the top-level control while retaining block markers. Anthropic block-only caching normalizes to explicit mode, while top-level caching selects implicit mode. OpenAI maps every explicit request or block lifetime to request-wide `30m`, retaining modes and marker positions. This rounds `5m` up but weakens a requested `1h` minimum; mixed block lifetimes collapse to one value. Omitted lifetimes remain unspecified unless another explicit lifetime sets that value. Retention is not synthesized to approximate a minimum lifetime. The [shared cache policy](../docs/README.md#prompt-caching) documents these default and pricing differences. Messages silently drops keys without enabling caching and rejects retention policies.
 
@@ -332,7 +332,7 @@ Service-tier labels are retained as upstream metadata, but target protocols do n
 
 ## Hosted search and citations
 
-`WebSearchTool` and `WebSearchToolChoice` distinguish hosted execution from client functions. Search models own individual wire conversions and option validation; adapters and clients own request assembly, selection, call/result linking, and stream lifecycle. Models exchange plain dictionaries without importing SDK classes.
+`WebSearchTool` and `WebSearchToolChoice` distinguish hosted execution from client functions. Normalized models define schemas and provider-neutral validation only. Adapters normalize native search declarations and validate request-history fields; upstream clients project search declarations and choices into native requests. Both layers use the plain conversion functions in `utils/web_search.py` for shared citation, source, and search-history mappings, while retaining ownership of request assembly, selection, call/result linking, and stream lifecycle.
 
 `SearchCall` and `SearchResult` use the existing part lifecycle and link by call identity. They are assistant history/output parts. An unfinished call may have no result, and a search error does not determine overall termination. Responses folds a call and result into one item; Messages emits separate server-tool blocks.
 

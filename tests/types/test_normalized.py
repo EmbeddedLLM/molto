@@ -9,7 +9,6 @@ from molto.types.normalized import (
     InputItem,
     NormalizedRequest,
     PartStartEvent,
-    ProviderToolChoice,
     SearchCall,
     SearchResult,
     SystemPrompt,
@@ -66,24 +65,17 @@ def test_search_choice_distinguishes_hosted_search_from_same_named_function():
     )
     assert isinstance(request.tools[0], FunctionTool)
     assert isinstance(request.tools[1], WebSearchTool)
-    assert isinstance(request.tool_choice, ProviderToolChoice)
-    assert not isinstance(FunctionToolChoice(name="web_search"), ProviderToolChoice)
+    assert isinstance(request.tool_choice, WebSearchToolChoice)
+    assert not isinstance(FunctionToolChoice(name="web_search"), WebSearchToolChoice)
     assert request.tool_choice != FunctionToolChoice(name="web_search")
 
 
-def test_provider_tool_choice_requires_protocol_conversions():
-    """Ensures provider tool choices cannot be instantiated without wire conversions."""
-    with pytest.raises(TypeError, match="abstract"):
-        ProviderToolChoice()
-
-
-def test_provider_tool_choice_round_trip_preserves_concrete_type():
+def test_search_tool_choice_round_trip_preserves_concrete_type():
     """Ensures serialized provider choices retain strict validation and their subtype."""
     request = NormalizedRequest(tool_choice=WebSearchToolChoice(type="web_search"))
     restored = NormalizedRequest.model_validate_json(request.model_dump_json())
 
     assert isinstance(restored.tool_choice, WebSearchToolChoice)
-    assert isinstance(restored.tool_choice, ProviderToolChoice)
     assert restored.tool_choice == request.tool_choice
     with pytest.raises(ValidationError):
         NormalizedRequest(tool_choice={"type": "unknown_provider_tool"})

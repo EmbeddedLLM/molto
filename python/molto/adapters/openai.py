@@ -45,6 +45,7 @@ from molto.types.normalized import (
     ResponseEndEvent,
     ResponseStartEvent,
     SearchCall,
+    SearchLocation,
     SearchResult,
     SystemPrompt,
     TerminationReason,
@@ -72,6 +73,15 @@ from molto.types.openai_responses import (
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
+)
+from molto.utils.web_search import (
+    citation_from_responses,
+    citation_to_responses,
+    search_call_from_responses,
+    search_call_to_responses,
+    search_call_to_responses_action,
+    search_result_from_responses,
+    search_source_to_responses,
 )
 
 _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
@@ -173,6 +183,35 @@ def _function_tool(function: dict[str, Any]) -> FunctionTool:
     )
 
 
+def _normalize_responses_web_search_tool(tool: dict[str, Any]) -> WebSearchTool:
+    """Normalize a validated Responses web-search declaration."""
+    unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
+    if unsupported:
+        raise UnsupportedInput(f"Unsupported Responses web search options: {sorted(unsupported)}")
+    filters = tool.get("filters") or {}
+    if set(filters) - {"allowed_domains"}:
+        raise UnsupportedInput("Unsupported Responses web search filters.")
+    location = tool.get("user_location")
+    return WebSearchTool(
+        allowed_domains=filters.get("allowed_domains"),
+        search_context_size=tool.get("search_context_size"),
+        user_location=SearchLocation.model_validate(
+            {key: value for key, value in location.items() if key != "type"}
+        )
+        if location
+        else None,
+    )
+
+
+def _normalize_chat_web_search_tool(options: dict[str, Any]) -> WebSearchTool:
+    """Normalize validated Chat web_search_options."""
+    location = options.get("user_location")
+    return WebSearchTool(
+        search_context_size=options.get("search_context_size"),
+        user_location=SearchLocation.model_validate(location["approximate"]) if location else None,
+    )
+
+
 def _responses_tools(tools: list[Any] | None) -> list[FunctionTool | WebSearchTool] | None:
     if tools is None:
         return None
@@ -180,7 +219,7 @@ def _responses_tools(tools: list[Any] | None) -> list[FunctionTool | WebSearchTo
     for tool in tools:
         tool = dict(tool)
         if tool.get("type") == "web_search":
-            normalized.append(WebSearchTool.from_responses(tool))
+            normalized.append(_normalize_responses_web_search_tool(tool))
             continue
         if tool.get("type") != "function":
             raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
@@ -350,7 +389,7 @@ def _responses_citations(annotations: list[dict[str, Any]]) -> list[WebCitation]
         raise UnsupportedInput(
             "Only web URL citations can be translated in Responses assistant history."
         )
-    return [WebCitation.from_responses(annotation) for annotation in annotations]
+    return [citation_from_responses(annotation) for annotation in annotations]
 
 
 def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
@@ -387,10 +426,10 @@ class OpenAIResponsesAdapter(
     ) -> Input:
         message_type = message.get("type", "message")
         if message_type == "web_search_call":
-            call = SearchCall.from_responses(message)
+            call = search_call_from_responses(message)
             parts = [call]
             if call.action == "search" and call.status in {"completed", "failed"}:
-                parts.append(SearchResult.from_responses(message))
+                parts.append(search_result_from_responses(message))
             return parts
         if message_type == "reasoning":
             content = message.get("content") or []
@@ -688,7 +727,7 @@ class OpenAIResponsesAdapter(
                 output_index = len(output_indices)
                 output_indices[normalized_event.index] = output_index
                 if isinstance(part, SearchCall):
-                    item = {**part.to_responses(), "status": "in_progress"}
+                    item = {**search_call_to_responses(part), "status": "in_progress"}
                     item_ids[output_index] = part.id
                     search_calls[part.id] = (output_index, item)
                     yield event(
@@ -803,7 +842,7 @@ class OpenAIResponsesAdapter(
                             "output_index": output_index,
                             "content_index": 0,
                             "annotation_index": count,
-                            "annotation": normalized_event.delta.citation.to_responses(),
+                            "annotation": citation_to_responses(normalized_event.delta.citation),
                         }
                     )
                     annotation_counts[output_index] = count + 1
@@ -903,7 +942,7 @@ class OpenAIResponsesAdapter(
                     }
                     if part.sources is not None:
                         item["action"]["sources"] = [
-                            source.to_responses() for source in part.sources
+                            search_source_to_responses(source) for source in part.sources
                         ]
                     if part.error is None:
                         yield event(
@@ -924,7 +963,7 @@ class OpenAIResponsesAdapter(
                     continue
                 if isinstance(part, SearchCall):
                     output_index, initial = search_calls[part.id]
-                    initial["action"] = part.to_responses_action()
+                    initial["action"] = search_call_to_responses_action(part)
                     if part.action != "search":
                         item = {**initial, "status": part.status}
                         output_items[output_index] = item
@@ -999,7 +1038,7 @@ class OpenAIResponsesAdapter(
                         ]
 
                 elif isinstance(part, TextOutput):
-                    annotations = [citation.to_responses() for citation in part.citations]
+                    annotations = [citation_to_responses(citation) for citation in part.citations]
                     for annotation_index in range(
                         annotation_counts.get(output_index, 0), len(annotations)
                     ):
@@ -1321,7 +1360,7 @@ class OpenAIChatCompletionsAdapter(
                 )
             data["tools"] = [
                 *(data.get("tools") or []),
-                WebSearchTool.from_chat_completions(request.web_search_options),
+                _normalize_chat_web_search_tool(request.web_search_options),
             ]
             data["tool_choice"] = WebSearchToolChoice()
         if request.reasoning_effort is not None:

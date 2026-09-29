@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from textwrap import dedent
 from time import time
@@ -7,7 +6,6 @@ from typing import Annotated, Any, Literal, Self, TypeAlias
 from pydantic import BeforeValidator, Discriminator, Field, model_validator
 
 from molto.types.base import ExtraModel, StrictModel, ZeroIfNoneInt
-from molto.types.exceptions import UnsupportedInput
 
 PromptCacheTtl: TypeAlias = Literal["5m", "1h", "30m"]
 
@@ -250,50 +248,6 @@ class WebCitation(StrictModel):
         str | None, Field(description="Opaque citation state retained for history.")
     ] = None
 
-    @classmethod
-    def from_responses(cls, annotation: dict[str, Any]) -> Self:
-        """Convert a Responses URL annotation with offsets local to its text part."""
-        return cls(
-            url=annotation["url"],
-            title=annotation.get("title"),
-            start_index=annotation["start_index"],
-            end_index=annotation["end_index"],
-        )
-
-    @classmethod
-    def from_messages(cls, citation: dict[str, Any], *, text: str) -> Self:
-        """Associate a Messages citation with its whole text block."""
-        return cls(
-            url=citation["url"],
-            title=citation.get("title"),
-            start_index=0,
-            end_index=len(text),
-            cited_text=citation["cited_text"],
-            encrypted_index=citation["encrypted_index"],
-        )
-
-    def to_responses(self) -> dict[str, Any]:
-        """Build a Responses URL annotation, omitting unavailable source context."""
-        return {
-            "type": "url_citation",
-            "url": self.url,
-            "title": self.title or "",
-            "start_index": self.start_index,
-            "end_index": self.end_index,
-        }
-
-    def to_messages(self, *, text: str) -> dict[str, Any]:
-        """Build a Messages citation with the documented answer-range/state fallbacks."""
-        return {
-            "type": "web_search_result_location",
-            "url": self.url,
-            "title": self.title if self.title is not None else "",
-            "cited_text": self.cited_text
-            if self.cited_text is not None
-            else text[self.start_index : self.end_index],
-            "encrypted_index": self.encrypted_index if self.encrypted_index is not None else "N/A",
-        }
-
 
 class WebSearchSource(StrictModel):
     """An observed search result, retaining available opaque history context."""
@@ -304,48 +258,6 @@ class WebSearchSource(StrictModel):
     encrypted_content: Annotated[
         str | None, Field(description="Opaque retrieved context retained for history.")
     ] = None
-
-    @classmethod
-    def validate_messages_input(cls, source: dict[str, Any]) -> None:
-        """Reject unsupported source fields in Messages request history."""
-        unsupported_fields = {
-            key for key in source if key not in cls.model_fields and key != "type"
-        }
-        if unsupported_fields:
-            raise UnsupportedInput(
-                f"Unsupported Anthropic search-result source fields: {sorted(unsupported_fields)}."
-            )
-
-    @classmethod
-    def from_responses(cls, source: dict[str, Any]) -> Self:
-        """Retain observed Responses source metadata without inventing retrieved content."""
-        return cls(url=source["url"], title=source.get("title"), page_age=source.get("page_age"))
-
-    @classmethod
-    def from_messages(cls, source: dict[str, Any]) -> Self:
-        """Retain Messages source metadata and opaque retrieved content."""
-        return cls(
-            url=source["url"],
-            title=source.get("title"),
-            page_age=source.get("page_age"),
-            encrypted_content=source.get("encrypted_content"),
-        )
-
-    def to_responses(self) -> dict[str, Any]:
-        """Build the Responses URL-source shape."""
-        return {"type": "url", "url": self.url}
-
-    def to_messages(self) -> dict[str, Any]:
-        """Build a Messages source using placeholders only for unavailable values."""
-        return {
-            "type": "web_search_result",
-            "url": self.url,
-            "title": self.title if self.title is not None else "",
-            "encrypted_content": self.encrypted_content
-            if self.encrypted_content is not None
-            else "N/A",
-            **({"page_age": self.page_age} if self.page_age is not None else {}),
-        }
 
 
 class SearchCall(ExtraModel):
@@ -370,62 +282,6 @@ class SearchCall(ExtraModel):
         Literal["search-call"], Field(description="Content type identifier.")
     ] = "search-call"
 
-    @classmethod
-    def from_responses(cls, item: dict[str, Any]) -> Self:
-        """Convert an observed Responses operation or a supplied history item."""
-        action = item.get("action") or {}
-        return cls(
-            id=item["id"],
-            action=action.get("type", "search"),
-            query=action.get("query"),
-            queries=action.get("queries"),
-            url=action.get("url"),
-            pattern=action.get("pattern"),
-            status=item.get("status", "in_progress"),
-        )
-
-    @classmethod
-    def from_messages(cls, block: dict[str, Any]) -> Self:
-        """Convert Messages server-search input after its arguments have been collected."""
-        search_input = block["input"]
-        if not isinstance(search_input, dict) or set(search_input) - {"query"}:
-            raise UnsupportedInput("Unsupported Anthropic web search input fields.")
-        return cls(id=block["id"], query=search_input.get("query"))
-
-    def to_responses_action(self) -> dict[str, Any]:
-        """Build the action shared by Responses item starts and completed items."""
-        action: dict[str, Any] = {"type": self.action}
-        for field in ("query", "queries", "url", "pattern"):
-            value = getattr(self, field)
-            if value is not None:
-                action[field] = value
-        return action
-
-    def to_responses(self) -> dict[str, Any]:
-        """Build a Responses invocation item without inventing a linked result."""
-        return {
-            "id": self.id,
-            "type": "web_search_call",
-            "status": self.status,
-            "action": self.to_responses_action(),
-        }
-
-    def to_messages(self) -> dict[str, Any]:
-        """Build one Messages invocation; callers omit unsupported browsing operations."""
-        if self.action != "search":
-            raise UnsupportedInput("Messages cannot represent browsing operations.")
-        if self.queries is not None and len(self.queries) > 1:
-            raise UnsupportedInput(
-                f"Search item {self.id}: Cannot translate this search to Messages: Messages search accepts one query per invocation, but this operation contains multiple queries. Issue multiple single-query searches instead."
-            )
-        query = self.queries[0] if self.queries else self.query
-        return {
-            "type": "server_tool_use",
-            "id": self.id,
-            "name": "web_search",
-            "input": {} if query is None else {"query": query},
-        }
-
 
 class SearchResult(ExtraModel):
     """The result of a hosted search, linked to its provider-executed call."""
@@ -439,44 +295,6 @@ class SearchResult(ExtraModel):
     content_type: Annotated[
         Literal["search-result"], Field(description="Content type identifier.")
     ] = "search-result"
-
-    @classmethod
-    def from_responses(cls, item: dict[str, Any]) -> Self:
-        """Extract a result after the caller identifies a finished Responses search."""
-        sources = (item.get("action") or {}).get("sources")
-        return cls(
-            tool_call_id=item["id"],
-            sources=[WebSearchSource.from_responses(source) for source in sources]
-            if sources is not None
-            else None,
-            error="unavailable" if item.get("status") == "failed" else None,
-        )
-
-    @classmethod
-    def from_messages(cls, block: dict[str, Any]) -> Self:
-        """Convert a Messages result block, preserving errors and explicit empty results."""
-        content = block["content"]
-        return cls(
-            tool_call_id=block["tool_use_id"],
-            sources=[WebSearchSource.from_messages(source) for source in content]
-            if isinstance(content, list)
-            else None,
-            error=content.get("error_code") if isinstance(content, dict) else None,
-        )
-
-    def to_messages(self) -> dict[str, Any]:
-        """Build a Messages result; callers omit results with unknown sources and no error."""
-        if self.error is not None:
-            content: Any = {"type": "web_search_tool_result_error", "error_code": self.error}
-        elif self.sources is not None:
-            content = [source.to_messages() for source in self.sources]
-        else:
-            raise ValueError("Cannot represent an unknown search result as a Messages result.")
-        return {
-            "type": "web_search_tool_result",
-            "tool_use_id": self.tool_call_id,
-            "content": content,
-        }
 
 
 class TextOutput(ExtraModel):
@@ -743,124 +561,13 @@ class WebSearchTool(StrictModel):
         "web_search"
     )
 
-    @classmethod
-    def from_responses(cls, tool: dict[str, Any]) -> Self:
-        """Normalize a validated Responses web-search declaration."""
-        unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
-        if unsupported:
-            raise UnsupportedInput(
-                f"Unsupported Responses web search options: {sorted(unsupported)}"
-            )
-        filters = tool.get("filters") or {}
-        if set(filters) - {"allowed_domains"}:
-            raise UnsupportedInput("Unsupported Responses web search filters.")
-        location = tool.get("user_location")
-        return cls(
-            allowed_domains=filters.get("allowed_domains"),
-            search_context_size=tool.get("search_context_size"),
-            user_location=SearchLocation.model_validate(
-                {key: value for key, value in location.items() if key != "type"}
-            )
-            if location
-            else None,
-        )
 
-    @classmethod
-    def from_messages(cls, tool: dict[str, Any]) -> Self:
-        """Normalize a validated Messages search declaration; its budget is request-wide."""
-        unsupported = set(tool) - {
-            "type",
-            "name",
-            "allowed_domains",
-            "blocked_domains",
-            "user_location",
-            "max_uses",
-            "allowed_callers",
-        }
-        if unsupported or tool.get("allowed_callers") not in (None, [], ["direct"]):
-            raise UnsupportedInput(
-                f"Unsupported Anthropic search tool fields: {sorted(unsupported or {'allowed_callers'})}."
-            )
-        location = tool.get("user_location")
-        return cls(
-            allowed_domains=tool.get("allowed_domains"),
-            blocked_domains=tool.get("blocked_domains"),
-            user_location=SearchLocation(
-                **{key: value for key, value in location.items() if key != "type"}
-            )
-            if location is not None
-            else None,
-        )
-
-    @classmethod
-    def from_chat_completions(cls, options: dict[str, Any]) -> Self:
-        """Normalize validated Chat web_search_options."""
-        location = options.get("user_location")
-        return cls(
-            search_context_size=options.get("search_context_size"),
-            user_location=SearchLocation.model_validate(location["approximate"])
-            if location
-            else None,
-        )
-
-    def to_responses(self) -> dict[str, Any]:
-        """Build a Responses tool declaration, rejecting unrepresentable options."""
-        if self.blocked_domains is not None:
-            raise UnsupportedInput(
-                "Messages tools[].blocked_domains cannot be represented by Responses web search."
-            )
-        tool: dict[str, Any] = {"type": "web_search"}
-        if self.allowed_domains is not None:
-            tool["filters"] = {"allowed_domains": self.allowed_domains}
-        if self.search_context_size is not None:
-            tool["search_context_size"] = self.search_context_size
-        if self.user_location is not None:
-            tool["user_location"] = {"type": "approximate", **self.user_location.model_dump()}
-        return tool
-
-    def to_messages(self, *, max_tool_calls: int | None = None) -> dict[str, Any]:
-        """Build a Messages tool declaration with the request's optional search budget."""
-        if self.search_context_size is not None:
-            raise UnsupportedInput(
-                "tools.web_search.search_context_size cannot be represented by Anthropic Messages."
-            )
-        tool: dict[str, Any] = {"type": "web_search_20250305", "name": "web_search"}
-        for key in ("allowed_domains", "blocked_domains"):
-            if (value := getattr(self, key)) is not None:
-                tool[key] = value
-        if self.user_location is not None:
-            tool["user_location"] = {"type": "approximate", **self.user_location.model_dump()}
-        if max_tool_calls is not None:
-            tool["max_uses"] = max_tool_calls
-        return tool
-
-
-class ProviderToolChoice(StrictModel, ABC):
-    """Require a provider-executed tool, independently of client function names."""
-
-    @abstractmethod
-    def to_responses(self) -> dict[str, Any]:
-        """Build a Responses tool choice requiring this provider tool."""
-
-    @abstractmethod
-    def to_messages(self) -> dict[str, Any]:
-        """Build a Messages tool choice requiring this provider tool."""
-
-
-class WebSearchToolChoice(ProviderToolChoice):
+class WebSearchToolChoice(StrictModel):
     """Require hosted search specifically, independently of client function names."""
 
     type: Annotated[Literal["web_search"], Field(description="Required hosted tool.")] = (
         "web_search"
     )
-
-    def to_responses(self) -> dict[str, Any]:
-        """Require hosted search even when client functions are also available."""
-        return {"type": "allowed_tools", "mode": "required", "tools": [{"type": "web_search"}]}
-
-    def to_messages(self) -> dict[str, Any]:
-        """Select the Messages server-side search tool by name."""
-        return {"type": "tool", "name": "web_search"}
 
 
 Tool = Annotated[FunctionTool | WebSearchTool, Discriminator("type")]
