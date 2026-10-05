@@ -167,7 +167,7 @@ An upstream Chat client converts another downstream protocol's normalized reques
 | Prompt cache                | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`               |
 | Content cache breakpoint    | `prompt_cache_breakpoint` on supported text/image parts                            |
 
-Chat accepts image `detail="original"` through a narrow schema extension because the reviewed OpenAPI revision adds it before the pinned SDK. Native requests and translation to Responses preserve that value; Messages rejects it.
+Chat accepts image `detail="original"` through the SDK schema, available since OpenAI SDK `3.23.0`. Native requests and translation to Responses preserve that value; Messages rejects it.
 
 The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
 

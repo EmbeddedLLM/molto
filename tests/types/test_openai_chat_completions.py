@@ -3,7 +3,10 @@ import inspect
 import pytest
 from openai.resources.chat.completions.completions import AsyncCompletions
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from pydantic import ValidationError
+from openai.types.chat.chat_completion_content_part_image_param import (
+    ChatCompletionContentPartImageParam,
+)
+from pydantic import TypeAdapter, ValidationError
 
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -86,6 +89,23 @@ def test_request_rejects_malformed_instruction_content_parts(role):
             messages=[{"role": role, "content": [{"type": "text"}]}],
             model="gpt-4o-mini",
         )
+
+
+@pytest.mark.parametrize("detail", ["auto", "low", "high", "original"])
+def test_request_preserves_sdk_image_detail(detail):
+    """Ensures the SDK and Molto accept and preserve every supported image detail."""
+    image = {
+        "type": "image_url",
+        "image_url": {"url": "https://example.test/image.png", "detail": detail},
+    }
+    sdk_image = TypeAdapter(ChatCompletionContentPartImageParam).validate_python(image)
+    body = OpenAIChatCompletionsCreateRequest(
+        messages=[{"role": "user", "content": [image]}],
+        model="gpt-4o-mini",
+    )
+
+    assert body.model_dump()["messages"] == [{"role": "user", "content": [sdk_image]}]
+    assert sdk_image == image
 
 
 def test_request_dump_preserves_tool_content_part_lists():
