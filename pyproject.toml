@@ -76,14 +76,15 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 # The anthropic and openai windows are the version ranges that the offline replay suite passes on.
-# The openai floor is a hard import requirement, not a preference;
-# the ceilings are releases where tests start failing.
+# The openai floor supplies the reviewed Responses schema; its ceiling is the
+# latest verified release, rather than a promise about future SDK versions.
+# The anthropic ceiling is a release where tests start failing.
 # Re-derive from the suite before widening either bound; see AGENTS.md, "Dependency Versions".
 # The test extra pins the exact versions the suite is developed against.
 dependencies = [
     "anthropic>=0.119.0,<0.124",
     "loguru~=0.7",
-    "openai>=2.45.0,<3.2",
+    "openai>=3.20.0,<=3.22.1",
     "orjson~=3.11",
     "pycountry~=26.2.16",
     "pydantic-ai-slim[retries]~=1.104.0",
@@ -101,7 +102,7 @@ lint = ["ruff~=0.12"]
 test = [
     "anthropic==0.121.0",
     "fastapi[standard]~=0.135.2",
-    "openai==2.53.0",
+    "openai==3.22.1",
     "pytest~=8.3",
     "pytest-asyncio>=0.23.8",
     "pytest-timeout~=2.3",

@@ -26,7 +26,10 @@ from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
 )
-from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
+from molto.types.openai_responses import (
+    OpenAIResponsesCreateRequest,
+    OpenAIResponsesResponse,
+)
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
@@ -69,6 +72,18 @@ PROMPT_CACHE_CASES: tuple[tuple[str, str], ...] = tuple(
     product(PROMPT_CACHE_SCENARIOS, ("stream-00.yaml", "stream-01.yaml"))
 )
 
+_RESPONSES_FUNCTION_TOOL = {
+    "type": "function",
+    "name": "lookup",
+    "parameters": {"type": "object", "properties": {}},
+    "strict": False,
+}
+_RESPONSES_FUNCTION_CALL = {
+    "type": "function_call",
+    "name": "lookup",
+    "call_id": "call_1",
+    "arguments": "{}",
+}
 
 def _protocol_name(protocol: Protocol) -> str:
     return {
@@ -134,7 +149,7 @@ def _get_http_client(
     requests: list[Request] | None = None,
     response_headers: dict[str, str] | None = None,
 ) -> AsyncClient:
-    """Replay `cassette_paths`, optionally asserting one exact outgoing request body."""
+    """Replay recorded cassettes, asserting outgoing request bodies."""
     cassette_paths = cassette_paths.copy()
 
     def cassette_handler(request: Request) -> Response:
@@ -193,6 +208,82 @@ def _get_http_client(
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
+
+
+async def _sdk_results(
+    cassettes: list[Path],
+    protocol: Protocol,
+    *,
+    expected_body: dict[str, Any] | None = None,
+) -> list[Any]:
+    """Parse recorded replay results through the native provider SDK."""
+    results = []
+    async with _get_http_client(cassettes, protocol, expected_body=expected_body) as http_client:
+        if protocol == "messages":
+            sdk = AsyncAnthropic(
+                api_key="test-api-key",
+                base_url="https://api.anthropic.com",
+                http_client=http_client,
+            )
+            create = sdk.messages.create
+            stream_type = AnthropicAsyncStream
+        else:
+            sdk = AsyncOpenAI(
+                api_key="test-api-key",
+                base_url="https://api.openai.com/v1",
+                http_client=http_client,
+            )
+            create = (
+                sdk.responses.create if protocol == "responses" else sdk.chat.completions.create
+            )
+            stream_type = AsyncStream
+        for source in cassettes:
+            cassette = _read_cassette(source)
+            body = deepcopy(
+                cassette["request"]["body"] if expected_body is None else expected_body
+            )
+            result = await create(**body)
+            if body.get("stream", False):
+                assert isinstance(result, stream_type)
+                async with result:
+                    result = [event async for event in result]
+            else:
+                assert not isinstance(result, stream_type)
+            results.append(result)
+    return results
+
+
+async def _assert_native_parity(
+    cassettes: list[Path],
+    protocol: Protocol,
+) -> list[Any]:
+    """Assert exact request and SDK result parity for both native execution modes."""
+    expected = await _sdk_results(cassettes, protocol)
+    results = []
+    response_type = {
+        "responses": OpenAIResponsesResponse,
+        "chat/completions": OpenAIChatCompletionsResponse,
+        "messages": AnthropicMessagesResponse,
+    }[protocol]
+    async with _get_http_client(cassettes, protocol) as http_client:
+        coordinator = _coordinator(Molto(http_client=http_client), protocol)
+        for source, sdk_result in zip(cassettes, expected, strict=True):
+            cassette = _read_cassette(source)
+            body = deepcopy(cassette["request"]["body"])
+            actual = await coordinator(body=body, endpoint=protocol, api_key="test-api-key")
+            if body.get("stream", False):
+                actual = [event async for event in actual]
+                assert [type(event) for event in actual] == [type(event) for event in sdk_result]
+                assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
+                    event.model_dump(mode="json", exclude_unset=True) for event in sdk_result
+                ]
+            else:
+                assert type(actual) is type(sdk_result) is response_type
+                assert actual.model_dump(mode="json", exclude_unset=True) == sdk_result.model_dump(
+                    mode="json", exclude_unset=True
+                )
+            results.append(actual)
+    return results
 
 
 def _assert_reconstructable_encrypted_responses_request(
@@ -491,49 +582,9 @@ async def test_native_stream_matches_provider_sdk(
     scenario: str,
     variant: str,
 ):
+    """Ensures native recorded streams retain exact requests and parsed SDK events."""
     cassette_path = _matched_cassette_path(scenario, protocol, variant)
-    cassette = _read_cassette(cassette_path)
-    request_body = deepcopy(cassette["request"]["body"])
-
-    async with _get_http_client([cassette_path], protocol) as http_client:
-        if protocol == "messages":
-            sdk_client = AsyncAnthropic(
-                api_key="test-api-key",
-                base_url="https://api.anthropic.com",
-                http_client=http_client,
-            )
-            sdk_stream = await sdk_client.messages.create(**request_body)
-            assert isinstance(sdk_stream, AnthropicAsyncStream)
-        else:
-            sdk_client = AsyncOpenAI(
-                api_key="test-api-key",
-                base_url="https://api.openai.com/v1",
-                http_client=http_client,
-            )
-            if protocol == "responses":
-                sdk_stream = await sdk_client.responses.create(**request_body)
-            else:
-                sdk_stream = await sdk_client.chat.completions.create(**request_body)
-            assert isinstance(sdk_stream, AsyncStream)
-        async with sdk_stream:
-            sdk_events = [event async for event in sdk_stream]
-
-    async with _get_http_client([cassette_path], protocol) as http_client:
-        client = Molto(http_client=http_client)
-        coordinator = {
-            "responses": client.responses,
-            "chat/completions": client.chat_completions,
-            "messages": client.messages,
-        }[protocol]
-        molto_stream = await coordinator(
-            body=request_body, endpoint=protocol, api_key="test-api-key"
-        )
-        molto_events = [event async for event in molto_stream]
-
-    assert [type(event) for event in molto_events] == [type(event) for event in sdk_events]
-    assert [event.model_dump(mode="json", exclude_unset=True) for event in molto_events] == [
-        event.model_dump(mode="json", exclude_unset=True) for event in sdk_events
-    ]
+    await _assert_native_parity([cassette_path], protocol)
 
 
 @pytest.mark.parametrize(
@@ -550,68 +601,12 @@ async def test_native_non_streaming_responses_match_provider_sdk(
     scenario: str,
     protocol: Protocol,
 ):
+    """Ensures native multi-turn responses retain exact requests and SDK result types."""
     cassette_paths = [
         _matched_cassette_path(scenario, protocol, variant)
         for variant in ("non_stream-00.yaml", "non_stream-01.yaml")
     ]
-    request_bodies = [
-        deepcopy(_read_cassette(cassette_path)["request"]["body"])
-        for cassette_path in cassette_paths
-    ]
-    sdk_responses = []
-
-    async with _get_http_client(cassette_paths, protocol) as http_client:
-        if protocol == "messages":
-            sdk_client = AsyncAnthropic(
-                api_key="test-api-key",
-                base_url="https://api.anthropic.com",
-                http_client=http_client,
-            )
-            for request_body in request_bodies:
-                sdk_response = await sdk_client.messages.create(**request_body)
-                assert not isinstance(sdk_response, AnthropicAsyncStream)
-                sdk_responses.append(sdk_response)
-        else:
-            sdk_client = AsyncOpenAI(
-                api_key="test-api-key",
-                base_url="https://api.openai.com/v1",
-                http_client=http_client,
-            )
-            for request_body in request_bodies:
-                if protocol == "responses":
-                    sdk_response = await sdk_client.responses.create(**request_body)
-                else:
-                    sdk_response = await sdk_client.chat.completions.create(**request_body)
-                assert not isinstance(sdk_response, AsyncStream)
-                sdk_responses.append(sdk_response)
-
-    async with _get_http_client(cassette_paths, protocol) as http_client:
-        client = Molto(http_client=http_client)
-        coordinator = {
-            "responses": client.responses,
-            "chat/completions": client.chat_completions,
-            "messages": client.messages,
-        }[protocol]
-        molto_responses = [
-            await coordinator(
-                body=request_body,
-                endpoint=protocol,
-                api_key="test-api-key",
-            )
-            for request_body in request_bodies
-        ]
-
-    response_type = {
-        "responses": OpenAIResponsesResponse,
-        "chat/completions": OpenAIChatCompletionsResponse,
-        "messages": AnthropicMessagesResponse,
-    }[protocol]
-    for molto_response, sdk_response in zip(molto_responses, sdk_responses, strict=True):
-        assert type(molto_response) is response_type
-        assert type(molto_response) is type(sdk_response)
-        assert molto_response.model_dump(
-            mode="json", exclude_unset=True
-        ) == sdk_response.model_dump(mode="json", exclude_unset=True)
+    await _assert_native_parity(cassette_paths, protocol)
 
 
 def _assert_matched_response(
@@ -1413,8 +1408,9 @@ def _coordinator(client: Molto, protocol: Protocol):
     }[protocol]
 
 
-def _simple_text_cassette(protocol: Protocol) -> Path:
-    return _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
+def _simple_text_cassette(protocol: Protocol, *, stream: bool = True) -> Path:
+    mode = "stream" if stream else "non_stream"
+    return _matched_cassette_path("simple_text", protocol, f"{mode}-00.yaml")
 
 
 async def _assert_request_parity(
@@ -1447,19 +1443,7 @@ async def _assert_request_parity(
 
     # Reuse the recorded response without rewriting fixtures: these tests exercise
     # request projection and stream fidelity, not the provider's acceptance of the modified input.
-    async with _get_http_client([downstream_path], downstream, expected_body=body) as http_client:
-        if downstream == "messages":
-            sdk_stream = await AsyncAnthropic(
-                api_key="test-api-key", http_client=http_client
-            ).messages.create(**body)
-        else:
-            sdk_client = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
-            if downstream == "responses":
-                sdk_stream = await sdk_client.responses.create(**body)
-            else:
-                sdk_stream = await sdk_client.chat.completions.create(**body)
-        async with sdk_stream:
-            sdk_events = [event async for event in sdk_stream]
+    sdk_events = (await _sdk_results([downstream_path], downstream, expected_body=body))[0]
 
     if downstream == upstream:
         assert [type(event) for event in events] == [type(event) for event in sdk_events]
@@ -1503,16 +1487,22 @@ async def _assert_request_parity(
     assert actual == expected
 
 
-async def _assert_prompt_cache_rejected(
+async def _assert_request_rejected(
     downstream: Protocol,
     upstream: Protocol,
     additions: dict[str, Any],
     match: str,
+    *,
+    stream: bool = True,
 ) -> None:
-    """Assert an unportable cache value fails before any upstream request is made."""
+    """Assert unsupported requests fail before any upstream request is made."""
     downstream_path = _simple_text_cassette(downstream)
     upstream_path = _simple_text_cassette(upstream)
-    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+    body = (
+        deepcopy(_read_cassette(downstream_path)["request"]["body"])
+        | additions
+        | {"stream": stream}
+    )
 
     async with _get_http_client([]) as http_client:
         with pytest.raises(UnsupportedInput, match=match):
@@ -1522,6 +1512,40 @@ async def _assert_prompt_cache_rejected(
                 provider=_provider_from_cassette_path(upstream_path),
                 api_key="test-api-key",
             )
+
+
+@pytest.mark.parametrize("endpoint", ["chat/completions", "messages"])
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize(
+    ("addition", "reason"),
+    [
+        ({"prompt_cache_options": {"prewarm": True}}, "prewarm"),
+        ({"prompt_cache_options": {"prewarm": False}}, "prewarm"),
+        (
+            {"prompt_cache_options": {"comparison_response_id": "resp_compare"}},
+            "comparison_response_id",
+        ),
+        ({"tools": [{**_RESPONSES_FUNCTION_TOOL, "async": True}]}, "async function tools"),
+        ({"tools": [{**_RESPONSES_FUNCTION_TOOL, "async": False}]}, "async function tools"),
+        ({"input": [{**_RESPONSES_FUNCTION_CALL, "async": True}]}, "async function history"),
+        ({"input": [{**_RESPONSES_FUNCTION_CALL, "async": False}]}, "async function history"),
+        ({"service_tier": "ultrafast"}, "service_tier"),
+        ({"access_programs": {"cyber": "standard"}}, "access_programs"),
+        (
+            {"tools": [{"type": "web_search", "external_web_access": False}]},
+            "tool type: web_search",
+        ),
+        ({"tools": [{"type": "image_generation", "quality": "xhigh"}]}, "image_generation"),
+        ({"tools": [{"type": "image_generation", "quality": "max"}]}, "image_generation"),
+        ({"tools": [{"type": "shell"}]}, "tool type: shell"),
+        ({"context_management": [{"type": "compaction"}]}, "context_management"),
+    ],
+)
+async def test_new_native_options_rejected_before_translated_transport(
+    endpoint, stream, addition, reason
+):
+    """Ensures new native-only options fail explicitly on both translated routes and modes."""
+    await _assert_request_rejected("responses", endpoint, addition, reason, stream=stream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
@@ -1594,7 +1618,7 @@ async def test_prompt_cache_rejects_unportable_values(
     match: str,
 ):
     """Asserts that Messages routes reject retention guarantees they cannot preserve."""
-    await _assert_prompt_cache_rejected(downstream, upstream, additions, match)
+    await _assert_request_rejected(downstream, upstream, additions, match)
 
 
 def _breakpoint_input(protocol: Protocol, position: str, marker: dict[str, Any]) -> dict[str, Any]:

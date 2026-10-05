@@ -292,6 +292,8 @@ Molto first preserves a provider-neutral termination reason, then projects it in
 | ------------------------------- | --------------- | ---------------- | ------------------------------- |
 | `stop`                          | `end_turn`      | `stop`           | completed                       |
 | `max_output_tokens`             | `max_tokens`    | `length`         | incomplete: `max_output_tokens` |
+| `max_messages`                  | `end_turn`      | `stop`           | incomplete: `max_messages`      |
+| `steered`                       | `end_turn`      | `stop`           | incomplete: `steered`           |
 | `stop_sequence`                 | `stop_sequence` | `stop`           | completed                       |
 | `tool_call`                     | `tool_use`      | `tool_calls`     | completed                       |
 | `model_context_window_exceeded` | same value      | `stop`           | completed                       |
@@ -299,7 +301,7 @@ Molto first preserves a provider-neutral termination reason, then projects it in
 | `refusal`                       | `refusal`       | `stop`           | completed                       |
 | `content_filter`                | `end_turn`      | `content_filter` | incomplete: `content_filter`    |
 
-Values shown as normal completion for a target that lacks the source distinction are deliberate coercions. A matched Anthropic stop sequence is retained separately.
+Responses preserves `max_messages` and `steered` as incomplete states in streaming and collected output. `max_messages` is not interpreted as token exhaustion; accepting `steered` does not implement WebSocket steering or successor responses. Values shown as normal completion for a target that lacks the source distinction are deliberate coercions. A matched Anthropic stop sequence is retained separately.
 
 ### Usage
 
@@ -345,6 +347,12 @@ For open-weight models, the selected renderer or chat template is the most autho
 ## Compatibility and maintenance
 
 OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models, except two narrow Responses event replacements: `OpenAIResponseCompletedEvent` (sets a `null` `cache_write_tokens` to `0`) and `OpenAIResponseFunctionCallArgumentsDoneEvent` (relaxes the required `name`). Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
+
+The reviewed OpenAI schema baseline is the immutable [October 1, 2026 revision](https://github.com/openai/openai-openapi/blob/40496dbddd5b66bbe0a77d38bcb435884b7b8370/openapi.json). Native Responses accepts `ultrafast`, `access_programs`, cache prewarming/comparison IDs, asynchronous function tools/history, web-search `external_web_access`, and image-generation `xhigh`/`max` quality through the pinned SDK. Native events include compaction progress and shell command/output-content variants. These features do not widen translation: populated `prewarm`, `comparison_response_id`, and function `async` values (including `false`) are explicitly rejected, as are service tiers, access programs, hosted tools/history, and context management.
+
+Native SDK responses retain diagnostics, access-program metadata, image-generation failures, Chat metadata, obfuscation, and detailed usage. Translation maps aggregate, cache, and reasoning token counts and omits source-only diagnostics, access-program metadata, text/image usage breakdowns, and obfuscation. Shell/compaction translation and WebSocket steering remain outside the supported scope; content-bearing shell events are never silently ignored. Arbitrary model IDs, Python integer Chat seeds, optional compatible-provider history IDs, and omitted function-call argument-done names remain supported on native routes. Chat image `detail="original"` is retained by native requests and translation to Responses; Messages rejects that detail.
+
+Baseline advancement acknowledges this reviewed scope. Existing behavior is verified through offline cassette replay. Cassette-backed coverage of the new schema fields, events, metadata, and incomplete terminal reasons is deferred to a follow-up PR using real provider recordings; live-provider acceptance remains unverified. The monitor still compares against upstream `main` and can report subsequent drift.
 
 Responses is the canonical behavioral reference for matched cross-protocol cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
 

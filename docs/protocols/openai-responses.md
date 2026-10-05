@@ -158,6 +158,8 @@ One user message remains one user message, and its ordered text and image parts 
 
 System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values, losing its role and enclosing boundary. Each assistant message becomes one `AssistantInput` retaining its optional message ID and ordered text parts, including part markers. Standalone reasoning and function-call items remain separate normalized items; multiple reasoning parts of the same representation are joined within their normalized reasoning value.
 
+Cache `prewarm`/`comparison_response_id` and function tool/history `async` settings are native-only and explicitly rejected when populated, including `false`. Service tiers (including `ultrafast`), `access_programs`, hosted web-search/image/shell tools and their histories, and context-management settings remain unsupported for translation. The SDK owns native parsing of compaction progress and shell command/output-content events; translated routes reject these event variants.
+
 Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, and caller-defined prompt-cache keys on Messages. Output-item IDs remain valid normalized history and are preserved by Responses, including marked assistant history; Messages drops cache keys without enabling caching and processes cache options independently. Encrypted-reasoning inclusion is ignored because Molto already preserves any encrypted reasoning returned by the provider, while disabled storage is ignored because it requests no provider-side state; `store=true` is rejected. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. Supported content-part `prompt_cache_breakpoint` values become normalized positional markers. Assistant markers use `output_text` parts and preserve optional output-item IDs.
 
 ### Downstream event projection
@@ -315,7 +317,7 @@ Molto constructs Responses usage explicitly from normalized semantic fields:
 | `output_tokens_details.reasoning_tokens`  | Reasoning or thinking output tokens |
 | `total_tokens`                            | Total input plus output tokens      |
 
-Chat maps prompt, completion, cache, and reasoning counts directly to these meanings. Messages input totals combine uncached input, cache creation, and cache reads before projection. Source-only audio, prediction, cache TTL, inference geography, and server-tool usage are not synthesized.
+Chat maps prompt, completion, cache, and reasoning counts directly to these meanings. Messages input totals combine uncached input, cache creation, and cache reads before projection. Source-only audio, prediction, text/image usage breakdowns, cache TTL, inference geography, and server-tool usage are not synthesized. Cache diagnostics and access-program metadata are retained on native routes and omitted during translation.
 
 All translated Responses results report `service_tier="default"`. The source tier can remain normalized metadata, but tier vocabularies are not treated as portable. Native Responses passthrough preserves the provider value. Request service tier is not forwarded across protocols.
 
@@ -326,6 +328,8 @@ Termination projection is:
 | `stop`                          | `response.completed`                       |
 | `max_output_tokens`             | `response.incomplete` with the same reason |
 | `content_filter`                | `response.incomplete` with the same reason |
+| `max_messages`                  | `response.incomplete` with the same reason |
+| `steered`                       | `response.incomplete` with the same reason |
 | `stop_sequence`                 | `response.completed`, coerced              |
 | `tool_call`                     | `response.completed`, coerced              |
 | `model_context_window_exceeded` | `response.completed`, coerced              |
@@ -333,6 +337,8 @@ Termination projection is:
 | `refusal`                       | `response.completed`, coerced              |
 
 Molto retains the more specific source reason in the normalized stream. The coercion occurs only because the pinned Responses schema cannot represent that reason as an incomplete status.
+
+`max_messages` remains distinct from token exhaustion; Molto does not infer its counting rule or threshold. `steered` preserves the terminal reason only and does not add WebSocket steering, queued input, or successor-response support. Streaming projection and non-streaming collection retain the same incomplete status and reason.
 
 ## Errors
 

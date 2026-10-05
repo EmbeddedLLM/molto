@@ -26,6 +26,7 @@ from molto.types.openai_responses import (
 
 
 def test_request_fields_match_responses_create_body_parameters():
+    """Ensures native request fields match the supported SDK transport keywords."""
     signature = inspect.signature(AsyncResponses.create)
     transport_parameters = {"self", "extra_headers", "extra_query", "extra_body", "timeout"}
     sdk_parameters = {
@@ -232,8 +233,11 @@ def test_request_rejects_invalid_response_history(item):
 
 
 def test_non_streaming_response_uses_sdk_model():
+    """Ensures Responses results retain the refreshed SDK schema without duplication."""
     assert OpenAIResponsesResponse is Response
     assert set(OpenAIResponsesResponse.model_fields) == {
+        "access_programs",
+        "prompt_cache_diagnostics",
         "id",
         "created_at",
         "error",

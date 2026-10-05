@@ -127,13 +127,14 @@ def test_request_dump_preserves_tool_content_part_lists():
         [
             {
                 "type": "image_url",
-                "image_url": {"url": "https://example.test/image.png", "detail": "original"},
+                "image_url": {"url": "https://example.test/image.png", "detail": "ultra"},
             }
         ],
     ],
     ids=["malformed-image", "unsupported-image-detail"],
 )
 def test_request_rejects_unsupported_user_content(content):
+    """Ensures unsupported content and details outside the reviewed schema stay invalid."""
     with pytest.raises(ValidationError):
         OpenAIChatCompletionsCreateRequest(
             messages=[{"role": "user", "content": content}],
@@ -142,8 +143,10 @@ def test_request_rejects_unsupported_user_content(content):
 
 
 def test_non_streaming_chat_completion_uses_sdk_model():
+    """Ensures native Chat responses retain SDK metadata and schema ownership."""
     assert OpenAIChatCompletionsResponse is ChatCompletion
     assert set(OpenAIChatCompletionsResponse.model_fields) == {
+        "metadata",
         "id",
         "choices",
         "created",
@@ -169,8 +172,10 @@ def test_non_streaming_chat_completion_uses_sdk_model():
 
 
 def test_streaming_chat_completion_chunk_uses_sdk_model():
+    """Ensures native Chat chunks retain SDK obfuscation and schema ownership."""
     assert OpenAIChatCompletionsStreamChunk is ChatCompletionChunk
     assert set(OpenAIChatCompletionsStreamChunk.model_fields) == {
+        "obfuscation",
         "id",
         "choices",
         "created",

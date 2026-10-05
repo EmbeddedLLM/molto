@@ -33,7 +33,7 @@ jobs:
       - name: Fetch OpenAI OpenAPI specifications
         env:
           # Advance only after reviewing drift and verifying affected Molto behavior.
-          BASELINE_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/577fa92299e000af1616f3be1fec740e3383a86a/openapi.json
+          BASELINE_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/40496dbddd5b66bbe0a77d38bcb435884b7b8370/openapi.json
           LATEST_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/main/openapi.json
         run: |
           curl --fail --silent --show-error --location --retry 3 \

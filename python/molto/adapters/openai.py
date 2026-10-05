@@ -181,6 +181,8 @@ def _responses_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
             raise UnsupportedInput("Deferred Responses function tools are not supported.")
         if tool.get("output_schema") is not None:
             raise UnsupportedInput("Responses function output schemas are not supported.")
+        if tool.get("async") is not None:
+            raise UnsupportedInput("Responses async function tools are not supported.")
         normalized.append(_function_tool(tool))
     return normalized
 
@@ -236,6 +238,9 @@ def _prompt_cache(
 ) -> PromptCache | None:
     """Normalize the cache fields that Responses and Chat Completions spell identically."""
     options = dict(options or {})
+    for field in ("prewarm", "comparison_response_id"):
+        if options.get(field) is not None:
+            raise UnsupportedInput(f"Prompt-cache {field} is not supported for translation.")
     if key is None and retention is None and not options:
         return None
     return PromptCache(
@@ -251,6 +256,8 @@ def _validate_responses_function_metadata(
     *,
     statuses: set[str | None],
 ) -> None:
+    if item.get("async") is not None:
+        raise UnsupportedInput("Responses async function history is not supported.")
     caller = item.get("caller")
     if caller is not None and caller.get("type") != "direct":
         raise UnsupportedInput("Only direct Responses function calls are supported.")
@@ -933,7 +940,12 @@ class OpenAIResponsesAdapter(
                 if response_start is None:
                     raise ValueError("Received a response end before its response start.")
                 termination_reason = normalized_event.termination_reason
-                if termination_reason in {"content_filter", "max_output_tokens"}:
+                if termination_reason in {
+                    "content_filter",
+                    "max_messages",
+                    "max_output_tokens",
+                    "steered",
+                }:
                     event_type = "response.incomplete"
                     status = "incomplete"
                 else:

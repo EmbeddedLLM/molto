@@ -13,6 +13,7 @@ from openai import AsyncStream
 from openai.types.responses import Response, ResponseCompletedEvent, ResponseStreamEvent
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_create_params import (
+    AccessPrograms,
     ContextManagement,
     Conversation,
     Moderation,
@@ -48,7 +49,14 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import Discriminator, Field, TypeAdapter, model_validator
+from pydantic import (
+    Discriminator,
+    Field,
+    SerializerFunctionWrapHandler,
+    TypeAdapter,
+    field_serializer,
+    model_validator,
+)
 from typing_extensions import Required
 
 from molto.types.base import ExcludeNoneModel
@@ -171,6 +179,10 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     optional parameters remain omitted from the payload.
     """
 
+    access_programs: Annotated[
+        AccessPrograms | None,
+        Field(description="Domain-specific access programs to use for this request."),
+    ] = None
     background: Annotated[
         bool | None,
         Field(description="Whether to run the model response in the background."),
@@ -251,7 +263,7 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         Field(description="A stable identifier for a user or application user."),
     ] = None
     service_tier: Annotated[
-        Literal["auto", "default", "flex", "scale", "priority", "fast"] | None,
+        Literal["auto", "default", "flex", "scale", "priority", "fast", "ultrafast"] | None,
         Field(description="The processing service tier for the request."),
     ] = None
     store: Annotated[
@@ -298,6 +310,22 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         str | None,
         Field(description="A stable identifier for the end user."),
     ] = None
+
+    @field_serializer("input", mode="wrap")
+    def serialize_input(
+        self,
+        value: str | OpenAIResponsesInputParam | None,
+        handler: SerializerFunctionWrapHandler,
+    ) -> Any:
+        """Retain the required nullable result of failed image-generation history."""
+        serialized = handler(value)
+        if isinstance(serialized, list):
+            for item in serialized:
+                # The SDK requires result even when a failed call has no image;
+                # exclude_none must not turn valid history into a missing field.
+                if item.get("type") == "image_generation_call":
+                    item.setdefault("result", None)
+        return serialized
 
 
 class OpenAIResponseCompletedEvent(ResponseCompletedEvent):

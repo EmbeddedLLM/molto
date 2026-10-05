@@ -21,6 +21,8 @@ Every row below holds for a translated route (one protocol to another through th
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
 | Termination reason | Projected per the shared table | Provider-neutral termination | Reasons without a target equivalent are coerced to that target's normal completion |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized |
+| Native cache prewarming/comparison and async function settings | Rejected before transport | Native Responses settings | No portable semantic mapping |
+| Source-only diagnostics, usage details, and obfuscation | Omitted | SDK-owned native metadata | Aggregate/cache/reasoning usage remains mapped |
 | Prompt-cache intent | Projected under the [shared policy](../README.md#prompt-caching) | `PromptCache` plus positional `CacheBreakpoint` | Messages silently drops keys and maps `30m` minimum lifetime to `1h` on blocks and automatic caching; key-only requests do not enable caching; supported text/image markers preserve position; retention and unsupported marker positions are rejected; OpenAI collapses explicit request/block lifetimes to `30m`, rounding `5m` up and weakening the `1h` minimum |
 | Response ID and model | Preserved | Source response | A Messages upstream has no creation timestamp; `created_at` is captured locally |
 | Exact response-completion timestamp | Unavailable and omitted | None | Responses `created` is not `completed_at` |
@@ -39,7 +41,7 @@ Full boundary fidelity would require more than the current normalized representa
 | Output identity | Typed output items with IDs and lifecycles | Chunks in `choices[]`, index `0` only | One message with indexed content blocks |
 | Streaming events | `ResponseStreamEvent` lifecycles | `ChatCompletionChunk` deltas | `RawMessageStreamEvent` blocks |
 | `created_at` | Source-backed or, from Messages, local `message_start` time | Source-backed; local time from Messages upstream | Captured locally when required by a downstream protocol |
-| Termination | `completed` / `incomplete` with reason | `finish_reason` | `message_delta.stop_reason` |
+| Termination | `completed` / `incomplete` with reason, including `max_messages` and `steered` | `finish_reason`; new Responses reasons fall back to `stop` | `message_delta.stop_reason`; new Responses reasons fall back to `end_turn` |
 | Reasoning representation | Explicit `reasoning_text.*` vs `reasoning_summary_*` | Ambiguous `reasoning_content`, capability-classified | Ambiguous `thinking_delta`, capability-classified |
 | Service tier (translated) | Target default `default` | Target default `default` | `standard` in `message_start.usage` |
 | Keepalive | None specific on translated output | None specific on translated output | `ping` is transport-only, filtered by the SDK, never synthesized |

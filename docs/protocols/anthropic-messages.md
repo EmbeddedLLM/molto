@@ -304,6 +304,8 @@ Molto does not buffer the whole stream to reproduce the third ciphertext. This m
 
 The [shared termination table](../README.md#termination) defines every route. For Messages, normal completion is `end_turn`, output exhaustion is `max_tokens`, a matched stop sequence is `stop_sequence`, and a function call ends with `tool_use`. The matched sequence is retained separately. A source reason with no Messages equivalent is deliberately coerced to `end_turn` so the stream remains consumable; the source distinction is then lost.
 
+Responses `max_messages` and `steered` use this `stop_reason="end_turn"` fallback in both streaming and collected Messages output. `max_messages` remains distinct from token exhaustion, while terminal-reason support does not add steering transport or sessions.
+
 Messages request tier values (`auto` and `standard_only`) are distinct from response values (`standard`, `priority`, and `batch`) and have no portable OpenAI equivalent. Following the [shared service-tier policy](../README.md#service-tiers), native passthrough preserves the provider value, every translated Messages result uses `standard`, and request `service_tier` is not forwarded.
 
 ### Prompt caching

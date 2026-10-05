@@ -708,10 +708,12 @@ class ResponseStartEvent(ExtraModel):
 
 TerminationReason: TypeAlias = Literal[
     "content_filter",
+    "max_messages",
     "max_output_tokens",
     "model_context_window_exceeded",
     "pause",
     "refusal",
+    "steered",
     "stop",
     "stop_sequence",
     "tool_call",

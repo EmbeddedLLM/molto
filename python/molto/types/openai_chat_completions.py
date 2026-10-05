@@ -17,6 +17,10 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ChatCompletionAssistantMessageParam,
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
+from openai.types.chat.chat_completion_content_part_image_param import (
+    ChatCompletionContentPartImageParam,
+    ImageURL,
+)
 from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
 from openai.types.chat.chat_completion_content_part_refusal_param import (
     ChatCompletionContentPartRefusalParam,
@@ -69,10 +73,37 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     ]
 
 
+# TODO: SDK 3.22.1 omits "original"; upstream added it after that release:
+# https://github.com/openai/openai-python/pull/4005
+# Once the minimum supported SDK includes this fix, remove both image wrappers
+# and the replacement content-part union below; use ChatCompletionContentPartParam.
+class ChatImageURLParam(ImageURL):
+    """The reviewed OpenAPI schema accepts original detail ahead of the SDK."""
+
+    detail: NotRequired[Literal["auto", "low", "high", "original"]]
+
+
+class ChatCompletionImageParam(ChatCompletionContentPartImageParam):
+    """The SDK image part with the reviewed image-detail vocabulary."""
+
+    image_url: Required[ChatImageURLParam]
+
+
+_RETAINED_SDK_CONTENT_PARTS = tuple(
+    part
+    for part in get_args(ChatCompletionContentPartParam)
+    if part is not ChatCompletionContentPartImageParam
+)
+OpenAIChatCompletionsContentPartParam: TypeAlias = Union[
+    ChatCompletionImageParam,
+    *_RETAINED_SDK_CONTENT_PARTS,  # pyright: ignore[reportInvalidTypeForm]
+]
+
+
 class ChatCompletionUserMessageListParam(TypedDict):
     """User message with eagerly validated, repeatable content parts."""
 
-    content: Required[str | list[ChatCompletionContentPartParam]]
+    content: Required[str | list[OpenAIChatCompletionsContentPartParam]]
     role: Required[Literal["user"]]
     name: NotRequired[str]
 
