@@ -85,6 +85,7 @@ _RESPONSES_FUNCTION_CALL = {
     "arguments": "{}",
 }
 
+
 def _protocol_name(protocol: Protocol) -> str:
     return {
         "chat/completions": "chat_completions",
