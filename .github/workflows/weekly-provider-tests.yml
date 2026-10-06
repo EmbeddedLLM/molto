@@ -30,66 +30,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install schema conversion dependency
-        run: python -m pip install PyYAML==6.0.3
-
-      - name: Resolve pinned and latest OpenAI SDK releases
-        id: sdk_releases
+      - name: Fetch OpenAI OpenAPI specifications
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Advance only after reviewing drift and verifying affected Molto behavior.
+          BASELINE_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/72b0ca044d4954839f388528856649f7f5de5389/openapi.json
+          LATEST_OPENAPI_URL: https://raw.githubusercontent.com/openai/openai-openapi/main/openapi.json
         run: |
           curl --fail --silent --show-error --location --retry 3 \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/openai/openai-python/releases/latest \
-            --output "$RUNNER_TEMP/openai-sdk-latest-release.json"
-          python - <<'PY'
-          import json
-          import os
-          import tomllib
-          from pathlib import Path
-
-          project = tomllib.loads(Path("pyproject.toml").read_text())
-          test_dependencies = project["project"]["optional-dependencies"]["test"]
-          version = next(
-              dependency.removeprefix("openai==")
-              for dependency in test_dependencies
-              if dependency.startswith("openai==")
-          )
-          release = json.loads(
-              (Path(os.environ["RUNNER_TEMP"]) / "openai-sdk-latest-release.json").read_text()
-          )
-          baseline, latest = f"v{version}", release["tag_name"]
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-              print(f"baseline={baseline}", file=output)
-              print(f"latest={latest}", file=output)
-          print(f"Comparing OpenAI SDK schemas: {baseline} -> {latest}")
-          PY
-
-      - name: Fetch and convert SDK release schemas
-        env:
-          BASELINE_SDK_TAG: ${{ steps.sdk_releases.outputs.baseline }}
-          LATEST_SDK_TAG: ${{ steps.sdk_releases.outputs.latest }}
-        run: |
+            "$BASELINE_OPENAPI_URL" \
+            --output "$RUNNER_TEMP/openai-openapi-baseline.json"
           curl --fail --silent --show-error --location --retry 3 \
-            "https://raw.githubusercontent.com/openai/openai-python/$BASELINE_SDK_TAG/api_reference/openapi.transformed.yml" \
-            --output "$RUNNER_TEMP/openai-openapi-baseline.yml"
-          curl --fail --silent --show-error --location --retry 3 \
-            "https://raw.githubusercontent.com/openai/openai-python/$LATEST_SDK_TAG/api_reference/openapi.transformed.yml" \
-            --output "$RUNNER_TEMP/openai-openapi-latest.yml"
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          import yaml
-
-          directory = Path(os.environ["RUNNER_TEMP"])
-          for name in ("baseline", "latest"):
-              source = directory / f"openai-openapi-{name}.yml"
-              document = yaml.safe_load(source.read_text())
-              # YAML dates must remain strings in the OpenAPI JSON document.
-              (directory / f"openai-openapi-{name}.json").write_text(json.dumps(document, default=str))
-          PY
+            "$LATEST_OPENAPI_URL" \
+            --output "$RUNNER_TEMP/openai-openapi-latest.json"
 
       - name: Compare OpenAI API programmatic contracts
         run: |
