@@ -88,10 +88,10 @@ Translated Chat omits structured annotations in both modes. It preserves actual 
 
 Responses search actions become Messages `server_tool_use` blocks followed by linked `web_search_tool_result` blocks. Emission waits until the action and arguments are known.
 
-- A one-element `queries` list supplies `input.query`; otherwise a present singular `query` supplies it.
+- A non-empty `queries` list produces one `server_tool_use` block per entry, in order. Repeated query strings remain separate invocations. Otherwise a present singular `query` supplies `input.query`.
 - Missing or null query metadata, including an empty query list without a singular query, produces `input: {}`.
 - An explicitly empty query remains `input: {"query":""}`.
-- Multiple entries in `queries` reject Messages output even if a singular query is also supplied. Use multiple single-query searches instead. Rejection can occur after earlier chunks and closes the upstream stream. Native Responses and translated Chat do not have this restriction.
+- The first invocation retains the original search ID; additional invocations receive distinct generated IDs. The upstream result contains pooled sources without per-query attribution, so it appears once, linked to the original ID. Additional invocations have no separately attributable result. The same mapping applies when projecting search history to a Messages upstream.
 
 Observed Responses sources become result entries. A URL-only source produces this illustrative result:
 
@@ -141,6 +141,8 @@ Native usage is preserved. Token translation is unchanged. Messages search count
 ## Follow-ups and recovery
 
 Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search.
+
+When projecting Messages history to Responses, a search result updates the preceding call with the same ID even when they occupy separate assistant messages. The call preserves its query metadata while applying the result's status and supplied sources. Assistant text messages and text runs around search blocks retain their boundaries.
 
 For a Messages response named `response`, preserve supported assistant blocks with:
 

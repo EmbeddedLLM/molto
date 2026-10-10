@@ -1,9 +1,11 @@
 """Public hosted-search replay parity and explicitly synthetic boundary regressions."""
 
 import asyncio
+from contextlib import aclosing
 from copy import deepcopy
 from itertools import product
 from typing import Any
+from uuid import UUID
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -15,10 +17,12 @@ from openai import AsyncOpenAI
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import RateLimitError as OpenAIRateLimitError
 from openai.lib.streaming.chat import ChatCompletionStreamState
+from openai.types.responses.response_output_text import AnnotationURLCitation
 from pydantic import BaseModel
 
 from molto import Molto
 from molto.types.exceptions import UnsupportedInput
+from molto.upstream.openai import OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse
 from molto.utils.test import reconstructable_chat_completions_chunks
 from tests.core.test_interface import (
@@ -339,6 +343,147 @@ async def test_translated_search_matches_sdk(
         assert _messages_semantics(actual) == _messages_semantics(expected)
     else:
         assert _chat_semantics(actual, upstream) == _chat_semantics(expected, upstream)
+
+
+@pytest.mark.parametrize("stream", [True, False])
+async def test_messages_ambiguous_search_selection_rejected_before_transport(stream: bool):
+    """Ensures named search collisions fail before HTTP in both public output modes."""
+    body = _body("messages")
+    body["stream"] = stream
+    body["tools"].append({"name": "web_search", "input_schema": {"type": "object"}})
+    body["tool_choice"] = {"type": "tool", "name": "web_search"}
+    requests = []
+
+    def handler(request: Request) -> Response:
+        requests.append(request)
+        raise AssertionError("Ambiguous selection must fail before transport")
+
+    async with AsyncClient(transport=MockTransport(handler)) as http_client:
+        with pytest.raises(UnsupportedInput, match="ambiguous"):
+            await Molto(http_client=http_client).messages(
+                body=body, endpoint="responses", api_key="test-api-key"
+            )
+    assert requests == []
+
+
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("choice_type", [None, "auto", "any", "tool"])
+async def test_messages_search_selection_matches_sdk(stream: bool, choice_type: str | None):
+    """Ensures accepted search choices preserve exact requests and SDK-backed search results."""
+    body, expected_request = _request_pair("messages", "responses", stream)
+    if choice_type is None:
+        body.pop("tool_choice", None)
+    else:
+        body["tool_choice"] = {"type": choice_type}
+        if choice_type == "tool":
+            body["tool_choice"]["name"] = "web_search"
+    if choice_type != "tool":
+        # Synthetic declarations exercise selection; recorded search output is unchanged.
+        body["tools"].append({"name": "web_search", "input_schema": {"type": "object"}})
+        expected_request["tools"].append(
+            {
+                "type": "function",
+                "name": "web_search",
+                "parameters": {"type": "object"},
+                "strict": False,
+            }
+        )
+        expected_request.pop("tool_choice")
+        if choice_type == "any":
+            expected_request["tool_choice"] = "required"
+    expected = _collect("messages", await _sdk_result("messages", True))
+    async with _get_http_client(
+        [_path("responses")], "responses", expected_body=expected_request
+    ) as http_client:
+        result = await Molto(http_client=http_client).messages(
+            body=body, endpoint="responses", api_key="test-api-key"
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_lifecycle("messages", events)
+            actual = _collect("messages", events)
+        else:
+            actual = result
+    assert _messages_semantics(actual) == _messages_semantics(expected)
+
+
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("annotation_model", [True, False])
+async def test_messages_citation_annotation_matches_sdk(
+    stream: bool, annotation_model: bool, monkeypatch
+):
+    """Ensures dictionary and SDK model annotation deltas preserve citation associations and search parity."""
+    native_events = OpenAIResponsesClient.native_events
+    converted = []
+
+    async def annotation_events(client, request):
+        async with aclosing(native_events(client, request)) as events:
+            async for event in events:
+                if event.type == "response.output_text.annotation.added":
+                    annotation = event.annotation
+                    if isinstance(annotation, BaseModel):
+                        annotation = annotation.model_dump()
+                    citation = AnnotationURLCitation.model_validate(annotation)
+                    converted.append(citation)
+                    event = event.model_copy(
+                        update={
+                            "annotation": citation if annotation_model else citation.model_dump()
+                        }
+                    )
+                yield event
+
+    monkeypatch.setattr(OpenAIResponsesClient, "native_events", annotation_events)
+    body, expected_request = _request_pair("messages", "responses", stream)
+    expected = _collect("messages", await _sdk_result("messages", True))
+    async with _get_http_client(
+        [_path("responses")], "responses", expected_body=expected_request
+    ) as http_client:
+        result = await Molto(http_client=http_client).messages(
+            body=body, endpoint="responses", api_key="test-api-key"
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_lifecycle("messages", events)
+            actual = _collect("messages", events)
+        else:
+            actual = result
+    assert converted
+    assert _messages_semantics(actual) == _messages_semantics(expected)
+
+
+@pytest.mark.parametrize(
+    "include", [None, ["web_search_call.action.sources"], ["reasoning.encrypted_content"]]
+)
+@pytest.mark.parametrize("stream", [True, False])
+async def test_messages_search_extra_body_matches_sdk(stream: bool, include: list[str] | None):
+    """Ensures transport-only search preserves SDK search semantics and citation lifecycle."""
+    body, expected_request = _request_pair("messages", "responses", stream)
+    body.pop("tools")
+    body.pop("tool_choice")
+    extra_body = {
+        "tools": [{"type": "web_search"}],
+        "tool_choice": "required",
+    }
+    if include is not None:
+        extra_body["include"] = include
+    expected_request.update(extra_body)
+    expected_request["include"] = list(
+        dict.fromkeys(["web_search_call.action.sources", *(include or [])])
+    )
+    expected = _collect("messages", await _sdk_result("messages", True))
+    async with _get_http_client(
+        [_path("responses")], "responses", expected_body=expected_request
+    ) as http_client:
+        result = await Molto(http_client=http_client).messages(
+            body=body, endpoint="responses", api_key="test-api-key", extra_body=extra_body
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_lifecycle("messages", events)
+            actual = _collect("messages", events)
+        else:
+            actual = result
+    assert _messages_semantics(actual) == _messages_semantics(expected)
 
 
 async def test_chat_search_raw_reasoning_starts_with_assistant_role():
@@ -675,6 +820,108 @@ async def test_fixed_route_followup_history(
             _ = [event async for event in result]
 
 
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("result_kind", ["sources", "empty", "error"])
+async def test_split_assistant_search_history_matches_combined_sdk(stream: bool, result_kind: str):
+    """Ensures split and combined history preserve linked calls and OpenAI/Messages SDK parity."""
+    body, expected_request = _request_pair("messages", "responses", stream)
+    history = _history("messages", True)
+    expected_history = _history("responses", True)
+    if result_kind == "empty":
+        history[0]["content"][1]["content"] = []
+        expected_history[0]["action"]["sources"] = []
+    elif result_kind == "error":
+        history[0]["content"][1]["content"] = {
+            "type": "web_search_tool_result_error",
+            "error_code": "unavailable",
+        }
+        expected_history[0]["status"] = "failed"
+        expected_history[0]["action"].pop("sources")
+    history.insert(-1, {"role": "assistant", "content": [{"type": "text", "text": "More"}]})
+    expected_history.insert(
+        -1,
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {"type": "output_text", "text": "More", "annotations": [], "logprobs": []}
+            ],
+        },
+    )
+    expected_request["input"].extend(expected_history)
+    expected = _collect("messages", await _sdk_result("messages", True))
+    reference = _collect("responses", await _sdk_result("responses", True))
+    actual_results = []
+    for split in (False, True):
+        request = deepcopy(body)
+        assistant = history[0]
+        request["messages"].extend(
+            [
+                {"role": "assistant", "content": assistant["content"][:1]},
+                {"role": "assistant", "content": assistant["content"][1:]},
+                *history[1:],
+            ]
+            if split
+            else history
+        )
+        async with _get_http_client(
+            [_path("responses")], "responses", expected_body=expected_request
+        ) as http_client:
+            result = await Molto(http_client=http_client).messages(
+                body=request, endpoint="responses", api_key="test-api-key"
+            )
+            if stream:
+                events = [event async for event in result]
+                _assert_lifecycle("messages", events)
+                result = _collect("messages", events)
+        assert result.id == reference.id
+        assert result.model == reference.model
+        assert (
+            "".join(block.text for block in result.content if block.type == "text")
+            == reference.output_text
+        )
+        assert result.usage.output_tokens == reference.usage.output_tokens
+        actual_results.append(_messages_semantics(result))
+    assert actual_results == [_messages_semantics(expected)] * 2
+
+
+@pytest.mark.parametrize("stream", [True, False])
+async def test_multi_query_history_reaches_messages_sdk(stream: bool, monkeypatch):
+    """Ensures Responses query batches reach Messages as ordered calls with one pooled result."""
+    generated_id = UUID("00000000-0000-0000-0000-000000000001")
+    monkeypatch.setattr("molto.utils.web_search.uuid4", lambda: generated_id)
+    body, expected = _request_pair("responses", "messages", stream)
+    history = _history("responses", True)
+    history[0]["action"]["queries"] = ["Python release date", "Python release notes"]
+    body["input"] = [
+        {"role": "user", "content": [{"type": "input_text", "text": body["input"]}]},
+        *history,
+    ]
+    target_history = _history("messages", True)
+    target_history[0]["content"].insert(
+        1,
+        {
+            "type": "server_tool_use",
+            "id": f"srvtoolu_{generated_id.hex}",
+            "name": "web_search",
+            "input": {"query": "Python release notes"},
+        },
+    )
+    expected["messages"].extend(target_history)
+    actual, reference = await _synthetic_replay(
+        "responses",
+        "messages",
+        stream,
+        _synthetic_events("messages"),
+        request_pair=(body, expected),
+    )
+    assert actual.output_text == "".join(
+        block.text for block in reference.content if block.type == "text"
+    )
+    assert actual.id == reference.id
+
+
 class _SearchStream(AsyncByteStream):
     def __init__(self, payload: str, *, pause: bool = False):
         self.records = payload.split("\n\n")
@@ -729,34 +976,51 @@ async def test_search_stream_close_releases_provider(
 
 
 @pytest.mark.parametrize("stream", [True, False])
-async def test_multi_query_projection_failure_closes_provider(stream: bool):
-    """Ensures a synthetic multi-query search rejects Messages projection and releases its HTTP stream."""
-    body, expected = _request_pair("messages", "responses", stream)
-    records = []
-    for record in _sse_records(_read_cassette(_path("responses")), "responses"):
-        event = load_sse(record)
-        if (
-            event["type"] == "response.output_item.done"
-            and event["item"]["type"] == "web_search_call"
-        ):
-            event["item"]["action"]["queries"] = ["first", "second"]
-        records.append(dumps_sse(event))
-    provider_stream = _SearchStream("".join(records))
-
-    def handler(request: Request) -> Response:
-        assert json_loads(request.content) == expected
-        return Response(200, stream=provider_stream, headers={"content-type": "text/event-stream"})
-
-    async with AsyncClient(transport=MockTransport(handler)) as http_client:
-        with pytest.raises(UnsupportedInput, match="Search item .*single.query") as caught:
-            result = await Molto(http_client=http_client).messages(
-                body=body, endpoint="responses", api_key="test-api-key"
-            )
-            if stream:
-                _ = [event async for event in result]
-        assert type(caught.value) is UnsupportedInput
-        assert provider_stream.closed
-        assert not http_client.is_closed
+@pytest.mark.parametrize("sources", [None, [], [{"type": "url", "url": "https://python.org/"}]])
+@pytest.mark.parametrize("status", ["completed", "failed"])
+async def test_multi_query_projection_matches_sdk(stream: bool, sources, status: str):
+    """Ensures split queries retain SDK batch results, citations, usage, and balanced lifecycles."""
+    events = _synthetic_events("responses")
+    queries = ["first", "", "first"]
+    for item in _search_snapshots(events):
+        if "action" in item:
+            item["action"].update(query="fallback", queries=queries, sources=sources)
+            item["status"] = status
+    for event in events:
+        if event.get("response", {}).get("usage") is not None:
+            event["response"]["tool_usage"] = {"web_search": {"num_requests": 1}}
+    result, reference = await _synthetic_replay("messages", "responses", stream, events)
+    search = next(item for item in reference.output if item.type == "web_search_call")
+    calls = [block for block in result.content if block.type == "server_tool_use"]
+    assert [block.input for block in calls] == [
+        {"query": query} for query in search.action.queries
+    ]
+    assert len({block.id for block in calls}) == len(queries)
+    assert calls[0].id == search.id
+    results = [block for block in result.content if block.type == "web_search_tool_result"]
+    if status == "failed":
+        assert len(results) == 1
+        assert results[0].content.type == "web_search_tool_result_error"
+        assert results[0].content.error_code == "unavailable"
+    elif search.action.sources is None:
+        assert results == []
+    else:
+        assert len(results) == 1
+        assert [source.url for source in results[0].content] == [
+            source.url for source in search.action.sources
+        ]
+    if results:
+        assert results[0].tool_use_id == search.id
+    assert (
+        "".join(block.text for block in result.content if block.type == "text")
+        == reference.output_text
+    )
+    assert sum(len(block.citations or []) for block in result.content if block.type == "text") == 1
+    assert (
+        result.usage.server_tool_use.web_search_requests
+        == reference.tool_usage["web_search"]["num_requests"]
+        == 1
+    )
 
 
 def _synthetic_events(protocol: Protocol) -> list[dict[str, Any]]:

@@ -303,6 +303,74 @@ def test_standalone_result_history_defers_validity_to_api():
     ]
 
 
+@pytest.mark.parametrize("split_at", [1, 2, 3, 4])
+def test_split_search_history_preserves_assistant_text_boundaries(split_at):
+    """Ensures split search history links results without merging assistant text runs or messages."""
+    parts = [
+        TextOutput(content="Before"),
+        SearchCall(id="ws_1", query="x"),
+        TextOutput(content="During"),
+        SearchResult(tool_call_id="ws_1", sources=[]),
+        TextOutput(content="After"),
+    ]
+    tail = AssistantInput(content=[TextOutput(content="Tail")])
+    combined = OpenAIResponsesClient._request_body(
+        NormalizedRequest(input=[AssistantInput(content=parts), tail])
+    )
+    split = OpenAIResponsesClient._request_body(
+        NormalizedRequest(
+            input=[
+                AssistantInput(content=parts[:split_at]),
+                AssistantInput(content=parts[split_at:]),
+                tail,
+            ]
+        )
+    )
+    assert split == combined
+    assert [item["type"] for item in split["input"]] == [
+        "message",
+        "web_search_call",
+        "message",
+        "message",
+        "message",
+    ]
+    assert split["input"][1] == {
+        "id": "ws_1",
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {"type": "search", "query": "x", "sources": []},
+    }
+    assert [
+        [part["text"] for part in item["content"]]
+        for item in split["input"]
+        if item["type"] == "message"
+    ] == [["Before"], ["During"], ["After"], ["Tail"]]
+
+
+@pytest.mark.parametrize("nested_call", [False, True])
+@pytest.mark.parametrize("nested_result", [False, True])
+def test_search_history_links_top_level_and_assistant_parts(nested_call, nested_result):
+    """Ensures call/result linkage spans top-level parts and explicit assistant messages."""
+    call = SearchCall(id="ws_1", query="x")
+    result = SearchResult(tool_call_id="ws_1", error="unavailable")
+    body = OpenAIResponsesClient._request_body(
+        NormalizedRequest(
+            input=[
+                AssistantInput(content=[call]) if nested_call else call,
+                AssistantInput(content=[result]) if nested_result else result,
+            ]
+        )
+    )
+    assert body["input"] == [
+        {
+            "id": "ws_1",
+            "type": "web_search_call",
+            "status": "failed",
+            "action": {"type": "search", "query": "x"},
+        }
+    ]
+
+
 async def test_unclassified_partial_search_does_not_invent_invocation():
     """Ensures an interrupted actionless item remains unclassified on translated routes."""
     item = {"id": "ws_1", "type": "web_search_call", "status": "in_progress"}

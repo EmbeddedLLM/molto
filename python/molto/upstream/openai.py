@@ -13,7 +13,7 @@ from openai import APIError, APIStatusError, AsyncStream, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import NotFoundError as OpenAINotFoundError
 from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from molto.types.exceptions import (
     AuthenticationError,
@@ -466,16 +466,17 @@ class OpenAIResponsesClient(
             self._handle_error(error)
 
     @staticmethod
-    def _assistant_items(
+    def _append_assistant_items(
+        items: list[dict[str, Any]],
         parts: list[Thinking | TextOutput | ToolCall | SearchCall | SearchResult],
         *,
         message_id: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> None:
+        """Link searches across accumulated history while grouping text within this message."""
         if message_id is not None and any(not isinstance(part, TextOutput) for part in parts):
             raise UnsupportedInput(
                 "A Responses assistant message ID requires text-only message content."
             )
-        items: list[dict[str, Any]] = []
         message: dict[str, Any] | None = None
         for item in parts:
             if not isinstance(item, TextOutput):
@@ -545,7 +546,6 @@ class OpenAIResponsesClient(
             if message_id is not None:
                 message["id"] = message_id
             items.append(message)
-        return items
 
     @staticmethod
     def _process_input(request: NormalizedRequest) -> list[dict[str, Any]] | None:
@@ -589,11 +589,11 @@ class OpenAIResponsesClient(
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, AssistantInput):
-                items.extend(
-                    OpenAIResponsesClient._assistant_items(item.content, message_id=item.id)
+                OpenAIResponsesClient._append_assistant_items(
+                    items, item.content, message_id=item.id
                 )
             elif isinstance(item, (Thinking, ToolCall, SearchCall)):
-                items.extend(OpenAIResponsesClient._assistant_items([item]))
+                OpenAIResponsesClient._append_assistant_items(items, [item])
             elif isinstance(item, SearchResult):
                 _merge_search_result(items, item)
             elif isinstance(item, ToolReturn):
@@ -670,11 +670,13 @@ class OpenAIResponsesClient(
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
-        search_enabled = any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
+        # SDK extra_body can introduce or replace the projected tool declarations.
+        tools = (self._extra_body or {}).get("tools", native_request.tools) or []
+        search_enabled = any(tool["type"] == "web_search" for tool in tools)
         if search_enabled and self._extra_body is not None:
             # SDK extra_body wins over typed request parameters. Retain caller
             # include entries while keeping search sources enabled on translation.
-            includes = list(native_request.include or [])
+            includes = ["web_search_call.action.sources", *(native_request.include or [])]
             includes.extend(self._extra_body.get("include") or [])
             unique_includes = list(dict.fromkeys(includes))
             self._extra_body = {**self._extra_body, "include": unique_includes}
@@ -838,9 +840,13 @@ class OpenAIResponsesClient(
                         delta=TextDelta(content_delta=event.delta),
                     )
                 elif event_type == "response.output_text.annotation.added":
+                    annotation = event.annotation
+                    # SDK versions expose annotation deltas as dictionaries or models.
+                    if isinstance(annotation, BaseModel):
+                        annotation = annotation.model_dump()
                     if (
-                        not isinstance(event.annotation, dict)
-                        or event.annotation.get("type") != "url_citation"
+                        not isinstance(annotation, dict)
+                        or annotation.get("type") != "url_citation"
                     ):
                         raise ValueError(f"Unsupported Responses annotation: {event.annotation}")
                     yield PartDeltaEvent(
@@ -848,7 +854,7 @@ class OpenAIResponsesClient(
                             (event.output_index, event.content_index),
                             part_index(event.output_index),
                         ),
-                        delta=CitationDelta(citation=citation_from_responses(event.annotation)),
+                        delta=CitationDelta(citation=citation_from_responses(annotation)),
                     )
                 elif event_type == "response.content_part.done":
                     if event.part.type == "output_text" and event.output_index in part_indices:

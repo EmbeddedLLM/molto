@@ -73,7 +73,7 @@ from molto.utils.web_search import (
     citation_from_messages,
     messages_text_blocks,
     search_call_from_messages,
-    search_call_to_messages,
+    search_calls_to_messages,
     search_result_from_messages,
     search_result_to_messages,
 )
@@ -162,7 +162,7 @@ async def _ordered_parts(
     # Responses may stream "Alpha. Beta." before citing only "Beta.". Messages
     # needs separate uncited/cited blocks; an emitted block cannot be split later.
     # Search actions and queries can also arrive late: the final snapshot tells
-    # us to emit a search, omit browsing, or reject unsupported multiple queries.
+    # us to expand a query batch into searches or omit browsing.
     # If part A expands into two blocks, part B must follow both, so later parts
     # wait to preserve order and receive the correct consecutive block indices.
     # Ordinary parts stream their chunks at the FIFO head; citation/search parts
@@ -563,12 +563,17 @@ class AnthropicMessagesAdapter(
             elif choice_type == "any":
                 data["tool_choice"] = "required"
             elif choice_type == "tool":
-                data["tool_choice"] = (
-                    WebSearchToolChoice()
-                    if request.tool_choice["name"] == "web_search"
-                    and any(isinstance(tool, WebSearchTool) for tool in data.get("tools", []))
-                    else FunctionToolChoice(name=request.tool_choice["name"])
-                )
+                name = request.tool_choice["name"]
+                tools = data.get("tools", [])
+                if name == "web_search" and any(isinstance(tool, WebSearchTool) for tool in tools):
+                    if any(isinstance(tool, FunctionTool) and tool.name == name for tool in tools):
+                        raise UnsupportedInput(
+                            "Anthropic named web_search selection is ambiguous when a client "
+                            "function has the same name as hosted search. Rename the client function."
+                        )
+                    data["tool_choice"] = WebSearchToolChoice()
+                else:
+                    data["tool_choice"] = FunctionToolChoice(name=name)
             else:
                 raise UnsupportedInput(f"Unsupported Anthropic tool choice: {choice_type!r}.")
             if "disable_parallel_tool_use" in request.tool_choice:
@@ -795,7 +800,7 @@ class AnthropicMessagesAdapter(
                             if part.action != "search":
                                 omitted_calls.add(part.id)
                                 continue
-                            blocks = [search_call_to_messages(part)]
+                            blocks = search_calls_to_messages(part)
                         elif isinstance(part, SearchResult):
                             if part.tool_call_id in omitted_calls or (
                                 part.sources is None and part.error is None

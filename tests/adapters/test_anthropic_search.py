@@ -5,7 +5,9 @@ import pytest
 from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
+    FunctionToolChoice,
     InputTokenDetails,
     OutputTokenDetails,
     PartDeltaEvent,
@@ -25,7 +27,7 @@ from molto.types.normalized import (
 )
 from molto.utils.web_search import (
     messages_text_blocks,
-    search_call_to_messages,
+    search_calls_to_messages,
 )
 
 
@@ -45,6 +47,69 @@ def setup_adapter():
 async def iterate(events):
     for event in events:
         yield event
+
+
+@pytest.mark.parametrize("hosted_first", [True, False])
+def test_rejects_ambiguous_named_search_selection(hosted_first):
+    """Ensures a shared name cannot silently select hosted search over a client function."""
+    tools = [
+        {"type": "web_search_20250305", "name": "web_search"},
+        {"name": "web_search", "input_schema": {"type": "object"}},
+    ]
+    if not hosted_first:
+        tools.reverse()
+    adapter, _ = setup_adapter()
+    with pytest.raises(UnsupportedInput, match="ambiguous.*Rename the client function"):
+        adapter.normalize_request(
+            AnthropicMessagesCreateRequest(
+                model="m",
+                max_tokens=100,
+                messages=[{"role": "user", "content": "Search"}],
+                tools=tools,
+                tool_choice={"type": "tool", "name": "web_search"},
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("hosted", "function_names", "choice", "expected"),
+    [
+        (True, ("different",), {"type": "tool", "name": "web_search"}, WebSearchToolChoice()),
+        (
+            False,
+            ("web_search",),
+            {"type": "tool", "name": "web_search"},
+            FunctionToolChoice(name="web_search"),
+        ),
+        (
+            True,
+            ("web_search", "different"),
+            {"type": "tool", "name": "different"},
+            FunctionToolChoice(name="different"),
+        ),
+        (True, ("web_search",), None, None),
+        (True, ("web_search",), {"type": "auto"}, None),
+        (True, ("web_search",), {"type": "any"}, "required"),
+        (True, ("web_search",), {"type": "none"}, "none"),
+    ],
+)
+def test_unambiguous_search_selection(hosted, function_names, choice, expected):
+    """Ensures distinct named choices and general selection retain their execution semantics."""
+    tools = [{"name": name, "input_schema": {"type": "object"}} for name in function_names]
+    if hosted:
+        tools.insert(0, {"type": "web_search_20250305", "name": "web_search"})
+    adapter, _ = setup_adapter()
+    request = adapter.normalize_request(
+        AnthropicMessagesCreateRequest(
+            model="m",
+            max_tokens=100,
+            messages=[{"role": "user", "content": "Search"}],
+            tools=tools,
+            tool_choice=choice,
+        )
+    )
+    assert request.tool_choice == expected
+    assert len(request.tools) == len(tools)
 
 
 def test_search_configuration_and_history():
@@ -125,7 +190,7 @@ def test_search_configuration_and_history():
 def test_missing_empty_and_single_queries(query, queries, expected):
     """Ensures missing query metadata differs from an explicitly empty query."""
     assert (
-        search_call_to_messages(SearchCall(id="s", query=query, queries=queries))["input"]
+        search_calls_to_messages(SearchCall(id="s", query=query, queries=queries))[0]["input"]
         == expected
     )
 
@@ -198,11 +263,14 @@ async def test_buffered_citations_search_omission_and_collection():
     assert response.content[-1].citations[0].cited_text == "Beta."
 
 
-async def test_multi_query_failure_closes_source():
-    """Ensures a translation failure identifies the call and deterministically closes input."""
+async def test_multi_query_expansion_closes_source():
+    """Ensures each query has a unique call while the original batch result appears once."""
     adapter, request = setup_adapter()
     closed = False
-    part = SearchCall(id="multi", query="one", queries=["one", "two"])
+    part = SearchCall(id="multi", query="fallback", queries=["one", "", "one"])
+    result = SearchResult(
+        tool_call_id="multi", sources=[WebSearchSource(url="https://python.org/")]
+    )
 
     async def source():
         nonlocal closed
@@ -210,11 +278,23 @@ async def test_multi_query_failure_closes_source():
             yield ResponseStartEvent(id="r", model="m")
             yield PartStartEvent(index=0, part=part)
             yield PartEndEvent(index=0, part=part)
+            yield PartStartEvent(index=1, part=result)
+            yield PartEndEvent(index=1, part=result)
+            yield ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop")
         finally:
             closed = True
 
-    with pytest.raises(ValueError, match="multi.*multiple single-query searches"):
-        _ = [event async for event in adapter.project_events(source(), request)]
+    projected = [event async for event in adapter.project_events(source(), request)]
+    starts = [event for event in projected if event.type == "content_block_start"]
+    assert [event.index for event in starts] == list(range(4))
+    calls = [event.content_block for event in starts[:3]]
+    assert [call.input for call in calls] == [{"query": "one"}, {"query": ""}, {"query": "one"}]
+    assert len({call.id for call in calls}) == 3
+    assert calls[0].id == starts[-1].content_block.tool_use_id == "multi"
+    assert [source.url for source in starts[-1].content_block.content] == ["https://python.org/"]
+    assert [event.index for event in projected if event.type == "content_block_stop"] == list(
+        range(4)
+    )
     assert closed
 
 

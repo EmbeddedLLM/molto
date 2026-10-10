@@ -31,7 +31,6 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 @pytest.mark.parametrize(
     "part",
     [
-        SearchCall(id="ws_1", queries=["first", "second"]),
         TextOutput(
             content="answer",
             citations=[WebCitation(url="https://example.com", start_index=0, end_index=99)],
@@ -51,6 +50,38 @@ def test_unrepresentable_search_history_is_an_input_error(part):
         AnthropicMessagesClient._request_body(request)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
+
+
+@pytest.mark.parametrize("nested", [True, False])
+def test_multi_query_history_preserves_batch_result(nested: bool):
+    """Ensures query batches expand in both history shapes without duplicating pooled sources."""
+    parts = [
+        SearchCall(id="ws_1", query="fallback", queries=["first", "", "first"]),
+        SearchResult(tool_call_id="ws_1", sources=[WebSearchSource(url="https://python.org/")]),
+    ]
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[AssistantInput(content=parts)] if nested else parts,
+    )
+    body = AnthropicMessagesClient._request_body(request)
+    calls = body["messages"][0]["content"][:3]
+    result = body["messages"][0]["content"][3]
+    assert [call["input"] for call in calls] == [
+        {"query": "first"},
+        {"query": ""},
+        {"query": "first"},
+    ]
+    assert len({call["id"] for call in calls}) == 3
+    assert calls[0]["id"] == result["tool_use_id"] == "ws_1"
+    assert result["content"] == [
+        {
+            "type": "web_search_result",
+            "url": "https://python.org/",
+            "title": "",
+            "encrypted_content": "N/A",
+        }
+    ]
 
 
 def test_history_projection_preserves_unexpected_value_error(monkeypatch):

@@ -1,6 +1,7 @@
 """Hosted-search wire conversions shared by adapters and upstream clients."""
 
 from typing import Any
+from uuid import uuid4
 
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
@@ -177,21 +178,21 @@ def search_call_to_responses(search_call: SearchCall) -> dict[str, Any]:
     }
 
 
-def search_call_to_messages(search_call: SearchCall) -> dict[str, Any]:
-    """Build one Messages invocation; callers omit unsupported browsing operations."""
+def search_calls_to_messages(search_call: SearchCall) -> list[dict[str, Any]]:
+    """Build one Messages invocation per query; callers omit browsing operations."""
     if search_call.action != "search":
         raise UnsupportedInput("Messages cannot represent browsing operations.")
-    if search_call.queries is not None and len(search_call.queries) > 1:
-        raise UnsupportedInput(
-            f"Search item {search_call.id}: Cannot translate this search to Messages: Messages search accepts one query per invocation, but this operation contains multiple queries. Issue multiple single-query searches instead."
-        )
-    query = search_call.queries[0] if search_call.queries else search_call.query
-    return {
-        "type": "server_tool_use",
-        "id": search_call.id,
-        "name": "web_search",
-        "input": {} if query is None else {"query": query},
-    }
+    # Retain the original ID on the first call to link the pooled batch result
+    # once. Responses supplies no source attribution for the individual queries.
+    return [
+        {
+            "type": "server_tool_use",
+            "id": search_call.id if index == 0 else f"srvtoolu_{uuid4().hex}",
+            "name": "web_search",
+            "input": {} if query is None else {"query": query},
+        }
+        for index, query in enumerate(search_call.queries or [search_call.query])
+    ]
 
 
 def search_result_from_responses(item: dict[str, Any]) -> SearchResult:

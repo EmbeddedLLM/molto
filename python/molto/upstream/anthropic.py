@@ -78,7 +78,7 @@ from molto.utils.web_search import (
     citation_from_messages,
     messages_text_blocks,
     search_call_from_messages,
-    search_call_to_messages,
+    search_calls_to_messages,
     search_result_from_messages,
     search_result_to_messages,
 )
@@ -447,7 +447,7 @@ class AnthropicMessagesClient(
                 blocks.extend(text_blocks)
             elif isinstance(item, SearchCall):
                 if item.action == "search":
-                    blocks.append(search_call_to_messages(item))
+                    blocks.extend(search_calls_to_messages(item))
             elif isinstance(item, SearchResult):
                 if item.sources is not None or item.error is not None:
                     blocks.append(search_result_to_messages(item))
