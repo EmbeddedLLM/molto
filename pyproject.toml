@@ -83,7 +83,7 @@ classifiers = [
 dependencies = [
     "anthropic>=0.119.0,<0.124",
     "loguru~=0.7",
-    "openai>=3.23.0,<=3.24.0",
+    "openai>=3.21.0,<=3.24.0",
     "orjson~=3.11",
     "pycountry~=26.2.16",
     "pydantic-ai-slim[retries]~=1.104.0",
