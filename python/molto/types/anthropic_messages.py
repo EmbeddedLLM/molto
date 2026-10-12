@@ -18,6 +18,9 @@ from anthropic.types import (
     ThinkingConfigParam,
     ToolChoiceParam,
     ToolUnionParam,
+    WebSearchResultBlockParam,
+    WebSearchToolRequestErrorParam,
+    WebSearchToolResultBlockParam,
 )
 from pydantic import Field, TypeAdapter
 from typing_extensions import NotRequired, Required, TypedDict
@@ -33,11 +36,24 @@ class AnthropicThinkingBlockParam(TypedDict):
     signature: NotRequired[str]
 
 
+class AnthropicWebSearchToolResultBlockParam(WebSearchToolResultBlockParam):
+    """The SDK search-result block with eagerly validated sources.
+
+    Concrete lists preserve empty results regardless of which input union
+    member Pydantic selects instead of leaving lazy SDK iterables to adapters.
+    """
+
+    content: Required[list[WebSearchResultBlockParam] | WebSearchToolRequestErrorParam]
+
+
 _RETAINED_CONTENT_BLOCKS = tuple(
-    block for block in get_args(ContentBlockParam) if block is not ThinkingBlockParam
+    block
+    for block in get_args(ContentBlockParam)
+    if block not in {ThinkingBlockParam, WebSearchToolResultBlockParam}
 )
 AnthropicContentBlockParam: TypeAlias = Union[
     AnthropicThinkingBlockParam,
+    AnthropicWebSearchToolResultBlockParam,
     *_RETAINED_CONTENT_BLOCKS,  # pyright: ignore[reportInvalidTypeForm]
     ContentBlock,
 ]
@@ -140,4 +156,5 @@ __all__ = [
     "AnthropicMessagesStreamEvent",
     "AnthropicMessagesStreamEventAdapter",
     "AnthropicThinkingBlockParam",
+    "AnthropicWebSearchToolResultBlockParam",
 ]
