@@ -142,8 +142,9 @@ async def test_search_preserves_absent_empty_and_populated_sources(sources):
         assert result.sources == []
 
 
-async def test_text_parts_keep_local_citation_offsets():
-    """Ensures each Responses content part completes with its own citation offsets."""
+@pytest.mark.parametrize("refusal_first", [False, True])
+async def test_text_parts_keep_local_citation_offsets(refusal_first: bool):
+    """Ensures text after refusal snapshots keeps dense, balanced indices and local citations."""
     wire = [
         _event("response.created", response=_response()),
         _event(
@@ -159,7 +160,17 @@ async def test_text_parts_keep_local_citation_offsets():
         ),
     ]
     parts = []
-    for index, text in enumerate(["first", "second"]):
+    if refusal_first:
+        refusal = {"type": "refusal", "refusal": "Cannot answer that part."}
+        parts.append(refusal)
+        fields = {"output_index": 0, "content_index": 0, "item_id": "msg_1"}
+        wire.extend(
+            [
+                _event("response.content_part.added", **fields, part=refusal),
+                _event("response.content_part.done", **fields, part=refusal),
+            ]
+        )
+    for index, text in enumerate(["first", "second"], start=int(refusal_first)):
         citation = {
             "type": "url_citation",
             "url": "https://example.com",
@@ -201,6 +212,7 @@ async def test_text_parts_keep_local_citation_offsets():
         ]
     )
     events = await _normalize(wire)
+    assert [event.index for event in events if isinstance(event, PartStartEvent)] == [0, 1]
     texts = [
         event
         for event in events

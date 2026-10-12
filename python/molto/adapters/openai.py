@@ -1410,6 +1410,8 @@ class OpenAIChatCompletionsAdapter(
         async for normalized_event in events:
             if isinstance(normalized_event, ResponseStartEvent):
                 response_start = normalized_event
+                if normalized_event.web_search_enabled is not None:
+                    search_enabled = normalized_event.web_search_enabled
 
             elif isinstance(normalized_event, PartStartEvent):
                 if isinstance(normalized_event.part, (SearchCall, SearchResult)):

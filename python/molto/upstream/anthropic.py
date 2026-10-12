@@ -681,6 +681,8 @@ class AnthropicMessagesClient(
         native_request = AnthropicMessagesCreateRequest.model_validate(
             self._request_body(request, capabilities=self._capabilities)
         )
+        tools = (self._extra_body or {}).get("tools", native_request.tools) or []
+        search_enabled = any(tool.get("type") == "web_search_20250305" for tool in tools)
         async with aclosing(self.native_events(native_request)) as native_events:
             async for event in native_events:
                 if isinstance(event, RawMessageStartEvent):
@@ -689,6 +691,7 @@ class AnthropicMessagesClient(
                         id=message.id,
                         model=message.model,
                         service_tier=message.usage.service_tier,
+                        web_search_enabled=search_enabled,
                     )
                     input_tokens = message.usage.input_tokens
                     cache_creation = message.usage.cache_creation_input_tokens or 0

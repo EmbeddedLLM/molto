@@ -336,6 +336,8 @@ Service-tier labels are retained as upstream metadata, but target protocols do n
 
 `SearchCall` and `SearchResult` use the existing part lifecycle and link by call identity. They are assistant history/output parts. An unfinished call may have no result, and a search error does not determine overall termination. Responses folds a call and result into one item; Messages emits separate server-tool blocks.
 
+Responses and Messages clients set `ResponseStartEvent.web_search_enabled` from the effective upstream tool declarations, including `extra_body` overrides. Chat projection uses this state for its hosted-search output policy, falling back to normalized request tools when an event source omits it. This keeps transport interpretation in clients and output projection in adapters.
+
 `TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. `defer_citations` tells block-based projectors to wait for that snapshot. The Responses normalizer and Messages projector buffer unresolved search or citation parts in start order, allowing ordinary parts to stream when they reach the front. Projection assigns output indices because parts can expand or disappear.
 
 The [hosted-search contract](../docs/web-search.md) defines supported routes, reductions, failures, usage, and continuation.

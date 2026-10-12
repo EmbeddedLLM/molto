@@ -690,6 +690,7 @@ class OpenAIResponsesClient(
         # reasoning item cannot leave a gap for downstream projections.
         part_indices: dict[int, int] = {}
         text_indices: dict[tuple[int, int], int] = {}
+        started_text_items: set[int] = set()
         ended_text_items: set[int] = set()
         next_index = 0
         defer_citations = search_enabled or any(
@@ -738,6 +739,7 @@ class OpenAIResponsesClient(
                         created_at=int(metadata.created_at),
                         model=metadata.model,
                         service_tier=metadata.service_tier,
+                        web_search_enabled=search_enabled,
                     )
                 elif event_type == "response.output_item.added":
                     part = _started_output_item(event.item)
@@ -795,7 +797,9 @@ class OpenAIResponsesClient(
                         )
                     elif added_part.type == "output_text":
                         key = (event.output_index, event.content_index)
-                        if event.content_index == 0:
+                        # Non-text snapshots may precede the first text content.
+                        if event.output_index not in started_text_items:
+                            started_text_items.add(event.output_index)
                             text_indices[key] = part_index(event.output_index)
                         else:
                             index = next_index

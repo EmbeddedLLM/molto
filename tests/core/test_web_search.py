@@ -486,6 +486,68 @@ async def test_messages_search_extra_body_matches_sdk(stream: bool, include: lis
     assert _messages_semantics(actual) == _messages_semantics(expected)
 
 
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("upstream", RESPONSES_MESSAGES_PROTOCOLS)
+async def test_chat_search_extra_body_matches_sdk(upstream: Protocol, stream: bool):
+    """Ensures transport-only hosted search preserves SDK Chat output in both modes."""
+    body, expected_request = _request_pair("chat/completions", upstream, stream)
+    body.pop("web_search_options")
+    extra_body = {
+        "tools": expected_request["tools"],
+        "tool_choice": "required"
+        if upstream == "responses"
+        else {"type": "tool", "name": "web_search"},
+    }
+    expected_request.update(extra_body)
+    expected = _collect("chat/completions", await _sdk_result("chat/completions", True))
+    async with _get_http_client(
+        [_path(upstream)], upstream, expected_body=expected_request
+    ) as http_client:
+        result = await Molto(http_client=http_client).chat_completions(
+            body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_lifecycle("chat/completions", events)
+            actual = _collect("chat/completions", events)
+        else:
+            actual = result
+    assert _chat_semantics(actual, upstream) == _chat_semantics(expected, upstream)
+
+
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("upstream", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize("replacement", ["null", "empty", "function"])
+async def test_chat_search_extra_body_replacement_rejects_signatures(
+    upstream: Protocol, stream: bool, replacement: str
+):
+    """Ensures replacing hosted tools restores signature rejection, even for same-named functions."""
+    body, expected_request = _request_pair("chat/completions", upstream, stream)
+    function = (
+        {"type": "function", "name": "web_search", "parameters": {}}
+        if upstream == "responses"
+        else {"name": "web_search", "input_schema": {"type": "object"}}
+    )
+    extra_body = {
+        "tools": None if replacement == "null" else [] if replacement == "empty" else [function],
+        "tool_choice": "auto" if upstream == "responses" else {"type": "auto"},
+    }
+    expected_request.update(extra_body)
+    async with _get_http_client(
+        [_path(upstream)], upstream, expected_body=expected_request
+    ) as http_client:
+        with pytest.raises(
+            ValueError, match="Chat Completions cannot preserve reasoning signatures"
+        ):
+            result = await Molto(http_client=http_client).chat_completions(
+                body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
+            )
+            if stream:
+                async with result:
+                    async for _ in result:
+                        pass
+
+
 async def test_chat_search_raw_reasoning_starts_with_assistant_role():
     """Ensures search-enabled raw reasoning preserves the recorded SDK chunk order."""
     chat_path = _matched_cassette_path("reasoning_raw", "chat/completions", "stream-00.yaml")
@@ -1553,9 +1615,38 @@ async def test_search_history_without_tools_still_buffers_citations(stream: bool
 
 
 @pytest.mark.parametrize("stream", [True, False])
-async def test_synthetic_multiple_responses_text_parts_have_local_offsets(stream: bool):
-    """Ensures a later Responses content part uses local citation offsets without losing spaces or Unicode."""
+@pytest.mark.parametrize("refusal_first", [False, True])
+async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
+    stream: bool, refusal_first: bool
+):
+    """Ensures text after refusal snapshots retains balanced lifecycles and local citation offsets."""
     events = _synthetic_events("responses")
+    if refusal_first:
+        # Snapshot-only refusals were already omitted; their index must not
+        # leave the initial normalized text part open.
+        refusal = {"type": "refusal", "refusal": "Cannot answer that part."}
+        added_index = next(
+            index
+            for index, event in enumerate(events)
+            if event["type"] == "response.content_part.added"
+            and event["part"]["type"] == "output_text"
+        )
+        refusal_added = deepcopy(events[added_index])
+        refusal_added["part"] = refusal
+        for event in events:
+            if "content_index" in event:
+                event["content_index"] += 1
+            item = event.get("item", {})
+            if item.get("type") == "message" and item.get("content"):
+                item["content"].insert(0, deepcopy(refusal))
+            for item in event.get("response", {}).get("output", []):
+                if item["type"] == "message":
+                    item["content"].insert(0, deepcopy(refusal))
+        events[added_index:added_index] = [
+            refusal_added,
+            {**deepcopy(refusal_added), "type": "response.content_part.done"},
+        ]
+    first_content_index = int(refusal_first)
     text = " Ω "
     citation = {
         "type": "url_citation",
@@ -1567,9 +1658,9 @@ async def test_synthetic_multiple_responses_text_parts_have_local_offsets(stream
     added_events = []
     sent_text = False
     for event in deepcopy(events):
-        if event.get("content_index") != 0:
+        if event.get("content_index") != first_content_index:
             continue
-        event["content_index"] = 1
+        event["content_index"] = first_content_index + 1
         if event["type"] == "response.output_text.delta":
             if sent_text:
                 continue

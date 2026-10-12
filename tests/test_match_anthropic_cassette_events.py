@@ -1794,6 +1794,74 @@ def test_search_stream_builds_balanced_sdk_valid_blocks() -> None:
     assert messages == matched
 
 
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_batch_stream_and_history(queries: list[str]) -> None:
+    """Ensures query batches emit balanced SDK-valid blocks and stable linked history."""
+    from anthropic.types.message_create_params import MessageCreateParamsStreaming
+    from pydantic import TypeAdapter
+
+    messages, responses = _search_stream_cassettes()
+    for index, line in enumerate(responses["response"]["sse"]):
+        if not line.startswith("data:"):
+            continue
+        event = json_loads(line[5:])
+        items = [event.get("item", {})] + event.get("response", {}).get("output", [])
+        for item in items:
+            if item.get("type") == "web_search_call" and item.get("action"):
+                item["action"]["queries"] = queries
+        responses["response"]["sse"][index] = (
+            f"data: {json_dumps(event)}" + line[len(line.rstrip("\r\n")) :]
+        )
+    search = next(
+        event["item"]
+        for event in _data_events(responses)
+        if event["type"] == "response.output_item.done"
+        and event["item"]["type"] == "web_search_call"
+    )
+    responses["request"]["body"]["input"] = [
+        deepcopy(search),
+        {"role": "user", "content": "Continue."},
+    ]
+
+    match_messages_events(messages, responses)
+
+    TypeAdapter(MessageCreateParamsStreaming).validate_python(messages["request"]["body"])
+    events = _data_events(messages)
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    starts = [event for event in events if event["type"] == "content_block_start"]
+    stops = [event["index"] for event in events if event["type"] == "content_block_stop"]
+    assert [event["index"] for event in starts] == stops == list(range(len(starts)))
+    calls = [event for event in starts if event["content_block"]["type"] == "server_tool_use"]
+    assert len(calls) == len(queries)
+    assert calls[0]["content_block"]["id"] == search["id"]
+    assert len({event["content_block"]["id"] for event in calls}) == len(queries)
+    history = messages["request"]["body"]["messages"][0]["content"]
+    for call, query, history_call in zip(calls, queries, history[: len(queries)], strict=True):
+        arguments = "".join(
+            event["delta"]["partial_json"]
+            for event in events
+            if event["type"] == "content_block_delta" and event["index"] == call["index"]
+        )
+        assert json_loads(arguments) == history_call["input"] == {"query": query}
+        assert call["content_block"]["id"] == history_call["id"]
+    results = [
+        event["content_block"]
+        for event in starts
+        if event["content_block"]["type"] == "web_search_tool_result"
+    ]
+    assert len(results) == 1
+    assert results[0]["tool_use_id"] == search["id"]
+    assert [result["url"] for result in results[0]["content"]] == [
+        source["url"] for source in search["action"]["sources"]
+    ]
+    assert history[len(queries) :] == results
+    matched = deepcopy(messages)
+    match_messages_events(messages, responses)
+    assert messages == matched
+
+
 def test_search_request_only_does_not_require_result_sources(tmp_path: Path) -> None:
     """Ensures request matching is available without pretending missing result data exists."""
     messages, responses = _search_stream_cassettes()

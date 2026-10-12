@@ -1756,6 +1756,7 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
 
 
 async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.MonkeyPatch):
+    """Ensures native SDK events normalize reasoning, text, usage, and effective search state."""
     native_events = [
         _response_event(
             {
@@ -1889,7 +1890,11 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
     }
     assert events == [
         ResponseStartEvent(
-            id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
+            id="resp_123",
+            created_at=1,
+            model="reasoning-model",
+            service_tier="default",
+            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,
@@ -2921,6 +2926,7 @@ async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.Mon
 async def test_responses_events_translate_function_call_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    """Ensures function-call events preserve identity and explicitly disable hosted-search policy."""
     function_call = {
         "id": "fc_123",
         "type": "function_call",
@@ -2984,7 +2990,11 @@ async def test_responses_events_translate_function_call_lifecycle(
 
     assert events == [
         ResponseStartEvent(
-            id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
+            id="resp_123",
+            created_at=1,
+            model="reasoning-model",
+            service_tier="default",
+            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,

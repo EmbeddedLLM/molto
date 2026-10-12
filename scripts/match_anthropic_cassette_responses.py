@@ -254,25 +254,22 @@ def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
     queries = action.get("queries")
     if queries is not None and not isinstance(queries, list):
         raise ValueError("Responses search queries must be a list.")
-    if queries and len(queries) > 1:
-        raise ValueError(
-            f"Cannot translate search {item.get('id')!r} to Messages: Messages search accepts one query "
-            "per invocation, but this operation contains multiple queries. "
-            "Issue multiple single-query searches instead."
-        )
-    query = queries[0] if queries else action.get("query")
-    if query is not None and not isinstance(query, str):
+    queries = queries or [action.get("query")]
+    if any(query is not None and not isinstance(query, str) for query in queries):
         raise ValueError("Responses search query must be a string when present.")
     call_id = item.get("id")
     if not isinstance(call_id, str):
         raise ValueError("Responses web search calls must contain a string id.")
+    # Fixture IDs remain deterministic across rematching, while the first call
+    # retains the original ID to link the single pooled result.
     blocks = [
         {
             "type": "server_tool_use",
-            "id": call_id,
+            "id": call_id if index == 0 else f"{call_id}_query_{index + 1}",
             "name": "web_search",
             "input": {} if query is None else {"query": query},
         }
+        for index, query in enumerate(queries)
     ]
     status = item.get("status")
     if status in {"in_progress", "searching"}:

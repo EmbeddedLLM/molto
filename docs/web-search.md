@@ -27,6 +27,8 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 
 Omitted options remain omitted; native Responses and Messages options pass through unchanged.
 
+On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. When `extra_body.tools` replaces the projected tools, the effective upstream declarations determine whether Chat omits signature-only reasoning.
+
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Chat requires hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
 A Messages upstream requires an output-token limit: supply `max_output_tokens` from Responses, `max_completion_tokens` from Chat, or `max_tokens` from Messages. Search budgets do not replace that limit.

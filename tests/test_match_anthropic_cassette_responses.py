@@ -350,12 +350,52 @@ def test_search_query_presence(action: dict, expected: dict) -> None:
     assert messages["response"]["body"]["content"][0]["input"] == expected
 
 
-def test_search_multiple_queries_rejected() -> None:
-    """Ensures a singular query does not conceal a multi-query action."""
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_batch_response_and_history(queries: list[str]) -> None:
+    """Ensures query batches preserve order, distinct IDs, and one pooled result in both paths."""
+    from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+    from pydantic import TypeAdapter
+
     messages, responses = _search_cassettes()
-    responses["response"]["body"]["output"][0]["action"].update(queries=["a", "b"], sources=[])
-    with pytest.raises(ValueError, match="multiple single-query searches"):
+    search = responses["response"]["body"]["output"][0]
+    search["action"]["queries"] = queries
+    responses["request"]["body"]["input"] = [
+        deepcopy(search),
+        {"role": "user", "content": "Continue."},
+    ]
+
+    match_messages_response(messages, responses)
+
+    AnthropicMessagesResponse.model_validate(messages["response"]["body"])
+    TypeAdapter(MessageCreateParamsNonStreaming).validate_python(messages["request"]["body"])
+    output = messages["response"]["body"]["content"]
+    history = messages["request"]["body"]["messages"][0]["content"]
+    for blocks in (output, history):
+        calls = [block for block in blocks if block["type"] == "server_tool_use"]
+        results = [block for block in blocks if block["type"] == "web_search_tool_result"]
+        assert [call["input"] for call in calls] == [{"query": query} for query in queries]
+        assert calls[0]["id"] == search["id"]
+        assert len({call["id"] for call in calls}) == len(queries)
+        assert len(results) == 1
+        assert results[0]["tool_use_id"] == search["id"]
+        assert [result["url"] for result in results[0]["content"]] == [
+            source["url"] for source in search["action"]["sources"]
+        ]
+        assert blocks[: len(queries)] == calls
+    assert history == output[: len(queries) + 1]
+    matched = deepcopy(messages)
+    match_messages_response(messages, responses)
+    assert messages == matched
+
+
+def test_search_batch_validates_every_query() -> None:
+    """Ensures invalid later queries cannot become native Messages search arguments."""
+    messages, responses = _search_cassettes()
+    responses["response"]["body"]["output"][0]["action"]["queries"] = ["a", 2]
+    original = deepcopy(messages)
+    with pytest.raises(ValueError, match="query must be a string"):
         match_messages_response(messages, responses)
+    assert messages == original
 
 
 @pytest.mark.parametrize("action", ["open_page", "find_in_page"])
