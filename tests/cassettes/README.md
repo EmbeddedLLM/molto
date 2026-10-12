@@ -123,6 +123,8 @@ The detailed contracts are documented in:
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` to align streaming SSE fixtures. Use `scripts/match_openai_cassette_responses.py` and `scripts/match_anthropic_cassette_responses.py` to align non-streaming JSON response fixtures. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
 
+The non-streaming Messages matcher maps cache writes using the matched request's automatic and block cache controls. Null controls are absent, and an omitted control lifetime defaults to `5m`. With mixed lifetimes, an existing observed breakdown is retained when its sum matches the canonical write total; a different positive total is rejected because Responses supplies no lifetime split. Zero writes clear both lifetime counts.
+
 Relevant test entry points and canonicalization helpers:
 
 - `python/molto/utils/test.py` defines the deterministic comparison helpers `reconstructable_responses_event`, `reconstructable_chat_completions_chunks`, and `reconstructable_anthropic_event`;

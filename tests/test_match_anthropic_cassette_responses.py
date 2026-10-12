@@ -140,6 +140,91 @@ def test_matches_incomplete_stop_reason(reason: str, expected: str) -> None:
     assert messages["response"]["body"]["stop_reason"] == expected
 
 
+def test_matches_explicit_null_cache_control() -> None:
+    """Ensures an explicit null cache control matches like an omitted control."""
+    messages, responses = _cassettes()
+    messages["request"]["body"]["cache_control"] = None
+    AnthropicMessagesCreateRequest.model_validate(messages["request"]["body"])
+
+    match_messages_response(messages, responses)
+
+    AnthropicMessagesResponse.model_validate(messages["response"]["body"])
+    matched = deepcopy(messages)
+    match_messages_response(messages, responses)
+    assert messages == matched
+
+
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+@pytest.mark.parametrize("cache_location", ["automatic", "block", "block-null"])
+def test_matches_positive_cache_writes_by_effective_lifetime(
+    ttl: str, cache_location: str
+) -> None:
+    """Ensures automatic and block-only caching attribute positive writes to their actual TTL."""
+    messages, responses = _cassettes()
+    request = messages["request"]["body"]
+    control = {"type": "ephemeral", "ttl": ttl}
+    if cache_location == "automatic":
+        request["cache_control"] = control
+    else:
+        if cache_location == "block-null":
+            request["cache_control"] = None
+        request["system"] = [{"type": "text", "text": "Cached prefix", "cache_control": control}]
+        responses["request"]["body"]["instructions"] = "Cached prefix"
+    responses["response"]["body"]["usage"]["input_tokens_details"]["cache_write_tokens"] = 2
+    AnthropicMessagesCreateRequest.model_validate(request)
+
+    match_messages_response(messages, responses)
+
+    usage = messages["response"]["body"]["usage"]
+    assert usage["cache_creation_input_tokens"] == 2
+    assert usage["cache_creation"] == {
+        "ephemeral_5m_input_tokens": 2 if ttl == "5m" else 0,
+        "ephemeral_1h_input_tokens": 2 if ttl == "1h" else 0,
+    }
+    AnthropicMessagesResponse.model_validate(messages["response"]["body"])
+    matched = deepcopy(messages)
+    match_messages_response(messages, responses)
+    assert messages == matched
+
+
+@pytest.mark.parametrize("cache_write_tokens", [0, 3, 4])
+def test_mixed_cache_lifetimes_preserve_only_observed_distribution(
+    cache_write_tokens: int,
+) -> None:
+    """Ensures mixed lifetimes retain an observed split and reject an unknowable positive split."""
+    messages, responses = _cassettes()
+    messages["request"]["body"]["system"] = [
+        {"type": "text", "text": "First", "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+        {"type": "text", "text": "Second", "cache_control": {"type": "ephemeral", "ttl": "5m"}},
+    ]
+    responses["request"]["body"]["instructions"] = "First\nSecond"
+    usage = messages["response"]["body"]["usage"]
+    usage["cache_creation_input_tokens"] = 3
+    usage["cache_creation"] = {"ephemeral_5m_input_tokens": 1, "ephemeral_1h_input_tokens": 2}
+    responses["response"]["body"]["usage"]["input_tokens_details"]["cache_write_tokens"] = (
+        cache_write_tokens
+    )
+    AnthropicMessagesCreateRequest.model_validate(messages["request"]["body"])
+    AnthropicMessagesResponse.model_validate(messages["response"]["body"])
+
+    if cache_write_tokens == 4:
+        with pytest.raises(ValueError, match="mixed cache lifetimes"):
+            match_messages_response(messages, responses)
+        return
+
+    match_messages_response(messages, responses)
+
+    assert usage["cache_creation_input_tokens"] == cache_write_tokens
+    assert usage["cache_creation"] == {
+        "ephemeral_5m_input_tokens": 1 if cache_write_tokens else 0,
+        "ephemeral_1h_input_tokens": 2 if cache_write_tokens else 0,
+    }
+    AnthropicMessagesResponse.model_validate(messages["response"]["body"])
+    matched = deepcopy(messages)
+    match_messages_response(messages, responses)
+    assert messages == matched
+
+
 def test_preserves_explicit_false_stream() -> None:
     messages, responses = _cassettes()
     responses["request"]["body"]["stream"] = False

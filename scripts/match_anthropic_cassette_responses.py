@@ -532,8 +532,21 @@ def _matched_request_body(
     return matched_request
 
 
+def _cache_lifetimes(value: Any) -> set[str]:
+    """Collect native controls without inspecting client-tool schemas or arguments."""
+    if isinstance(value, list):
+        return {ttl for item in value for ttl in _cache_lifetimes(item)}
+    if not isinstance(value, dict):
+        return set()
+    control = value.get("cache_control")
+    lifetimes = {control.get("ttl", "5m")} if isinstance(control, dict) else set()
+    for field in ("system", "messages", "content", "tools"):
+        lifetimes.update(_cache_lifetimes(value.get(field)))
+    return lifetimes
+
+
 def _map_input_usage(
-    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_lifetimes: set[str]
 ) -> None:
     input_details = response_usage.get("input_tokens_details") or {}
     if not isinstance(input_details, dict):
@@ -554,18 +567,31 @@ def _map_input_usage(
     message_usage["input_tokens"] = message_input_tokens
     message_usage["cache_creation_input_tokens"] = cache_creation_tokens
     message_usage["cache_read_input_tokens"] = cache_read_tokens
-    if isinstance(message_usage.get("cache_creation"), dict):
-        # Keep the lifetime breakdown consistent with the canonical cache-write total.
-        message_usage["cache_creation"] = {
-            "ephemeral_5m_input_tokens": cache_creation_tokens if cache_ttl == "5m" else 0,
-            "ephemeral_1h_input_tokens": cache_creation_tokens if cache_ttl == "1h" else 0,
-        }
+    cache_creation = message_usage.get("cache_creation")
+    if isinstance(cache_creation, dict):
+        if len(cache_lifetimes) > 1 and cache_creation_tokens:
+            # Responses reports only an aggregate, so a mixed-lifetime split
+            # must already be observed rather than inferred from the controls.
+            if (
+                cache_creation.get("ephemeral_5m_input_tokens", 0)
+                + cache_creation.get("ephemeral_1h_input_tokens", 0)
+                != cache_creation_tokens
+            ):
+                raise ValueError(
+                    "Cannot infer cache-write distribution for mixed cache lifetimes."
+                )
+        else:
+            cache_ttl = next(iter(cache_lifetimes), "5m")
+            message_usage["cache_creation"] = {
+                "ephemeral_5m_input_tokens": cache_creation_tokens if cache_ttl == "5m" else 0,
+                "ephemeral_1h_input_tokens": cache_creation_tokens if cache_ttl == "1h" else 0,
+            }
 
 
 def _map_usage(
-    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_ttl: str
+    response_usage: dict[str, Any], message_usage: dict[str, Any], cache_lifetimes: set[str]
 ) -> None:
-    _map_input_usage(response_usage, message_usage, cache_ttl)
+    _map_input_usage(response_usage, message_usage, cache_lifetimes)
 
     output_tokens = response_usage["output_tokens"]
     total_tokens = response_usage["total_tokens"]
@@ -711,9 +737,7 @@ def match_messages_response(
         or any(item.get("type") == "web_search_call" for item in response.get("output", [])),
     )
     message["stop_sequence"] = None
-    _map_usage(
-        response_usage, message_usage, matched_request.get("cache_control", {}).get("ttl", "5m")
-    )
+    _map_usage(response_usage, message_usage, _cache_lifetimes(matched_request))
     if has_search:
         _map_search_usage(response, message_usage)
     message_usage["service_tier"] = "standard"
