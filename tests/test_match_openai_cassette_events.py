@@ -11,6 +11,7 @@ from scripts.match_openai_cassette_events import (
     _serialize_data_event,
     main,
     match_chat_completions_events,
+    match_chat_completions_request,
 )
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
@@ -840,3 +841,325 @@ def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
     assert read_yaml(str(output_path)) == expected
     assert read_yaml(str(input_path)) == unmatched
     assert responses_path.read_bytes() == original_responses
+
+
+@pytest.mark.parametrize("turn", [0, 1])
+def test_preserves_together_reasoning_wire_field_and_extensions(turn: int) -> None:
+    """Ensures Together reasoning deltas and history retain their native wire field."""
+    chat_path, responses_path = REASONING_CASSETTES[turn]
+    chat = read_yaml(str(chat_path))
+    responses = read_yaml(str(responses_path))
+    canonical = deepcopy(responses)
+    transport = deepcopy({key: value for key, value in chat["response"].items() if key != "sse"})
+    chat["request"]["body"]["chat_template_kwargs"] = {"enable_thinking": True}
+    for message in chat["request"]["body"]["messages"]:
+        if "reasoning_content" in message:
+            message["reasoning"] = message.pop("reasoning_content")
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        event["provider_trace"] = "retained"
+        if event.get("choices"):
+            delta = event["choices"][0]["delta"]
+            if "reasoning_content" in delta:
+                delta["reasoning"] = delta.pop("reasoning_content")
+                if isinstance(delta["reasoning"], str) and "role" not in delta:
+                    delta["reasoning"] = "unmatched"
+                    delta["provider_delta"] = "retained"
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat, responses)
+
+    events = _data_events(chat)
+    reasoning_deltas = [
+        event["choices"][0]["delta"]
+        for event in events
+        if event.get("choices")
+        and "role" not in event["choices"][0]["delta"]
+        and isinstance(event["choices"][0]["delta"].get("reasoning"), str)
+    ]
+    assert [delta["reasoning"] for delta in reasoning_deltas] == [
+        event["delta"]
+        for event in _data_events(responses)
+        if event["type"] == "response.reasoning_text.delta"
+    ]
+    assert all(delta["provider_delta"] == "retained" for delta in reasoning_deltas)
+    assert all(event["provider_trace"] == "retained" for event in events)
+    assert not any(
+        "reasoning_content" in event["choices"][0]["delta"]
+        for event in events
+        if event.get("choices")
+    )
+    if turn:
+        assert next(
+            message["reasoning"]
+            for message in chat["request"]["body"]["messages"]
+            if "reasoning" in message
+        ) == next(
+            item["content"][0]["text"]
+            for item in responses["request"]["body"]["input"]
+            if item.get("type") == "reasoning"
+        )
+    assert chat["request"]["body"]["chat_template_kwargs"] == {"enable_thinking": True}
+    assert {key: value for key, value in chat["response"].items() if key != "sse"} == transport
+    assert responses == canonical
+    for event in events:
+        ChatCompletionChunk.model_validate(event)
+    matched = deepcopy(chat)
+    match_chat_completions_events(chat, responses)
+    assert chat == matched
+
+
+def test_request_only_matching_preserves_together_reasoning_history() -> None:
+    """Ensures request-only matching uses the recorded Together history field."""
+    chat_path, responses_path = REASONING_CASSETTES[1]
+    chat = read_yaml(str(chat_path))
+    responses = read_yaml(str(responses_path))
+    native_response = deepcopy(chat["response"])
+    for message in chat["request"]["body"]["messages"]:
+        if "reasoning_content" in message:
+            message["reasoning"] = message.pop("reasoning_content")
+
+    match_chat_completions_request(chat, responses)
+
+    assert any("reasoning" in message for message in chat["request"]["body"]["messages"])
+    assert not any(
+        "reasoning_content" in message for message in chat["request"]["body"]["messages"]
+    )
+    OpenAIChatCompletionsCreateRequest.model_validate(chat["request"]["body"])
+    assert chat["response"] == native_response
+
+
+@pytest.mark.parametrize("scenario", ["input_image_remote_url", "input_image_base64"])
+def test_request_only_matching_preserves_native_image_parts(scenario: str) -> None:
+    """Ensures remote and data URL images remain ordered native Chat content parts."""
+    chat = read_yaml(str(CASSETTES / scenario / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(CASSETTES / scenario / "openai-responses-stream-00.yaml"))
+    expected_messages = deepcopy(chat["request"]["body"]["messages"])
+    native_response = deepcopy(chat["response"])
+
+    match_chat_completions_request(chat, responses)
+
+    assert chat["request"]["body"]["messages"] == expected_messages
+    OpenAIChatCompletionsCreateRequest.model_validate(chat["request"]["body"])
+    assert chat["response"] == native_response
+
+
+def test_request_only_matching_preserves_recorded_text_part_boundaries() -> None:
+    """Ensures canonical split text remains two ordered parts in a native request."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+
+    match_chat_completions_request(chat, responses)
+
+    assert chat["request"]["body"]["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Write one short sentence "},
+                {"type": "text", "text": "about the ocean."},
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "matcher", [match_chat_completions_events, match_chat_completions_request]
+)
+@pytest.mark.parametrize("token_field", ["max_tokens", "max_completion_tokens"])
+def test_preserves_recorded_token_limit_field(matcher, token_field: str) -> None:
+    """Ensures matching retains Together max_tokens and OpenAI max_completion_tokens."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+    chat["request"]["body"].pop("max_completion_tokens", None)
+    chat["request"]["body"][token_field] = 17
+    responses["request"]["body"]["max_output_tokens"] = 512
+
+    matcher(chat, responses)
+
+    assert chat["request"]["body"][token_field] == 512
+    other_field = (
+        "max_tokens" if token_field == "max_completion_tokens" else "max_completion_tokens"
+    )
+    assert other_field not in chat["request"]["body"]
+
+
+def test_matches_parallel_image_tool_results_after_contiguous_tool_messages() -> None:
+    """Ensures tool images move after the complete native Chat tool-response block."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(
+        str(CASSETTES / "tool_call_image_result_parallel" / "openai-responses-stream-01.yaml")
+    )
+
+    match_chat_completions_events(chat, responses)
+
+    messages = chat["request"]["body"]["messages"]
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "tool",
+        "tool",
+        "user",
+        "user",
+        "user",
+    ]
+    results = [
+        item
+        for item in responses["request"]["body"]["input"]
+        if item.get("type") == "function_call_output"
+    ]
+    for index, result in enumerate(results):
+        call_id = result["call_id"]
+        assert messages[2 + index] == {
+            "role": "tool",
+            "tool_call_id": call_id,
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        f"The image result of tool call {call_id!r} will be "
+                        "attached as user prompt after all tool responses."
+                    ),
+                }
+            ],
+        }
+        assert messages[4 + index] == {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                {"type": "image_url", "image_url": {"url": result["output"][0]["image_url"]}},
+            ],
+        }
+    OpenAIChatCompletionsCreateRequest.model_validate(chat["request"]["body"])
+    for event in _data_events(chat):
+        ChatCompletionChunk.model_validate(event)
+
+
+@pytest.mark.parametrize("reasoning_field", ["reasoning_content", "reasoning"])
+def test_matches_mixed_reasoning_and_text_with_different_chunk_counts(
+    reasoning_field: str,
+) -> None:
+    """Ensures text alignment cannot consume mixed chunks containing canonical reasoning."""
+    chat_path, responses_path = REASONING_CASSETTES[0]
+    chat = read_yaml(str(chat_path))
+    responses = read_yaml(str(responses_path))
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices"):
+            delta = event["choices"][0]["delta"]
+            if "reasoning_content" in delta:
+                delta[reasoning_field] = delta.pop("reasoning_content")
+                if "role" not in delta and isinstance(delta[reasoning_field], str):
+                    delta["content"] = "unmatched visible text"
+                    delta["provider_extension"] = "retained"
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat, responses)
+
+    events = _data_events(chat)
+    for field, prefix in (
+        (reasoning_field, "response.reasoning_text"),
+        ("content", "response.output_text"),
+    ):
+        deltas = [
+            event["choices"][0]["delta"][field]
+            for event in events
+            if event.get("choices")
+            and "role" not in event["choices"][0]["delta"]
+            and event["choices"][0]["finish_reason"] is None
+            and isinstance(event["choices"][0]["delta"].get(field), str)
+        ]
+        assert deltas == [
+            event["delta"]
+            for event in _data_events(responses)
+            if event["type"] == f"{prefix}.delta"
+        ]
+    assert all(
+        event["choices"][0]["delta"]["provider_extension"] == "retained"
+        for event in events
+        if event.get("choices")
+        and "role" not in event["choices"][0]["delta"]
+        and isinstance(event["choices"][0]["delta"].get(reasoning_field), str)
+    )
+    for event in events:
+        ChatCompletionChunk.model_validate(event)
+    matched = deepcopy(chat)
+    match_chat_completions_events(chat, responses)
+    assert chat == matched
+
+
+@pytest.mark.parametrize(
+    "matcher", [match_chat_completions_events, match_chat_completions_request]
+)
+def test_prefers_populated_reasoning_field_over_null_alternate(matcher) -> None:
+    """Ensures a null Together field cannot override populated OpenAI reasoning."""
+    chat_path, responses_path = REASONING_CASSETTES[1]
+    chat = read_yaml(str(chat_path))
+    responses = read_yaml(str(responses_path))
+    for message in chat["request"]["body"]["messages"]:
+        if "reasoning_content" in message:
+            message["reasoning"] = None
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices"):
+            event["choices"][0]["delta"]["reasoning"] = None
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    matcher(chat, responses)
+
+    assert any(message.get("reasoning_content") for message in chat["request"]["body"]["messages"])
+    assert not any(message.get("reasoning") for message in chat["request"]["body"]["messages"])
+    if matcher is match_chat_completions_events:
+        assert "".join(
+            event["choices"][0]["delta"]["reasoning_content"]
+            for event in _data_events(chat)
+            if event.get("choices")
+            and "role" not in event["choices"][0]["delta"]
+            and isinstance(event["choices"][0]["delta"].get("reasoning_content"), str)
+        ) == next(
+            event["text"]
+            for event in _data_events(responses)
+            if event["type"] == "response.reasoning_text.done"
+        )
+
+
+def test_matches_mixed_tool_and_text_deltas_without_losing_provider_extensions() -> None:
+    """Ensures text matching leaves mixed tool arguments intact at canonical chunk counts."""
+    _, chat_path, responses_path = TOOL_CALL_CASSETTES[0]
+    chat = read_yaml(str(chat_path))
+    responses = read_yaml(str(responses_path))
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        if event.get("choices"):
+            delta = event["choices"][0]["delta"]
+            if delta.get("tool_calls"):
+                delta["content"] = "unmatched visible text"
+                delta["provider_tool"] = "retained"
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat, responses)
+
+    events = _data_events(chat)
+    assert _chat_tool_call_chunks(events) == _response_tool_call_chunks(_data_events(responses))
+    assert [content for event in events if (content := _chat_content(event))] == [
+        event["delta"]
+        for event in _data_events(responses)
+        if event["type"] == "response.output_text.delta"
+    ]
+    assert all(
+        event["choices"][0]["delta"]["provider_tool"] == "retained"
+        for event in events
+        if event.get("choices") and event["choices"][0]["delta"].get("tool_calls")
+    )
+    for event in events:
+        ChatCompletionChunk.model_validate(event)
+    matched = deepcopy(chat)
+    match_chat_completions_events(chat, responses)
+    assert chat == matched

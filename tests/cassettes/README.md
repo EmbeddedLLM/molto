@@ -114,6 +114,8 @@ The detailed contracts are documented in:
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` to align streaming SSE fixtures. Use `scripts/match_openai_cassette_responses.py` and `scripts/match_anthropic_cassette_responses.py` to align non-streaming JSON response fixtures. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
 
+The OpenAI matchers recognize the recorded Chat reasoning field (`reasoning_content` or Together's `reasoning`) and preserve it in matched output and continuation history. They map ordered image input to native Chat content and relocate image tool results after the complete tool-response block. The recorded `max_tokens` or `max_completion_tokens` field receives the canonical output-token limit, while unrelated native request extensions remain present.
+
 Relevant test entry points and canonicalization helpers:
 
 - `python/molto/utils/test.py` defines the deterministic comparison helpers `reconstructable_responses_event`, `reconstructable_chat_completions_chunks`, and `reconstructable_anthropic_event`;

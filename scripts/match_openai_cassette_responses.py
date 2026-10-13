@@ -4,8 +4,9 @@
 The Responses cassette is canonical. This script rewrites the representable
 request and JSON response fields in a Chat Completions cassette while preserving
 its native wire format and transport metadata. Unsigned raw Responses reasoning
-maps to Chat Completions `reasoning_content`; reasoning summaries and encrypted
-continuation state are not representable in Chat Completions.
+maps to the recording's `reasoning_content` or `reasoning` field; reasoning
+summaries and encrypted continuation state are not representable in Chat
+Completions.
 """
 
 from __future__ import annotations
@@ -27,9 +28,20 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
+def _recorded_reasoning_field(assistant_parts: list[dict[str, Any]]) -> str:
+    for field in ("reasoning_content", "reasoning"):
+        if any(isinstance(part.get(field), str) and part[field] for part in assistant_parts):
+            return field
+    return (
+        "reasoning"
+        if any("reasoning" in part and "reasoning_content" not in part for part in assistant_parts)
+        else "reasoning_content"
+    )
+
+
 def _response_message_content(
-    content: Any, *, preserve_parts: bool = False
-) -> str | list[dict[str, str]]:
+    content: Any, *, preserve_parts: bool = False, allow_images: bool = False
+) -> str | list[dict[str, Any]]:
     if isinstance(content, str):
         if preserve_parts:
             return [{"text": content, "type": "text"}]
@@ -37,8 +49,21 @@ def _response_message_content(
     if not isinstance(content, list):
         raise ValueError("Responses message content must be text or a list of text parts.")
 
-    text: list[str] = []
+    parts: list[dict[str, Any]] = []
     for part in content:
+        if isinstance(part, dict) and part.get("type") == "input_image" and allow_images:
+            image_url = part.get("image_url")
+            if not isinstance(image_url, str):
+                raise ValueError("Responses input image must contain a string image_url.")
+            image = {"url": image_url}
+            detail = part.get("detail")
+            if detail is not None:
+                if detail not in {"auto", "low", "high"}:
+                    raise ValueError("Responses image detail cannot map to Chat Completions.")
+                image["detail"] = detail
+            parts.append({"image_url": image, "type": "image_url"})
+            preserve_parts = True
+            continue
         if not isinstance(part, dict) or part.get("type") not in {
             "input_text",
             "output_text",
@@ -48,10 +73,10 @@ def _response_message_content(
         part_text = part.get("text")
         if not isinstance(part_text, str):
             raise ValueError("Responses text content must contain a string text field.")
-        text.append(part_text)
+        parts.append({"text": part_text, "type": "text"})
     if preserve_parts:
-        return [{"text": part, "type": "text"} for part in text]
-    return "".join(text)
+        return parts
+    return "".join(part["text"] for part in parts)
 
 
 def _raw_reasoning_content(item: dict[str, Any]) -> str:
@@ -74,13 +99,17 @@ def _raw_reasoning_content(item: dict[str, Any]) -> str:
     return "".join(reasoning)
 
 
-def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
+def _chat_messages_from_response_input(
+    response_input: Any, *, reasoning_field: str = "reasoning_content"
+) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
     if not isinstance(response_input, list):
         raise ValueError("Responses input must be a string or an input-item list.")
 
     messages: list[dict[str, Any]] = []
+    # Chat requires all tool responses before user messages carrying their images.
+    deferred_images: list[dict[str, Any]] = []
     tool_call_ids: set[str] = set()
     returned_tool_call_ids: set[str] = set()
     for item in response_input:
@@ -88,10 +117,13 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type != "function_call_output" and deferred_images:
+            messages.extend(deferred_images)
+            deferred_images.clear()
         if item_type == "reasoning":
             messages.append(
                 {
-                    "reasoning_content": _raw_reasoning_content(item),
+                    reasoning_field: _raw_reasoning_content(item),
                     "role": "assistant",
                 }
             )
@@ -128,13 +160,37 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
                 raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
             if call_id in returned_tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
-            messages.append(
-                {
-                    "content": _response_message_content(output, preserve_parts=True),
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                }
-            )
+            parts = _response_message_content(output, preserve_parts=True, allow_images=True)
+            content = [part for part in parts if part["type"] == "text"]
+            images = [part for part in parts if part["type"] == "image_url"]
+            if (
+                (images or deferred_images)
+                and isinstance(output, list)
+                and any(part.get("prompt_cache_breakpoint") is not None for part in output)
+            ):
+                raise ValueError(
+                    "Chat cannot preserve cache breakpoints with relocated tool images."
+                )
+            if images:
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"The image result of tool call {call_id!r} will be "
+                            "attached as user prompt after all tool responses."
+                        ),
+                    }
+                )
+                deferred_images.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                            *images,
+                        ],
+                    }
+                )
+            messages.append({"content": content, "role": "tool", "tool_call_id": call_id})
             returned_tool_call_ids.add(call_id)
             continue
 
@@ -145,7 +201,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
         message = {
             "content": _response_message_content(
-                item.get("content"), preserve_parts=role == "user"
+                item.get("content"), preserve_parts=role == "user", allow_images=role == "user"
             ),
             "role": role,
         }
@@ -158,6 +214,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             messages[-1].update(message)
         else:
             messages.append(message)
+    messages.extend(deferred_images)
     return messages
 
 
@@ -319,9 +376,6 @@ def match_chat_completions_response(
 
     chat_request = _request_body(chat_cassette)
     responses_request = _request_body(responses_cassette)
-    chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
-    _match_request_reasoning_effort(chat_cassette, responses_cassette)
-
     chat_response = _response_body(chat_cassette)
     response = _response_body(responses_cassette)
     choices = chat_response.get("choices")
@@ -330,6 +384,16 @@ def match_chat_completions_response(
     message = choices[0].get("message")
     if not isinstance(message, dict):
         raise ValueError("Chat Completions choice must contain a message object.")
+    assistant_parts = [*chat_request.get("messages", []), message]
+    reasoning_field = _recorded_reasoning_field(assistant_parts)
+    chat_request["messages"] = _chat_messages_from_response_input(
+        responses_request.get("input"), reasoning_field=reasoning_field
+    )
+    _match_request_reasoning_effort(chat_cassette, responses_cassette)
+    max_output_tokens = responses_request.get("max_output_tokens")
+    if max_output_tokens is not None:
+        token_field = "max_tokens" if "max_tokens" in chat_request else "max_completion_tokens"
+        chat_request[token_field] = max_output_tokens
     chat_usage = chat_response.get("usage")
     if not isinstance(chat_usage, dict):
         raise ValueError("Chat Completions response must contain usage.")
@@ -345,10 +409,10 @@ def match_chat_completions_response(
     reasoning_content, content, tool_calls = _response_output(response)
     message["role"] = "assistant"
     message["content"] = content
-    message.pop("reasoning_content", None)
+    message.pop(reasoning_field, None)
     message.pop("tool_calls", None)
     if reasoning_content is not None:
-        message["reasoning_content"] = reasoning_content
+        message[reasoning_field] = reasoning_content
     if tool_calls:
         message["tool_calls"] = tool_calls
 

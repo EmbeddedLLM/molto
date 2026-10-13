@@ -14,7 +14,8 @@ retention, and content-part breakpoints without changing their prefix boundaries
 Matched reasoning requests carry the canonical Responses effort as
 `reasoning_effort`. When a continuation contains reasoning history but omits a
 current reasoning configuration, the matcher uses `high` to match the default
-used by the normalized Anthropic thinking policy.
+used by the normalized Anthropic thinking policy. The recorded reasoning wire
+field (`reasoning_content` or `reasoning`) is retained in deltas and history.
 
 The Responses terminal lifecycle controls the matched Chat finish reason:
 `response.completed` maps to `stop`, while incomplete output-token and
@@ -25,7 +26,8 @@ fields such as message item IDs, sequence numbers, and a distinct completion tim
 cannot be encoded in CC chunks; the converter must generate those fields
 deterministically for exact output parity. Canonical Responses raw reasoning and
 tool-call history are translated into Chat Completions messages. Other request
-fields and transport metadata are intentionally left unchanged. With
+fields and transport metadata are intentionally left unchanged, except for the
+canonical token limit expressed through the recording's native field. With
 `--request-only`, match input, model, token limit, reasoning effort, and streaming
 settings without touching the recorded response; this mode supports error cassettes.
 """
@@ -50,8 +52,19 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     return request_body
 
 
+def _recorded_reasoning_field(assistant_parts: list[dict[str, Any]]) -> str:
+    for field in ("reasoning_content", "reasoning"):
+        if any(isinstance(part.get(field), str) and part[field] for part in assistant_parts):
+            return field
+    return (
+        "reasoning"
+        if any("reasoning" in part and "reasoning_content" not in part for part in assistant_parts)
+        else "reasoning_content"
+    )
+
+
 def _response_message_content(
-    content: Any, *, preserve_parts: bool = False
+    content: Any, *, preserve_parts: bool = False, allow_images: bool = False
 ) -> str | list[dict[str, Any]]:
     if isinstance(content, str):
         if preserve_parts:
@@ -62,6 +75,22 @@ def _response_message_content(
 
     parts: list[dict[str, Any]] = []
     for part in content:
+        if isinstance(part, dict) and part.get("type") == "input_image" and allow_images:
+            image_url = part.get("image_url")
+            if not isinstance(image_url, str):
+                raise ValueError("Responses input image must contain a string image_url.")
+            image = {"url": image_url}
+            detail = part.get("detail")
+            if detail is not None:
+                if detail not in {"auto", "low", "high"}:
+                    raise ValueError("Responses image detail cannot map to Chat Completions.")
+                image["detail"] = detail
+            mapped_part = {"image_url": image, "type": "image_url"}
+            if part.get("prompt_cache_breakpoint") is not None:
+                mapped_part["prompt_cache_breakpoint"] = deepcopy(part["prompt_cache_breakpoint"])
+            parts.append(mapped_part)
+            preserve_parts = True
+            continue
         if not isinstance(part, dict) or part.get("type") not in {
             "input_text",
             "output_text",
@@ -121,13 +150,17 @@ def _raw_reasoning_content(item: dict[str, Any]) -> str:
     return "".join(reasoning)
 
 
-def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
+def _chat_messages_from_response_input(
+    response_input: Any, *, reasoning_field: str = "reasoning_content"
+) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
     if not isinstance(response_input, list):
         raise ValueError("Responses input must be a string or an input-item list.")
 
     messages: list[dict[str, Any]] = []
+    # Chat requires all tool responses before user messages carrying their images.
+    deferred_images: list[dict[str, Any]] = []
     tool_call_ids: set[str] = set()
     returned_tool_call_ids: set[str] = set()
     for item in response_input:
@@ -135,10 +168,13 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type != "function_call_output" and deferred_images:
+            messages.extend(deferred_images)
+            deferred_images.clear()
         if item_type == "reasoning":
             messages.append(
                 {
-                    "reasoning_content": _raw_reasoning_content(item),
+                    reasoning_field: _raw_reasoning_content(item),
                     "role": "assistant",
                 }
             )
@@ -175,13 +211,33 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
                 raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
             if call_id in returned_tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
-            messages.append(
-                {
-                    "content": _response_message_content(output, preserve_parts=True),
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                }
-            )
+            parts = _response_message_content(output, preserve_parts=True, allow_images=True)
+            content = [part for part in parts if part["type"] == "text"]
+            images = [part for part in parts if part["type"] == "image_url"]
+            if (images or deferred_images) and _has_cache_breakpoint(output):
+                raise ValueError(
+                    "Chat cannot preserve cache breakpoints with relocated tool images."
+                )
+            if images:
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"The image result of tool call {call_id!r} will be "
+                            "attached as user prompt after all tool responses."
+                        ),
+                    }
+                )
+                deferred_images.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                            *images,
+                        ],
+                    }
+                )
+            messages.append({"content": content, "role": "tool", "tool_call_id": call_id})
             returned_tool_call_ids.add(call_id)
             continue
 
@@ -192,7 +248,9 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError(f"Responses input role {role!r} cannot map to Chat Completions.")
         message = {
             "content": _response_message_content(
-                item.get("content"), preserve_parts=role in {"system", "developer", "user"}
+                item.get("content"),
+                preserve_parts=role in {"system", "developer", "user"},
+                allow_images=role == "user",
             ),
             "role": role,
         }
@@ -205,11 +263,15 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             messages[-1].update(message)
         else:
             messages.append(message)
+    messages.extend(deferred_images)
     return messages
 
 
 def _match_request_history(
-    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+    chat_cassette: dict[str, Any],
+    responses_cassette: dict[str, Any],
+    *,
+    reasoning_field: str = "reasoning_content",
 ) -> None:
     chat_request = _request_body(chat_cassette)
     responses_request = _request_body(responses_cassette)
@@ -228,7 +290,9 @@ def _match_request_history(
     ):
         return
 
-    chat_request["messages"] = _chat_messages_from_response_input(response_input)
+    chat_request["messages"] = _chat_messages_from_response_input(
+        response_input, reasoning_field=reasoning_field
+    )
     if has_cache:
         chat_request["model"] = responses_request["model"]
         for field in ("prompt_cache_options", "prompt_cache_key", "prompt_cache_retention"):
@@ -333,6 +397,16 @@ def _match_request_reasoning_effort(
         chat_request["reasoning_effort"] = effort or "high"
     else:
         chat_request.pop("reasoning_effort", None)
+
+
+def _match_request_token_limit(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> None:
+    chat_request = _request_body(chat_cassette)
+    max_output_tokens = _request_body(responses_cassette).get("max_output_tokens")
+    if max_output_tokens is not None:
+        token_field = "max_tokens" if "max_tokens" in chat_request else "max_completion_tokens"
+        chat_request[token_field] = max_output_tokens
 
 
 def _serialize_data_event(event: dict[str, Any], template: str) -> str:
@@ -573,13 +647,87 @@ def _replace_delta_events(
         template_index, template_event = templates[min(index, len(templates) - 1)]
         event = deepcopy(template_event)
         choice = event["choices"][0]
-        choice["delta"] = {delta_field: delta_value}
+        choice["delta"][delta_field] = delta_value
         choice["finish_reason"] = None
         event["usage"] = None
         replacement_entries.append(_serialize_data_event(event, sse_entries[template_index]))
         replacement_entries.extend(separator_entries)
 
     sse_entries[segment_start:segment_end] = replacement_entries
+
+
+def _separate_mixed_delta_events(
+    chat_cassette: dict[str, Any], response_events: list[dict[str, Any]], reasoning_field: str
+) -> None:
+    indexed_events = _data_events(chat_cassette)
+    semantic_events = []
+    for position, (sse_index, event) in enumerate(indexed_events):
+        choices = event.get("choices")
+        if not choices or choices[0].get("finish_reason") is not None:
+            continue
+        delta = choices[0].get("delta")
+        if not isinstance(delta, dict) or "role" in delta:
+            continue
+        fields = [
+            field
+            for field in (reasoning_field, "content", "tool_calls")
+            if isinstance(delta.get(field), str) or (field == "tool_calls" and delta.get(field))
+        ]
+        if fields:
+            semantic_events.append((position, sse_index, event, fields))
+    if not any(len(fields) > 1 for _, _, _, fields in semantic_events):
+        return
+    positions = [position for position, _, _, _ in semantic_events]
+    if positions != list(range(positions[0], positions[-1] + 1)):
+        raise ValueError("Mixed Chat Completions output deltas must form a contiguous segment.")
+
+    # A mixed chunk is a template for each semantic field. Separate those templates
+    # before matching different canonical chunk counts so one rewrite cannot consume another.
+    field_order = []
+    for event in response_events:
+        field = {
+            "response.reasoning_text.delta": reasoning_field,
+            "response.output_text.delta": "content",
+        }.get(event.get("type"))
+        if (
+            event.get("type") == "response.output_item.added"
+            and event.get("item", {}).get("type") == "function_call"
+        ):
+            field = "tool_calls"
+        if field is not None and field not in field_order:
+            field_order.append(field)
+    field_order.extend(
+        field for field in (reasoning_field, "content", "tool_calls") if field not in field_order
+    )
+
+    sse_entries = chat_cassette["response"]["sse"]
+    replacement_entries = []
+    for field in field_order:
+        for position, sse_index, template, fields in semantic_events:
+            if field not in fields:
+                continue
+            event = deepcopy(template)
+            delta = event["choices"][0]["delta"]
+            event["choices"][0]["delta"] = {
+                key: value
+                for key, value in delta.items()
+                if key not in {"content", "reasoning_content", "reasoning", "tool_calls"}
+                or key == field
+            }
+            next_index = (
+                indexed_events[position + 1][0]
+                if position + 1 < len(indexed_events)
+                else len(sse_entries)
+            )
+            replacement_entries.append(_serialize_data_event(event, sse_entries[sse_index]))
+            replacement_entries.extend(sse_entries[sse_index + 1 : next_index])
+    last_position = positions[-1]
+    segment_end = (
+        indexed_events[last_position + 1][0]
+        if last_position + 1 < len(indexed_events)
+        else len(sse_entries)
+    )
+    sse_entries[semantic_events[0][1] : segment_end] = replacement_entries
 
 
 def _replace_tool_call_events(
@@ -645,7 +793,7 @@ def _replace_tool_call_events(
     has_visible_output = any(
         any(
             isinstance(delta.get(field), str) and bool(delta[field])
-            for field in ("content", "reasoning_content")
+            for field in ("content", "reasoning_content", "reasoning")
         )
         for _, _, delta in preceding_deltas
     )
@@ -699,6 +847,11 @@ def _replace_tool_call_events(
             }
         choice["finish_reason"] = None
         event["usage"] = None
+        choice["delta"] = {
+            key: value
+            for key, value in template_event["choices"][0]["delta"].items()
+            if key not in {"content", "reasoning_content", "reasoning", "tool_calls"}
+        } | choice["delta"]
         replacement_entries.append(_serialize_data_event(event, sse_entries[template_index]))
         replacement_entries.extend(separator_entries)
 
@@ -710,7 +863,12 @@ def match_chat_completions_events(
 ) -> None:
     """Rewrite CC SSE events into the canonical input for Responses parity."""
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
+    _match_request_token_limit(chat_cassette, responses_cassette)
     indexed_chat_events = _data_events(chat_cassette)
+    assistant_parts = _request_body(chat_cassette).get("messages", []) + [
+        event["choices"][0]["delta"] for _, event in indexed_chat_events if event.get("choices")
+    ]
+    reasoning_field = _recorded_reasoning_field(assistant_parts)
     response_events = [event for _, event in _data_events(responses_cassette)]
 
     created_event = _response_event(response_events, "response.created")
@@ -759,12 +917,14 @@ def match_chat_completions_events(
             f"Expected exactly one Chat Completions finish event, found {len(finish_events)}."
         )
 
+    _separate_mixed_delta_events(chat_cassette, response_events, reasoning_field)
+    indexed_chat_events = _data_events(chat_cassette)
     _replace_delta_events(
         chat_cassette,
         indexed_chat_events,
-        _chat_delta_events(indexed_chat_events, "reasoning_content"),
+        _chat_delta_events(indexed_chat_events, reasoning_field),
         response_reasoning_deltas,
-        "reasoning_content",
+        reasoning_field,
     )
     indexed_chat_events = _data_events(chat_cassette)
     _replace_delta_events(
@@ -798,7 +958,7 @@ def match_chat_completions_events(
     sse_entries = chat_cassette["response"]["sse"]
     for index, event in indexed_chat_events:
         sse_entries[index] = _serialize_data_event(event, sse_entries[index])
-    _match_request_history(chat_cassette, responses_cassette)
+    _match_request_history(chat_cassette, responses_cassette, reasoning_field=reasoning_field)
 
 
 def match_chat_completions_request(
@@ -807,11 +967,13 @@ def match_chat_completions_request(
     """Align request input and streaming settings without rewriting provider errors."""
     chat_request = _request_body(chat_cassette)
     responses_request = _request_body(responses_cassette)
-    chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
+    reasoning_field = _recorded_reasoning_field(chat_request.get("messages", []))
+    chat_request["messages"] = _chat_messages_from_response_input(
+        responses_request.get("input"), reasoning_field=reasoning_field
+    )
     for field in ("model", "stream"):
         chat_request[field] = responses_request[field]
-    if responses_request.get("max_output_tokens") is not None:
-        chat_request["max_completion_tokens"] = responses_request["max_output_tokens"]
+    _match_request_token_limit(chat_cassette, responses_cassette)
     if responses_request["stream"]:
         chat_request["stream_options"] = {
             **responses_request.get("stream_options", {}),
