@@ -83,21 +83,17 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
-Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default. Together has the endpoint fallback described below; other providers retain the requested endpoint. An explicit `base_url` changes only the HTTP destination.
+Molto never infers providers from URL hostnames or rewrites endpoints. An omitted `provider` defaults to OpenAI for Responses and Chat Completions, and Anthropic for Messages; an explicit provider overrides that default.
 
 Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` or `reasoning` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM and Together classify it as raw reasoning.
 
 ### Together AI
 
-Use `provider="togetherai"` with `TOGETHER_AI_API_KEY`, or pass an explicit `api_key` to the coordinator. Molto uses the Together credential exclusively; a missing key fails locally even when OpenAI credentials are configured. The default base URL is `https://api.together.ai/v1`, and an explicit `base_url` overrides it.
+Use `provider="togetherai"`, `endpoint="chat/completions"`, and `TOGETHER_AI_API_KEY` or an explicit `api_key`. The Chat client defaults to `https://api.together.ai/v1`; `base_url` overrides it. Other endpoints retain their standard clients and default URLs. Select Chat Completions explicitly when using `responses()` or `messages()` to translate Together Chat output.
 
-Together always uses Chat Completions upstream. Molto resolves all three recognized `endpoint` values (`responses`, `messages`, and `chat/completions`), including coordinator defaults, to `chat/completions` before choosing passthrough or translation. Invalid endpoint values still fail locally. `chat_completions()` returns SDK-native Chat chunks or completions; `responses()` and `messages()` translate the Chat stream into their respective SDK events or complete responses.
+Together uses `reasoning` for unsigned raw reasoning; translated Chat output uses `reasoning_content`. Translated history accepts either field but rejects both populated together. It preserves one reasoning block exactly; multiple blocks and signed or summarized reasoning are unsupported. Assistant parts must follow reasoning, text, then tool-call order. Pass model-specific thinking controls through `extra_body`. See Together's [OpenAI compatibility](https://docs.together.ai/docs/inference/openai-compatibility) and [reasoning requirements](https://docs.together.ai/docs/inference/chat/reasoning).
 
-The initial Together client reads streaming reasoning and writes translated assistant history under `reasoning`. Native Chat output preserves that field. Strict assistant request models accept either `reasoning` or `reasoning_content`; translated history rejects both fields when both contain non-empty text. Translated Chat output continues to use `reasoning_content`. Models requiring upstream `reasoning_content` need an explicit field-selection extension before they are supported by this client. Together documents its [OpenAI-compatible Chat transport](https://docs.together.ai/docs/inference/openai-compatibility) and [model-specific reasoning fields and history requirements](https://docs.together.ai/docs/inference/chat/reasoning).
-
-Translated history supports unsigned raw reasoning, text, and function tools. One accumulated reasoning string retains its whitespace exactly. Multiple distinct reasoning blocks, signed or summarized reasoning, reasoning after text or tool calls, and text after tool calls within one explicit assistant message are rejected when Chat cannot preserve them. Model-specific thinking controls can be passed through `extra_body`.
-
-Validation is offline, using existing-provider cassette replay and synthetic Together-field extensions. SDK-native Responses and Messages fixtures provide downstream translation references; they are not Together-native recordings. No Together recordings or exact tested model are available, so this integration does not establish live compatibility for a particular model, thinking control, cache field, or provider-specific usage detail. The reported intermittent text-after-tool-call issue remains unreproduced; the existing ordering guard is retained.
+Coverage uses offline existing-provider replay and synthetic Together extensions. Together-native recordings and model-specific live compatibility remain unverified.
 
 ## How translation works
 

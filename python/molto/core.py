@@ -30,7 +30,7 @@ from molto.types.openai_responses import (
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.upstream.together import TogetherAIClient
+from molto.upstream.together import TogetherAIChatCompletionsClient
 
 VLLM_DUMMY_API_KEY = "EMPTY"
 
@@ -184,16 +184,6 @@ class Molto:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
 
-    @classmethod
-    def _resolve_route(
-        cls, endpoint: Endpoint, provider: Provider | None
-    ) -> tuple[Endpoint, Provider]:
-        resolved_provider = cls._resolve_provider(endpoint, provider)
-        # Together exposes Chat Completions upstream for every public coordinator.
-        if resolved_provider == "togetherai":
-            endpoint = "chat/completions"
-        return endpoint, resolved_provider
-
     async def responses(
         self,
         body: BaseModel | dict[str, Any],
@@ -221,7 +211,7 @@ class Molto:
                 headers are removed before the provider request.
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
-        endpoint, resolved_provider = self._resolve_route(endpoint, provider)
+        resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -247,7 +237,7 @@ class Molto:
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
             chat_client = (
-                TogetherAIClient
+                TogetherAIChatCompletionsClient
                 if resolved_provider == "togetherai"
                 else OpenAIChatCompletionsClient
             )
@@ -295,13 +285,13 @@ class Molto:
         HTTP destination.
         """
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
-        endpoint, resolved_provider = self._resolve_route(endpoint, provider)
+        resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "chat/completions":
             chat_client = (
-                TogetherAIClient
+                TogetherAIChatCompletionsClient
                 if resolved_provider == "togetherai"
                 else OpenAIChatCompletionsClient
             )
@@ -368,7 +358,7 @@ class Molto:
         HTTP destination.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
-        endpoint, resolved_provider = self._resolve_route(endpoint, provider)
+        resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -402,7 +392,7 @@ class Molto:
             )
         elif endpoint == "chat/completions":
             chat_client = (
-                TogetherAIClient
+                TogetherAIChatCompletionsClient
                 if resolved_provider == "togetherai"
                 else OpenAIChatCompletionsClient
             )

@@ -30,9 +30,9 @@ Keep these three concepts separate:
 
 Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
 
-Resolve documented provider endpoint fallback in the facade before selecting native passthrough. Together resolves every recognized endpoint to Chat Completions; other providers retain the requested endpoint. Reject invalid endpoints before fallback rather than treating arbitrary values as Chat.
+Preserve the requested endpoint regardless of provider; reject unknown endpoint strings before adapter normalization. Together selects `TogetherAIChatCompletionsClient` only for Chat Completions.
 
-Keep reasoning wire-field selection on the upstream client, separate from raw-versus-summary capability classification. `TogetherAIClient` inherits the shared Chat implementation with `reasoning_field="reasoning"`; OpenAI and vLLM use `reasoning_content`. Shared helpers must dispatch through the concrete client class so subclass field selection applies to assistant history as well as stream normalization. Reuse the existing Together credential configuration and honor explicit credentials and base URLs without borrowing OpenAI credentials.
+Keep reasoning wire-field selection separate from capability classification. Together uses `reasoning`; OpenAI and vLLM use `reasoning_content`. Shared helpers must dispatch through the concrete client class for both history and stream normalization. Resolve Together credentials from an explicit key or `TOGETHER_AI_API_KEY`.
 
 ## Adapter and client base classes
 

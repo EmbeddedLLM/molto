@@ -24,11 +24,9 @@ Native same-protocol and cross-protocol routes support streaming and non-streami
 
 Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default. An explicit base URL changes neither the protocol nor the capability profile.
 
-Together has one explicit routing exception: all recognized requested endpoints resolve to `chat/completions` before choosing native passthrough. Chat coordinators use native SDK transport; Responses and Messages coordinators translate through the same Chat client. Invalid endpoints still fail before HTTP, and other providers retain their requested endpoint.
+Endpoint selection is provider-independent. Together specializes only Chat Completions; other endpoints retain their standard clients and default URLs.
 
-`TogetherAIClient` is a thin `OpenAIChatCompletionsClient` subclass with the default URL `https://api.together.ai/v1` and `reasoning_field="reasoning"`. The shared client consults that field when reading reasoning deltas and writing translated assistant history; OpenAI and vLLM retain `reasoning_content`. Raw-versus-summary classification remains in `PROVIDER_CAPABILITIES`, where Together uses raw reasoning. The facade selects Together credentials from an explicit `api_key` or the existing `TOGETHER_AI_API_KEY` setting, never from OpenAI credentials. The SDK transport, HTTP ownership, errors, request extras, and stream cleanup remain shared.
-
-Together validation uses offline existing-provider replay and synthetic reasoning-field extensions. No Together-native recordings or exact tested model are available; model-specific live compatibility remains unverified. See [Together AI](../docs/README.md#together-ai) for the public support boundary.
+`TogetherAIChatCompletionsClient` subclasses `OpenAIChatCompletionsClient` with `DEFAULT_BASE_URL="https://api.together.ai/v1"` and `reasoning_field="reasoning"`. It shares SDK transport and lifecycle handling, uses Together credentials, and classifies reasoning through `PROVIDER_CAPABILITIES`. See [Together AI](../docs/README.md#together-ai) for usage and verification limits.
 
 ## Architectural goal
 
@@ -140,10 +138,10 @@ A future `Molto.chat()` will be a higher-level dispatcher. It will select one of
 Each implemented coordinator performs the following work:
 
 1. Validate the public body as its protocol request model.
-2. Resolve `provider` and the effective upstream endpoint, including Together's Chat Completions fallback, independently of `base_url`.
+2. Resolve `provider` independently of `base_url` and validate the requested upstream endpoint without rewriting it.
 3. Resolve the provider capability profile.
 4. Resolve the API key and injected or default HTTP client.
-5. Choose native passthrough or translation using the effective endpoint; non-streaming native requests return the SDK response directly, while translated requests collect downstream-native projected events.
+5. Choose native passthrough or translation using the requested endpoint; non-streaming native requests return the SDK response directly, while translated requests collect downstream-native projected events.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
 
 Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.

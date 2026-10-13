@@ -133,6 +133,7 @@ def _get_http_client(
     expected_extra_body: dict[str, Any] | None = None,
     requests: list[Request] | None = None,
     response_headers: dict[str, str] | None = None,
+    base_url: str | None = None,
 ) -> AsyncClient:
     """Replay `cassette_paths`, optionally asserting one exact outgoing request body."""
     cassette_paths = cassette_paths.copy()
@@ -149,7 +150,11 @@ def _get_http_client(
             origin = (
                 "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com"
             )
-            assert str(request.url) == f"{origin}{cassette['request']['path']}"
+            expected_url = f"{origin}{cassette['request']['path']}"
+            if base_url is not None:
+                path = cassette["request"]["path"] if upstream == "messages" else f"/{upstream}"
+                expected_url = f"{base_url.rstrip('/')}{path}"
+            assert str(request.url) == expected_url
             assert request.url.path == cassette["request"]["path"]
             expected = expected_body
             if expected is None:
@@ -453,6 +458,174 @@ async def test_transport_options_and_response_headers(
     else:
         assert upstream_request.headers["authorization"] == "Bearer test-api-key"
         assert "x-api-key" not in upstream_request.headers
+
+
+async def _assert_together_route(
+    downstream: Protocol,
+    stream: bool,
+    base_url: str | None,
+    scenario: str = "simple_text",
+    turn: int = 0,
+    upstream: Protocol = "chat/completions",
+) -> None:
+    """Compare Together routes with cassette-backed SDK output."""
+    translated = downstream != upstream
+    mode = "stream" if stream or translated else "non_stream"
+    variant = f"{mode}-{turn:02d}.yaml"
+    upstream_path = _matched_cassette_path(scenario, upstream, variant)
+    downstream_path = _matched_cassette_path(scenario, downstream, variant)
+    reference_protocol = "responses" if translated and not stream else downstream
+    reference_path = _matched_cassette_path(scenario, reference_protocol, variant)
+    reference_body = deepcopy(_read_cassette(reference_path)["request"]["body"])
+
+    async with _get_http_client([reference_path], reference_protocol) as http_client:
+        if reference_protocol == "messages":
+            sdk_client = AsyncAnthropic(
+                api_key="test-api-key",
+                base_url="https://api.anthropic.com",
+                http_client=http_client,
+            )
+            sdk_result = await sdk_client.messages.create(**reference_body)
+        else:
+            sdk_client = AsyncOpenAI(
+                api_key="test-api-key",
+                base_url="https://api.openai.com/v1",
+                http_client=http_client,
+            )
+            create = (
+                sdk_client.responses.create
+                if reference_protocol == "responses"
+                else sdk_client.chat.completions.create
+            )
+            sdk_result = await create(**reference_body)
+        if mode == "stream":
+            async with sdk_result:
+                sdk_events = [event async for event in sdk_result]
+
+    requests: list[Request] = []
+    async with _get_http_client(
+        [upstream_path],
+        upstream,
+        requests=requests,
+        base_url=base_url
+        or {
+            "responses": "https://api.openai.com/v1",
+            "chat/completions": "https://api.together.ai/v1",
+            "messages": "https://api.anthropic.com",
+        }[upstream],
+    ) as http_client:
+        client = Molto(http_client=http_client)
+        coordinator = {
+            "responses": client.responses,
+            "chat/completions": client.chat_completions,
+            "messages": client.messages,
+        }[downstream]
+        body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
+        if translated:
+            body["stream"] = stream
+        result = await coordinator(
+            body=body,
+            provider="togetherai",
+            api_key="test-api-key",
+            base_url=base_url,
+            **({"endpoint": upstream} if translated else {}),
+        )
+        if stream:
+            events = [event async for event in result]
+
+    assert len(requests) == 1
+    if upstream == "messages":
+        assert requests[0].headers["x-api-key"] == "test-api-key"
+    else:
+        assert requests[0].headers["authorization"] == "Bearer test-api-key"
+    if not translated:
+        actual = events if stream else [result]
+        expected = sdk_events if stream else [sdk_result]
+        assert [type(event) for event in actual] == [type(event) for event in expected]
+        assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
+            event.model_dump(mode="json", exclude_unset=True) for event in expected
+        ]
+    elif not stream:
+        _assert_matched_response(result, downstream, sdk_events[-1].response.model_dump())
+    elif downstream == "responses":
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+        actual_events = [
+            reconstructable_responses_event(dumps_sse(event), body=deepcopy(body))
+            for event in events
+        ]
+        expected_events = [
+            reconstructable_responses_event(dumps_sse(event), body=deepcopy(body))
+            for event in sdk_events
+        ]
+        if upstream == "messages":
+            for event in actual_events + expected_events:
+                if isinstance(event.get("response"), dict):
+                    event["response"].pop("created_at", None)
+        assert actual_events == expected_events
+    elif downstream == "chat/completions":
+        actual_chunks = [
+            chunk
+            for event in events
+            for chunk in reconstructable_chat_completions_chunks(dumps_sse(event), body=body)
+        ]
+        expected_chunks = [
+            chunk
+            for event in sdk_events
+            for chunk in reconstructable_chat_completions_chunks(dumps_sse(event), body=body)
+        ]
+        if upstream == "messages":
+            for chunk in actual_chunks + expected_chunks:
+                chunk.pop("created", None)
+        assert actual_chunks == expected_chunks
+    else:
+        assert [reconstructable_anthropic_event(dumps_sse(event)) for event in events] == [
+            reconstructable_anthropic_event(dumps_sse(event)) for event in sdk_events
+        ]
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+@pytest.mark.parametrize("custom_base_url", [False, True])
+async def test_together_preserves_endpoint_and_matches_sdk(
+    downstream: Protocol,
+    upstream: Protocol,
+    stream: bool,
+    custom_base_url: bool,
+) -> None:
+    """Ensures Together retains every selected endpoint, SDK output, and HTTP destination."""
+    base_url = None
+    if custom_base_url:
+        base_url = (
+            "https://together.example" if upstream == "messages" else "https://together.example/v1"
+        )
+    await _assert_together_route(downstream, stream, base_url, upstream=upstream)
+
+
+@pytest.mark.parametrize("downstream", PROTOCOLS)
+@pytest.mark.parametrize("turn", [0, 1])
+async def test_together_chat_reasoning_and_history_match_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+    downstream: Protocol,
+    turn: int,
+) -> None:
+    """Ensures Together reasoning deltas and continuation history preserve SDK semantics."""
+    read_cassette = _read_cassette
+
+    def with_together_reasoning(path: Path) -> dict[str, Any]:
+        cassette = deepcopy(read_cassette(path))
+        if "-chat_completions-" in path.name:
+            for message in cassette["request"]["body"]["messages"]:
+                if "reasoning_content" in message:
+                    message["reasoning"] = message.pop("reasoning_content")
+            # Extend existing replay data in memory; this is not a Together recording.
+            cassette["response"]["sse"] = [
+                record.replace('"reasoning_content":', '"reasoning":')
+                for record in cassette["response"]["sse"]
+            ]
+        return cassette
+
+    monkeypatch.setattr(__name__ + "._read_cassette", with_together_reasoning)
+    await _assert_together_route(downstream, True, None, "reasoning_raw", turn)
 
 
 @pytest.mark.parametrize("upstream", ["chat/completions", "messages"])

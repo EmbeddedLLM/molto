@@ -7,7 +7,7 @@ from molto.types.normalized import TextOutput, Thinking, ToolCall
 from molto.upstream.openai import OpenAIChatCompletionsClient
 
 
-class TogetherAIClient(OpenAIChatCompletionsClient):
+class TogetherAIChatCompletionsClient(OpenAIChatCompletionsClient):
     """Translate Together's `reasoning` field as unsigned raw thinking."""
 
     DEFAULT_BASE_URL = "https://api.together.ai/v1"

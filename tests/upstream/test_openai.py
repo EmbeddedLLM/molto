@@ -57,7 +57,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEventAdapter,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.upstream.together import TogetherAIClient
+from molto.upstream.together import TogetherAIChatCompletionsClient
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
@@ -521,7 +521,7 @@ def test_together_client_rejects_unrepresentable_reasoning_history(content):
     request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
 
     with pytest.raises(UnsupportedInput):
-        TogetherAIClient._request_body(request)
+        TogetherAIChatCompletionsClient._request_body(request)
 
 
 def test_chat_client_default_preserves_adjacent_reasoning_join():
