@@ -15,9 +15,11 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 
 
 def test_provider_capabilities_are_explicit_and_immutable() -> None:
+    """Ensures each provider has an explicit immutable reasoning profile."""
     assert PROVIDER_CAPABILITIES == {
         "anthropic": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),
+        "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),
     }
     with pytest.raises(FrozenInstanceError):
@@ -91,12 +93,13 @@ _STREAMING_BODIES = {
 }
 
 
-@pytest.mark.parametrize("provider", [None, "openai"])
+@pytest.mark.parametrize("provider", [None, "openai", "togetherai"])
 @pytest.mark.parametrize("coordinator", ["responses", "chat_completions", "messages"])
 async def test_coordinators_reject_unsupported_endpoints(
     provider: str | None,
     coordinator: str,
 ) -> None:
+    """Ensures endpoint fallback never accepts an unknown endpoint string."""
     # The endpoint Literal is not enforced at runtime; an unknown endpoint must
     # fail explicitly instead of falling through to a default client or provider.
     client = Molto(http_client=httpx.AsyncClient())

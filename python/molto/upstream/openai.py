@@ -740,6 +740,7 @@ class OpenAIChatCompletionsClient(
     """OpenAI Chat Completions transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+    reasoning_field = "reasoning_content"
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
@@ -780,8 +781,8 @@ class OpenAIChatCompletionsClient(
         except Exception as error:
             self._handle_error(error)
 
-    @staticmethod
-    def _assistant_message(parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
+    @classmethod
+    def _assistant_message(cls, parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
         message: dict[str, Any] = {"role": "assistant"}
         reasoning_parts: list[str] = []
         text_parts: list[dict[str, Any]] = []
@@ -817,15 +818,15 @@ class OpenAIChatCompletionsClient(
                     }
                 )
         if reasoning_parts:
-            message["reasoning_content"] = "\n".join(reasoning_parts)
+            message[cls.reasoning_field] = "\n".join(reasoning_parts)
         if len(text_parts) == 1 and "prompt_cache_breakpoint" not in text_parts[0]:
             message["content"] = text_parts[0]["text"]
         else:
             message["content"] = text_parts if text_parts or not parts else None
         return message
 
-    @staticmethod
-    def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
+    @classmethod
+    def _messages(cls, request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_parts: list[Thinking | TextOutput | ToolCall] = []
         explicit_assistant = False
@@ -836,7 +837,7 @@ class OpenAIChatCompletionsClient(
         def flush_assistant() -> None:
             nonlocal explicit_assistant
             if explicit_assistant or assistant_parts:
-                messages.append(OpenAIChatCompletionsClient._assistant_message(assistant_parts))
+                messages.append(cls._assistant_message(assistant_parts))
                 assistant_parts.clear()
                 explicit_assistant = False
 
@@ -1085,7 +1086,7 @@ class OpenAIChatCompletionsClient(
 
                 if chunk.choices:
                     choice = chunk.choices[0]
-                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
+                    reasoning_delta = getattr(choice.delta, self.reasoning_field, None)
                     # Reasoning and text may interleave: a non-empty reasoning chunk
                     # ends an active text part and starts a new thinking part. Empty
                     # reasoning chunks carry nothing and never start or switch parts.

@@ -62,6 +62,7 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
+    reasoning: NotRequired[str]
     content: NotRequired[
         str
         | list[ChatCompletionContentPartTextParam | ChatCompletionContentPartRefusalParam]

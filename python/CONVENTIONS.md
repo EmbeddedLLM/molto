@@ -30,6 +30,10 @@ Keep these three concepts separate:
 
 Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
 
+Resolve documented provider endpoint fallback in the facade before selecting native passthrough. Together resolves every recognized endpoint to Chat Completions; other providers retain the requested endpoint. Reject invalid endpoints before fallback rather than treating arbitrary values as Chat.
+
+Keep reasoning wire-field selection on the upstream client, separate from raw-versus-summary capability classification. `TogetherAIClient` inherits the shared Chat implementation with `reasoning_field="reasoning"`; OpenAI and vLLM use `reasoning_content`. Shared helpers must dispatch through the concrete client class so subclass field selection applies to assistant history as well as stream normalization. Reuse the existing Together credential configuration and honor explicit credentials and base URLs without borrowing OpenAI credentials.
+
 ## Adapter and client base classes
 
 Create a fresh `BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` subclass instance for each translated request, specifying its concrete native request, event, and response types. Call its public `normalize_request()` before `project_events()` or `project_response()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()`, `_project_events()`, and `_project_response()`: `_project_events()` consumes normalized events and yields downstream-native events, while `_project_response()` consumes that projected native event stream and returns the downstream-native response. Translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes `project_native_events()` or `project_native_response()` so native failures receive the same downstream-native error projection.
@@ -73,7 +77,7 @@ The exact OpenAI SDK pin in `pyproject.toml` is the schema source of truth. When
 
 Treat OpenAI Responses as the canonical behavioral reference when matching other protocols. Match their equivalent semantics and lifecycle behavior to Responses wherever the target protocol can represent them, while preserving genuine protocol-specific differences.
 
-When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every Chat message to an untyped dictionary.
+When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with optional string `reasoning_content` and `reasoning`; do not weaken every Chat message to an untyped dictionary. Reject translated history with both fields populated rather than silently choosing one. Native SDK output retains provider fields; translated Chat output uses `reasoning_content`.
 
 Never switch input shapes solely to satisfy SDK or local schema restrictions. Preserve the semantically correct wire representation and supported fields; when verified provider behavior differs from the schema, add a narrow schema extension instead.
 
@@ -117,13 +121,15 @@ Raise `UnsupportedInput` for semantic failures encountered while normalizing a d
 
 Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts. One assistant-history message is an `AssistantInput` containing ordered `Thinking`, `TextOutput`, and `ToolCall` parts; do not encode roles as content-part metadata. Preserve explicit assistant boundaries and per-part markers. Keep standalone Responses reasoning and function calls as top-level items. A Responses projection emits contiguous text runs from mixed assistant content as messages interleaved with standalone reasoning and calls. Within one explicit assistant message, Chat accepts reasoning, text, and tool-call runs in that order. Adjacent reasoning parts concatenate with a newline separator; text parts retain their boundaries and markers, and tool calls retain distinct IDs. Never merge separate explicit assistant messages. Reject reasoning after text or calls and text after calls rather than splitting or reordering the message. These request containers do not change the normalized output-event grammar.
 
+TogetherAI requires one unsigned raw reasoning block per projected assistant message. Preserve its original string exactly and reject multiple blocks rather than joining them with separators. Keep the existing OpenAI/vLLM newline join and the shared assistant part-order guard. A provider stream alone does not justify removing a history-order check; reproduce the reconstructed subsequent request before changing that behavior.
+
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
 Complete cross-protocol responses must reuse the complete streaming projection path: pass the upstream normalized event stream through the downstream adapter's `project_events()`, then pass those downstream-native events to `project_response()`. Keep collection protocol-specific because each native event grammar defines how to reconstruct its response. Responses takes the inner response from its terminal completed or incomplete event; Chat Completions accumulates choice, content, reasoning, indexed tool-call, finish, and usage fields; Messages accumulates its message and content-block lifecycle through the terminal stop. Do not collect normalized events into a parallel response representation or add a separate translated provider completion path that can drift from streaming behavior. Native same-protocol requests bypass the normalized path and return the SDK response directly.
 
 Preserve chunk boundaries when they are observable and covered by parity tests. Do not turn an empty role-establishment chunk into a text delta.
 
-Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly; preserve that label and require it to match `ProviderCapabilities.thinking`. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so classify them with the same capability. Project only the matching normalized representation into each protocol's reasoning field.
+Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly; preserve that label and require it to match `ProviderCapabilities.thinking`. Chat Completions `reasoning_content` or `reasoning` and Messages `thinking_delta` are ambiguous, so classify them with the same capability. Project only the matching normalized representation into each protocol's reasoning field.
 
 A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
 
@@ -221,6 +227,8 @@ Run all implementation tests in cassette playback mode. Actual translated output
 ## Verification
 
 Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events.
+
+Synthetic provider-field extensions of existing recordings verify Molto's routing and mappings, but they are not faithful recordings from that provider and do not establish live model compatibility. Keep the distinction explicit in support documentation, including when SDK-native reference fixtures come from a different provider.
 
 Log probabilities are not yet transported through the normalized path. Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
 
