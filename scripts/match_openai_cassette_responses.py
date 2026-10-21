@@ -389,6 +389,7 @@ def match_chat_completions_response(
     chat_request["messages"] = _chat_messages_from_response_input(
         responses_request.get("input"), reasoning_field=reasoning_field
     )
+    chat_request["model"] = responses_request["model"]
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
     max_output_tokens = responses_request.get("max_output_tokens")
     if max_output_tokens is not None:
@@ -410,11 +411,12 @@ def match_chat_completions_response(
     message["role"] = "assistant"
     message["content"] = content
     message.pop(reasoning_field, None)
-    message.pop("tool_calls", None)
     if reasoning_content is not None:
         message[reasoning_field] = reasoning_content
     if tool_calls:
         message["tool_calls"] = tool_calls
+    elif message.get("tool_calls"):
+        message.pop("tool_calls")
 
     choice = choices[0]
     choice["finish_reason"] = _finish_reason(response, has_tool_calls=bool(tool_calls))

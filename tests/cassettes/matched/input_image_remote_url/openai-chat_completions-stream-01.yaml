@@ -10,7 +10,7 @@ request:
           url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
         type: image_url
       role: user
-    - content: That is the **GitHub logo**, featuring the Octocat silhouette.
+    - content: That is the **GitHub logo**, featuring the stylized “Octocat” silhouette.
       role: assistant
     - content:
       - text: What is the animal?

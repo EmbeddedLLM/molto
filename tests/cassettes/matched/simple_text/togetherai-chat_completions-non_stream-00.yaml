@@ -1,0 +1,61 @@
+filename: 2026-10-15-01a13eae-eda2-7e50-9a94-401b0183f5c1
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
+      role: user
+    model: gpt-4.1-nano
+    reasoning:
+      enabled: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '224'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+    x-run-id: simple_text/togetherai-chat_completions-non_stream-00.yaml
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a13eae-eda2-7e50-9a94-401b0183f5c1
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      message:
+        content: The ocean is a vast, mysterious body of water that covers most of
+          the Earth's surface.
+        role: assistant
+        tool_calls: []
+      seed: null
+    created: 1787734793
+    id: resp_0dd4c16a990b6f72006a8eab094a8487d1b5a58e2a499c6bbc
+    metadata:
+      weight_version: default
+    model: gpt-4.1-nano-2025-04-14
+    object: chat.completion
+    prompt: []
+    service_tier: default
+    usage:
+      completion_tokens: 19
+      completion_tokens_details:
+        reasoning_tokens: 0
+      prompt_tokens: 15
+      prompt_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      reasoning_tokens: 0
+      total_tokens: 34
+  headers:
+    connection: keep-alive
+    content-type: application/json; charset=utf-8
+  status_code: 200
+timestamp: '2026-10-15T08:30:13.922497+00:00'

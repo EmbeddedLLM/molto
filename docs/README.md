@@ -85,15 +85,9 @@ Four independent choices define a route:
 
 Molto never infers providers from URL hostnames or rewrites endpoints. An omitted `provider` defaults to OpenAI for Responses and Chat Completions, and Anthropic for Messages; an explicit provider overrides that default.
 
-Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` or `reasoning` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM and Together classify it as raw reasoning.
+For Together Chat, select `provider="togetherai"` and `endpoint="chat/completions"`; the client uses `TOGETHER_AI_API_KEY` or an explicit `api_key` and defaults to `https://api.together.ai/v1` unless `base_url` overrides it.
 
-### Together AI
-
-Use `provider="togetherai"`, `endpoint="chat/completions"`, and `TOGETHER_AI_API_KEY` or an explicit `api_key`. The Chat client defaults to `https://api.together.ai/v1`; `base_url` overrides it. Other endpoints retain their standard clients and default URLs. Select Chat Completions explicitly when using `responses()` or `messages()` to translate Together Chat output.
-
-Together uses `reasoning` for unsigned raw reasoning; translated Chat output uses `reasoning_content`. Translated history accepts either field but rejects both populated together. It preserves one reasoning block exactly; multiple blocks and signed or summarized reasoning are unsupported. Assistant parts must follow reasoning, text, then tool-call order. Pass model-specific thinking controls through `extra_body`. See Together's [OpenAI compatibility](https://docs.together.ai/docs/inference/openai-compatibility) and [reasoning requirements](https://docs.together.ai/docs/inference/chat/reasoning).
-
-Coverage uses offline existing-provider replay and synthetic Together extensions. Together-native recordings and model-specific live compatibility remain unverified.
+Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` or `reasoning` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM and Together classify it as raw reasoning. The [Chat provider matrix](protocols/openai-chat-completions.md#upstream-stream-normalization) lists each profile's reasoning field.
 
 ## How translation works
 

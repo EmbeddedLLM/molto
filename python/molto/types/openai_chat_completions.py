@@ -28,6 +28,9 @@ from openai.types.chat.chat_completion_developer_message_param import (
     ChatCompletionDeveloperMessageParam,
 )
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_message_tool_call_union_param import (
+    ChatCompletionMessageToolCallUnionParam,
+)
 from openai.types.chat.chat_completion_prediction_content_param import (
     ChatCompletionPredictionContentParam,
 )
@@ -62,12 +65,13 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
-    reasoning: NotRequired[str]
+    reasoning: NotRequired[str | list[str]]
     content: NotRequired[
         str
         | list[ChatCompletionContentPartTextParam | ChatCompletionContentPartRefusalParam]
         | None
     ]
+    tool_calls: NotRequired[list[ChatCompletionMessageToolCallUnionParam]]
 
 
 class ChatCompletionUserMessageListParam(TypedDict):

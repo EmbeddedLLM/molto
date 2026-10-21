@@ -57,7 +57,6 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEventAdapter,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.upstream.together import TogetherAIChatCompletionsClient
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
@@ -501,27 +500,6 @@ def test_chat_client_reasoning_field_hook_preserves_history(reasoning):
         },
         {"role": "assistant", "reasoning": "Next turn"},
     ]
-
-
-@pytest.mark.parametrize(
-    "content",
-    [
-        [Thinking(content="First", summary=""), Thinking(content="Second", summary="")],
-        [Thinking(content="", summary=""), Thinking(content="Second", summary="")],
-        [Thinking(content="", summary="Summary")],
-        [Thinking(content="", summary="", signature="signed")],
-        [
-            ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
-            TextOutput(content="Later"),
-        ],
-    ],
-)
-def test_together_client_rejects_unrepresentable_reasoning_history(content):
-    """Ensures preserved-thinking history rejects merged blocks, opaque state, and reordered text."""
-    request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
-
-    with pytest.raises(UnsupportedInput):
-        TogetherAIChatCompletionsClient._request_body(request)
 
 
 def test_chat_client_default_preserves_adjacent_reasoning_join():
@@ -3241,9 +3219,12 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
     ]
 
 
+@pytest.mark.parametrize("text_between", [False, True])
 async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
     monkeypatch: pytest.MonkeyPatch,
+    text_between: bool,
 ):
+    """Ensures a completed tool call cannot resume after another call or intervening text."""
     native_chunks = [
         _chat_chunk(
             choices=[
@@ -3264,6 +3245,8 @@ async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
         )
         for call_index in (0, 1, 0)
     ]
+    if text_between:
+        native_chunks[1] = _chat_chunk(choices=[{"index": 0, "delta": {"content": "\n\n"}}])
 
     async def stub_native_events(
         native_request: OpenAIChatCompletionsCreateRequest,

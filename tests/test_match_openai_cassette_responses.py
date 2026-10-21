@@ -28,6 +28,7 @@ def _cassettes(turn: int = 0) -> tuple[dict, dict]:
 def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> None:
     """Ensures matched responses preserve native schemas and individual input text parts."""
     chat, responses = _cassettes(turn)
+    chat["request"]["body"]["model"] = "recorded-provider-model"
     transport = deepcopy(chat["response"]["headers"])
 
     match_chat_completions_response(chat, responses)
@@ -46,6 +47,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> Non
         for part in item["content"]
     )
     assert chat_body["usage"]["prompt_tokens"] == response_body["usage"]["input_tokens"]
+    assert chat["request"]["body"]["model"] == responses["request"]["body"]["model"]
     assert chat["response"]["headers"] == transport
     response_input = responses["request"]["body"]["input"]
     assert chat["request"]["body"]["messages"][0]["content"] == [
@@ -253,7 +255,7 @@ def test_matches_image_input_without_losing_order_or_provider_extensions(image_u
 
 
 @pytest.mark.parametrize("token_field", ["max_tokens", "max_completion_tokens"])
-def test_preserves_recorded_non_streaming_token_limit_field(token_field: str) -> None:
+def test_preserves_recorded_non_streaming_token_field(token_field: str) -> None:
     """Ensures non-streaming matching retains the provider's recorded token field."""
     chat, responses = _cassettes()
     chat["request"]["body"].pop("max_completion_tokens", None)
@@ -267,6 +269,41 @@ def test_preserves_recorded_non_streaming_token_limit_field(token_field: str) ->
         "max_tokens" if token_field == "max_completion_tokens" else "max_completion_tokens"
     )
     assert other_field not in chat["request"]["body"]
+
+
+@pytest.mark.parametrize("tool_calls", [None, []])
+def test_preserves_empty_tool_call_placeholders(tool_calls: list | None) -> None:
+    """Ensures matching text output preserves the provider's empty or null tool-call field."""
+    chat, responses = _cassettes()
+    message = chat["response"]["body"]["choices"][0]["message"]
+    message["tool_calls"] = tool_calls
+
+    match_chat_completions_response(chat, responses)
+
+    assert message["tool_calls"] == tool_calls
+    OpenAIChatCompletionsResponse.model_validate(chat["response"]["body"])
+    matched = deepcopy(chat)
+    match_chat_completions_response(chat, responses)
+    assert chat == matched
+
+
+def test_removes_tool_calls_absent_from_canonical_response() -> None:
+    """Ensures canonical text-only output does not retain tool calls from the recording."""
+    chat, responses = _cassettes()
+    choice = chat["response"]["body"]["choices"][0]
+    choice["finish_reason"] = "tool_calls"
+    choice["message"]["tool_calls"] = [
+        {
+            "function": {"arguments": '{"city":"Paris"}', "name": "weather"},
+            "id": "call_weather",
+            "type": "function",
+        }
+    ]
+
+    match_chat_completions_response(chat, responses)
+
+    assert "tool_calls" not in choice["message"]
+    assert choice["finish_reason"] == "stop"
 
 
 def test_matches_parallel_image_tool_history_in_non_streaming_request() -> None:
@@ -370,6 +407,7 @@ def test_rejects_invalid_non_streaming_cassettes(mutation) -> None:
 
 
 def test_cli_writes_sorted_output_without_mutating_input(tmp_path: Path) -> None:
+    """Ensures the CLI writes matched output without modifying the original input."""
     chat, responses = _cassettes()
     chat_path = tmp_path / "chat.yaml"
     responses_path = tmp_path / "responses.yaml"

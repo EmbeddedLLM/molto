@@ -10,6 +10,11 @@ same content. It also synchronizes fields that can pass through the conversion,
 including the response ID, creation time, model, target-default service tier, tool
 calls, and usage. Cache requests also copy the canonical cache options, keys,
 retention, and content-part breakpoints without changing their prefix boundaries.
+Mixed chunks and text interleaved between tool-call chunks are grouped by the
+canonical output field order before alignment. Source text absent from the
+canonical output is removed, including whitespace after a tool-only response.
+Recorded provider extensions and empty or null placeholders remain present. When
+the provider also exposes choice-level `text`, it stays in sync with `delta.content`.
 
 Matched reasoning requests carry the canonical Responses effort as
 `reasoning_effort`. When a continuation contains reasoning history but omits a
@@ -36,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+from itertools import groupby
 from pathlib import Path
 from typing import Any
 
@@ -554,11 +560,20 @@ def _chat_delta_events(
 
         choice = choices[0]
         delta = choice.get("delta")
+        # Empty provider placeholders must not consume another field's live deltas.
         if (
             isinstance(delta, dict)
             and "role" not in delta
             and choice.get("finish_reason") is None
             and isinstance(delta.get(delta_field), str)
+            and (
+                delta[delta_field]
+                or not any(
+                    delta.get(field)
+                    for field in ("content", "reasoning_content", "reasoning", "tool_calls")
+                    if field != delta_field
+                )
+            )
         ):
             matches.append((event_position, sse_index, event))
     return matches
@@ -671,18 +686,21 @@ def _separate_mixed_delta_events(
         fields = [
             field
             for field in (reasoning_field, "content", "tool_calls")
-            if isinstance(delta.get(field), str) or (field == "tool_calls" and delta.get(field))
+            if delta.get(field) and (isinstance(delta[field], str) or field == "tool_calls")
         ]
         if fields:
             semantic_events.append((position, sse_index, event, fields))
-    if not any(len(fields) > 1 for _, _, _, fields in semantic_events):
+    field_runs = [
+        fields for fields, _ in groupby(tuple(fields) for _, _, _, fields in semantic_events)
+    ]
+    if all(len(fields) == 1 for fields in field_runs) and len(field_runs) == len(set(field_runs)):
         return
     positions = [position for position, _, _, _ in semantic_events]
     if positions != list(range(positions[0], positions[-1] + 1)):
         raise ValueError("Mixed Chat Completions output deltas must form a contiguous segment.")
 
-    # A mixed chunk is a template for each semantic field. Separate those templates
-    # before matching different canonical chunk counts so one rewrite cannot consume another.
+    # Group mixed and interleaved fields before matching canonical chunk counts,
+    # so replacing text cannot consume tool arguments or leave tool chunks split.
     field_order = []
     for event in response_events:
         field = {
@@ -707,12 +725,13 @@ def _separate_mixed_delta_events(
             if field not in fields:
                 continue
             event = deepcopy(template)
-            delta = event["choices"][0]["delta"]
-            event["choices"][0]["delta"] = {
+            choice = event["choices"][0]
+            choice["delta"] = {
                 key: value
-                for key, value in delta.items()
+                for key, value in choice["delta"].items()
                 if key not in {"content", "reasoning_content", "reasoning", "tool_calls"}
                 or key == field
+                or value in (None, "")
             }
             next_index = (
                 indexed_events[position + 1][0]
@@ -779,6 +798,14 @@ def _replace_tool_call_events(
     )
     separator_entries = sse_entries[segment_start + 1 : next_event_index]
     templates = [(sse_index, event) for _, sse_index, event in tool_call_events]
+    # Keep call-specific extensions and argument placeholders with their source call.
+    templates_by_call: dict[int, list[tuple[int, dict[str, Any], dict[str, Any]]]] = {}
+    for sse_index, event in templates:
+        for tool_call in event["choices"][0]["delta"]["tool_calls"]:
+            templates_by_call.setdefault(tool_call["index"], []).append(
+                (sse_index, event, tool_call)
+            )
+    call_templates = list(templates_by_call.values())
 
     replacement_entries: list[str] = []
     preceding_deltas: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
@@ -803,16 +830,12 @@ def _replace_tool_call_events(
             for sse_index, event, delta in preceding_deltas
             if delta.get("role") == "assistant"
         ]
-        role_delta = {"role": "assistant", "content": None, "refusal": None}
-        if role_events:
-            role_index, role_event = role_events[-1]
-            role_event["choices"][0]["delta"] = role_delta
-            sse_entries[role_index] = _serialize_data_event(role_event, sse_entries[role_index])
-        else:
+        if not role_events:
             template_index, template_event = templates[0]
             role_event = deepcopy(template_event)
             role_choice = role_event["choices"][0]
-            role_choice["delta"] = role_delta
+            role_choice["delta"].pop("tool_calls")
+            role_choice["delta"]["role"] = "assistant"
             role_choice["finish_reason"] = None
             role_event["usage"] = None
             replacement_entries.append(
@@ -820,38 +843,36 @@ def _replace_tool_call_events(
             )
             replacement_entries.extend(separator_entries)
 
-    for index, response_chunk in enumerate(response_tool_calls["chunks"]):
+    call_positions: dict[int, int] = {}
+    for response_chunk in response_tool_calls["chunks"]:
         call = response_chunk["call"]
-        template_index, template_event = templates[min(index, len(templates) - 1)]
+        source_chunks = call_templates[min(call["index"], len(call_templates) - 1)]
+        position = call_positions.get(call["index"], 0)
+        call_positions[call["index"]] = position + 1
+        template_index, template_event, template_tool = source_chunks[
+            min(position, len(source_chunks) - 1)
+        ]
         event = deepcopy(template_event)
         choice = event["choices"][0]
+        delta = choice["delta"]
+        # The initial role is emitted separately; SDK accumulation concatenates repeats.
+        delta.pop("role", None)
+        tool_call = deepcopy(template_tool)
+        tool_call["index"] = call["index"]
+        tool_call["function"]["arguments"] = response_chunk["arguments"]
         if response_chunk["initial"]:
-            tool_call = {
-                "index": call["index"],
-                "id": call["call_id"],
-                "type": "function",
-                "function": {
-                    "name": call["name"],
-                    "arguments": response_chunk["arguments"],
-                },
-            }
-            choice["delta"] = {"content": None, "tool_calls": [tool_call]}
+            tool_call.update(id=call["call_id"], type="function")
+            tool_call["function"]["name"] = call["name"]
         else:
-            choice["delta"] = {
-                "tool_calls": [
-                    {
-                        "index": call["index"],
-                        "function": {"arguments": response_chunk["arguments"]},
-                    }
-                ]
-            }
+            # A reused initial template must not repeat identity fragments in arguments.
+            # Explicit null identities in provider argument chunks remain intact.
+            if tool_call.get("id") is not None:
+                tool_call.pop("id")
+            if tool_call["function"].get("name") is not None:
+                tool_call["function"].pop("name")
+        delta["tool_calls"] = [tool_call]
         choice["finish_reason"] = None
         event["usage"] = None
-        choice["delta"] = {
-            key: value
-            for key, value in template_event["choices"][0]["delta"].items()
-            if key not in {"content", "reasoning_content", "reasoning", "tool_calls"}
-        } | choice["delta"]
         replacement_entries.append(_serialize_data_event(event, sse_entries[template_index]))
         replacement_entries.extend(separator_entries)
 
@@ -957,6 +978,9 @@ def match_chat_completions_events(
 
     sse_entries = chat_cassette["response"]["sse"]
     for index, event in indexed_chat_events:
+        for choice in event.get("choices", []):
+            if "text" in choice:
+                choice["text"] = choice["delta"].get("content") or ""
         sse_entries[index] = _serialize_data_event(event, sse_entries[index])
     _match_request_history(chat_cassette, responses_cassette, reasoning_field=reasoning_field)
 

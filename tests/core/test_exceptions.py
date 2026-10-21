@@ -23,6 +23,7 @@ from pydantic import SecretStr
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
+from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, Provider
 from molto.types.exceptions import (
     APIException,
     AuthenticationError,
@@ -31,11 +32,22 @@ from molto.types.exceptions import (
     ResourceNotFoundError,
 )
 from molto.utils.io import json_loads, read_yaml
+from tests.core.cassette_helpers import _split_sdk_request_body
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
 Protocol = Literal["responses", "chat/completions", "messages"]
 PROTOCOLS: tuple[Protocol, ...] = ("responses", "chat/completions", "messages")
 ROUTES: tuple[tuple[Protocol, Protocol], ...] = tuple(product(PROTOCOLS, PROTOCOLS))
+ERROR_UPSTREAMS: tuple[tuple[Protocol, Provider], ...] = (
+    ("responses", "openai"),
+    ("chat/completions", "openai"),
+    ("messages", "anthropic"),
+    ("chat/completions", "togetherai"),
+)
+ERROR_ROUTES = tuple(
+    (downstream, upstream, provider)
+    for downstream, (upstream, provider) in product(PROTOCOLS, ERROR_UPSTREAMS)
+)
 DOWNSTREAM_ERROR_TYPES: dict[Protocol, type[OpenAIAPIStatusError | AnthropicAPIStatusError]] = {
     "responses": OpenAIAPIStatusError,
     "chat/completions": OpenAIAPIStatusError,
@@ -121,26 +133,27 @@ def scenario_ids(scenarios: Sequence[ErrorScenario]) -> list[str]:
     return [scenario.name for scenario in scenarios]
 
 
-def _cassette_path(scenario: str, protocol: Protocol, *, stream: bool = True) -> Path:
-    prefix = {
-        "responses": "openai-responses",
-        "chat/completions": "openai-chat_completions",
-        "messages": "anthropic-messages",
-    }[protocol]
-    filename = f"{prefix}-{'stream' if stream else 'non_stream'}-00.yaml"
+def _cassette_path(
+    scenario: str,
+    protocol: Protocol,
+    *,
+    stream: bool = True,
+    provider: Provider | None = None,
+) -> Path:
+    provider = provider or DEFAULT_PROVIDER_BY_ENDPOINT[protocol]
+    endpoint = protocol.replace("/", "_")
+    filename = f"{provider}-{endpoint}-{'stream' if stream else 'non_stream'}-00.yaml"
     return CASSETTE_DIR / scenario / filename
 
 
-def _read_cassette(scenario: str, protocol: Protocol, *, stream: bool = True) -> dict[str, Any]:
-    return read_yaml(_cassette_path(scenario, protocol, stream=stream))
-
-
-def _response_body(cassette: dict[str, Any]) -> dict[str, Any]:
-    body = cassette["response"]["body"]
-    if isinstance(body, str):
-        # Router 404s from a deliberately wrong URL legitimately carry no body.
-        return json_loads(body) if body else {}
-    return body
+def _read_cassette(
+    scenario: str,
+    protocol: Protocol,
+    *,
+    stream: bool = True,
+    provider: Provider | None = None,
+) -> dict[str, Any]:
+    return read_yaml(_cassette_path(scenario, protocol, stream=stream, provider=provider))
 
 
 def _get_http_client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Request]]:
@@ -183,6 +196,7 @@ async def _replay_sdk_error(
     error_type: type[OpenAIAPIError | AnthropicAPIError],
     *,
     base_url: str | None = None,
+    provider: Provider | None = None,
 ) -> tuple[OpenAIAPIError | AnthropicAPIError, list[Any]]:
     http_client, requests = _get_http_client(cassette)
     events = []
@@ -199,9 +213,13 @@ async def _replay_sdk_error(
             create = (
                 sdk.responses.create if protocol == "responses" else sdk.chat.completions.create
             )
-        body = deepcopy(cassette["request"]["body"])
+        body, extra_body = _split_sdk_request_body(
+            deepcopy(cassette["request"]["body"]),
+            protocol,
+            provider or DEFAULT_PROVIDER_BY_ENDPOINT[protocol],
+        )
         with pytest.raises(error_type) as exc_info:
-            result = await create(**body)
+            result = await create(**body, extra_body=extra_body)
             if body["stream"]:
                 async with result:
                     async for event in result:
@@ -213,29 +231,65 @@ async def _replay_sdk_error(
     return exc_info.value, events
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize(("downstream", "upstream", "provider"), ERROR_ROUTES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
 @pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
-async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, upstream: Protocol):
-    downstream_cassette = _read_cassette(scenario.name, downstream)
-    upstream_cassette = _read_cassette(scenario.name, upstream)
+async def test_error_scenario(
+    scenario: ErrorScenario,
+    downstream: Protocol,
+    upstream: Protocol,
+    provider: Provider,
+    stream: bool,
+):
+    """Ensures every provider and mode preserves SDK errors, normalized causes, and transport."""
+    upstream_cassette = _read_cassette(scenario.name, upstream, stream=stream, provider=provider)
+    expected_request = upstream_cassette["request"]
+    expected_body = deepcopy(expected_request["body"])
+    translated = downstream != upstream
+    body, extra_body = _split_sdk_request_body(deepcopy(expected_body), upstream, provider)
+    if translated:
+        body = deepcopy(
+            _read_cassette(scenario.name, downstream, stream=stream)["request"]["body"]
+        )
+    assert body["stream"] is stream
+    assert expected_body["stream"] is stream
+    if translated and not stream:
+        # Translated calls always stream upstream, even for non-streaming callers.
+        # Streaming fixtures already match the outgoing body exactly.
+        expected_body["stream"] = True
+        if upstream == "chat/completions":
+            expected_body.setdefault("stream_options", {})["include_usage"] = True
+        if downstream == "messages":
+            expected_body.setdefault("stream_options", {})["include_obfuscation"] = False
+
     expected_response = upstream_cassette["response"]
     stream_error = "sse" in expected_response
-    sdk_error, sdk_events = await _replay_sdk_error(
-        upstream_cassette, upstream, scenario.error_types[upstream]
+    status = expected_response["status_code"]
+    upstream_error_type = (
+        scenario.error_types[upstream]
+        if stream_error
+        else DOWNSTREAM_STATUS_ERROR_TYPES[upstream].get(status, scenario.error_types[upstream])
     )
-    # Native routes preserve the SDK subclass; translated routes preserve whether
-    # the provider reported an HTTP failure or an error inside a successful stream.
-    if downstream == upstream:
-        expected_error_type = scenario.error_types[downstream]
+    if not translated:
+        expected_error_type = upstream_error_type
     elif stream_error:
         expected_error_type = AnthropicAPIError if downstream == "messages" else OpenAIAPIError
     else:
         expected_error_type = DOWNSTREAM_STATUS_ERROR_TYPES[downstream].get(
-            expected_response["status_code"], DOWNSTREAM_ERROR_TYPES[downstream]
+            status, DOWNSTREAM_ERROR_TYPES[downstream]
         )
-
-    body = deepcopy(downstream_cassette["request"]["body"])
-    expected_request = upstream_cassette["request"]
+    origin = {
+        "openai": "https://api.openai.com",
+        "anthropic": "https://api.anthropic.com",
+        "togetherai": "https://api.together.ai",
+    }[provider]
+    sdk_error, sdk_events = await _replay_sdk_error(
+        upstream_cassette,
+        upstream,
+        upstream_error_type,
+        base_url=f"{origin}/v1" if upstream != "messages" else origin,
+        provider=provider,
+    )
     http_client, requests = _get_http_client(upstream_cassette)
     events = []
     async with http_client:
@@ -246,42 +300,43 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
             "messages": client.messages,
         }[downstream]
         with pytest.raises(expected_error_type) as exc_info:
-            stream = await coordinator(
+            result = await coordinator(
                 body=body,
                 endpoint=upstream,
-                provider="anthropic" if upstream == "messages" else "openai",
+                provider=provider,
                 api_key="test-api-key",
+                extra_body=extra_body,
             )
-            async with stream:
-                async for event in stream:
-                    events.append(event)
+            if stream:
+                async with result:
+                    async for event in result:
+                        events.append(event)
         assert exc_info.value.__cause__.response.is_closed
         assert not http_client.is_closed
 
     assert len(requests) == 1
     request = requests[0]
-    origin = "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com"
     assert request.method == expected_request["method"]
     if scenario.noncanonical_request_url:
-        # The recorded path is the deliberate wrong-URL trigger for a router 404.
-        # Molto always builds canonical provider URLs, so assert the request
-        # targets the upstream host and endpoint instead of the recorded path.
-        assert str(request.url).startswith(origin)
-        assert request.url.path.endswith(f"/{upstream}")
+        # Router 404s were recorded at deliberately wrong paths; replay targets
+        # the canonical provider endpoint, as in the other scenarios.
+        assert str(request.url) == f"{origin}/v1/{upstream}"
     else:
         assert str(request.url) == f"{origin}{expected_request['path']}"
-    assert json_loads(request.content) == expected_request["body"]
+    assert json_loads(request.content) == expected_body
 
     error = exc_info.value
     assert type(error) is expected_error_type
     normalized_error = error.__cause__
     assert type(normalized_error) is scenario.normalized_error
     original_error = normalized_error.__cause__
-    assert type(original_error) is type(sdk_error) is scenario.error_types[upstream]
+    assert type(original_error) is type(sdk_error) is upstream_error_type
+    assert original_error.__cause__ is None
     assert error.message == normalized_error.message == original_error.message == sdk_error.message
     assert error.body is normalized_error.body is original_error.body
     assert error.body == sdk_error.body
-    assert normalized_error.response.status_code == expected_response["status_code"]
+    assert normalized_error.response.status_code == status
+    assert error.request is normalized_error.request is original_error.request is request
     assert normalized_error.request is normalized_error.response.request
     # Reconstructing the outward exception avoids a cycle in the cause chain.
     assert error is not original_error
@@ -290,19 +345,14 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
         assert not hasattr(error, "status_code")
         assert not hasattr(error, "response")
         assert not hasattr(original_error, "status_code")
-        assert error.request is normalized_error.response.request is original_error.request
     else:
-        assert error.status_code == sdk_error.status_code == expected_response["status_code"]
+        assert error.status_code == sdk_error.status_code == status
         assert error.response is normalized_error.response is original_error.response
-        expected_body = _response_body(upstream_cassette)
-        if expected_body:
-            assert expected_body["error"]["message"] in error.message
-            assert error.response.json() == sdk_error.response.json() == expected_body
-        else:
-            # Router 404s legitimately carry no body.
-            assert error.response.content == sdk_error.response.content == b""
+        assert error.response.headers == sdk_error.response.headers
+        # Exact bytes cover JSON, empty router errors, and provider HTML bodies.
+        assert error.response.content == sdk_error.response.content
 
-    if downstream == upstream:
+    if not translated:
         assert events == sdk_events
     elif sdk_events and upstream == "responses" and downstream == "messages":
         # Only the source-backed start is representable before this failure.
@@ -410,83 +460,3 @@ async def test_missing_credentials(downstream, upstream, api_key, stream, base_u
     assert error.request_id is None
     assert original_error.__cause__ is None
     assert requests == []
-
-
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-@pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
-async def test_non_streaming_error_scenario(
-    scenario: ErrorScenario, downstream: Protocol, upstream: Protocol
-):
-    downstream_cassette = _read_cassette(scenario.name, downstream, stream=False)
-    upstream_cassette = _read_cassette(scenario.name, upstream, stream=False)
-    request_body = deepcopy(downstream_cassette["request"]["body"])
-    assert request_body["stream"] is False
-    expected_response = upstream_cassette["response"]
-    upstream_error_type = DOWNSTREAM_STATUS_ERROR_TYPES[upstream].get(
-        expected_response["status_code"], scenario.error_types[upstream]
-    )
-    translated = downstream != upstream
-    expected_error_type = (
-        DOWNSTREAM_STATUS_ERROR_TYPES[downstream].get(
-            expected_response["status_code"], DOWNSTREAM_ERROR_TYPES[downstream]
-        )
-        if translated
-        else upstream_error_type
-    )
-    # The caller and SDK reference use the recorded non-streaming request. These
-    # cassettes contain HTTP errors, which are raised before an SSE stream opens;
-    # their unchanged responses remain the reference for error parity below.
-    # The outgoing-request assertion must also reflect Molto's execution mode:
-    # native routes send stream=False, while translated routes force stream=True
-    # upstream and collect the projected events into one downstream response.
-    expected_request_body = deepcopy(upstream_cassette["request"]["body"])
-    if translated:
-        # Adjust only this expected wire request; keep the cassette and the
-        # caller's non-streaming body unchanged, including their matched inputs.
-        expected_request_body["stream"] = True
-        if upstream == "chat/completions":
-            # The Chat client requests a usage chunk so collection can include
-            # token counts in the final response, even for a non-streaming caller.
-            expected_request_body.setdefault("stream_options", {})["include_usage"] = True
-        if downstream == "messages":
-            # Messages has no obfuscation setting. Its adapter normalizes that
-            # absence to False, which either OpenAI upstream protocol forwards.
-            # This depends on the downstream protocol that produced the request.
-            expected_request_body.setdefault("stream_options", {})["include_obfuscation"] = False
-    http_client, requests = _get_http_client(upstream_cassette)
-    sdk_error, _ = await _replay_sdk_error(upstream_cassette, upstream, upstream_error_type)
-
-    async with http_client:
-        client = Molto(http_client=http_client)
-        coordinator = {
-            "responses": client.responses,
-            "chat/completions": client.chat_completions,
-            "messages": client.messages,
-        }[downstream]
-        with pytest.raises(expected_error_type) as exc_info:
-            await coordinator(
-                body=request_body,
-                endpoint=upstream,
-                provider="anthropic" if upstream == "messages" else "openai",
-                api_key="test-api-key",
-            )
-        assert exc_info.value.__cause__.response.is_closed
-        assert not http_client.is_closed
-
-    assert len(requests) == 1
-    assert json_loads(requests[0].content) == expected_request_body
-    error = exc_info.value
-    assert type(error) is expected_error_type
-    normalized_error = error.__cause__
-    assert type(normalized_error) is scenario.normalized_error
-    original_error = normalized_error.__cause__
-    assert type(original_error) is type(sdk_error) is upstream_error_type
-    assert error.message == normalized_error.message == original_error.message == sdk_error.message
-    assert error.body is normalized_error.body is original_error.body
-    assert error.body == sdk_error.body
-    assert normalized_error.response.status_code == expected_response["status_code"]
-    assert normalized_error.request is normalized_error.response.request
-    assert error is not original_error
-    assert error.status_code == sdk_error.status_code == expected_response["status_code"]
-    assert error.response is normalized_error.response is original_error.response
-    assert error.response.content == sdk_error.response.content

@@ -176,6 +176,7 @@ def test_chat_normalizes_complete_assistant_messages_without_flattening_parts():
         {"reasoning": "  Thought\n\n\t "},
         {"reasoning": "  Thought\n\n\t ", "reasoning_content": ""},
         {"reasoning": "", "reasoning_content": "  Thought\n\n\t "},
+        {"reasoning": [], "reasoning_content": "  Thought\n\n\t "},
     ],
 )
 def test_chat_normalizes_reasoning_extension_without_changing_history(reasoning_fields):
@@ -213,14 +214,15 @@ def test_chat_normalizes_reasoning_extension_without_changing_history(reasoning_
     ]
 
 
-def test_chat_rejects_ambiguous_populated_reasoning_history():
+@pytest.mark.parametrize("reasoning", ["First", ["First", "Second"], [""]])
+def test_chat_rejects_ambiguous_populated_reasoning_history(reasoning):
     """Ensures translated history never silently drops one of two populated reasoning keys."""
     request = OpenAIChatCompletionsCreateRequest(
         model="m",
-        messages=[{"role": "assistant", "reasoning": "First", "reasoning_content": "Second"}],
+        messages=[{"role": "assistant", "reasoning": reasoning, "reasoning_content": "Second"}],
     )
 
-    with pytest.raises(UnsupportedInput, match="both reasoning fields"):
+    with pytest.raises(UnsupportedInput, match="both 'reasoning_content' and 'reasoning' fields"):
         OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(request)
 
 
@@ -233,6 +235,30 @@ def test_chat_normalizes_empty_reasoning_extension():
     )
 
     assert request.input == [AssistantInput(content=[Thinking(content="", summary="")])]
+
+
+@pytest.mark.parametrize("reasoning", [[], [""], ["  First\n\t", "", " Second  "]])
+@pytest.mark.parametrize("reasoning_content", [None, ""])
+def test_chat_reasoning_arrays_preserve_blocks_and_empty_entries(reasoning, reasoning_content):
+    """Ensures reasoning arrays preserve ordered blocks and bytes within each assistant message."""
+    message = {"role": "assistant", "reasoning": reasoning, "content": "Answer"}
+    if reasoning_content is not None:
+        message["reasoning_content"] = reasoning_content
+    request = OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["togetherai"]).normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            model="m", messages=[message, {"role": "assistant", "reasoning": ["Next"]}]
+        )
+    )
+
+    assert request.input == [
+        AssistantInput(
+            content=[
+                *(Thinking(content=block, summary="") for block in reasoning),
+                TextOutput(content="Answer"),
+            ]
+        ),
+        AssistantInput(content=[Thinking(content="Next", summary="")]),
+    ]
 
 
 def test_adapters_preserve_multimodal_input_boundaries_and_order():

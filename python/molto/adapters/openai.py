@@ -1084,17 +1084,17 @@ class OpenAIChatCompletionsAdapter(
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             items: list[Thinking | TextOutput | ToolCall] = []
-            if message.get("reasoning_content") and message.get("reasoning"):
+            reasoning = message.get("reasoning")
+            reasoning_content = message.get("reasoning_content")
+            if reasoning and reasoning_content:
                 raise UnsupportedInput(
                     "Chat Completions assistant history cannot contain both 'reasoning_content' and 'reasoning' fields."
                 )
-            reasoning_content = message.get("reasoning") or message.get("reasoning_content")
-            if reasoning_content is None and "reasoning" in message:
-                reasoning_content = message["reasoning"]
-            if reasoning_content is not None:
-                if not isinstance(reasoning_content, str):
-                    raise UnsupportedInput("Chat Completions reasoning must be a string.")
-                items.append(self._classify_thinking(reasoning_content))
+            if reasoning_content or reasoning is None:
+                reasoning = reasoning_content
+            if reasoning is not None:
+                blocks = [reasoning] if isinstance(reasoning, str) else reasoning
+                items.extend(self._classify_thinking(block) for block in blocks)
             items.extend(
                 TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
                 for part in text_parts

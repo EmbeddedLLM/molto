@@ -1,0 +1,40 @@
+filename: 2026-10-19-01a1529b-fc2a-73a3-9555-142f18376fa5
+request:
+  body:
+    max_tokens: 0
+    messages:
+    - content:
+      - text: Hi
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    reasoning:
+      enabled: false
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '196'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+    x-run-id: matched/error-invalid_request_error/togetherai-chat_completions-stream-00.yaml
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1529b-fc2a-73a3-9555-142f18376fa5
+response:
+  body: "{\n  \"id\": \"p5p8WVJ-fdNmn-a4cd579a2981633f\",\n  \"error\": {\n    \"\
+    message\": \"max_tokens must be a positive integer; got -1.\",\n    \"type\":\
+    \ \"invalid_request_error\",\n    \"param\": \"max_tokens\",\n    \"code\": null\n\
+    \  }\n}"
+  headers:
+    connection: keep-alive
+    content-length: '208'
+    content-type: application/json; charset=utf-8
+  status_code: 400
+timestamp: '2026-10-19T05:21:56.778157+00:00'
