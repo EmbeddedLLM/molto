@@ -1,0 +1,280 @@
+filename: 2026-10-22-01a164a4-e794-7b21-bdfd-079feb95f558
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - content: []
+      encrypted_content: gAAAAABq2kZ_2y54COZ7FU_8C-IJu5fCoMXrx9vaWT7F110wp6rXmNMVzSCe6HJm-970_N1ZVMOV_MPhVZcpPF47hvjqxldbfPUxIboi05JOm0mhgrLZ0LmhQeQuZ7Jwh-SeuPZVnN_W6j7htWEKsYMVRrvkbqyObs9s2H1wI2MFtKwd7kxBcGXJctGyPxK5LdNHI4FGSgDzySRvsMJXJCmihDPHXuih1Ch6wqKcXeCRcXaeHiiXMqflZ5AGNs8l3j1GHvDEkc5c1i8zYgm9CWf3CWABLw7DFa1SMbOGtj9coNgtk5JF0yAaRHje4qbo9WK4h5QmaBhgk72bSWRr2hfh0hkuCF8i1zpJON2D5FA9PF30IaiVtuyFhCctm_hsd9Ao6C0h-ym3ZxZT7kh4jgGyCVHOB9wwXG4veoZM8zlsYByOysmfM0skBSJ36HyX6sp3aTqYbBWJ1okWEp0JoWgS4swz7lKfw7HQiHBd7abeWMpendYTJFFr0YgDZOAWZNjRCnryF8kXZrYSnFTJA03JFvb-mQXoW32euXmuhTDpC7MDKExq8VKHwmoONojq6on0ESOfjEh19umvskln_Jdim3DzwGOhSQT94-WeKfdC6D0yAGj8pwaextBuTY-cuiPuJOtvOFsfIUK-oVIQdDw0Nb9IXlnusmlbatEO70zHpgnnOAS65DTijraa_aEwkLtRhvAuTb0A6NSe-a5k-E6sn2WCh6TzvwavA1YAT1148sqJAhp4eJGRGthXWuS_zfECl3mMKhB_-v5rEH4lwg0H9rrlkoyATCeB3YCaaYWmJIpHcxYKSFh4ZiXZ_T6jQE--CX39ZWwxl_bkwG3eLAW5Ngq-e8cWZz_5IUaU0j9rukbJEkPGeMMuteknB1lvEKWOP84FUimS_sCHd8ZQuuDQwFz6zoBRd3Fq2XgKtmfgooHwWQTxPGb0k6h2gQ5q1Gm7R8VeX10DfbxV8ZcflWz30cOk98Ms_lVVUy9y13ZIVFtqujhhRVztOxL_nAj4GAfWsmCWowX2VgsrBeAoZnIjFRkf1VCfysxPHCzpA1MnDFmdu7X_Qf0IQCogJZ3MQr7RCpgBzPahNMCLbd8QvIyjHXvmRrks9iUqJSq45ANKeFgN9dSH8jsnng1Kb0P4ADbQK0FUSEPo0Ef_BH4CBm6rcee8ZE9yd3Eb7hfcKhecwHhzp1Hk8wvHBBpkyUWS2tWVvbiSkh4PpAe368B4uUOUld30NqGAlJe6UJfGPyLOFXr5BnZ_ull_Zy-ZUuf8DewRL96ruYOpEe4-OVWk4Y1oQi7PWobU7DjQRf_wqDFOqSk2PIPvA5_pMgdmFRmkoSGH-1ZAKdyEvTJDYzaI1y8XaZBpZRo9f6Obca8-iRLRifaVMjy75anBubAZRpz1U_6v39_fLym_fhgqwwKli2az97OfHop1qxRzrne1-IaRh2HbYn46MeOXgR_JxZpZ0qRhnIvgn6SX0pLC2eoVet4-nQR0nTU0wb0ff-lt2xsah0wYLjcCp95IiAn7cUBwyxFIeuJE89ZWgWNzSpC5YaDxbhauTUKg-LLtJJZaWfSPBiS2oBJR4Rd2RA35S5nExedHCz0IgYFXWvxitU2qw3o1ZcEjmX1RJrOZ6EKRIv-YQifD5xf2S6yfhJDLr-Naz8aDV7PbdpA-zkX1dV_ec8XhlmV5LxesGHDaJaUypKF4JZPCdZCqM_U=
+      id: rs_09b7f0d87fb11612016ada467da25c87d0a66fb61829ede1ef
+      summary:
+      - text: '**Using the file-reading tool**
+
+
+          I need to call the file-reading tool to access the contents of “index.txt.”
+          It seems like a straightforward task since I can just use the functions
+          provided. This should help me get the information I need. Once I read the
+          file, I’ll be able to proceed with whatever is next. Let''s make sure I
+          execute this properly to avoid any hiccups!'
+        type: summary_text
+      type: reasoning
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_9dNFUr5yNtrY7SsZVcZhkh1J
+      id: fc_09b7f0d87fb11612016ada467f532087d095a231ffb95835d9
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_9dNFUr5yNtrY7SsZVcZhkh1J
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    - content: []
+      encrypted_content: gAAAAABq2kbiJhViQbTf5TaGVtfKC05Rwj4WyHpr47BBUGrC6rANDhyBCitbQFuNwgE6JfOvJ3uuCnVA1loScWVpRcaVl_6dL64Id_SafZF4cP9EpLCtan_SxH5AaTHYmMiM2NpxjGz1-4B39l4tv16Uqyyb_e0hYr_4nxi2nI5qtQEky1LSL1NapAW-xG_Qw_ChNwLKH1pTPlgiI1Ie2YgB90Rtnb2dP_PHSEVIIUjzHcKXSQ6OM1xXEkO44y9fxiHYCT3yIuWWRqo4rg3cbNwsTYUIx3OcxLViUmFGvLb4DehD7CsgX59zLu3UCLAA_jV_rkd26zzslsWErS2UOJy4VaBI6ApNC7MeGYMarQG20Bf9i953C0KkAWmkDs5xon9gZ7u8dineXb7LkTCoZdg2ySP6n8pe8-yGMUHCvuOd1qWH0KIgF4iOkxZ0CfxCTQ3nDnO1nHM2U2fwUly7Rcq8iinLWC-wNZT-QroQMeWi8qvAQyoRI9mwEywX7B-jVKIjoyXQtSn0dwuG3HwaNiREQqR4RKEelg5hJLuozpDsxqBPuJDwp3HRHxvly8yYCQUnWLw9ne4sJTmUAb6333NUh-UcciwzOEU5ib3nvQiAk-hbUIFC1rViwdL3I9nlib9iEeL2x5duOmuVzwyytPwrRygvWo5U0U9S8Qvis4nC-c68Kz-jLZ5k-jMH0IVqkfLyiMBZhTFqvaO5zU0xoo_uuHfdQj2EF7eBR2Hol_Rg7byPBXIL89q5TqvzlZm64qmnH8CKGYYykMWjbzmwX-FgaLn2uTghjITWRp-xAwwOKd4Ff7d8xpc8E0kqwuyqmHFH_mtKhMC9X47wudT8E3PkNYoUdE7rVPh54-m-t2hBaHHnYI_74Sp465le1pJIpbooIrxyIMTTdMZYNVMAaaz80vRsCuE3jcfZeFavM-Rw0wqWN1tRA9wjz2idBjXJ8c7n80buWKNhBfhsnvLBZptr_4djkhiaY7QhijH_yyAtNSC7qZ0bSWK-LGQ03rUhw5OSzTj3ctQ7LN_jRfy6ojJ0EJnuKUYIXxcNhxtMH9wa9c2wlakx-sXoxqvkh08YzIW7flJgt8DfRoNw4Dz_2Bd54bu9tOfZchqaHm1JwVN5gB-_nzzNVcHm-nVkWU-5FhpPvGiAy48MAw9pLYa2ULCY8g2VL17XfiwrkVGR1cO0rj08-XLAioyJ8P97CLXI0lUBCiKdamBq5od1ID0agj8HPa0v_NMnLLDB3Bm1Nhs8uFwiOXn4cP4Ys1gUgjbS9QCtyVCQRoyOxv7EXCtz3d7ozT-1r5bSE-pr1TEZpaq95tpMl1cvsvBrOMZVykY4xm3w9VeWtQSp_k5IC3bbaW5mGz-2ayLXo1pqAx7gJ6_pYXYOCcHB8hUowJnK8X_Xf7_xd5QjJGtzeYMXvNBJirLm2PZjLF4JgHAI_nHOww6_KcW3OdpyalifEoGzr-sov1y4-4im96Kdj-kOzwG6E30TLT5an7ZUAMSyXt2X-RpYamXjW1-_9hf83udGNw0hCQA6xqGrI9IDz6gOx6Bmrj_EUQAiLnAHCW1ldKwGoIDrCGfvNvTndr515ISvtnDB7LV2FOXgg9CU
+      id: rs_09b7f0d87fb11612016ada46e27ea087d099d7cfe651d55745
+      summary: []
+      type: reasoning
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_vfwPDTud4A0odCoOCdhFIvIl
+      id: fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_vfwPDTud4A0odCoOCdhFIvIl
+      output:
+      - text: Water the tomatoes every morning and harvest ripe fruit.
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 4096
+    model: gpt-5-mini
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+      summary: auto
+    store: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '5360'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a164a4-e794-7b21-bdfd-079feb95f558
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_09b7f0d87fb11612016ada46e36db087d0b68dd8076dc567d4","object":"response","created_at":1792689891,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_09b7f0d87fb11612016ada46e36db087d0b68dd8076dc567d4","object":"response","created_at":1792689891,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Summary","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"rxIAskDk4","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":":","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"940AxXpl22wtTGQ","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Water","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"EnGHbi7CTe","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"VuE41I78ofrK","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" tomatoes","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"bboIOS4","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" every","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"wetnwP1jiX","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" morning","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"QLUHo6Tj","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"YCNreH0KOb4e","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" harvest","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"KLfErvTp","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" ripe","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"WbaE6qwAHl9","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" fruit","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"uawdt4nCt3","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"obfuscation":"gznw6Fxn0QOkdR3","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","logprobs":[],"output_index":0,"sequence_number":16,"text":"Summary:
+    Water the tomatoes every morning and harvest ripe fruit."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"Summary:
+    Water the tomatoes every morning and harvest ripe fruit."},"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Summary:
+    Water the tomatoes every morning and harvest ripe fruit."}],"role":"assistant"},"output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_09b7f0d87fb11612016ada46e36db087d0b68dd8076dc567d4","object":"response","created_at":1792689891,"status":"completed","access_programs":null,"background":false,"completed_at":1792689892,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[{"id":"msg_09b7f0d87fb11612016ada46e3fe2887d0a9e995992ca8e237","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Summary:
+    Water the tomatoes every morning and harvest ripe fruit."}],"role":"assistant"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":246,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":262},"user":null,"metadata":{}},"sequence_number":19}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-22T17:24:51.220910+00:00'

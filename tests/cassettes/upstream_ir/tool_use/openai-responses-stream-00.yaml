@@ -1,0 +1,157 @@
+filename: 2026-10-22-01a164a2-6b49-7dd3-8cae-9453d27a1158
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 512
+    model: gpt-4.1-nano
+    parallel_tool_calls: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '540'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a164a2-6b49-7dd3-8cae-9453d27a1158
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"in_progress","arguments":"","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"GODm97yDsbgKmM","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"path","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"eEhVgjrStryC","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"PGeYllvutVhc0","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"index","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"awU6ZyW9Jua","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":".txt","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"Edc9drEiGS1w","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"ILI4SpVxtnEunG","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"path\":\"index.txt\"}","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"},"output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"completed","access_programs":null,"background":false,"completed_at":1792689729,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":69,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":85},"user":null,"metadata":{}},"sequence_number":11}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-22T17:22:08.329211+00:00'
