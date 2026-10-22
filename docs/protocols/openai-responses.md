@@ -233,6 +233,8 @@ If a normalized request came from Messages, Molto sets `stream_options.include_o
 
 Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
+Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Summary text, item IDs, and encrypted state are preserved. Native passthrough still forwards the caller's validated request unchanged.
+
 ### Upstream event normalization
 
 The Responses client emits one normalized response start, one part lifecycle per supported output item, each source delta as a matching normalized delta, and one response end. Empty role or lifecycle echoes do not become content deltas.

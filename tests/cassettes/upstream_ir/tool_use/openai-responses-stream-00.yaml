@@ -1,4 +1,4 @@
-filename: 2026-10-22-01a164a2-6b49-7dd3-8cae-9453d27a1158
+filename: 2026-10-22-01a164a7-6dad-7840-8df4-31ce8e3f12bf
 request:
   body:
     input:
@@ -36,7 +36,7 @@ request:
   method: POST
   path: /v1/responses
   query_params: {}
-request_id: 01a164a2-6b49-7dd3-8cae-9453d27a1158
+request_id: 01a164a7-6dad-7840-8df4-31ce8e3f12bf
 response:
   headers:
     connection: keep-alive
@@ -45,7 +45,7 @@ response:
   - 'event: response.created
 
     '
-  - 'data: {"type":"response.created","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+  - 'data: {"type":"response.created","response":{"id":"resp_0681df0475d3dea6006ada4789204c87d0a2f5cfc0ee74285c","object":"response","created_at":1792690057,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
     a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
 
     '
@@ -55,7 +55,7 @@ response:
   - 'event: response.in_progress
 
     '
-  - 'data: {"type":"response.in_progress","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0681df0475d3dea6006ada4789204c87d0a2f5cfc0ee74285c","object":"response","created_at":1792690057,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
     a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
 
     '
@@ -65,7 +65,7 @@ response:
   - 'event: response.output_item.added
 
     '
-  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"in_progress","arguments":"","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"},"output_index":0,"sequence_number":2}
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","type":"function_call","status":"in_progress","arguments":"","call_id":"call_MQhKzVXvPxboTPRZSHTEu4GL","name":"read_file"},"output_index":0,"sequence_number":2}
 
     '
   - '
@@ -74,7 +74,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"GODm97yDsbgKmM","output_index":0,"sequence_number":3}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"vXxj5DQKpFl9el","output_index":0,"sequence_number":3}
 
     '
   - '
@@ -83,7 +83,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":"path","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"eEhVgjrStryC","output_index":0,"sequence_number":4}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"path","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"JAU0vFJt3d67","output_index":0,"sequence_number":4}
 
     '
   - '
@@ -92,7 +92,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"PGeYllvutVhc0","output_index":0,"sequence_number":5}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"vVOAqcQ3OKlgI","output_index":0,"sequence_number":5}
 
     '
   - '
@@ -101,7 +101,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":"index","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"awU6ZyW9Jua","output_index":0,"sequence_number":6}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"index","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"bucGYY1FSLe","output_index":0,"sequence_number":6}
 
     '
   - '
@@ -110,7 +110,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":".txt","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"Edc9drEiGS1w","output_index":0,"sequence_number":7}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":".txt","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"f9qM2ZQKokEc","output_index":0,"sequence_number":7}
 
     '
   - '
@@ -119,7 +119,7 @@ response:
   - 'event: response.function_call_arguments.delta
 
     '
-  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","obfuscation":"ILI4SpVxtnEunG","output_index":0,"sequence_number":8}
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","obfuscation":"9eaUN92XKcbzYP","output_index":0,"sequence_number":8}
 
     '
   - '
@@ -128,7 +128,7 @@ response:
   - 'event: response.function_call_arguments.done
 
     '
-  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"path\":\"index.txt\"}","item_id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","output_index":0,"sequence_number":9}
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"path\":\"index.txt\"}","item_id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","output_index":0,"sequence_number":9}
 
     '
   - '
@@ -137,7 +137,7 @@ response:
   - 'event: response.output_item.done
 
     '
-  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"},"output_index":0,"sequence_number":10}
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_MQhKzVXvPxboTPRZSHTEu4GL","name":"read_file"},"output_index":0,"sequence_number":10}
 
     '
   - '
@@ -146,7 +146,7 @@ response:
   - 'event: response.completed
 
     '
-  - 'data: {"type":"response.completed","response":{"id":"resp_0082c0051a9e64cf006ada4640931487d08b2a4f99dc8d0072","object":"response","created_at":1792689728,"status":"completed","access_programs":null,"background":false,"completed_at":1792689729,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[{"id":"fc_0082c0051a9e64cf006ada464100e087d08c53eaa1b5e95e92","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_nqvaB7zkWVUdf23Yo8mjhDIj","name":"read_file"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+  - 'data: {"type":"response.completed","response":{"id":"resp_0681df0475d3dea6006ada4789204c87d0a2f5cfc0ee74285c","object":"response","created_at":1792690057,"status":"completed","access_programs":null,"background":false,"completed_at":1792690058,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[{"id":"fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e","type":"function_call","status":"completed","arguments":"{\"path\":\"index.txt\"}","call_id":"call_MQhKzVXvPxboTPRZSHTEu4GL","name":"read_file"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
     a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":69,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":85},"user":null,"metadata":{}},"sequence_number":11}
 
     '
@@ -154,4 +154,4 @@ response:
 
     '
   status_code: 200
-timestamp: '2026-10-22T17:22:08.329211+00:00'
+timestamp: '2026-10-22T17:27:36.621922+00:00'

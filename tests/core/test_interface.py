@@ -155,6 +155,8 @@ def _get_http_client(
             if expected is None:
                 expected = cassette["request"]["body"]
             expected = {**expected, **(expected_extra_body or {})}
+            if translated and upstream == "responses":
+                expected = _without_reasoning_item_status(expected)
             if (
                 translated
                 and upstream == "responses"
@@ -193,6 +195,16 @@ def _get_http_client(
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler))
+
+
+def _without_reasoning_item_status(body: dict[str, Any]) -> dict[str, Any]:
+    # Native recordings retain their original fields; translated requests must
+    # omit the output-only reasoning status rejected by the Responses API.
+    body = deepcopy(body)
+    for item in body.get("input") or []:
+        if isinstance(item, dict) and item.get("type") == "reasoning":
+            item.pop("status", None)
+    return body
 
 
 def _assert_reconstructable_encrypted_responses_request(
@@ -780,6 +792,8 @@ def test_matched_request_body_matches_across_protocols(
         actual_body = project_request(normalized_request)
 
     expected_body = _read_cassette(upstream_path)["request"]["body"]
+    if upstream == "responses" and downstream != upstream:
+        expected_body = _without_reasoning_item_status(expected_body)
     if scenario == "tool_call" and upstream == "responses" and downstream != upstream:
         _assert_reconstructable_tool_responses_request(actual_body, expected_body)
     else:
