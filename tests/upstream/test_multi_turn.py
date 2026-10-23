@@ -40,48 +40,6 @@ CLIENT_SETTINGS = {
 }
 
 
-def _text_request(model: str) -> NormalizedRequest:
-    return NormalizedRequest(
-        model=model,
-        stream=True,
-        max_output_tokens=512,
-        input=[UserInput(content=[TextInput(content="Suggest a name for a robot gardener.")])],
-    )
-
-
-def _tool_request(model: str, *, reasoning: bool) -> NormalizedRequest:
-    return NormalizedRequest(
-        model=model,
-        stream=True,
-        max_output_tokens=4096 if reasoning else 512,
-        reasoning=Reasoning(effort="low", summary="auto") if reasoning else None,
-        parallel_tool_calls=False,
-        tool_choice="auto",
-        tools=[
-            FunctionTool(
-                name="read_file",
-                description="Read a file by its path.",
-                parameters={
-                    "type": "object",
-                    "properties": {"path": {"type": "string"}},
-                    "required": ["path"],
-                    "additionalProperties": False,
-                },
-            )
-        ],
-        input=[
-            UserInput(
-                content=[
-                    TextInput(
-                        content="Read index.txt using read_file. It contains the path of another "
-                        "file. Read that file too, then summarize its contents in one sentence."
-                    )
-                ]
-            )
-        ],
-    )
-
-
 @asynccontextmanager
 async def _replay_client(client_type, scenario: str, turns: int):
     provider, endpoint = CLIENT_SETTINGS[client_type]
@@ -196,7 +154,12 @@ def _assert_ir(events: list[ModelResponseStreamEvent]) -> list[TextOutput | Tool
 async def test_multi_turn_text_chat(client_type) -> None:
     """Ensures all clients emit coherent text IR and preserve assistant history."""
     async with _replay_client(client_type, "text_chat", turns=2) as (client, model):
-        request = _text_request(model)
+        request = NormalizedRequest(
+            model=model,
+            stream=True,
+            max_output_tokens=512,
+            input=[UserInput(content=[TextInput(content="Suggest a name for a robot gardener.")])],
+        )
         response_ids = set()
         for turn in range(2):
             events = [event async for event in client.events(request)]
@@ -216,7 +179,36 @@ async def test_multi_turn_text_chat(client_type) -> None:
 async def _assert_tool_conversation(client_type, *, reasoning: bool) -> None:
     scenario = "tool_use_reasoning" if reasoning else "tool_use"
     async with _replay_client(client_type, scenario, turns=3) as (client, model):
-        request = _tool_request(model, reasoning=reasoning)
+        request = NormalizedRequest(
+            model=model,
+            stream=True,
+            max_output_tokens=4096 if reasoning else 512,
+            reasoning=Reasoning(effort="low", summary="auto") if reasoning else None,
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[
+                FunctionTool(
+                    name="read_file",
+                    description="Read a file by its path.",
+                    parameters={
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"],
+                        "additionalProperties": False,
+                    },
+                )
+            ],
+            input=[
+                UserInput(
+                    content=[
+                        TextInput(
+                            content="Read index.txt using read_file. It contains the path of another "
+                            "file. Read that file too, then summarize its contents in one sentence."
+                        )
+                    ]
+                )
+            ],
+        )
         call_ids = set()
         response_ids = set()
         continued_thinking = False
