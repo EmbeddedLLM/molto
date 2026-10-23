@@ -1,0 +1,168 @@
+filename: 2026-10-22-01a164a7-7773-7b11-a914-a4f187b68d20
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_MQhKzVXvPxboTPRZSHTEu4GL
+      id: fc_0681df0475d3dea6006ada478a448087d0a1e25d249b412d9e
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_MQhKzVXvPxboTPRZSHTEu4GL
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 512
+    model: gpt-4.1-nano
+    parallel_tool_calls: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '874'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a164a7-7773-7b11-a914-a4f187b68d20
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0681df0475d3dea6006ada478b54e087d0a2eaa64930de5209","object":"response","created_at":1792690059,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0681df0475d3dea6006ada478b54e087d0a2eaa64930de5209","object":"response","created_at":1792690059,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","type":"function_call","status":"in_progress","arguments":"","call_id":"call_3A6puesXrDWqC90AEXq0SvHe","name":"read_file"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"hLfcxOdHCUe5hQ","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"path","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"ayiMaJzqGDzW","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"KMOZdVYRo6in5","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"garden","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"GCG9JQ4iKE","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":".txt","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"C6c3UnRvKrrK","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","obfuscation":"pps4EcQCqQ3Wmx","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"path\":\"garden.txt\"}","item_id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","type":"function_call","status":"completed","arguments":"{\"path\":\"garden.txt\"}","call_id":"call_3A6puesXrDWqC90AEXq0SvHe","name":"read_file"},"output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0681df0475d3dea6006ada478b54e087d0a2eaa64930de5209","object":"response","created_at":1792690059,"status":"completed","access_programs":null,"background":false,"completed_at":1792690060,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-4.1-nano-2025-04-14","moderation":null,"output":[{"id":"fc_0681df0475d3dea6006ada478c77a887d0a55340ea44647345","type":"function_call","status":"completed","arguments":"{\"path\":\"garden.txt\"}","call_id":"call_3A6puesXrDWqC90AEXq0SvHe","name":"read_file"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":95,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":111},"user":null,"metadata":{}},"sequence_number":11}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-22T17:27:39.123650+00:00'

@@ -1,0 +1,206 @@
+filename: 2026-10-22-01a164a4-e148-7861-b4d2-f745ec015ede
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - content: []
+      encrypted_content: gAAAAABq2kZ_2y54COZ7FU_8C-IJu5fCoMXrx9vaWT7F110wp6rXmNMVzSCe6HJm-970_N1ZVMOV_MPhVZcpPF47hvjqxldbfPUxIboi05JOm0mhgrLZ0LmhQeQuZ7Jwh-SeuPZVnN_W6j7htWEKsYMVRrvkbqyObs9s2H1wI2MFtKwd7kxBcGXJctGyPxK5LdNHI4FGSgDzySRvsMJXJCmihDPHXuih1Ch6wqKcXeCRcXaeHiiXMqflZ5AGNs8l3j1GHvDEkc5c1i8zYgm9CWf3CWABLw7DFa1SMbOGtj9coNgtk5JF0yAaRHje4qbo9WK4h5QmaBhgk72bSWRr2hfh0hkuCF8i1zpJON2D5FA9PF30IaiVtuyFhCctm_hsd9Ao6C0h-ym3ZxZT7kh4jgGyCVHOB9wwXG4veoZM8zlsYByOysmfM0skBSJ36HyX6sp3aTqYbBWJ1okWEp0JoWgS4swz7lKfw7HQiHBd7abeWMpendYTJFFr0YgDZOAWZNjRCnryF8kXZrYSnFTJA03JFvb-mQXoW32euXmuhTDpC7MDKExq8VKHwmoONojq6on0ESOfjEh19umvskln_Jdim3DzwGOhSQT94-WeKfdC6D0yAGj8pwaextBuTY-cuiPuJOtvOFsfIUK-oVIQdDw0Nb9IXlnusmlbatEO70zHpgnnOAS65DTijraa_aEwkLtRhvAuTb0A6NSe-a5k-E6sn2WCh6TzvwavA1YAT1148sqJAhp4eJGRGthXWuS_zfECl3mMKhB_-v5rEH4lwg0H9rrlkoyATCeB3YCaaYWmJIpHcxYKSFh4ZiXZ_T6jQE--CX39ZWwxl_bkwG3eLAW5Ngq-e8cWZz_5IUaU0j9rukbJEkPGeMMuteknB1lvEKWOP84FUimS_sCHd8ZQuuDQwFz6zoBRd3Fq2XgKtmfgooHwWQTxPGb0k6h2gQ5q1Gm7R8VeX10DfbxV8ZcflWz30cOk98Ms_lVVUy9y13ZIVFtqujhhRVztOxL_nAj4GAfWsmCWowX2VgsrBeAoZnIjFRkf1VCfysxPHCzpA1MnDFmdu7X_Qf0IQCogJZ3MQr7RCpgBzPahNMCLbd8QvIyjHXvmRrks9iUqJSq45ANKeFgN9dSH8jsnng1Kb0P4ADbQK0FUSEPo0Ef_BH4CBm6rcee8ZE9yd3Eb7hfcKhecwHhzp1Hk8wvHBBpkyUWS2tWVvbiSkh4PpAe368B4uUOUld30NqGAlJe6UJfGPyLOFXr5BnZ_ull_Zy-ZUuf8DewRL96ruYOpEe4-OVWk4Y1oQi7PWobU7DjQRf_wqDFOqSk2PIPvA5_pMgdmFRmkoSGH-1ZAKdyEvTJDYzaI1y8XaZBpZRo9f6Obca8-iRLRifaVMjy75anBubAZRpz1U_6v39_fLym_fhgqwwKli2az97OfHop1qxRzrne1-IaRh2HbYn46MeOXgR_JxZpZ0qRhnIvgn6SX0pLC2eoVet4-nQR0nTU0wb0ff-lt2xsah0wYLjcCp95IiAn7cUBwyxFIeuJE89ZWgWNzSpC5YaDxbhauTUKg-LLtJJZaWfSPBiS2oBJR4Rd2RA35S5nExedHCz0IgYFXWvxitU2qw3o1ZcEjmX1RJrOZ6EKRIv-YQifD5xf2S6yfhJDLr-Naz8aDV7PbdpA-zkX1dV_ec8XhlmV5LxesGHDaJaUypKF4JZPCdZCqM_U=
+      id: rs_09b7f0d87fb11612016ada467da25c87d0a66fb61829ede1ef
+      summary:
+      - text: '**Using the file-reading tool**
+
+
+          I need to call the file-reading tool to access the contents of “index.txt.”
+          It seems like a straightforward task since I can just use the functions
+          provided. This should help me get the information I need. Once I read the
+          file, I’ll be able to proceed with whatever is next. Let''s make sure I
+          execute this properly to avoid any hiccups!'
+        type: summary_text
+      type: reasoning
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_9dNFUr5yNtrY7SsZVcZhkh1J
+      id: fc_09b7f0d87fb11612016ada467f532087d095a231ffb95835d9
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_9dNFUr5yNtrY7SsZVcZhkh1J
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 4096
+    model: gpt-5-mini
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+      summary: auto
+    store: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3236'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a164a4-e148-7861-b4d2-f745ec015ede
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_09b7f0d87fb11612016ada46e2013887d089e791290f410d3e","object":"response","created_at":1792689890,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_09b7f0d87fb11612016ada46e2013887d089e791290f410d3e","object":"response","created_at":1792689890,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"rs_09b7f0d87fb11612016ada46e27ea087d099d7cfe651d55745","type":"reasoning","content":[],"encrypted_content":"gAAAAABq2kbixZiwUgw_IA2OzPTIcauJ-zPbUwHQ_2Pk7YXI55GfJY2K8xonq4IKi5YBMnsC5ZrQ2PwfrV_Yb-NXxIc0teerU7HVb4X_W9ruuP5AGCPue1uhxWa0sJ63zmNnQABmDQwBoIZJrAImRmZnyUsKfKGAnYMPd0OVnm3GQd-ayGhPJ2cek1OfVaq7vDBzyzwaEFKp5k0ZCBkKX4BDSfhDS3MBrpyc6VEKrLJWzGMs5fAEqv-AZNtUrmXZyli26axBETve03wq00S9-Kl1UHXwMCXyKng_4Ynqx_aEHXQnKI5lYGC3ceGMmqCP4-_-wJtLpTm5vFdN5CzblSL_3QcLBX139hEvcR0W2Ld1yOLuJCNPwudxtht-4IWqUkcaBNPc_i3cU-N1ts_WMjfenqNlZcuk9z_qomdYx3u5CQo3hUtVdO8ODraEZ4D4QcedI4yM3eZdSTy-kVbAnUY_qe5nxmuxYvxEAMdoFjiIoPqednlpDdenJPuA3mTYUzCtvbvyBFVTOecFsNvjAbY2Y_jQIlGwak5vhTfFn1VTTjyl1O12zP7ojIE0PmWHszlp91lyZFirX2A01E5t-iAVVqu2Kq9_QYIUzLzxsRIHIpWhLi5YRDoGpuwG32AR2UKbCG-s9q1xZ4nMRFGL5am2bnwa8F5tZwFngjsaDp0hDJRKbBw1WNp6cohL50EZCiqhcFp9YdC9TRXjfU1OXBeMvVPioqMSk8zj1xGpFlus0BS04nXBoOk4p-bwlNboDFUca5Mf2Xp7JpwnE65JySIGHIJbaRnss-RIO_NTPCDo124tZtFIJFJCYu9slmHZFzN1CSZHOKNS7UyjTg_o05_u1sUN2DaABuYqgWevwgLfY8ow545em2spZ6EIFcBc8E48PvXpAhm6n9tM0NbOgfKeiE52tfbvQcvhTCBfRKQ1RZlNVcobtfUibu-pbfqTV7ILqzDXqO5njlal0jDSbmKSF2LgmnZb4o4RfXT4hWEIclNDaU1dIzabQX2BLdz-4M5-cyCBglsuKie33xhLJyjwoMF3LFvFWD3aOTS2A1f6Yko3-WijgCzupkfuV3_U1X_ggH0hLt4ze55jmZ94ore8K2ABrD-2W0CzMD_YCKdmUqObNPhAlCB9dkrG6uaPHH2LK8CONloswG0ifY7GphSJ_-p7fyGfZZgP1WBGul2IN81VFq7SHW5jgewpKRaEjaLu2sqSe8edcoHsCe7hQmdAa0Lmgk-Msw==","summary":[]},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"rs_09b7f0d87fb11612016ada46e27ea087d099d7cfe651d55745","type":"reasoning","content":[],"encrypted_content":"gAAAAABq2kbiJhViQbTf5TaGVtfKC05Rwj4WyHpr47BBUGrC6rANDhyBCitbQFuNwgE6JfOvJ3uuCnVA1loScWVpRcaVl_6dL64Id_SafZF4cP9EpLCtan_SxH5AaTHYmMiM2NpxjGz1-4B39l4tv16Uqyyb_e0hYr_4nxi2nI5qtQEky1LSL1NapAW-xG_Qw_ChNwLKH1pTPlgiI1Ie2YgB90Rtnb2dP_PHSEVIIUjzHcKXSQ6OM1xXEkO44y9fxiHYCT3yIuWWRqo4rg3cbNwsTYUIx3OcxLViUmFGvLb4DehD7CsgX59zLu3UCLAA_jV_rkd26zzslsWErS2UOJy4VaBI6ApNC7MeGYMarQG20Bf9i953C0KkAWmkDs5xon9gZ7u8dineXb7LkTCoZdg2ySP6n8pe8-yGMUHCvuOd1qWH0KIgF4iOkxZ0CfxCTQ3nDnO1nHM2U2fwUly7Rcq8iinLWC-wNZT-QroQMeWi8qvAQyoRI9mwEywX7B-jVKIjoyXQtSn0dwuG3HwaNiREQqR4RKEelg5hJLuozpDsxqBPuJDwp3HRHxvly8yYCQUnWLw9ne4sJTmUAb6333NUh-UcciwzOEU5ib3nvQiAk-hbUIFC1rViwdL3I9nlib9iEeL2x5duOmuVzwyytPwrRygvWo5U0U9S8Qvis4nC-c68Kz-jLZ5k-jMH0IVqkfLyiMBZhTFqvaO5zU0xoo_uuHfdQj2EF7eBR2Hol_Rg7byPBXIL89q5TqvzlZm64qmnH8CKGYYykMWjbzmwX-FgaLn2uTghjITWRp-xAwwOKd4Ff7d8xpc8E0kqwuyqmHFH_mtKhMC9X47wudT8E3PkNYoUdE7rVPh54-m-t2hBaHHnYI_74Sp465le1pJIpbooIrxyIMTTdMZYNVMAaaz80vRsCuE3jcfZeFavM-Rw0wqWN1tRA9wjz2idBjXJ8c7n80buWKNhBfhsnvLBZptr_4djkhiaY7QhijH_yyAtNSC7qZ0bSWK-LGQ03rUhw5OSzTj3ctQ7LN_jRfy6ojJ0EJnuKUYIXxcNhxtMH9wa9c2wlakx-sXoxqvkh08YzIW7flJgt8DfRoNw4Dz_2Bd54bu9tOfZchqaHm1JwVN5gB-_nzzNVcHm-nVkWU-5FhpPvGiAy48MAw9pLYa2ULCY8g2VL17XfiwrkVGR1cO0rj08-XLAioyJ8P97CLXI0lUBCiKdamBq5od1ID0agj8HPa0v_NMnLLDB3Bm1Nhs8uFwiOXn4cP4Ys1gUgjbS9QCtyVCQRoyOxv7EXCtz3d7ozT-1r5bSE-pr1TEZpaq95tpMl1cvsvBrOMZVykY4xm3w9VeWtQSp_k5IC3bbaW5mGz-2ayLXo1pqAx7gJ6_pYXYOCcHB8hUowJnK8X_Xf7_xd5QjJGtzeYMXvNBJirLm2PZjLF4JgHAI_nHOww6_KcW3OdpyalifEoGzr-sov1y4-4im96Kdj-kOzwG6E30TLT5an7ZUAMSyXt2X-RpYamXjW1-_9hf83udGNw0hCQA6xqGrI9IDz6gOx6Bmrj_EUQAiLnAHCW1ldKwGoIDrCGfvNvTndr515ISvtnDB7LV2FOXgg9CU","summary":[]},"output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","type":"function_call","status":"in_progress","arguments":"","call_id":"call_vfwPDTud4A0odCoOCdhFIvIl","name":"read_file"},"output_index":1,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"R0D9SMeypyVRyS","output_index":1,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"path","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"J5tKCiFPOWPJ","output_index":1,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":\"","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"dP91kBKSPps2M","output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"garden","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"pZXj5AfFT5","output_index":1,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":".txt","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"iwyDmTN8Bx5D","output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","obfuscation":"KdIyaG8AJyhTgZ","output_index":1,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"path\":\"garden.txt\"}","item_id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","type":"function_call","status":"completed","arguments":"{\"path\":\"garden.txt\"}","call_id":"call_vfwPDTud4A0odCoOCdhFIvIl","name":"read_file"},"output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_09b7f0d87fb11612016ada46e2013887d089e791290f410d3e","object":"response","created_at":1792689890,"status":"completed","access_programs":null,"background":false,"completed_at":1792689890,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5-mini-2025-08-07","moderation":null,"output":[{"id":"rs_09b7f0d87fb11612016ada46e27ea087d099d7cfe651d55745","type":"reasoning","content":[],"encrypted_content":"gAAAAABq2kbjc0YfaUb3_HewcLruDvjDBUCUOk6t8cPfhrB8-gGK5hDqtiwktDwE_ETb92AvIgeyA4k3-zF0upFSwerT4X1PVHQh6bRkeYdbHLmRtLslFOrBQhk5_wgfOpPt6hHDQMiL2Y4sQZJBYJh1GRfc4uHc84bx72uh3TfbnvCxBYdKdy_ZS_YmB2Cusz1LP5Dv2NWHVdXrOuJoE7YYaZHsjjpTLB18q0wD9j6Ld2GlbBb1SrcYJV3moF6-dlUjA1IHcgaYMc9esSdbioeIZlia2Tg2jyxJ5kQzvLH94uFTvaqIygqIPyon1sjnXbe8gyzlBBViwCiKQrVZ0CsY_qba3DgbgozuDptiMlQ225SvQ-IsvmkE_o3TCmSBWYIe_JJoGEJFgr3nr05-Easgb1yRrjh6oln24derQtHGcuOgp0uyYcJX9AVhNNEgV4s9N-LNAN5KWg9zppe0mXCbk9gpY8oJ-bxyCUxkhw2TNv7BAfqUR1kXU5lASE7XHj1Xe6sPjn4Kly4zBPvwCwZ9oWvs38JeRVVWf3ZWBkXZwQLDUVOv7LLv-GwIe0-6WvaNRNp8UbM4bLpkDXxpUr4s8f3my2_emCT2XEKeUrJHu34Nz0LGs48_G_jVRuy0zBu3p21tpwBPijpihUZ8ZARufE3AF1pVXBd-CgQO0FSvcCqbJnzsncMOvYU1AwWi4yBhP6K7zpPvs3GtrEwDmXhx0rxSeQSq5tqDiIam6pH8ZcuA9_fzyAVHp-jH-WNIxA7WNKB-pNHjo_mK24eyF-fJ1Qf3wqgY9_LhIGTMOZJANowWbOiqzu59iAafogbi1UDrBNhpRbPR6ZyjQIO67UC-ntdeza-M4qXt2BsGfO9KLytPIAkbW_yByybo2MVD9dkEhDNjiUIByixe50OHra9J1lHqdaIzrOH_SpdWeQ9G2XUDA2j2M88P8gyTrIijsRjQLFvSr8hf48I_oODZ7be-7enQeDqK5kkAvmMIYTj3DvVyvRTlENeICl61SFfi_0UgyWlFdFZ-qC6I8rg7VqyN_QgLLF3pXcX0mDSIGkHWM7BLOEnvr_1WP7hbfqGypMFBhPeCCpLGqcjg9b4WicxzDkp0fU4ZbB1Y9vjG5ZhAHy7kw4u28JbLipUFnc3hHMzZaS-jJdfmuxvI4M9NTCszrTljeIvJzU9Xq5RKyq430G1jv8J43Xe7NvigVgGwlC9HnrCqZk7ZNmF42fnT0kGnnSl2YaDGVGPBLhPh3i2cg0Jy9-DXAl9cBdfqgXTxeVKfMqCkoGiIaeJCCXlIyfA21gyrXq0jIKEwFVe-5hd6GCTm1WUzZwpXWB-gbxNMaSyQGl1frKaYRuBFUZMxQxq4B3TfegHhs8UZbc_IIe4B-sfFPQlIEgkXJNiDxLxEhoUgumAfBxJT5QEre1bC0mmkHagzn62dIEGMaPFBVxdT8PjV60efes98GI7BIExdswZJEqmEObHQsYp5J3tJPDbWUjyuSI-1msYrJ71zHvsnNkmqD6i2iDrTsHy1923BB42adkGod2v9hsTdS5Jz2TssGr2dnEGxDt_hajwi6XCREBQa6tMPhySm30A6rLsSt8LxdzzD5r2h","summary":[]},{"id":"fc_09b7f0d87fb11612016ada46e2e9a487d0a4931a23874749bb","type":"function_call","status":"completed","arguments":"{\"path\":\"garden.txt\"}","call_id":"call_vfwPDTud4A0odCoOCdhFIvIl","name":"read_file"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"low","mode":"standard","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":198,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":30,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":228},"user":null,"metadata":{}},"sequence_number":13}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-22T17:24:49.608572+00:00'

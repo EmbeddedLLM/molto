@@ -1,0 +1,791 @@
+filename: 2026-10-22-01a164a2-28a7-7121-a0b1-b0235e48df43
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: claude-sonnet-4-6
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '163'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a164a2-28a7-7121-a0b1-b0235e48df43
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-4-6","id":"msg_011CgHfKMvfk3Le1vRuSZmQo","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":17,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":4,"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}      }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Here
+    are some fun"}     }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    name"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    suggestions for a robot gardener:"}              }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n-"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    **Blos"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"som**
+    - soft"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and nature"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-inspired\n-
+    **Spr"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"out**
+    - play"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ful
+    and fitting"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n-
+    **Terra"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**
+    - from"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    \""}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"terrain"}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"/"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"earth\""}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n-
+    **Verd"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ant**
+    - meaning"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    l"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ush
+    and green"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n-
+    **Ro"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ota"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**
+    - a"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    rob"}              }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"otic
+    twist"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    on roots"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n-
+    **G"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ar"}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"denBot**
+    - simple"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and descript"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ive\n-
+    **Flora"}  }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**
+    - classic"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    nature"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    name\n- **Th"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"yme**
+    - a"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    herb"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    with a clever"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    double"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    meaning\n- **Cultiv"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ar"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**
+    - a gard"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ening
+    term\n- **Dew"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ey"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**
+    - fresh"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and nature"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"-friendly"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nMy"}              }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    personal favorite would"}     }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    be **Spr"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"out**
+    —"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    it feels"}       }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    appro"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"achable,"}      }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    cheer"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ful,
+    and perfectly"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    captures the idea"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    of growth"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and gard"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ening."}              }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nWould"}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    you"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    like names"}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    with"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    a"}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    specific"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    tone"}             }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    like"}            }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    fu"} }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"turistic,
+    cute"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":",
+    or professional"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"?"}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0               }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":17,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":194}     }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"  }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-22T17:21:51.271879+00:00'

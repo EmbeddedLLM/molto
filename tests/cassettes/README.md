@@ -12,6 +12,14 @@ Recorded headers are informational. In particular, `content-length` is not guara
 
 Treat these files as provider evidence. Do not edit a recorded value merely to make an implementation pass a test. If a committed recording is demonstrably wrong, document the correction and review its diff explicitly.
 
+### Multi-turn upstream IR recordings
+
+`upstream_ir/{scenario}/{provider}-{endpoint}-stream-{turn}.yaml` contains independent, unchanged provider recordings for `tests/upstream/test_multi_turn.py`. The scenarios are two-turn `text_chat`, three-turn `tool_use`, and three-turn `tool_use_reasoning`. Text and tool use cover all three upstream clients; reasoning tool use covers Responses and Messages.
+
+These requests were recorded outside pytest through `scripts/recorder_proxy.py`, forwarding to the official OpenAI and Anthropic APIs. A standalone driver used `httpx.ASGITransport(app=recorder_proxy.app)` to call the recording proxy in process; the proxy's HTTP client performed the live requests. Each response's completed IR parts became assistant history for the next request. Tool results referenced the returned call IDs, and reasoning continuations retained the returned opaque state. The proxy files were renamed without changing their bytes. Authorization is masked, and Anthropic API-key headers are excluded by the recorder's header whitelist.
+
+Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
+
 ## Error cassettes
 
 The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
