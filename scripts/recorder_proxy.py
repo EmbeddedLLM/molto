@@ -28,7 +28,7 @@ from uuid_utils import uuid7
 from yaml import dump as yaml_dump
 
 # Defaults
-OUTPUT_DIR = Path("tests") / "cassettes/matched/tool_call"
+OUTPUT_DIR = Path("tests") / "cassettes/recorded"
 TARGET_HOST = "https://api.openai.com"
 TIMEOUT = 60 * 5  # 5 minutes
 

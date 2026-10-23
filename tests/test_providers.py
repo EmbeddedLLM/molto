@@ -15,9 +15,11 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 
 
 def test_provider_capabilities_are_explicit_and_immutable() -> None:
+    """Ensures each provider has an explicit immutable reasoning profile."""
     assert PROVIDER_CAPABILITIES == {
         "anthropic": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),
+        "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),
     }
     with pytest.raises(FrozenInstanceError):
@@ -37,6 +39,7 @@ def test_default_provider_is_separate_from_endpoint_selection() -> None:
     [
         ("openai", "https://vllm.example"),
         ("vllm", "https://api.anthropic.com"),
+        ("togetherai", "https://together.example/v1"),
     ],
 )
 async def test_provider_selects_capabilities_independently_of_endpoint_and_base_url(
@@ -44,6 +47,7 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
     provider: str,
     base_url: str,
 ) -> None:
+    """Ensures provider capabilities do not override the requested Messages endpoint."""
     captured: dict[str, object] = {}
 
     def stub_events(
@@ -91,12 +95,13 @@ _STREAMING_BODIES = {
 }
 
 
-@pytest.mark.parametrize("provider", [None, "openai"])
+@pytest.mark.parametrize("provider", [None, "openai", "togetherai"])
 @pytest.mark.parametrize("coordinator", ["responses", "chat_completions", "messages"])
 async def test_coordinators_reject_unsupported_endpoints(
     provider: str | None,
     coordinator: str,
 ) -> None:
+    """Ensures coordinators reject unknown endpoints before choosing a client."""
     # The endpoint Literal is not enforced at runtime; an unknown endpoint must
     # fail explicitly instead of falling through to a default client or provider.
     client = Molto(http_client=httpx.AsyncClient())
@@ -109,7 +114,11 @@ async def test_coordinators_reject_unsupported_endpoints(
     await client.aclose()
 
 
-async def test_coordinators_validate_endpoint_before_request_normalization() -> None:
+@pytest.mark.parametrize("provider", ["openai", "togetherai"])
+async def test_coordinators_validate_endpoint_before_request_normalization(
+    provider: str,
+) -> None:
+    """Ensures endpoint errors precede unrelated cross-protocol normalization failures."""
     # The body below fails adapter normalization (namespaced function call), but
     # the unsupported endpoint must be reported first, not the translation error.
     client = Molto(http_client=httpx.AsyncClient())
@@ -129,6 +138,6 @@ async def test_coordinators_validate_endpoint_before_request_normalization() -> 
                 "stream": True,
             },
             endpoint="bogus",
-            provider="openai",
+            provider=provider,
         )
     await client.aclose()

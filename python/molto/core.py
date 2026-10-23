@@ -30,6 +30,7 @@ from molto.types.openai_responses import (
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.together import TogetherAIChatCompletionsClient
 
 VLLM_DUMMY_API_KEY = "EMPTY"
 
@@ -169,6 +170,8 @@ class Molto:
             return ENV_CONFIG.openai_api_key_plain
         if api_key is None and provider == "anthropic":
             return ENV_CONFIG.anthropic_api_key_plain
+        if api_key is None and provider == "togetherai":
+            return ENV_CONFIG.together_ai_api_key_plain
         if api_key is None and provider == "vllm":
             return VLLM_DUMMY_API_KEY
         return api_key
@@ -233,7 +236,12 @@ class Molto:
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            chat_client = (
+                TogetherAIChatCompletionsClient
+                if resolved_provider == "togetherai"
+                else OpenAIChatCompletionsClient
+            )
+            upstream = chat_client(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,
@@ -282,7 +290,12 @@ class Molto:
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            chat_client = (
+                TogetherAIChatCompletionsClient
+                if resolved_provider == "togetherai"
+                else OpenAIChatCompletionsClient
+            )
+            upstream = chat_client(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,
@@ -378,7 +391,12 @@ class Molto:
                 extra_headers=upstream_headers,
             )
         elif endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            chat_client = (
+                TogetherAIChatCompletionsClient
+                if resolved_provider == "togetherai"
+                else OpenAIChatCompletionsClient
+            )
+            upstream = chat_client(
                 self._http_client,
                 api_key=resolved_api_key,
                 base_url=base_url,

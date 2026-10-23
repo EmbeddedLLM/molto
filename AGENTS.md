@@ -73,6 +73,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - All tests must have docstrings that state their intention, goal, purpose, or the regression they guard against. Use phrasing such as "Ensures ..." or "Asserts that ..." to describe the behavior being protected.
 - Add or update regression tests when fixing a reproducible defect. For any public provider behavior with an OpenAI SDK-equivalent contract, include cassette-backed parity coverage that compares Molto against parsed OpenAI SDK responses or events; IR and provider-setting unit tests may supplement this coverage, but must not replace it.
 - Read `tests/cassettes/README.md` before recording, editing, or reviewing cassette fixtures.
+- Keep only script-matched scenario sets under `tests/cassettes/matched/`. Use the matching scripts in `scripts/` against the canonical Responses fixtures before placing counterpart fixtures there. Keep raw or unmatched provider recordings outside `matched/`, including recordings used by native-route tests.
 - Never run tests in cassette-recording mode. Test runs must replay them only.
 - If any of the committed cassettes are demonstrably wrong, you may update them, but you must explicitly mention the changes to the user in your final review or reply.
 - Never update uncommitted cassettes, always commit them first, and use their diff to guide your changes.

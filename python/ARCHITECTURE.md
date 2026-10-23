@@ -16,13 +16,15 @@ Native same-protocol and cross-protocol routes support streaming and non-streami
 
 `endpoint`, `provider`, and `base_url` are independent:
 
-| Concept    | Purpose                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
-| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
-| `base_url` | Selects only the HTTP destination.                                                                                            |
+| Concept | Purpose |
+| --- | --- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`. |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, `vllm`, or `togetherai`. |
+| `base_url` | Selects only the HTTP destination. |
 
-Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
+Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default. An explicit base URL changes neither the protocol nor the capability profile.
+
+Endpoint selection is provider-independent. Provider-specific clients reuse protocol transport and specialize wire-field selection and error recognition. See [routing](../docs/README.md#routing), the [Chat provider matrix](../docs/protocols/openai-chat-completions.md#upstream-stream-normalization), and [error recognition rules](../docs/errors.md#recognition-rules).
 
 ## Architectural goal
 
@@ -134,10 +136,10 @@ A future `Molto.chat()` will be a higher-level dispatcher. It will select one of
 Each implemented coordinator performs the following work:
 
 1. Validate the public body as its protocol request model.
-2. For a non-streaming request, return the upstream SDK response directly on a same-protocol route or collect downstream-native projected events on a translated route.
-3. Resolve `provider` and its capability profile independently of `base_url`.
+2. Resolve `provider` independently of `base_url` and validate the requested upstream endpoint without rewriting it.
+3. Resolve the provider capability profile.
 4. Resolve the API key and injected or default HTTP client.
-5. Select the upstream path from `endpoint`.
+5. Choose native passthrough or translation using the requested endpoint; non-streaming native requests return the SDK response directly, while translated requests collect downstream-native projected events.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
 
 Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
@@ -246,7 +248,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through Chat: Responses and Messages require a signature for completed summaries, while Chat has no signature field.
+`reasoning_content` and `reasoning` are provider extensions to the OpenAI Chat schema, but the fields themselves do not distinguish raw reasoning from a reasoning summary. Molto models `reasoning_content` as a string and `reasoning` as a string or ordered list of strings only on assistant messages, using `ProviderCapabilities.thinking` to classify the text. Reasoning-array elements normalize to separate ordered thinking parts; native passthrough preserves the array. Translated history rejects both fields when both are populated. OpenAI classifies reasoning as a summary; vLLM and Together classify it as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through Chat: Responses and Messages require a signature for completed summaries, while Chat has no signature field. Translated Chat output retains `reasoning_content`; native passthrough retains the provider's field.
 
 ## Normalized request model
 
@@ -264,7 +266,9 @@ ChatCompletionChunk SDK stream
 
 Assistant conversation history uses one strict `AssistantInput` per source message, containing ordered `Thinking`, `TextOutput`, and `ToolCall` parts and an optional Responses message ID. Standalone Responses reasoning and function-call items remain top-level `Thinking` and `ToolCall` values. `TextOutput` is an assistant part, not a top-level request item. This retains both the enclosing message boundary and its ordered content. `AssistantInput.id` supplies the history message ID; IDs on nested `TextOutput` parts are retained output metadata and are not used when projecting history.
 
-Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary. Assistant text parts follow the same rule: multiple text parts remain in one message, and adjacent assistant messages remain separate. Messages can retain any supported assistant part order. Within one explicit assistant message, Chat accepts runs of reasoning, text, and tool-call parts in that order, with any run optional. Adjacent reasoning parts concatenate in order with a newline separator; text parts retain their array boundaries and markers, and tool calls retain distinct array entries and IDs. Chat rejects reasoning after text or calls and text after calls rather than splitting or reordering the message. This grouping never merges separate explicit assistant messages. Responses has standalone reasoning and call items, so projecting a mixed assistant message emits contiguous text runs as messages interleaved with those items.
+Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary. Assistant text parts follow the same rule: multiple text parts remain in one message, and adjacent assistant messages remain separate. Messages can retain any supported assistant part order. Within one explicit assistant message, Chat accepts runs of reasoning, text, and tool-call parts in that order, with any run optional. Chat clients concatenate adjacent reasoning parts in order with a newline separator into their selected reasoning field, as described in [Chat history projection](../docs/protocols/openai-chat-completions.md#upstream-request-construction). Text parts retain their array boundaries and markers, and tool calls retain distinct array entries and IDs. Chat rejects reasoning after text or calls and text after calls rather than splitting or reordering the message. This grouping never merges separate explicit assistant messages. Responses has standalone reasoning and call items, so projecting a mixed assistant message emits contiguous text runs as messages interleaved with those items.
+
+Output streams may contain text after tool calls, including whitespace; translation preserves that text with balanced part lifecycles.
 
 Responses and Chat Completions also project every normalized instruction as a `developer` message with one text part, whether or not it has a cache breakpoint. Markers remain attached only to their marked parts.
 
@@ -320,9 +324,9 @@ For the text, reasoning, and function-tool paths:
 
 A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends, and surviving parts are reindexed so normalized indices stay dense. Recorded providers never produce such parts.
 
-Chat's role chunk starts the first part but its empty content is not emitted as a delta. Reasoning and text may interleave, so each transition between them — in either direction — ends the active part and starts a new one. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
+Empty Chat role and content placeholders do not start or switch parts. Non-empty content, including whitespace, is preserved. Reasoning and text may interleave, so each transition between them — in either direction — ends the active part and starts a new one. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 
-Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
+Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index or non-empty text/reasoning closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
 
 The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Every downstream adapter accepts the normalized representation selected by that profile; Chat Completions and Messages then emit it through their protocol's single reasoning field, while Responses retains the distinction with separate reasoning-text and reasoning-summary lifecycles.
 
@@ -433,6 +437,8 @@ Closure propagates through the complete translated pipeline: adapter wrappers cl
 
 Tests are playback-only. Normal runs must never record or rewrite cassettes.
 
+`tests/cassettes/matched/` contains only matched scenario sets: canonical Responses references and counterpart fixtures aligned with the matching scripts in `scripts/`. Raw or unmatched provider recordings stay outside this directory, including fixtures intended for native passthrough tests. See the [cassette workflow](CONVENTIONS.md#implementing-protocol-features) for recording, matching, and review.
+
 Matched cross-protocol fixtures use a scenario-first layout under `tests/cassettes/matched/{scenario}/`. The [full scenario listing](../tests/cassettes/README.md#matched-cassettes) lives in the cassette README; this section only illustrates the layout:
 
 ```text
@@ -463,7 +469,7 @@ Shared translation policies live in the [documentation overview](../docs/README.
 
 Parity differs by path:
 
-- same-protocol routes assert exact request bodies and parsed SDK stream events or non-streaming responses;
+- same-protocol routes assert the caller's exact request body and parsed SDK stream events or non-streaming responses. Native Chat comparisons replay the same selected upstream response through Molto and the SDK, including when the caller and upstream fixtures use different providers;
 - Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, generated IDs, and function-call identity;
 - Responses to Chat Completions compares ordered text, reasoning, and function-argument deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
 

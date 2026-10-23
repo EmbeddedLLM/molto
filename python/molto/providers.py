@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 Endpoint: TypeAlias = Literal["responses", "chat/completions", "messages"]
-Provider: TypeAlias = Literal["anthropic", "openai", "vllm"]
+Provider: TypeAlias = Literal["anthropic", "openai", "togetherai", "vllm"]
 ReasoningRepresentation: TypeAlias = Literal["raw", "summary"]
 
 
@@ -14,6 +14,7 @@ class ProviderCapabilities:
 PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
     "anthropic": ProviderCapabilities(thinking="summary"),
     "openai": ProviderCapabilities(thinking="summary"),
+    "togetherai": ProviderCapabilities(thinking="raw"),
     "vllm": ProviderCapabilities(thinking="raw"),
 }
 

@@ -62,6 +62,10 @@ OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
 
 
+class _ReasoningFieldChatClient(OpenAIChatCompletionsClient):
+    reasoning_field = "reasoning"
+
+
 def _unexpected_http(request: httpx.Request) -> httpx.Response:
     raise AssertionError(f"events() performed independent HTTP I/O: {request.url}")
 
@@ -455,6 +459,65 @@ def test_chat_client_preserves_adjacent_reasoning_only_assistant_messages():
         {"role": "assistant", "reasoning_content": "First"},
         {"role": "assistant", "reasoning_content": "Second"},
         {"role": "assistant", "content": "Answer"},
+    ]
+
+
+@pytest.mark.parametrize("reasoning", ["", "  Think\n\ncarefully.\t "])
+def test_chat_client_reasoning_field_hook_preserves_history(reasoning):
+    """Ensures selected-field history retains reasoning bytes, assistant turns, and tool links."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            AssistantInput(
+                content=[
+                    Thinking(content=reasoning, summary=""),
+                    TextOutput(content="Before tools"),
+                    ToolCall(tool_name="lookup", tool_call_id="call_1", args=' {"x": 1} '),
+                ]
+            ),
+            ToolReturn(tool_call_id="call_1", content=[TextInput(content="Result")]),
+            AssistantInput(content=[Thinking(content="Next turn", summary="")]),
+        ],
+    )
+
+    assert _ReasoningFieldChatClient._request_body(request)["messages"] == [
+        {
+            "role": "assistant",
+            "reasoning": reasoning,
+            "content": "Before tools",
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "id": "call_1",
+                    "function": {"name": "lookup", "arguments": ' {"x": 1} '},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_1",
+            "content": [{"type": "text", "text": "Result"}],
+        },
+        {"role": "assistant", "reasoning": "Next turn"},
+    ]
+
+
+def test_chat_client_default_preserves_adjacent_reasoning_join():
+    """Ensures the selected-field hook does not change existing providers' reasoning joining."""
+    request = NormalizedRequest(
+        model="m",
+        input=[
+            AssistantInput(
+                content=[
+                    Thinking(content="First", summary=""),
+                    Thinking(content="Second", summary=""),
+                ]
+            )
+        ],
+    )
+
+    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+        {"role": "assistant", "reasoning_content": "First\nSecond"}
     ]
 
 
@@ -3156,9 +3219,12 @@ async def test_chat_completions_events_preserve_multiple_tool_call_indices(
     ]
 
 
+@pytest.mark.parametrize("text_between", [False, True])
 async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
     monkeypatch: pytest.MonkeyPatch,
+    text_between: bool,
 ):
+    """Ensures a completed tool call cannot resume after another call or intervening text."""
     native_chunks = [
         _chat_chunk(
             choices=[
@@ -3179,6 +3245,8 @@ async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
         )
         for call_index in (0, 1, 0)
     ]
+    if text_between:
+        native_chunks[1] = _chat_chunk(choices=[{"index": 0, "delta": {"content": "\n\n"}}])
 
     async def stub_native_events(
         native_request: OpenAIChatCompletionsCreateRequest,
@@ -3209,15 +3277,18 @@ async def test_chat_completions_events_reject_noncontiguous_tool_call_deltas(
         ),
     ],
 )
+@pytest.mark.parametrize("client_class", [OpenAIChatCompletionsClient, _ReasoningFieldChatClient])
 async def test_chat_completions_events_translate_native_sdk_chunks(
     monkeypatch: pytest.MonkeyPatch,
     capabilities: ProviderCapabilities,
     thinking_delta: ThinkingDelta,
     thinking: Thinking,
+    client_class: type[OpenAIChatCompletionsClient],
 ):
+    """Ensures a selected reasoning delta field preserves classification and the full lifecycle."""
     native_chunks = [
         _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant"}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": "Think"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {client_class.reasoning_field: "Think"}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {"content": "Answer"}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {"content": ""}, "finish_reason": "stop"}]),
         _chat_chunk(
@@ -3241,7 +3312,7 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
             yield chunk
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIChatCompletionsClient(http_client, capabilities=capabilities)
+        client = client_class(http_client, capabilities=capabilities)
         monkeypatch.setattr(client, "native_events", stub_native_events)
 
         events = [
@@ -3293,20 +3364,26 @@ async def test_chat_completions_events_translate_native_sdk_chunks(
     ]
 
 
+@pytest.mark.parametrize("client_class", [OpenAIChatCompletionsClient, _ReasoningFieldChatClient])
 async def test_chat_completions_events_omit_empty_reasoning_part(
     monkeypatch: pytest.MonkeyPatch,
+    client_class: type[OpenAIChatCompletionsClient],
 ) -> None:
-    # Empty `reasoning_content` chunks carry nothing: no thinking part starts.
+    """Ensures empty reasoning deltas under either selected key never start a thinking part."""
     native_chunks = [
         _chat_chunk(
             choices=[
                 {
                     "index": 0,
-                    "delta": {"role": "assistant", "content": None, "reasoning_content": ""},
+                    "delta": {
+                        "role": "assistant",
+                        "content": None,
+                        client_class.reasoning_field: "",
+                    },
                 }
             ]
         ),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": ""}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {client_class.reasoning_field: ""}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}]),
     ]
 
@@ -3317,7 +3394,7 @@ async def test_chat_completions_events_omit_empty_reasoning_part(
             yield chunk
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
+        client = client_class(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
@@ -3335,19 +3412,22 @@ async def test_chat_completions_events_omit_empty_reasoning_part(
     ]
 
 
+@pytest.mark.parametrize("client_class", [OpenAIChatCompletionsClient, _ReasoningFieldChatClient])
 async def test_chat_completions_events_interleave_reasoning_and_text(
     monkeypatch: pytest.MonkeyPatch,
+    client_class: type[OpenAIChatCompletionsClient],
 ) -> None:
+    """Ensures selecting a reasoning key preserves interleaved parts and ignores empty deltas."""
     # Models may emit text in between reasoning. Each kind switch ends the
     # active part and starts a new one; empty reasoning chunks are no-ops and
     # never split a text part.
     native_chunks = [
         _chat_chunk(choices=[{"index": 0, "delta": {"role": "assistant"}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": "R1"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {client_class.reasoning_field: "R1"}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {"content": "T1"}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": ""}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {client_class.reasoning_field: ""}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {"content": "T2"}}]),
-        _chat_chunk(choices=[{"index": 0, "delta": {"reasoning_content": "R2"}}]),
+        _chat_chunk(choices=[{"index": 0, "delta": {client_class.reasoning_field: "R2"}}]),
         _chat_chunk(choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}]),
     ]
 
@@ -3358,7 +3438,7 @@ async def test_chat_completions_events_interleave_reasoning_and_text(
             yield chunk
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIChatCompletionsClient(http_client, capabilities=VLLM_CAPABILITIES)
+        client = client_class(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 

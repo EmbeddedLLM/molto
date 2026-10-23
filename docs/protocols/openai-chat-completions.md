@@ -78,9 +78,24 @@ For a non-streaming result, set `stream=False` or omit it and await the same met
 
 Chat Completions represents a conversation as an ordered `messages[]` array. Each element is a native wire-message boundary. The schema includes `developer`, `system`, `user`, `assistant`, `tool`, and legacy `function` messages. It does not impose a positional restriction on system or developer messages. Newer OpenAI reasoning models use developer instructions in place of the older system-message mechanism, but the model or renderer ultimately determines the model-visible instruction behavior.
 
-User messages can contain a string or an ordered content-part array, including text and image parts supported by Molto. Assistant messages can contain text, tool calls, and provider extensions such as `reasoning_content`. Chat tool messages identify the call with `tool_call_id` and carry text content; they do not have a portable image-result representation.
+User messages can contain a string or an ordered content-part array, including text and image parts supported by Molto. Assistant messages can contain text, tool calls, and provider extensions such as `reasoning_content` or `reasoning`. Chat tool messages identify the call with `tool_call_id` and carry text content; they do not have a portable image-result representation.
 
 An assistant message containing `tool_calls` must be followed immediately by the complete contiguous block of corresponding `tool` messages before any other role. This ordering requirement also applies to parallel tool calls.
+
+Assistant tool calls are validated eagerly when the request is constructed. Unsupported nested fields raise a validation error before HTTP; they are not silently removed during serialization. Valid tool-call lists can be serialized repeatedly without being consumed.
+
+SDK output models and request history have different fields. When an OpenAI SDK stream accumulator retains `tool_calls[].index` in its final assistant message, remove that stream bookkeeping when constructing the next request:
+
+```python
+history_message = assistant.model_dump(
+    exclude_none=True,
+    exclude={"tool_calls": {"__all__": {"index"}}},
+)
+messages.append(history_message)
+# Append the corresponding tool results before sending the next request.
+```
+
+This conversion preserves call IDs, names, arguments, reasoning, and other output fields. Molto still rejects unknown request fields; it does not automatically strip provider continuation metadata or modify native output. A tool-only message may retain `content=""` even when an equivalent recorded history omits content.
 
 ### Streaming chunks
 
@@ -127,7 +142,7 @@ One user message becomes one normalized user input. Ordered text and image parts
 
 System and developer messages accept scalar text or ordered text-part lists and become role-less instructions. Their sequence position and part markers are retained while targeting Responses or Chat, but their original role identity is lost. A later Chat projection emits every normalized instruction as `developer`. Messages projects instructions into top-level `system`, retaining separate blocks when any system block is marked. With any cache markers present, mid-conversation instructions are rejected because hoisting would change the cached prefix.
 
-Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, and function tool calls. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
+Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, `reasoning` as a string or ordered list of strings, and function tool calls. Each reasoning-array element becomes a separate thinking part, preserving its text and order; an empty array contributes no thinking parts. Native Chat passthrough retains the original string or array. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
 Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
 
@@ -167,20 +182,20 @@ An upstream Chat client converts another downstream protocol's normalized reques
 | Prompt cache                | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`               |
 | Content cache breakpoint    | `prompt_cache_breakpoint` on supported text/image parts                            |
 
-The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
+The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into the selected client's reasoning field in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
 
 These examples apply within one explicit assistant message:
 
 | Ordered parts                             | Chat projection                                                                           |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `Thinking("First") -> Thinking("second")` | Accepted as `reasoning_content="First\nsecond"`; a newline separates the parts.           |
+| `Thinking("First") -> Thinking("second")` | Accepted as one reasoning string, `"First\nsecond"`; a newline separates the parts.       |
 | `Text("First") -> Text("Second")`         | Accepted as two ordered parts in one `content` array; each part retains its cache marker. |
 | `ToolCall(id="a") -> ToolCall(id="b")`    | Accepted as two entries in one `tool_calls` array; IDs `a` and `b` remain distinct.       |
 | `Text -> Thinking`                        | Rejected: Chat has no slot for reasoning after text.                                      |
 | `ToolCall -> Thinking`                    | Rejected: Chat has no slot for reasoning after tool calls.                                |
 | `ToolCall -> Text`                        | Rejected: Chat has no slot for text after tool calls.                                     |
 
-Molto rejects those incompatible orders rather than splitting or reordering the source message. Grouping parts never merges separate explicit assistant messages. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message. These Responses items have no explicit shared message boundary to preserve. A reasoning-only message is forwarded with `reasoning_content`; the upstream decides whether to accept it.
+Molto rejects those incompatible orders rather than splitting or reordering the source message. Grouping parts never merges separate explicit assistant messages. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message. These Responses items have no explicit shared message boundary to preserve. A reasoning-only message uses the selected client's reasoning field; the upstream decides whether to accept it.
 
 OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 
@@ -194,16 +209,18 @@ This relocation matches how vLLM itself handles a `tool_result` image through it
 
 ### Upstream stream normalization
 
-The client reads only `choices[0]`. Non-empty `reasoning_content` and text deltas are preserved for that choice, while an empty role-establishment content chunk does not become a text delta. A transition between reasoning and text closes one normalized part and opens another; later reasoning can open a new thinking part. Tool-call deltas must be contiguous by tool index, and their first chunk must provide the call ID and function name.
+The client reads only `choices[0]`. Non-empty reasoning and text deltas are preserved for that choice, while empty content placeholders do not start text parts. A transition between reasoning and text closes one normalized part and opens another; later reasoning can open a new thinking part. Non-empty text or reasoning after a tool call closes that call first. Tool-call deltas must be contiguous by tool index, and their first chunk must provide the call ID and function name.
 
-`reasoning_content` does not say whether it contains raw reasoning or a reasoning summary. Molto classifies it with the explicit provider capability:
+The reasoning field does not say whether it contains raw reasoning or a reasoning summary. The selected Chat client determines the field, and provider capabilities classify its text:
 
-| Provider profile | Interpretation    |
-| ---------------- | ----------------- |
-| `openai`         | Reasoning summary |
-| `vllm`           | Raw reasoning     |
+| Provider profile | Upstream Chat reasoning field | Interpretation    |
+| ---------------- | ----------------------------- | ----------------- |
+| `openai`         | `reasoning_content`           | Reasoning summary |
+| `anthropic`      | `reasoning_content`           | Reasoning summary |
+| `vllm`           | `reasoning_content`           | Raw reasoning     |
+| `togetherai`     | `reasoning`                   | Raw reasoning     |
 
-`endpoint` and `base_url` do not select this interpretation. A custom OpenAI-compatible service must use the provider profile matching its actual behavior.
+`endpoint` and `base_url` do not select this interpretation. These are Molto's configured profiles, not a claim that every provider serves Chat Completions. A custom OpenAI-compatible service must use the profile matching its actual behavior. Translation reads only the reasoning field selected by that client.
 
 The first native chunk supplies response ID, creation time, model, and source service-tier metadata. A supported `finish_reason` closes active parts, while a late usage chunk can update semantic usage before the normalized response ends. The stream must contain at least one chunk and a supported finish reason.
 
@@ -226,7 +243,7 @@ The provider or model renderer can still merge, move, or reinterpret accepted wi
 
 ### Reasoning and continuation state
 
-Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. In the current implementation, only unsigned raw reasoning is portable through Chat on a translated route. A Chat summary has no signature and therefore cannot satisfy the completed-summary contract required by Responses or Messages; in the reverse direction, a Responses or Messages summary carries a signature that Chat projection rejects rather than silently discarding. Opaque continuation state and summarized reasoning are therefore not currently portable through Chat.
+Chat's `reasoning_content` and `reasoning` extensions can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Translated history accepts either field but rejects both fields populated together; translated Chat output uses `reasoning_content`, while native passthrough retains the provider's field. Chat has no reasoning signature or encrypted continuation slot. In the current implementation, only unsigned raw reasoning is portable through Chat on a translated route. A Chat summary has no signature and therefore cannot satisfy the completed-summary contract required by Responses or Messages; in the reverse direction, a Responses or Messages summary carries a signature that Chat projection rejects rather than silently discarding. Opaque continuation state and summarized reasoning are therefore not currently portable through Chat.
 
 ### Tools and tool results
 

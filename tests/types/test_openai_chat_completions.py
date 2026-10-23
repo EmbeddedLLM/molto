@@ -38,6 +38,133 @@ def test_request_dump_is_ready_for_chat_completions_create():
     }
 
 
+@pytest.mark.parametrize(
+    "reasoning_field, value",
+    [
+        ("reasoning_content", "  Think\n\ncarefully.\t "),
+        ("reasoning", "  Think\n\ncarefully.\t "),
+        ("reasoning", ["  Think\n\ncarefully.\t ", "", "Another thought"]),
+        ("reasoning", []),
+    ],
+)
+def test_assistant_reasoning_extension_round_trips_sdk_history(reasoning_field, value):
+    """Ensures SDK assistant reasoning survives strict request validation and serialization."""
+    response = ChatCompletion.model_validate(
+        {
+            "id": "chatcmpl_123",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": "Answer",
+                        reasoning_field: value,
+                    },
+                }
+            ],
+            "created": 1,
+            "model": "m",
+            "object": "chat.completion",
+        }
+    )
+    message = response.choices[0].message.model_dump(exclude_none=True)
+    request = OpenAIChatCompletionsCreateRequest(model="m", messages=[message])
+
+    assert request.model_dump()["messages"] == [message]
+    assert request.model_dump()["messages"][0][reasoning_field] == value
+
+
+@pytest.mark.parametrize("role", ["system", "developer", "user", "tool"])
+def test_reasoning_extension_is_restricted_to_assistant_history(role):
+    """Asserts that Together reasoning does not weaken validation of other message roles."""
+    message = {"role": role, "content": "Text", "reasoning": "Thought"}
+    if role == "tool":
+        message["tool_call_id"] = "call_1"
+
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(model="m", messages=[message])
+
+
+@pytest.mark.parametrize(
+    "value", [None, 3, {}, [3], [None], [{}], [["Thought"]], ["Thought", False]]
+)
+def test_assistant_reasoning_extension_rejects_malformed_values(value):
+    """Asserts that assistant reasoning accepts only strings and arrays of strings."""
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="m", messages=[{"role": "assistant", "reasoning": value}]
+        )
+
+
+@pytest.mark.parametrize("value", [[], ["Thought"]])
+def test_assistant_reasoning_content_remains_string_only(value):
+    """Ensures the reasoning array extension does not change reasoning_content validation."""
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="m", messages=[{"role": "assistant", "reasoning_content": value}]
+        )
+
+
+def test_assistant_reasoning_extension_preserves_unknown_field_rejection():
+    """Ensures adding reasoning leaves unsupported assistant fields invalid."""
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="m",
+            messages=[{"role": "assistant", "reasoning": "Thought", "unknown": "value"}],
+        )
+
+
+@pytest.mark.parametrize(
+    "tool_type, input_field, input_value",
+    [("function", "arguments", '{"command":"pwd"}'), ("custom", "input", "pwd")],
+)
+@pytest.mark.parametrize("malformation", ["stream-index", "unknown-field", "missing-input"])
+def test_assistant_tool_calls_are_validated_at_construction(
+    tool_type, input_field, input_value, malformation
+):
+    """Ensures malformed function and custom calls fail before lazy serialization can lose them."""
+    details = {"name": "shell", input_field: input_value}
+    tool_call = {"id": "call_1", "type": tool_type, tool_type: details}
+    if malformation == "stream-index":
+        tool_call["index"] = 0
+    elif malformation == "unknown-field":
+        details["cache_control"] = {"type": "ephemeral"}
+    else:
+        del details[input_field]
+
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="m", messages=[{"role": "assistant", "tool_calls": [tool_call]}]
+        )
+
+
+def test_request_dump_preserves_assistant_tool_calls():
+    """Ensures repeated serialization retains function and custom calls with assistant reasoning."""
+    message = {
+        "role": "assistant",
+        "content": "Running both tools.",
+        "reasoning": "Use each tool once.",
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "shell", "arguments": '{"command":"pwd"}'},
+            },
+            {
+                "id": "call_2",
+                "type": "custom",
+                "custom": {"name": "shell", "input": "pwd"},
+            },
+        ],
+    }
+    body = OpenAIChatCompletionsCreateRequest(model="m", messages=[message])
+    expected = {"model": "m", "messages": [message]}
+
+    assert body.model_dump() == expected
+    assert body.model_dump() == expected
+
+
 @pytest.mark.parametrize("role", ["system", "developer", "user", "assistant"])
 def test_request_dump_preserves_content_part_lists(role):
     """Ensures validation and repeated serialization preserve message and part boundaries."""

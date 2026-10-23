@@ -17,7 +17,7 @@ Every row below holds for a translated route (one protocol to another through th
 | Multipart instruction boundaries | Lost | One `SystemPrompt` per instruction part | Text-part content and markers survive; the enclosing instruction-message boundary does not |
 | Assistant-history message container | Preserved where the target can represent it | One `AssistantInput` per source message | Responses separates reasoning and calls from text messages; Chat rejects incompatible part ordering |
 | Ordered assistant-history parts | Preserved, including multipart text and markers | Ordered `AssistantInput.content` | Responses emits each contiguous text run as one message interleaved with standalone reasoning and calls; generated-output containers remain a separate limitation |
-| Raw versus summary reasoning | Classified by provider capability profile | Capability profile | OpenAI/Anthropic profiles = summary; vLLM = raw; explicit Responses events are authoritative |
+| Raw versus summary reasoning | Classified by provider capability profile | Capability profile | OpenAI/Anthropic profiles = summary; vLLM/Together = raw; Together Chat uses `reasoning`; explicit Responses events are authoritative |
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
 | Termination reason | Projected per the shared table | Provider-neutral termination | Reasons without a target equivalent are coerced to that target's normal completion |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized |

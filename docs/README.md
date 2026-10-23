@@ -83,9 +83,11 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
-Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
+Molto never infers providers from URL hostnames or rewrites endpoints. An omitted `provider` defaults to OpenAI for Responses and Chat Completions, and Anthropic for Messages; an explicit provider overrides that default.
 
-Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.
+For Together Chat, select `provider="togetherai"` and `endpoint="chat/completions"`; the client uses `TOGETHER_AI_API_KEY` or an explicit `api_key` and defaults to `https://api.together.ai/v1` unless `base_url` overrides it.
+
+Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` or `reasoning` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM and Together classify it as raw reasoning. The [Chat provider matrix](protocols/openai-chat-completions.md#upstream-stream-normalization) lists each profile's reasoning field.
 
 ## How translation works
 

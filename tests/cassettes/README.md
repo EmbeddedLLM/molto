@@ -14,15 +14,15 @@ Treat these files as provider evidence. Do not edit a recorded value merely to m
 
 ## Error cassettes
 
-The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
+The cassettes under `errors/{scenario}/` preserve recorded error responses. Requests used for cross-protocol comparison are matched in each protocol's native format; recordings awaiting a canonical counterpart stay outside `matched/`:
 
 ```text
 errors/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
 
-Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Add error categories to `ERROR_SCENARIOS` in `tests/core/test_exceptions.py`. The shared test replays streaming requests through the native SDK and every Molto route, asserting SDK error parity, the normalized cause chain, and preservation of the upstream response. It consumes returned streams to cover errors delivered after successful HTTP headers as well as immediate HTTP failures.
+Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Add error categories to `ERROR_SCENARIOS` and provider/protocol pairs to `ERROR_UPSTREAMS` in `tests/core/test_exceptions.py`. The shared `test_error_scenario` matrix parametrizes providers, routes, scenarios, and both request modes, asserting SDK error parity, the normalized cause chain, and preservation of the upstream response. It consumes returned streams to cover errors delivered after successful HTTP headers as well as immediate HTTP failures. Match requests with the scripts before replay; the test setup only separates SDK-only extensions and accounts for execution-mode differences.
 
-Non-streaming error tests use the `non_stream` recordings for every error scenario across all three protocols, covering 12 native and 24 translated cases. Match the Chat Completions and Messages requests to the canonical Responses request with the request-only scripts before adding route coverage. Tests compare the matched model and input directly. The SDK reference replays each cassette in its recorded mode. Molto still streams translated calls upstream, so the expected request accounts only for the execution-mode differences: `stream=true`, Chat Completions usage reporting, and disabled obfuscation when translating from Messages. Recorded HTTP error responses and transport metadata remain unchanged.
+Non-streaming cases use the `non_stream` recordings for participating protocols and providers. Match the Chat Completions and Messages requests to the canonical Responses request with the request-only scripts before adding route coverage. Tests compare the matched model and input directly. The SDK reference replays each cassette in its recorded mode. Molto still streams translated calls upstream, so the expected request accounts only for the execution-mode differences: `stream=true`, Chat Completions usage reporting, and disabled obfuscation when translating from Messages. Recorded HTTP error responses and transport metadata remain unchanged.
 
 Match error-cassette requests before adding a scenario; streaming route tests compare request bodies directly without model or streaming-option adjustments. Use the Responses request as the canonical input, with `stream_options.include_obfuscation: false` when matching Messages routes. The matching scripts support `--request-only` to align counterpart requests while preserving error responses and transport metadata:
 
@@ -31,13 +31,15 @@ python scripts/match_openai_cassette_events.py <chat-cassette> <responses-casset
 python scripts/match_anthropic_cassette_events.py <messages-cassette> <responses-cassette> --request-only
 ```
 
-The context-length streaming requests use the same model and equivalent streaming settings after matching. The Anthropic model in these replay requests is therefore a matching value, not a model to send to the live Anthropic endpoint. Recorded error bodies and SSE events remain unchanged.
+Matched request values are replay inputs and need not reproduce the recorded error on a live endpoint. Recorded error bodies and SSE events remain unchanged.
 
 The streaming and non-streaming recordings under `errors/context_length_exceeded/` have their repeated request text shortened to a single `x` to keep fixtures small and replay fast. The original instruction and recorded responses, including token counts and SSE events, are preserved. These shortened requests test error handling through replay; they no longer reproduce context overflow against a live provider.
 
 An error delivered inside an HTTP `200` stream is recorded under `response.sse`, retaining status `200`; it must not be rewritten as an HTTP `400` error. The OpenAI SDK may raise a plain `APIError` for such an event without attaching an HTTP status to the exception. If the SDK disconnects before the upstream stream finishes, the recorder saves the SSE lines received so far without adding a disconnect marker. That recording may be partial and does not establish which events the provider would have sent afterward.
 
 ## Matched cassettes
+
+**Every cassette in `matched/` must belong to a scenario set aligned using the matching scripts in `scripts/`.** Responses supplies the canonical reference; run the applicable [matching script](#specifications-and-tooling) against it before placing each counterpart here. Keep raw or unmatched provider recordings in provider directories or `recorded/`, including fixtures intended only for native-route tests. Review candidate output outside `matched/` and copy it here only after matching and validation.
 
 The cassettes under `matched/` are deliberately edited fixtures, not untouched recordings. Each scenario contains semantically equivalent native requests and responses for multiple protocols. A correct translator should be able to translate between any pair while preserving every representable semantic value and generating protocol-required structure according to the documented parity policy.
 
@@ -54,6 +56,20 @@ Responses is the canonical behavioral reference. A matched Chat Completions or A
 - replacing Chat Completions (CC) chunk IDs and the Messages message ID with the corresponding Responses response ID.
 
 These edits make translation errors observable without requiring unrelated provider-generated values to coincide by chance.
+
+`tests/core/test_interface.py` discovers provider and endpoint pairs from each scenario's filenames and compares them through the same request and stream assertions. Fixture lookup includes the provider, allowing several providers to serve the same endpoint. Each provider's turn variants must match its counterparts. Unaligned recordings placed under `matched/` fail these comparisons; tests must not hide different text, tool calls, or history to make them agree.
+
+Native Chat routes preserve the caller's request, including extensions, and compare output exactly against SDK replay of the selected upstream response. This also applies when the caller and upstream fixtures belong to different Chat providers. Translated Chat comparisons normalize demonstrated equivalent representations: `reasoning` and `reasoning_content`, empty or null optional fields, and omitted versus repeated function types. The matcher synchronizes duplicate choice-level `text` fields with `delta.content`. Translated comparisons retain this field and accept its absence on either side only after verifying that every provided value equals that choice's content delta, or an empty string when no content is present. Contradictory duplicates fail even when both sides contain the same contradiction. Populated semantic fields, whitespace, and delta boundaries remain observable; native SDK comparisons retain provider extensions and explicit nulls.
+
+Request, history, and cache-policy matching share the interface suite. Standalone SDK parity and public provider regressions live in `tests/core/test_native.py`. These modules reuse `tests/core/cassette_helpers.py` without changing fixture files. Direct provider-client tests belong in `tests/upstream/` and use mocked chunks or HTTP transport without reading cassettes.
+
+Native Chat continuation tests accumulate actual Molto and SDK output, remove only the SDK's tool-call stream indices when constructing history, and compare that history with the next turn's YAML before submitting it. They retain the collected assistant messages and append only the recorded tool results or user inputs. A tool-only `content: ""` is equivalent to omitted content for this comparison; the submitted request retains the actual output value, and the complete HTTP body is checked. Unconverted stream indices must fail before transport.
+
+The shared interface suite also carries actual downstream output through every matched conversation, including translated routes in streaming and non-streaming modes. It collects Chat and Messages streams with their SDK accumulators and takes Responses output from the terminal response. Each subsequent request retains that output and adds only the next YAML's new user input or tool results. Tests compare the entire retained history with the next downstream YAML, check that tool results reference the returned calls in order, and compare the outgoing HTTP body with the upstream YAML. Translated non-streaming tests also compare complete assistant output with SDK-collected downstream fixtures and replay streaming upstream fixtures, matching Molto's collection path. Prompt-cache scenarios remain independent requests.
+
+History comparisons operate on copies and preserve the submitted values. They allow optional Responses output-item IDs and unavailable translated phases, completed-status omission, assistant text shorthand, empty annotations or logprobs, Chat reasoning aliases, empty call lists and tool-only empty content, and Messages' explicit direct-tool caller or empty unsigned-thinking signature. Portable call IDs, text and reasoning bytes, content-part boundaries, call order and arguments, and populated encrypted signatures remain observable. SDK-only tool-call stream indices, empty Chat output annotations, and Messages JSON-parser bookkeeping are removed when constructing request history; Molto's adapters are not used to construct the expected history.
+
+Request extensions unsupported by the SDK's typed arguments are forwarded through `extra_body` during replay, while assertions verify the complete serialized body. Chat's top-level `reasoning` option is forwarded this way; assistant-message reasoning and the Responses protocol's native `reasoning` field remain in their defined locations.
 
 ### Encrypted reasoning
 
@@ -78,7 +94,7 @@ The `matched/{scenario}/` directories currently exercise these scenarios. One sc
 | Scenario | What it exercises |
 | --- | --- |
 | `simple_text` | A single plain-text exchange over every protocol pair. |
-| `reasoning_raw` | Raw reasoning projected through Chat and Messages as well as Responses. Uses `vllm-*` filenames (`provider="vllm"`); see below. |
+| `reasoning_raw` | Raw reasoning projected through Chat and Messages as well as Responses, using raw-reasoning provider profiles. |
 | `reasoning_encrypted` | A summarized reasoning item whose continuation is opaque encrypted state, exercising the encrypted-snapshot mapping. |
 | `input_image_base64` | Base64-data-URL image user input. |
 | `input_image_remote_url` | Remote-URL image user input. |
@@ -90,9 +106,9 @@ The `matched/{scenario}/` directories currently exercise these scenarios. One sc
 | `tool_call_with_reasoning_encrypted` | A tool call whose conversation carries encrypted reasoning continuation across three turns. |
 | `prompt_cache_implicit` | Two requests with automatic caching of a user prefix. |
 | `prompt_cache_explicit` | Two requests with an explicit breakpoint on a system prefix and a changing user suffix. |
-| `error-invalid_request_error` | A native invalid-request error scenario (`error-invalid_request_error`) used to exercise native error passthrough on the relevant route. |
+| `error-invalid_request_error` | Request-matched invalid-request errors that preserve recorded error responses and exercise native error passthrough. |
 
-The `reasoning_raw` scenario is named with `vllm-*` filenames and its test derives `provider="vllm"` from that filename prefix, selecting the raw reasoning profile across all three protocols. A base URL never selects either behavior.
+Tests derive the provider profile from each fixture's filename prefix. The `reasoning_raw` scenario uses profiles that classify reasoning as raw across the participating protocols; a base URL never selects that interpretation.
 
 ### Prompt caching
 
@@ -113,6 +129,14 @@ The detailed contracts are documented in:
 - the [Anthropic Messages opaque thinking policy](../../docs/protocols/anthropic-messages.md#opaque-thinking-state), including the encrypted-reasoning lifecycle policy.
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` to align streaming SSE fixtures. Use `scripts/match_openai_cassette_responses.py` and `scripts/match_anthropic_cassette_responses.py` to align non-streaming JSON response fixtures. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
+
+Record into a provider directory or `tests/cassettes/recorded/`, which is the recorder proxy's default. Use the matchers' `--output` option to prepare candidates outside `matched/`; place the reviewed results and their canonical Responses reference in the matched scenario directory only after validation. For error fixtures, use request-only matching and preserve the recorded error response.
+
+The OpenAI matchers recognize the recorded Chat reasoning field (`reasoning_content` or `reasoning`) and preserve it in matched output and continuation history. They map ordered image input to native Chat content and relocate image tool results after the complete tool-response block. The recorded `max_tokens` or `max_completion_tokens` field receives the canonical output-token limit, while unrelated native request extensions remain present.
+
+The stream matcher groups mixed and interleaved source deltas by canonical output field order, including text between separate tool-call chunks. It retains canonical text and removes source text absent from the canonical response. The final matching pass synchronizes every existing choice-level `text` with `delta.content`, including role, finish, split, and tool-only chunks. Matcher regression tests verify this consistency, and the translated Chat comparison independently checks it without modifying either compared choice. Native empty or null placeholders and provider extensions, including nested tool fields, remain present where their chunks are retained.
+
+When rebuilding tool-call chunks, the matcher emits the assistant role once, including when the source combines role and tool data in one chunk. Regression tests accumulate the matched chunks through the OpenAI SDK to verify the final message, since individually valid chunks can still concatenate into invalid role or identity values.
 
 Relevant test entry points and canonicalization helpers:
 
