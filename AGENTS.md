@@ -24,6 +24,9 @@ The user's job as a senior software engineer is dependent on you implementing cl
   3. Review the full diff for unnecessary abstractions, branches, defensive code, and overly strict guarantees.
   4. Prefer sufficient correctness over absolute correctness when the trade-off is appropriate, such as eventual consistency or simple retries for cheap, recoverable failures.
   5. Simplify immediately when behavior is preserved; otherwise present the proposed change, benefits, and trade-offs to the user.
+
+- **Get Buy-In for Speculative Robustness**: Before adding complexity solely for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode and impact, evidence for its likelihood (or that likelihood is unknown), and the implementation and maintenance cost. Present the simpler alternative and its trade-offs, then get the user's explicit agreement before expanding scope. Reuse existing approval when it already covers that trade-off, and continue independent authorized work while waiting. Do not silently expand scope for theoretical robustness. Unknown likelihood is not evidence that a risk is negligible; this rule does not justify weakening required controls or delaying an already-authorized fix for a demonstrated defect.
+
 - **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files, use `docker compose config --quiet`; do not print fully resolved Compose configuration because it can expand secret environment values into command output.
 
 ## Workflow Orchestration
