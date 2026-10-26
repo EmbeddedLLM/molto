@@ -18,6 +18,12 @@ The user's job as a senior software engineer is dependent on you implementing cl
   6. Does an installed dependency do it? Use it.
   7. Can it be one line? Make it one line.
   8. Only then, implement the minimum that works.
+- **Check Shared Models Before Editing**: A fix at the failing call site may belong in an existing shared layer.
+  1. Before adding or moving a configuration field, inspect its base classes, sibling models, presets, validators, and consumers. Trace how the value reaches runtime through construction and serialization.
+  2. Choose the existing owner by responsibility and intended consumers, not merely where the failing test accepts the field. Use a shared base when the setting belongs to all its consumers; keep variant-specific settings on the relevant model.
+  3. Establish the intended production contract before changing a public API. Tests should verify that contract, not define new requirements implicitly. Explain any change to the contract.
+  4. Verify affected defaults, preset inheritance, override detection, and serialization across consumers, not only the originally failing path.
+
 - **Simplify After Implementation**: Treat the first working version and the requirements behind it as drafts.
   1. Run relevant tests to uncover hidden requirements and assumptions.
   2. Relate every code path to a concrete requirement and challenge whether that requirement is necessary.
