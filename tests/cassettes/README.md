@@ -12,6 +12,8 @@ Recorded headers are informational. In particular, `content-length` is not guara
 
 Treat these files as provider evidence. Do not edit a recorded value merely to make an implementation pass a test. If a committed recording is demonstrably wrong, document the correction and review its diff explicitly.
 
+The existing recordings under `openai/responses/test_incomplete_responses/` are replayed by the active tests in `tests/core/test_interface.py`. They cover native Responses and Responses-to-Chat translation in both streaming modes, comparing partial text and token usage with SDK-parsed recordings and asserting incomplete/length termination. The translated non-streaming case uses the original `non-stream-sse` recording because Molto consumes an upstream stream before collecting the Chat response. These tests preserve the recording bytes and require no live provider access.
+
 ### Multi-turn upstream IR recordings
 
 `upstream_ir/{scenario}/{provider}-{endpoint}-stream-{turn}.yaml` contains independent, unchanged provider recordings for `tests/upstream/test_multi_turn.py`. The scenarios are two-turn `text_chat`, three-turn `tool_use`, and three-turn `tool_use_reasoning`. Text and tool use cover all three upstream clients; reasoning tool use covers Responses and Messages.

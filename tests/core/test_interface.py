@@ -698,6 +698,137 @@ def _assert_matched_response(
         raise AssertionError("Chat Completions cannot preserve encrypted reasoning.")
 
 
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool) -> None:
+    """Ensure truncated native Responses retain SDK text, usage, and terminal metadata."""
+    mode = "stream" if stream else "non-stream"
+    cassette_path = (
+        CASSETTE_DIR
+        / "openai/responses/test_incomplete_responses"
+        / f"test_incomplete_response-{mode}.yaml"
+    )
+    body = deepcopy(_read_cassette(cassette_path)["request"]["body"])
+    async with _get_http_client([cassette_path]) as http_client:
+        sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+        expected = await sdk.responses.create(**body)
+        if stream:
+            expected_events = [event async for event in expected]
+            assert expected_events[-1].type == "response.incomplete"
+            expected = expected_events[-1].response
+
+    async with _get_http_client([cassette_path]) as http_client:
+        client = Molto(http_client=http_client)
+        actual = await client.responses(body=body, endpoint="responses", api_key="test-api-key")
+        if stream:
+            actual_events = [event async for event in actual]
+            assert [event.model_dump() for event in actual_events] == [
+                event.model_dump() for event in expected_events
+            ]
+            actual = actual_events[-1].response
+            assert (
+                "".join(
+                    event.delta
+                    for event in actual_events
+                    if event.type == "response.output_text.delta"
+                )
+                == expected.output_text
+            )
+
+    assert actual.model_dump() == expected.model_dump()
+    assert actual.output_text == expected.output_text != ""
+    assert actual.status == "incomplete"
+    assert actual.incomplete_details.reason == "max_output_tokens"
+    assert actual.usage.input_tokens == expected.usage.input_tokens > 0
+    assert actual.usage.output_tokens == expected.usage.output_tokens == body["max_output_tokens"]
+    assert actual.usage.total_tokens == actual.usage.input_tokens + actual.usage.output_tokens
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+async def test_incomplete_responses_translate_to_chat_with_text_and_usage(stream: bool) -> None:
+    """Ensure translated Chat retains partial text, SDK usage, and length termination."""
+    # Translated non-streaming calls consume SSE; retain the old test's recording
+    # for that mode rather than comparing against an independently generated JSON answer.
+    mode = "stream" if stream else "non-stream-sse"
+    cassette_path = (
+        CASSETTE_DIR
+        / "openai/responses/test_incomplete_responses"
+        / f"test_incomplete_response-{mode}.yaml"
+    )
+    recorded_body = deepcopy(_read_cassette(cassette_path)["request"]["body"])
+    async with _get_http_client([cassette_path]) as http_client:
+        sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+        expected_events = [event async for event in await sdk.responses.create(**recorded_body)]
+    assert expected_events[-1].type == "response.incomplete"
+    expected = expected_events[-1].response
+    assert expected.output_text and expected.usage.output_tokens > 0
+
+    messages = [
+        {"role": "system", "content": recorded_body["instructions"]},
+        *recorded_body["input"],
+    ]
+    body = {
+        "model": recorded_body["model"],
+        "messages": messages,
+        "max_completion_tokens": recorded_body["max_output_tokens"],
+        "stream": stream,
+    }
+    if stream:
+        body["stream_options"] = {"include_usage": True}
+    # Chat expresses instructions as messages; Responses uses developer messages
+    # with typed content on translated requests. Assert the complete wire payload.
+    expected_body = {
+        "model": recorded_body["model"],
+        "input": [
+            {
+                "role": "developer" if message["role"] == "system" else message["role"],
+                "content": [{"type": "input_text", "text": message["content"]}],
+            }
+            for message in messages
+        ],
+        "max_output_tokens": recorded_body["max_output_tokens"],
+        "stream": True,
+    }
+    async with _get_http_client([cassette_path], expected_body=expected_body) as http_client:
+        client = Molto(http_client=http_client)
+        actual = await client.chat_completions(
+            body=body, endpoint="responses", api_key="test-api-key"
+        )
+        if stream:
+            chunks = [chunk async for chunk in actual]
+            text = "".join(
+                choice.delta.content or "" for chunk in chunks for choice in chunk.choices
+            )
+            finish_reasons = [
+                choice.finish_reason
+                for chunk in chunks
+                for choice in chunk.choices
+                if choice.finish_reason is not None
+            ]
+            usages = [chunk.usage for chunk in chunks if chunk.usage is not None]
+            assert len(usages) == 1
+            usage = usages[0]
+        else:
+            assert len(actual.choices) == 1
+            text = actual.choices[0].message.content
+            finish_reasons = [actual.choices[0].finish_reason]
+            usage = actual.usage
+
+    assert text == expected.output_text
+    assert finish_reasons == ["length"]
+    assert usage.prompt_tokens == expected.usage.input_tokens
+    assert usage.completion_tokens == expected.usage.output_tokens == body["max_completion_tokens"]
+    assert usage.total_tokens == expected.usage.total_tokens
+    assert usage.total_tokens == usage.prompt_tokens + usage.completion_tokens
+    assert (
+        usage.prompt_tokens_details.cached_tokens
+        == expected.usage.input_tokens_details.cached_tokens
+    )
+    assert (
+        usage.completion_tokens_details.reasoning_tokens
+        == expected.usage.output_tokens_details.reasoning_tokens
+    )
+
+
 async def _assert_matched_non_stream(
     scenario: str,
     downstream: Protocol,
