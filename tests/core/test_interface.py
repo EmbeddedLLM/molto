@@ -701,11 +701,9 @@ def _assert_matched_response(
 @pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
 async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool) -> None:
     """Ensure truncated native Responses retain SDK text, usage, and terminal metadata."""
-    mode = "stream" if stream else "non-stream"
+    mode = "stream" if stream else "non_stream"
     cassette_path = (
-        CASSETTE_DIR
-        / "openai/responses/test_incomplete_responses"
-        / f"test_incomplete_response-{mode}.yaml"
+        CASSETTE_DIR / "errors/incomplete_response" / f"openai-responses-{mode}-00.yaml"
     )
     body = deepcopy(_read_cassette(cassette_path)["request"]["body"])
     async with _get_http_client([cassette_path]) as http_client:
@@ -746,14 +744,8 @@ async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool)
 @pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
 async def test_incomplete_responses_translate_to_chat_with_text_and_usage(stream: bool) -> None:
     """Ensure translated Chat retains partial text, SDK usage, and length termination."""
-    # Translated non-streaming calls consume SSE; retain the old test's recording
-    # for that mode rather than comparing against an independently generated JSON answer.
-    mode = "stream" if stream else "non-stream-sse"
-    cassette_path = (
-        CASSETTE_DIR
-        / "openai/responses/test_incomplete_responses"
-        / f"test_incomplete_response-{mode}.yaml"
-    )
+    # Both downstream modes consume the same upstream stream before projection.
+    cassette_path = CASSETTE_DIR / "errors/incomplete_response" / "openai-responses-stream-00.yaml"
     recorded_body = deepcopy(_read_cassette(cassette_path)["request"]["body"])
     async with _get_http_client([cassette_path]) as http_client:
         sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
