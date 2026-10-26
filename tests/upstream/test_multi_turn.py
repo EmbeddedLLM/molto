@@ -1,4 +1,3 @@
-from base64 import b64encode
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -204,14 +203,11 @@ async def test_multi_turn_text_and_image_chat(client_type) -> None:
         ):
             image_path = Path(__file__).parents[1] / "files" / filename
             media_type = "image/png" if filename.endswith(".png") else "image/jpeg"
-            image_url = (
-                f"data:{media_type};base64,{b64encode(image_path.read_bytes()).decode('ascii')}"
-            )
             request.input.append(
                 UserInput(
                     content=[
                         TextInput(content=prompt),
-                        ImageUrlInput(url=image_url),
+                        ImageUrlInput.from_bytes(image_path.read_bytes(), media_type),
                         TextInput(content="Answer in one sentence."),
                     ]
                 )

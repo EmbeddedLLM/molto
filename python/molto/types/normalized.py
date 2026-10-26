@@ -1,3 +1,4 @@
+from base64 import b64encode
 from collections.abc import Callable, Iterator
 from textwrap import dedent
 from time import time
@@ -62,6 +63,11 @@ class ImageUrlInput(StrictModel):
         Literal["image-url-input"],
         Field(description="Content type identifier as a discriminator."),
     ] = "image-url-input"
+
+    @classmethod
+    def from_bytes(cls, data: bytes, media_type: str) -> Self:
+        """Construct an image input with a base64 data URL from bytes and a media type."""
+        return cls(url=f"data:{media_type};base64,{b64encode(data).decode('ascii')}")
 
 
 UserContent = Annotated[
