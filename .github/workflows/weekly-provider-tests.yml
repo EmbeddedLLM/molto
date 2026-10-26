@@ -1,19 +1,14 @@
 name: OpenAI OpenAPI compatibility
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     - cron: "0 9 * * 2"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
