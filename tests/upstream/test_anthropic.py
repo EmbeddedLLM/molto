@@ -960,13 +960,14 @@ def test_request_rejects_file_image_source():
 
 
 def test_client_projects_image_parts_as_image_blocks():
+    """Ensures byte-backed and remote image inputs project to native image blocks."""
     body = AnthropicMessagesClient._request_body(
         NormalizedRequest(
             input=[
                 UserInput(
                     content=[
                         TextInput(content="before"),
-                        ImageUrlInput(url="data:image/png;base64,AA=="),
+                        ImageUrlInput.from_bytes(b"\x00", "image/png"),
                         ImageUrlInput(url="https://example.test/b.png"),
                         TextInput(content="after"),
                     ]
@@ -999,10 +1000,9 @@ def test_client_projects_image_parts_as_image_blocks():
 
 @pytest.mark.parametrize("detail", ["low", "high", "original"])
 def test_client_rejects_unrepresentable_image_detail(detail: str):
+    """Ensures byte-backed images retain fidelity settings that Messages cannot represent."""
     request = NormalizedRequest(
-        input=[
-            UserInput(content=[ImageUrlInput(url="data:image/png;base64,AA==", detail=detail)])
-        ],
+        input=[UserInput(content=[ImageUrlInput.from_bytes(b"\x00", "image/png", detail=detail)])],
         max_output_tokens=2048,
         model="compatible-model",
         stream=True,

@@ -65,9 +65,16 @@ class ImageUrlInput(StrictModel):
     ] = "image-url-input"
 
     @classmethod
-    def from_bytes(cls, data: bytes, media_type: str) -> Self:
-        """Construct an image input with a base64 data URL from bytes and a media type."""
-        return cls(url=f"data:{media_type};base64,{b64encode(data).decode('ascii')}")
+    def from_bytes(
+        cls,
+        data: bytes,
+        media_type: str,
+        detail: Literal["auto", "low", "high", "original"] | None = None,
+    ) -> Self:
+        """Construct a base64 image input with an optional fidelity setting."""
+        return cls(
+            url=f"data:{media_type};base64,{b64encode(data).decode('ascii')}", detail=detail
+        )
 
 
 UserContent = Annotated[
