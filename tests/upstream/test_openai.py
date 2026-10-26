@@ -511,7 +511,6 @@ def test_responses_client_rejects_message_identity_on_mixed_assistant_content(pa
 
 
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
-    """Ensures byte-backed tool images follow all parallel tool messages."""
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call all tools.")]),
@@ -538,11 +537,11 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
             ),
             ToolReturn(
                 tool_call_id="call_a",
-                content=[ImageUrlInput.from_bytes(b"\x00", "image/png")],
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
             ToolReturn(
                 tool_call_id="call_b",
-                content=[ImageUrlInput.from_bytes(b"\x00", "image/png")],
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
             ToolReturn(
                 tool_call_id="call_c",
@@ -550,7 +549,7 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
             ),
             ToolReturn(
                 tool_call_id="call_d",
-                content=[ImageUrlInput.from_bytes(b"\x00", "image/png")],
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
             UserInput(content=[TextInput(content="Summarize all results.")]),
         ],
@@ -720,7 +719,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
             ),
             ToolReturn(
                 tool_call_id="call_a",
-                content=[ImageUrlInput.from_bytes(b"\x00", "image/png")],
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
             ToolReturn(
                 tool_call_id="call_b",
@@ -734,7 +733,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
             ),
             ToolReturn(
                 tool_call_id="call_c",
-                content=[ImageUrlInput.from_bytes(b"\x00", "image/png")],
+                content=[ImageUrlInput(url="data:image/png;base64,AA==")],
             ),
             AssistantInput(content=[TextOutput(content="Assistant reply.")]),
             UserInput(content=[TextInput(content="Summarize both results.")]),
