@@ -1,3 +1,4 @@
+from base64 import b64encode
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.normalized import (
     AssistantInput,
     FunctionTool,
+    ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
     PartDeltaEvent,
@@ -41,7 +43,9 @@ CLIENT_SETTINGS = {
 
 
 @asynccontextmanager
-async def _replay_client(client_type, scenario: str, turns: int):
+async def _replay_client(
+    client_type, scenario: str, turns: int, *, requests: list[httpx.Request] | None = None
+):
     provider, endpoint = CLIENT_SETTINGS[client_type]
     cassettes = [
         read_yaml(CASSETTE_DIR / scenario / f"{provider}-{endpoint}-stream-{turn:02}.yaml")
@@ -59,6 +63,8 @@ async def _replay_client(client_type, scenario: str, turns: int):
         # opaque reasoning snapshots reach the next turn without being changed.
         assert json_loads(request.content) == cassette["request"]["body"]
         assert cassette["response"]["status_code"] == 200
+        if requests is not None:
+            requests.append(request)
         consumed += 1
         return httpx.Response(
             200,
@@ -174,6 +180,128 @@ async def test_multi_turn_text_chat(client_type) -> None:
                         UserInput(content=[TextInput(content="Explain why that name fits.")]),
                     ]
                 )
+
+
+@pytest.mark.parametrize("client_type", CLIENTS, ids=lambda cls: cls.__name__)
+async def test_multi_turn_text_and_image_chat(client_type) -> None:
+    """Ensures mixed text/image parts stay in one user message across conversation turns."""
+    requests = []
+    async with _replay_client(client_type, "text_image_chat", turns=2, requests=requests) as (
+        client,
+        model,
+    ):
+        request = NormalizedRequest(
+            model=model,
+            stream=True,
+            max_output_tokens=512,
+            reasoning=Reasoning(effort="none"),
+            input=[],
+        )
+        response_ids = set()
+        for filename, prompt in (
+            ("github.png", "Describe this image."),
+            ("xlsx.jpg", "How does this image differ from the previous one?"),
+        ):
+            image_path = Path(__file__).parents[1] / "files" / filename
+            media_type = "image/png" if filename.endswith(".png") else "image/jpeg"
+            image_url = (
+                f"data:{media_type};base64,{b64encode(image_path.read_bytes()).decode('ascii')}"
+            )
+            request.input.append(
+                UserInput(
+                    content=[
+                        TextInput(content=prompt),
+                        ImageUrlInput(url=image_url),
+                        TextInput(content="Answer in one sentence."),
+                    ]
+                )
+            )
+            expected_input = request.model_copy(deep=True).input
+            events = [event async for event in client.events(request)]
+            parts = _assert_ir(events)
+            assert all(isinstance(part, TextOutput) for part in parts)
+            assert events[0].id not in response_ids
+            response_ids.add(events[0].id)
+            assert request.input == expected_input
+
+            body = json_loads(requests[-1].content)
+            messages = body["input"] if client_type is OpenAIResponsesClient else body["messages"]
+            assert [message["role"] for message in messages] == [
+                "user" if isinstance(item, UserInput) else "assistant" for item in expected_input
+            ]
+            text_type, image_type = {
+                OpenAIResponsesClient: ("input_text", "input_image"),
+                OpenAIChatCompletionsClient: ("text", "image_url"),
+                AnthropicMessagesClient: ("text", "image"),
+            }[client_type]
+            for message in messages:
+                if message["role"] == "user":
+                    assert [part["type"] for part in message["content"]] == [
+                        text_type,
+                        image_type,
+                        text_type,
+                    ]
+            request.input.append(AssistantInput(content=parts))
+
+
+@pytest.mark.parametrize("client_type", CLIENTS, ids=lambda cls: cls.__name__)
+async def test_multi_turn_consecutive_user_text_inputs(client_type) -> None:
+    """Ensures adjacent user messages and text parts retain their boundaries across turns."""
+    requests = []
+    async with _replay_client(
+        client_type, "consecutive_user_text", turns=2, requests=requests
+    ) as (
+        client,
+        model,
+    ):
+        request = NormalizedRequest(
+            model=model,
+            stream=True,
+            max_output_tokens=512,
+            reasoning=Reasoning(effort="none"),
+            input=[],
+        )
+        response_ids = set()
+        for prompts in (
+            (
+                ("Help me plan a small vegetable garden.", "The garden gets morning sun."),
+                ("Suggest two plants.", "Keep your answer to one sentence."),
+            ),
+            (
+                ("I can water it every morning.", "I have room for two pots."),
+                (
+                    "Refine your suggestion using those details.",
+                    "Keep your answer to one sentence.",
+                ),
+            ),
+        ):
+            request.input.extend(
+                UserInput(content=[TextInput(content=text) for text in message])
+                for message in prompts
+            )
+            expected_input = request.model_copy(deep=True).input
+            events = [event async for event in client.events(request)]
+            parts = _assert_ir(events)
+            assert all(isinstance(part, TextOutput) for part in parts)
+            assert events[0].id not in response_ids
+            response_ids.add(events[0].id)
+            assert request.input == expected_input
+
+            body = json_loads(requests[-1].content)
+            messages = body["input"] if client_type is OpenAIResponsesClient else body["messages"]
+            assert [message["role"] for message in messages] == [
+                "user" if isinstance(item, UserInput) else "assistant" for item in expected_input
+            ]
+            assert [
+                [part["text"] for part in message["content"]]
+                for message in messages
+                if message["role"] == "user"
+            ] == [
+                [part.content for part in item.content]
+                for item in expected_input
+                if isinstance(item, UserInput)
+            ]
+            request.input.append(AssistantInput(content=parts))
 
 
 async def _assert_tool_conversation(client_type, *, reasoning: bool) -> None:

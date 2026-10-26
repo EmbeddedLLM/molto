@@ -1,0 +1,420 @@
+filename: 2026-10-26-01a17806-b9f6-75e0-88bd-174ea24d4acd
+request:
+  body:
+    input:
+    - content:
+      - text: Help me plan a small vegetable garden.
+        type: input_text
+      - text: The garden gets morning sun.
+        type: input_text
+      role: user
+    - content:
+      - text: Suggest two plants.
+        type: input_text
+      - text: Keep your answer to one sentence.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        logprobs: []
+        text: With morning sun, consider planting **leafy greens like lettuce** and
+          **fast-growing herbs like basil**.
+        type: output_text
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: I can water it every morning.
+        type: input_text
+      - text: I have room for two pots.
+        type: input_text
+      role: user
+    - content:
+      - text: Refine your suggestion using those details.
+        type: input_text
+      - text: Keep your answer to one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 512
+    model: gpt-5.4-nano
+    reasoning:
+      effort: none
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '957'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a17806-b9f6-75e0-88bd-174ea24d4acd
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0eb0f518f62cfcca006adf3d1d5aac87d0a9147c937a383921","object":"response","created_at":1793015069,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-5.4-nano-2026-03-17","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0eb0f518f62cfcca006adf3d1d5aac87d0a9147c937a383921","object":"response","created_at":1793015069,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-5.4-nano-2026-03-17","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","type":"message","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"With","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"rGEG9pyoJ5en","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" morning","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"JZ57Wzdv","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" sun","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"Sdm8oVcY9ORI","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"ZRKwPEKfHYBh","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" daily","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"M25Rc5aGYm","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" morning","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"hM6EauwP","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" watering","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"YSAZKXm","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":",","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"Y7gpdlQFZh4sBlg","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" choose","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"YgY8UGxCD","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"tJOdRkICRUA4m","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"lett","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"3ofR9YbFtTf7","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"uce","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"oIM7bBuJ7VOBc","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"**","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"oFY97VKZeJAPBW","output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"XE9f1kg7Exeq","output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"D3sBmaNs6MuV4","output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"b","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"5eaZog5EkGxkQ4a","output_index":0,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"asil","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"EbPt2SkbXa4w","output_index":0,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"**,","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"K5YYlJ5Dpnygj","output_index":0,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" both","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"aDjkq04816Q","output_index":0,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" well","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"J5BUs81nwfq","output_index":0,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"-s","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"27Mru05f9UiMKF","output_index":0,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"uited","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"Fy8NIbdtmcA","output_index":0,"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" to","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"tB76m0hs9REV2","output_index":0,"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" two","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"P6OOcsmbZN2P","output_index":0,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" pots","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"172wPMHhnsF","output_index":0,"sequence_number":28}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"RjuWjItUAxtp","output_index":0,"sequence_number":29}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" quick","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"GzNsekuRj3","output_index":0,"sequence_number":30}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":",","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"5vYiQ3Ba1teKU83","output_index":0,"sequence_number":31}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" steady","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"2p6TNR4tn","output_index":0,"sequence_number":32}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" growth","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"W4U8tcJjG","output_index":0,"sequence_number":33}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":".","item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"obfuscation":"mffdTkf8OP4GHyn","output_index":0,"sequence_number":34}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","logprobs":[],"output_index":0,"sequence_number":35,"text":"With
+    morning sun and daily morning watering, choose **lettuce** and **basil**, both
+    well-suited to two pots and quick, steady growth."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"With
+    morning sun and daily morning watering, choose **lettuce** and **basil**, both
+    well-suited to two pots and quick, steady growth."},"sequence_number":36}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"With
+    morning sun and daily morning watering, choose **lettuce** and **basil**, both
+    well-suited to two pots and quick, steady growth."}],"phase":"final_answer","role":"assistant"},"output_index":0,"sequence_number":37}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0eb0f518f62cfcca006adf3d1d5aac87d0a9147c937a383921","object":"response","created_at":1793015069,"status":"completed","access_programs":null,"background":false,"completed_at":1793015069,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":512,"max_tool_calls":null,"model":"gpt-5.4-nano-2026-03-17","moderation":null,"output":[{"id":"msg_0eb0f518f62cfcca006adf3d1da25087d0b6244e5f0c35e522","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"With
+    morning sun and daily morning watering, choose **lettuce** and **basil**, both
+    well-suited to two pots and quick, steady growth."}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":98,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":35,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":133},"user":null,"metadata":{}},"sequence_number":38}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-26T11:44:29.174560+00:00'
