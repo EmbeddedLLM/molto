@@ -18,12 +18,30 @@ The user's job as a senior software engineer is dependent on you implementing cl
   6. Does an installed dependency do it? Use it.
   7. Can it be one line? Make it one line.
   8. Only then, implement the minimum that works.
+- **Validate the Approach Before Implementing**: For non-trivial changes, distinguish the required outcome from the proposed implementation. Treat suggestions, including those in issues and plans, as hypotheses.
+  1. Identify the behavior and existing state that must be preserved.
+  2. Check existing code and native platform capabilities for a solution that requires less change.
+  3. Resolve uncertain behavior through authoritative documentation or a focused experiment before coding.
+  4. Require evidence that a simpler approach is insufficient before adding complexity or performing a destructive operation.
+  5. Derive tests from required behavior and preservation requirements, rather than assumptions about the implementation.
+
+  Keep this proportional: straightforward changes do not need a written alternatives analysis.
+
 - **Simplify After Implementation**: Treat the first working version and the requirements behind it as drafts.
   1. Run relevant tests to uncover hidden requirements and assumptions.
   2. Relate every code path to a concrete requirement and challenge whether that requirement is necessary.
   3. Review the full diff for unnecessary abstractions, branches, defensive code, and overly strict guarantees.
   4. Prefer sufficient correctness over absolute correctness when the trade-off is appropriate, such as eventual consistency or simple retries for cheap, recoverable failures.
   5. Simplify immediately when behavior is preserved; otherwise present the proposed change, benefits, and trade-offs to the user.
+
+- **Get Buy-In for Speculative Robustness**: Before adding complexity solely for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode and impact, evidence for its likelihood (or that likelihood is unknown), and the implementation and maintenance cost. Present the simpler alternative and its trade-offs, then get the user's explicit agreement before expanding scope. Reuse existing approval when it already covers that trade-off, and continue independent authorized work while waiting. Do not silently expand scope for theoretical robustness. Unknown likelihood is not evidence that a risk is negligible; this rule does not justify weakening required controls or delaying an already-authorized fix for a demonstrated defect.
+
+- **Check Shared Models Before Editing**: A fix at the failing call site may belong in an existing shared layer.
+  1. Before adding or moving a configuration field, inspect its base classes, sibling models, presets, validators, and consumers. Trace how the value reaches runtime through construction and serialization.
+  2. Choose the existing owner by responsibility and intended consumers, not merely where the failing test accepts the field. Use a shared base when the setting belongs to all its consumers; keep variant-specific settings on the relevant model.
+  3. Establish the intended production contract before changing a public API. Tests should verify that contract, not define new requirements implicitly. Explain any change to the contract.
+  4. Verify affected defaults, preset inheritance, override detection, and serialization across consumers, not only the originally failing path.
+
 - **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files, use `docker compose config --quiet`; do not print fully resolved Compose configuration because it can expand secret environment values into command output.
 
 ## Workflow Orchestration
@@ -42,6 +60,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
 - Offload research, exploration, and parallel analysis to subagents
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
+- Ask reviewers to challenge the necessity of the proposed mechanism and identify simpler existing alternatives, as well as checking correctness.
 
 ### 3. Task Tracking
 
@@ -143,13 +162,21 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - Avoid modifying generated files unless the project workflow requires regeneration.
 - Keep unrelated formatting, refactors, dependency updates, and lockfile changes out of the diff.
 
+## Closing Issues
+
+- Before closing an issue as completed, review its requirements, the merged changes, and the current source on the default branch to confirm it is fully resolved.
+- Leave a brief closing comment stating where the fix is available, summarizing the resulting behavior, and linking the merged PRs and commit URLs. State what was verified and any remaining limitations.
+- Close as completed only when the issue is resolved. For duplicates, superseded work, or declined requests, explain the reason and link the replacement issue when applicable.
+
 # PR Descriptions
 
 - Use the structure below for GitHub PR descriptions and dated task completion records.
+- Start PR descriptions with `## Summary`; do not repeat the PR title in the description. Dated task completion records should prepend a `# <task title>` heading.
 - Before choosing a PR title, review the latest commits on the remote main branch (`git fetch origin main`, then `git log origin/main -10 --format=%s`) and follow the style of comparable changes, preferring area prefixes found in that history.
 - Use declarative statements to describe completed changes, their purpose, and resulting behavior. For example "Replaced ..." or "The workflow now uses ...".
 - Lead with the concrete problem and resulting behavior. Write for a reviewer who has not read the conversation, and keep details proportional to the change.
 - Keep the title and description aligned with the final diff. Omit conversational history and abandoned approaches unless they explain a necessary trade-off.
+- When updating a PR, review and rewrite the Summary section as needed to reflect the latest state of the entire PR. Do not merely append a bullet for each new commit pushed; consolidate or remove outdated bullets so the summary describes the current changes coherently.
 - List verification commands and their actual outcomes. Include failed or skipped checks and their reasons; never claim an unrun check passed. Distinguish completed implementation from unverified deployment or runtime behavior.
 
 ```markdown
@@ -217,3 +244,14 @@ Treat it as a dated snapshot, not a source of truth. SDK releases appear continu
 - Review the final diff and confirm the result is materially simpler.
 - Always provide concrete findings and recommended solutions.
 - Check compliance with this `AGENTS.md` and project conventions.
+
+### Publishing PR review findings
+
+- When publishing a GitHub PR review, prefer inline review comments attached to the affected diff lines for actionable, code-specific findings.
+- Anchor each finding to the smallest relevant line range on the reviewed commit. Explain the problem, its concrete impact or reproduction, and the recommended fix. Include severity when the repository's review format uses it.
+- Keep separate findings in separate inline threads. Before posting, check existing comments to avoid duplicating the same finding.
+- Use the review body for a concise overall assessment, verification results, and findings that cannot reasonably be attached to a diff line. Reference inline threads instead of repeating their full contents.
+- If GitHub cannot anchor a finding to the relevant code, use a review-level comment with an explicit file/line or commit permalink. Do not attach it to unrelated changed lines merely to make it inline.
+- Follow an explicit user request for a different review format.
+
+These rules govern how a review is published; a request to review code alone does not authorize posting publicly.

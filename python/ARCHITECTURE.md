@@ -24,6 +24,14 @@ Native same-protocol and cross-protocol routes support streaming and non-streami
 
 Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
+### Endpoint selection belongs to the coordinator
+
+Each upstream client implements one upstream wire protocol. A client must not switch or override the selected endpoint to accommodate a provider's supported protocols. Implement provider-specific clients only for protocols that the provider supports, reusing the existing protocol client where possible. For example, if Together AI supports only Chat Completions, implement `TogetherAIChatCompletionsClient`; do not implement a Responses client that silently sends Chat Completions requests.
+
+Any desired provider-specific endpoint default, forced switch, or override belongs in the `Molto` coordinator. Resolve the effective upstream endpoint before selecting the client and deciding between native passthrough and translation. The coordinator must preserve its downstream protocol contract: a Responses request routed through `TogetherAIChatCompletionsClient` uses the Responses adapter and normalized translation path.
+
+This defines ownership of any future routing policy; it does not introduce automatic endpoint switching. The current explicit-provider behavior described above remains unchanged.
+
 ## Architectural goal
 
 The long-term goal from `PLAN.md` remains valid: Molto should be a drop-in protocol and SDK compatibility layer without implementing a translator for every provider pair.
@@ -270,7 +278,7 @@ Responses and Chat Completions also project every normalized instruction as a `d
 
 Tool results follow the same canonical-part rule. `ToolReturn.content` is an ordered list of `TextInput` and `ImageUrlInput` parts. Adapters wrap a native scalar result in one text part. Responses and Messages project both part types directly. Chat Completions tool messages accept only text content, so its upstream client leaves text in the tool message and relocates images into subsequent user messages. It emits every tool response for an assistant's tool-call block contiguously before those user messages, and rejects cache markers whose prefix that relocation would change.
 
-User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
+User images follow the same ordered-part rule: a normalized `ImageUrlInput` holds a remote URL or data URL and projects to a Responses `input_image` part, a Chat Completions `image_url` part, or an Anthropic Messages `image` block. `ImageUrlInput.from_bytes(data, media_type, detail=None)` constructs an image input with a base64 data URL from raw bytes, an explicit media type, and optional image fidelity. Chat Completions cannot represent the `original` detail value and Anthropic has no fidelity control at all, so those projections reject an unrepresentable `detail` rather than dropping it.
 
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 

@@ -12,6 +12,16 @@ Recorded headers are informational. In particular, `content-length` is not guara
 
 Treat these files as provider evidence. Do not edit a recorded value merely to make an implementation pass a test. If a committed recording is demonstrably wrong, document the correction and review its diff explicitly.
 
+### Multi-turn upstream IR recordings
+
+`upstream_ir/{scenario}/{provider}-{endpoint}-stream-{turn}.yaml` contains independent, unchanged provider recordings for `tests/upstream/test_multi_turn.py`. The scenarios are two-turn `text_chat`, `text_image_chat`, and `consecutive_user_text`, plus three-turn `tool_use` and `tool_use_reasoning`. Text, multimodal input, consecutive user messages, and tool use cover all three upstream clients; reasoning tool use covers Responses and Messages.
+
+`text_image_chat` sends text, an image, and trailing text in one user message on each turn, using the existing `tests/files/github.png` and `tests/files/xlsx.jpg` fixtures as data URLs. `consecutive_user_text` sends two adjacent user messages, each with two text parts, before each assistant response. Both scenarios retain actual assistant output as history and assert that the input IR is not mutated. They also inspect outgoing message roles and content grouping independently of cassette equality, so the expected fixtures cannot silently permit merged user messages or split multimodal parts. These are upstream-client projection checks; incoming request normalization remains covered by the adapter tests.
+
+These requests were recorded outside pytest through `scripts/recorder_proxy.py`, forwarding to the official OpenAI and Anthropic APIs. A standalone driver used `httpx.ASGITransport(app=recorder_proxy.app)` to call the recording proxy in process; the proxy's HTTP client performed the live requests. Each response's completed IR parts became assistant history for the next request. Tool results referenced the returned call IDs, and reasoning continuations retained the returned opaque state. The proxy files were renamed without changing their bytes. Authorization is masked, and Anthropic API-key headers are excluded by the recorder's header whitelist.
+
+Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
+
 ## Error cassettes
 
 The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
@@ -19,6 +29,8 @@ The cassettes under `errors/{scenario}/` preserve the native request and error r
 ```text
 errors/{scenario}/{provider}-{endpoint}-{mode}-{turn}.yaml
 ```
+
+`errors/incomplete_response/` contains HTTP `200` Responses recordings that stop at `max_output_tokens`. These are incomplete results, not API exceptions, so they are covered in `tests/core/test_interface.py` rather than `ERROR_SCENARIOS`. The tests cover native Responses and Responses-to-Chat translation in both downstream modes, comparing partial text and token usage with SDK-parsed recordings and asserting incomplete/length termination. Native non-streaming replay uses `openai-responses-non_stream-00.yaml`; native streaming and both translated modes share `openai-responses-stream-00.yaml`, because translated non-streaming calls still consume an upstream stream. Both files were moved unchanged from `openai/responses/test_incomplete_responses/`; the redundant `test_incomplete_response-non-stream-sse.yaml` recording was removed.
 
 Unlike matched success cassettes, equivalent errors are not rewritten to share a status code, message, or body shape. Those differences are the behavior under test. Cross-protocol tests combine the request from the downstream protocol's cassette with the response from the upstream protocol's cassette. Add error categories to `ERROR_SCENARIOS` in `tests/core/test_exceptions.py`. The shared test replays streaming requests through the native SDK and every Molto route, asserting SDK error parity, the normalized cause chain, and preservation of the upstream response. It consumes returned streams to cover errors delivered after successful HTTP headers as well as immediate HTTP failures.
 

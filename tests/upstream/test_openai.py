@@ -2778,7 +2778,7 @@ async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Ensures request and response projection preserve opaque reasoning continuation."""
+    """Ensures opaque reasoning history omits the output-only status rejected by OpenAI."""
     captured_requests: list[OpenAIResponsesCreateRequest] = []
 
     async def stub_native_events(
@@ -2811,7 +2811,9 @@ async def test_responses_events_forward_same_provider_opaque_reasoning_state(
         ]
 
     assert events == []
-    assert captured_requests[0].model_dump()["input"][0]["encrypted_content"] == "request-state"
+    reasoning = captured_requests[0].model_dump()["input"][0]
+    assert reasoning["encrypted_content"] == "request-state"
+    assert "status" not in reasoning
 
 
 @pytest.mark.parametrize(

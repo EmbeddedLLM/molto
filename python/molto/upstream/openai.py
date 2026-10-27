@@ -510,9 +510,9 @@ class OpenAIResponsesClient(
             elif isinstance(item, Thinking):
                 if item.summary and not item.signature:
                     raise UnsupportedInput("A Responses reasoning summary requires a signature.")
+                # OpenAI rejects output lifecycle status on reasoning history input.
                 reasoning_item = {
                     "type": "reasoning",
-                    "status": "completed",
                     "summary": (
                         [{"type": "summary_text", "text": item.summary}] if item.summary else []
                     ),
