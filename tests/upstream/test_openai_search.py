@@ -494,8 +494,14 @@ async def test_translated_search_merges_transport_include_without_duplicates(inc
         ],
     ],
 )
-async def test_search_history_without_tool_declaration_still_defers_citations(history):
-    """Ensures cited follow-ups remain buffered even when the current turn omits tool declarations."""
+@pytest.mark.parametrize("override", [False, True])
+async def test_search_history_without_tool_declaration_still_defers_citations(history, override):
+    """Ensures typed and overridden search or citation history buffers follow-ups without tools."""
+    request = NormalizedRequest(model="m", input=history, stream=True)
+    extra_body = None
+    if override:
+        extra_body = {"input": OpenAIResponsesClient._request_body(request)["input"]}
+        request.input = []
     part = {"type": "output_text", "text": "answer", "annotations": []}
     item = {
         "id": "msg_1",
@@ -525,13 +531,62 @@ async def test_search_history_without_tool_declaration_still_defers_citations(hi
             _event("response.output_item.done", output_index=0, item=item),
             _event("response.completed", response=_response([item])),
         ],
-        normalized_request=NormalizedRequest(model="m", input=history, stream=True),
+        normalized_request=request,
+        extra_body=extra_body,
     )
     assert all(
         event.part.defer_citations
         for event in events
         if isinstance(event, (PartStartEvent, PartEndEvent)) and isinstance(event.part, TextOutput)
     )
+
+
+@pytest.mark.parametrize(
+    "input_override", [None, [], "New question", [{"role": "user", "content": "New question"}]]
+)
+async def test_input_override_removes_search_history_buffering(input_override):
+    """Ensures replacing search history with plain input does not retain stale citation buffering."""
+    part = {"type": "output_text", "text": "answer", "annotations": []}
+    item = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [part],
+    }
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
+            _event(
+                "response.content_part.added",
+                output_index=0,
+                content_index=0,
+                item_id="msg_1",
+                part={**part, "text": ""},
+            ),
+            _event(
+                "response.content_part.done",
+                output_index=0,
+                content_index=0,
+                item_id="msg_1",
+                part=part,
+            ),
+            _event("response.output_item.done", output_index=0, item=item),
+            _event("response.completed", response=_response([item])),
+        ],
+        normalized_request=NormalizedRequest(
+            model="m", input=[SearchCall(id="ws_1")], stream=True
+        ),
+        extra_body={"input": input_override},
+    )
+    texts = [
+        event.part
+        for event in events
+        if isinstance(event, PartStartEvent) and isinstance(event.part, TextOutput)
+    ]
+    assert len(texts) == 1
+    assert not texts[0].defer_citations
 
 
 async def test_reported_search_usage_without_token_usage_is_retained():

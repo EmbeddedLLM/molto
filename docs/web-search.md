@@ -88,12 +88,12 @@ Translated Chat omits structured annotations in both modes. It preserves actual 
 
 ## Search activity and results
 
-Responses search actions become Messages `server_tool_use` blocks followed by linked `web_search_tool_result` blocks. Emission waits until the action and arguments are known.
+In translated output, Responses search actions become Messages `server_tool_use` blocks followed by linked `web_search_tool_result` blocks. Emission waits until the action and arguments are known.
 
 - A non-empty `queries` list produces one `server_tool_use` block per entry, in order. Repeated query strings remain separate invocations. Otherwise a present singular `query` supplies `input.query`.
 - Missing or null query metadata, including an empty query list without a singular query, produces `input: {}`.
 - An explicitly empty query remains `input: {"query":""}`.
-- The first invocation retains the original search ID; additional invocations receive distinct generated IDs. The upstream result contains pooled sources without per-query attribution, so it appears once, linked to the original ID. Additional invocations have no separately attributable result. The same mapping applies when projecting search history to a Messages upstream.
+- The first invocation retains the original search ID; additional invocations receive distinct generated IDs. The upstream result contains pooled sources without per-query attribution, so it appears once, linked to the original ID. Additional invocations have no separately attributable result.
 
 Observed Responses sources become result entries. A URL-only source produces this illustrative result:
 
@@ -142,7 +142,9 @@ Native usage is preserved. Token translation is unchanged. Messages search count
 
 ## Follow-ups and recovery
 
-Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search.
+Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. When targeting Responses, citation buffering follows the effective upstream history, including replacement history supplied through `extra_body.input`.
+
+Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 
 When projecting Messages history to Responses, a search result updates the preceding call with the same ID even when they occupy separate assistant messages. The call preserves its query metadata while applying the result's status and supplied sources. Assistant text messages and text runs around search blocks retain their boundaries.
 

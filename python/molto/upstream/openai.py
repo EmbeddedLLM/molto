@@ -669,7 +669,8 @@ class OpenAIResponsesClient(
             raise UnsupportedInput(str(error)) from error
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
-        native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        request_body = self._request_body(request)
+        native_request = OpenAIResponsesCreateRequest.model_validate(request_body)
         # SDK extra_body can introduce or replace the projected tool declarations.
         tools = (self._extra_body or {}).get("tools", native_request.tools) or []
         search_enabled = any(tool["type"] == "web_search" for tool in tools)
@@ -693,12 +694,21 @@ class OpenAIResponsesClient(
         started_text_items: set[int] = set()
         ended_text_items: set[int] = set()
         next_index = 0
-        defer_citations = search_enabled or any(
-            isinstance(part, (SearchCall, SearchResult))
-            or isinstance(part, TextOutput)
-            and bool(part.citations)
-            for item in request.input or []
-            for part in (item.content if isinstance(item, AssistantInput) else [item])
+        # SDK overrides replace history as well as tools; buffering must reflect
+        # the input actually sent upstream, including cited follow-ups without tools.
+        input_items = (self._extra_body or {}).get("input", request_body.get("input"))
+        defer_citations = search_enabled or (
+            isinstance(input_items, list)
+            and any(
+                item.get("type") == "web_search_call"
+                or any(
+                    isinstance(part, dict)
+                    and part.get("type") == "output_text"
+                    and part.get("annotations")
+                    for part in item.get("content") or []
+                )
+                for item in input_items
+            )
         )
 
         def start_part(

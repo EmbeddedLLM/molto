@@ -19,7 +19,9 @@ from molto.types.normalized import (
     SearchCall,
     SearchLocation,
     SearchResult,
+    TextInput,
     TextOutput,
+    UserInput,
     WebCitation,
     WebSearchSource,
     WebSearchTool,
@@ -53,11 +55,33 @@ def test_unrepresentable_search_history_is_an_input_error(part):
 
 
 @pytest.mark.parametrize("nested", [True, False])
-def test_multi_query_history_preserves_batch_result(nested: bool):
-    """Ensures query batches expand in both history shapes without duplicating pooled sources."""
+@pytest.mark.parametrize("queries", [["first", "second"], ["first", "", "first"]])
+def test_multi_query_history_is_rejected(nested: bool, queries: list[str]):
+    """Ensures completed query batches cannot become unmatched server calls in follow-up history."""
     parts = [
-        SearchCall(id="ws_1", query="fallback", queries=["first", "", "first"]),
-        SearchResult(tool_call_id="ws_1", sources=[WebSearchSource(url="https://python.org/")]),
+        SearchCall(id="ws_1", query="fallback", queries=queries, status="completed"),
+        SearchResult(tool_call_id="ws_1", sources=[]),
+    ]
+    history = [AssistantInput(content=parts)] if nested else parts
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[*history, UserInput(content=[TextInput(content="Please continue.")])],
+    )
+    with pytest.raises(UnsupportedInput, match="multi-query search history"):
+        AnthropicMessagesClient._request_body(request)
+
+
+@pytest.mark.parametrize("nested", [True, False])
+@pytest.mark.parametrize(
+    ("queries", "expected_query"),
+    [(None, "fallback"), ([], "fallback"), (["first"], "first"), ([""], "")],
+)
+def test_single_query_history_preserves_result_pairing(nested, queries, expected_query):
+    """Ensures singular and empty query metadata preserve one completed call and its result."""
+    parts = [
+        SearchCall(id="ws_1", query="fallback", queries=queries, status="completed"),
+        SearchResult(tool_call_id="ws_1", sources=[]),
     ]
     request = NormalizedRequest(
         model="m",
@@ -65,22 +89,14 @@ def test_multi_query_history_preserves_batch_result(nested: bool):
         input=[AssistantInput(content=parts)] if nested else parts,
     )
     body = AnthropicMessagesClient._request_body(request)
-    calls = body["messages"][0]["content"][:3]
-    result = body["messages"][0]["content"][3]
-    assert [call["input"] for call in calls] == [
-        {"query": "first"},
-        {"query": ""},
-        {"query": "first"},
-    ]
-    assert len({call["id"] for call in calls}) == 3
-    assert calls[0]["id"] == result["tool_use_id"] == "ws_1"
-    assert result["content"] == [
+    assert body["messages"][0]["content"] == [
         {
-            "type": "web_search_result",
-            "url": "https://python.org/",
-            "title": "",
-            "encrypted_content": "N/A",
-        }
+            "type": "server_tool_use",
+            "id": "ws_1",
+            "name": "web_search",
+            "input": {"query": expected_query},
+        },
+        {"type": "web_search_tool_result", "tool_use_id": "ws_1", "content": []},
     ]
 
 

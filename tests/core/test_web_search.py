@@ -5,7 +5,6 @@ from contextlib import aclosing
 from copy import deepcopy
 from itertools import product
 from typing import Any
-from uuid import UUID
 
 import pytest
 from anthropic import AsyncAnthropic
@@ -949,39 +948,29 @@ async def test_split_assistant_search_history_matches_combined_sdk(stream: bool,
 
 
 @pytest.mark.parametrize("stream", [True, False])
-async def test_multi_query_history_reaches_messages_sdk(stream: bool, monkeypatch):
-    """Ensures Responses query batches reach Messages as ordered calls with one pooled result."""
-    generated_id = UUID("00000000-0000-0000-0000-000000000001")
-    monkeypatch.setattr("molto.utils.web_search.uuid4", lambda: generated_id)
-    body, expected = _request_pair("responses", "messages", stream)
+async def test_multi_query_history_rejected_before_messages_transport(stream: bool):
+    """Ensures completed query batches cannot send unmatched server calls on a user follow-up."""
+    body, _ = _request_pair("responses", "messages", stream)
     history = _history("responses", True)
     history[0]["action"]["queries"] = ["Python release date", "Python release notes"]
+    history[0]["action"]["sources"] = []
+    history[1]["content"][0]["annotations"] = []
     body["input"] = [
         {"role": "user", "content": [{"type": "input_text", "text": body["input"]}]},
         *history,
     ]
-    target_history = _history("messages", True)
-    target_history[0]["content"].insert(
-        1,
-        {
-            "type": "server_tool_use",
-            "id": f"srvtoolu_{generated_id.hex}",
-            "name": "web_search",
-            "input": {"query": "Python release notes"},
-        },
-    )
-    expected["messages"].extend(target_history)
-    actual, reference = await _synthetic_replay(
-        "responses",
-        "messages",
-        stream,
-        _synthetic_events("messages"),
-        request_pair=(body, expected),
-    )
-    assert actual.output_text == "".join(
-        block.text for block in reference.content if block.type == "text"
-    )
-    assert actual.id == reference.id
+    requests = []
+
+    def handler(request: Request) -> Response:
+        requests.append(request)
+        raise AssertionError("Unsupported history must fail before transport.")
+
+    async with AsyncClient(transport=MockTransport(handler)) as http_client:
+        with pytest.raises(UnsupportedInput, match="multi-query search history"):
+            await Molto(http_client=http_client).responses(
+                body=body, endpoint="messages", api_key="test-api-key"
+            )
+    assert requests == []
 
 
 class _SearchStream(AsyncByteStream):
@@ -1097,6 +1086,7 @@ async def _synthetic_replay(
     events: list[dict[str, Any]],
     *,
     request_pair=None,
+    extra_body=None,
 ):
     payload = "".join(dumps_sse(event, event_type=event["type"]) for event in events)
     body, expected_request = request_pair or _request_pair(downstream, upstream, stream)
@@ -1104,6 +1094,7 @@ async def _synthetic_replay(
     # A parsed SDK reference proves that mutations still use the native SDK's
     # wire boundary; synthetic provider behavior is not claimed as a recording.
     def sdk_handler(request: Request) -> Response:
+        assert json_loads(request.content) == expected_request
         return Response(
             200, content=payload.encode(), headers={"content-type": "text/event-stream"}
         )
@@ -1111,10 +1102,10 @@ async def _synthetic_replay(
     async with AsyncClient(transport=MockTransport(sdk_handler)) as http_client:
         if upstream == "messages":
             sdk = AsyncAnthropic(api_key="test-api-key", http_client=http_client)
-            reference = await sdk.messages.create(**_body(upstream))
+            reference = await sdk.messages.create(**expected_request)
         else:
             sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
-            reference = await sdk.responses.create(**_body(upstream))
+            reference = await sdk.responses.create(**expected_request)
         async with reference:
             sdk_events = [event async for event in reference]
     provider_stream = _SearchStream(payload)
@@ -1127,7 +1118,7 @@ async def _synthetic_replay(
 
     async with AsyncClient(transport=MockTransport(handler)) as http_client:
         result = await _coordinator(Molto(http_client=http_client), downstream)(
-            body=body, endpoint=upstream, api_key="test-api-key"
+            body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
         )
         if stream:
             projected = [event async for event in result]
@@ -1586,18 +1577,44 @@ async def test_synthetic_repeated_searches_preserve_identity(stream: bool):
 
 
 @pytest.mark.parametrize("stream", [True, False])
-async def test_search_history_without_tools_still_buffers_citations(stream: bool):
-    """Ensures fixed-route followups keep late citations even when no search tool is redeclared."""
+@pytest.mark.parametrize("override", [False, True])
+@pytest.mark.parametrize("new_search", [False, True])
+async def test_search_history_without_tools_still_buffers_citations(
+    stream: bool, override: bool, new_search: bool
+):
+    """Ensures typed and overridden history preserve SDK citations without redeclaring search."""
     body, expected = _request_pair("messages", "responses", stream)
     for request in (body, expected):
         request.pop("tools")
         request.pop("tool_choice")
-    body["messages"].extend(_history("messages", True))
     expected["input"].extend(_history("responses", True))
     expected.pop("include")
+    if override:
+        extra_body = {"input": expected["input"]}
+    else:
+        body["messages"].extend(_history("messages", True))
+        extra_body = None
     events = _synthetic_events("responses")
+    if not new_search:
+        # A follow-up may cite past search results without performing another search.
+        events = [event for event in events if event.get("output_index") != 1]
+        for index, event in enumerate(events):
+            event["sequence_number"] = index
+            if event.get("output_index", -1) > 1:
+                event["output_index"] -= 1
+            response = event.get("response", {})
+            if "output" in response:
+                response["output"] = [
+                    item for item in response["output"] if item["type"] != "web_search_call"
+                ]
+            response.pop("tool_usage", None)
     result, reference = await _synthetic_replay(
-        "messages", "responses", stream, events, request_pair=(body, expected)
+        "messages",
+        "responses",
+        stream,
+        events,
+        request_pair=(body, expected),
+        extra_body=extra_body,
     )
     text_blocks = [block for block in result.content if block.type == "text"]
     assert "".join(block.text for block in text_blocks) == reference.output_text

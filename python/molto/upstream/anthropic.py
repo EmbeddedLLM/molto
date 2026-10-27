@@ -447,6 +447,12 @@ class AnthropicMessagesClient(
                 blocks.extend(text_blocks)
             elif isinstance(item, SearchCall):
                 if item.action == "search":
+                    # A pooled batch result cannot complete the separate server calls
+                    # Messages requires, so splitting history would leave pending work.
+                    if item.queries is not None and len(item.queries) > 1:
+                        raise UnsupportedInput(
+                            "Anthropic Messages cannot preserve multi-query search history."
+                        )
                     blocks.extend(search_calls_to_messages(item))
             elif isinstance(item, SearchResult):
                 if item.sources is not None or item.error is not None:
