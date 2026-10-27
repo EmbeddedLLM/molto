@@ -4,7 +4,7 @@ from typing import Any, Self
 from httpx import AsyncClient, Headers
 from pydantic import BaseModel
 
-from molto.adapters.anthropic import AnthropicMessagesAdapter
+from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.configs import ENV_CONFIG
 from molto.providers import (
@@ -337,12 +337,16 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        citation_policy: CitationPolicy = "drop",
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
-        HTTP destination.
+        HTTP destination. `citation_policy` selects how translated responses
+        project text that may carry URL citations: `buffer` withholds each text
+        part until its citations are final so blocks can be split at citation
+        boundaries, and `drop` streams text immediately without citations.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
@@ -366,7 +370,7 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = AnthropicMessagesAdapter(capabilities)
+        adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(

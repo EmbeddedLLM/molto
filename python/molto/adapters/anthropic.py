@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import aclosing
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn, TypeAlias
 
 from anthropic import APIError as AnthropicAPIError
 from anthropic import APIStatusError as AnthropicAPIStatusError
@@ -19,6 +19,7 @@ from httpx import Response
 from pydantic_core import from_json
 
 from molto.adapters.base import BaseAdapter
+from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesResponse,
@@ -86,7 +87,19 @@ _STOP_REASONS: dict[TerminationReason, str] = {
     "stop": "end_turn",
     "stop_sequence": "stop_sequence",
     "tool_call": "tool_use",
+    # Messages cannot report an unfinished generation without a cause, so an
+    # unknown source reason is coerced to normal completion rather than pretending
+    # the turn paused.
+    "unknown": "end_turn",
 }
+
+CitationPolicy: TypeAlias = Literal["buffer", "drop"]
+"""How a block-based target projects text that may carry URL citations.
+
+`buffer` holds every text part until its citation snapshot is final so blocks can
+be split at citation boundaries, trading text latency and chunk boundaries for
+exact attribution. `drop` streams text immediately and omits citations.
+"""
 
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (1024, "minimal"),
@@ -157,16 +170,20 @@ def _citations(citations: list[dict[str, Any]] | None, text: str) -> list[WebCit
 
 async def _ordered_parts(
     events: AsyncIterator[ModelResponseStreamEvent],
+    *,
+    buffer_text: bool,
 ) -> AsyncIterator[ModelResponseStreamEvent]:
     """Stream parts in start order, yielding only the end for snapshot-based parts."""
-    # Responses may stream "Alpha. Beta." before citing only "Beta.". Messages
-    # needs separate uncited/cited blocks; an emitted block cannot be split later.
+    # A block-based target cannot split text it has already emitted, and Responses
+    # may stream "Alpha. Beta." before citing only "Beta.". Buffering every text
+    # part therefore trades text latency for exact attribution; the caller selects
+    # that trade with `citation_policy`.
     # Search actions and queries can also arrive late: the final snapshot tells
     # us to expand a query batch into searches or omit browsing.
     # If part A expands into two blocks, part B must follow both, so later parts
     # wait to preserve order and receive the correct consecutive block indices.
-    # Ordinary parts stream their chunks at the FIFO head; citation/search parts
-    # wait for their final snapshots, without buffering the whole response.
+    # Ordinary parts stream their chunks at the FIFO head; snapshot parts wait for
+    # their final snapshots, without buffering the whole response.
     pending: dict[int, deque[ModelResponseStreamEvent]] = {}
     snapshots: set[int] = set()
     async for event in events:
@@ -179,7 +196,7 @@ async def _ordered_parts(
             pending[event.index] = deque()
             part = event.part
             if isinstance(part, (SearchCall, SearchResult)) or (
-                isinstance(part, TextOutput) and (part.defer_citations or part.citations)
+                buffer_text and isinstance(part, TextOutput)
             ):
                 snapshots.add(event.index)
         if isinstance(event, PartEndEvent):
@@ -211,6 +228,15 @@ class AnthropicMessagesAdapter(
     ]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    def __init__(
+        self,
+        capabilities: ProviderCapabilities,
+        *,
+        citation_policy: CitationPolicy = "drop",
+    ) -> None:
+        super().__init__(capabilities)
+        self._citation_policy = citation_policy
 
     @staticmethod
     def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
@@ -627,7 +653,9 @@ class AnthropicMessagesAdapter(
         thinking_parts: set[int] = set()
         thinking_signatures: dict[int, str] = {}
 
-        async with aclosing(_ordered_parts(events)) as ordered_events:
+        async with aclosing(
+            _ordered_parts(events, buffer_text=self._citation_policy == "buffer")
+        ) as ordered_events:
             async for normalized_event in ordered_events:
                 if isinstance(normalized_event, ResponseStartEvent):
                     yield event(
@@ -712,9 +740,10 @@ class AnthropicMessagesAdapter(
                 elif isinstance(normalized_event, PartDeltaEvent):
                     index = indices[normalized_event.index]
                     if isinstance(normalized_event.delta, CitationDelta):
-                        raise ValueError(
-                            "Citation-bearing text must declare deferred citations before streaming."
-                        )
+                        # Buffered parts consume their citation deltas in
+                        # `_ordered_parts`; in the `drop` policy no text part is
+                        # buffered, so citations are omitted deliberately.
+                        continue
                     if isinstance(normalized_event.delta, ThinkingDelta):
                         delta = normalized_event.delta
                         if index not in thinking_parts:
@@ -866,10 +895,13 @@ class AnthropicMessagesAdapter(
                                 "thinking_tokens": usage.output_tokens_details.reasoning_tokens
                             },
                         }
-                    search_requests = normalized_event.extra_fields.get("web_search_requests")
-                    if search_requests is None and usage is not None:
-                        search_requests = usage.extra_fields.get("web_search_requests")
-                    if search_requests is not None:
+                    search_requests = None if usage is None else usage.web_search_requests
+                    declares_search = any(
+                        isinstance(tool, WebSearchTool) for tool in request.tools or []
+                    )
+                    # Messages reports server-tool usage only where server tools apply,
+                    # so an observed zero is projected only for a search request.
+                    if search_requests is not None and (declares_search or search_requests > 0):
                         raw_usage["server_tool_use"] = {
                             "web_search_requests": search_requests,
                             "web_fetch_requests": 0,

@@ -377,8 +377,10 @@ def _response_terminal(
         return response, "stop"
 
     incomplete_details = response.get("incomplete_details")
-    if has_search and incomplete_details is None:
-        return response, "length"
+    # A reason-less incomplete response is normalized as unknown, which Chat
+    # coerces to normal completion rather than to the output-token limit.
+    if incomplete_details is None or incomplete_details.get("reason") is None:
+        return response, "stop"
     if not isinstance(incomplete_details, dict):
         raise ValueError("response.incomplete must contain incomplete_details.")
     reason = incomplete_details.get("reason")

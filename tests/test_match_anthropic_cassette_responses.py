@@ -510,7 +510,7 @@ def test_search_counter_is_observed_not_inferred(count: int | None) -> None:
 
 
 def test_search_failed_and_paused_states() -> None:
-    """Ensures failed searches use unavailable and unfinished searches do not gain results."""
+    """Ensures failed searches use unavailable and unfinished searches gain no results or pause."""
     messages, responses = _search_cassettes()
     response = responses["response"]["body"]
     response["output"][0]["status"] = "failed"
@@ -522,7 +522,7 @@ def test_search_failed_and_paused_states() -> None:
     response.update(status="incomplete", incomplete_details=None)
     response["output"][0]["status"] = "in_progress"
     match_messages_response(messages, responses)
-    assert messages["response"]["body"]["stop_reason"] == "pause_turn"
+    assert messages["response"]["body"]["stop_reason"] == "end_turn"
     assert not any(
         block["type"] == "web_search_tool_result"
         for block in messages["response"]["body"]["content"]
@@ -538,9 +538,9 @@ def test_search_context_size_rejected(size: str) -> None:
         match_messages_response(messages, responses)
 
 
-def test_ordinary_response_null_incomplete_details_still_rejected() -> None:
-    """Ensures search pause translation does not weaken ordinary response validation."""
+def test_null_incomplete_details_maps_to_end_turn() -> None:
+    """Ensures a reason-less incomplete response is unknown rather than a pause."""
     messages, responses = _cassettes()
     responses["response"]["body"].update(status="incomplete", incomplete_details=None)
-    with pytest.raises(ValueError, match="incomplete_details"):
-        match_messages_response(messages, responses)
+    match_messages_response(messages, responses)
+    assert messages["response"]["body"]["stop_reason"] == "end_turn"

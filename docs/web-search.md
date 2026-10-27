@@ -25,9 +25,9 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 | Blocked domains | Native Messages preserves `blocked_domains`; translation to Responses rejects an explicit blocklist |
 | Source inclusion | Translated searches to Responses request `web_search_call.action.sources`, preserving existing include values without adding duplicates |
 
-Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search before transport, including search enabled through `extra_body.web_search_options`.
+Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search declared in the request before transport.
 
-On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. When `extra_body.tools` replaces the projected tools, the effective upstream declarations determine whether Chat omits signature-only reasoning.
+`extra_body` and `extra_headers` are opaque extensions: Molto merges them into the upstream request without inspecting them, so they never enable, disable, or reshape translation. Search supplied only through `extra_body.tools` or `extra_body.web_search_options` is therefore forwarded verbatim, not translated, and the resulting annotations are projection input only where the declared request already enables the policy that consumes them.
 
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
@@ -82,9 +82,9 @@ It becomes these illustrative Messages content blocks:
 
 Offsets use Python string characters without normalization. Recordings verify ASCII ranges; synthetic Unicode tests do not establish the provider's Unicode indexing convention.
 
-Messages buffers text parts until their citations are complete, preserving part order. This can increase text latency and change chunk boundaries.
+Citations reach a Messages caller only when the caller opts in with `citation_policy="buffer"`, which buffers text parts until their citations are complete and preserves part order. That option increases text latency and changes chunk boundaries for every text part, including uncited ones. The default `citation_policy="drop"` streams text immediately and omits citations. Neither mode drops answer text, and citations are never inferred from a request's tools, history, or `extra_body`.
 
-Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signature-only reasoning with no representable text is omitted on the hosted-search Chat route; other reasoning follows the existing protocol restrictions.
+Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Chat cannot carry a reasoning signature, so a hosted-search turn whose reasoning is encrypted or signed, as OpenAI and Anthropic both return, is rejected at the signature boundary instead of losing that output. Chat remains usable for providers whose reasoning is unsigned.
 
 ## Search activity and results
 
@@ -138,11 +138,13 @@ A Messages pause has these terminal values:
 
 A paused search can remain `in_progress` without a result. Chat's `length` approximates unfinished generation; increasing the token limit may not resolve the pause. Continuation is caller-managed.
 
-Native usage is preserved. Token translation is unchanged. Messages search counts have no public equivalent on translated Responses or Chat and are omitted. When Responses explicitly reports `tool_usage.web_search.num_requests`, translated Messages copies that number to `usage.server_tool_use.web_search_requests` and supplies `web_fetch_requests: 0` for this search-only scope. Explicit zero remains zero; absent/null counts remain unknown. Counts are not derived from operations, queries, sources, citations, or replayed history, and repeated usage snapshots are updates rather than additions. This is a numeric compatibility approximation, not equivalent billing or accounting.
+A Responses response that ends `incomplete` without `incomplete_details` does not establish a pause. Molto normalizes it as `unknown`, which Messages reports as `end_turn` and Chat as `stop`; only a Messages `stop_reason: "pause_turn"` produces the pause row above.
+
+Native usage is preserved. Token translation is unchanged. Messages search counts have no public equivalent on translated Responses or Chat and are omitted. When Responses explicitly reports `tool_usage.web_search.num_requests`, translated Messages copies that number to `usage.server_tool_use.web_search_requests` and supplies `web_fetch_requests: 0` for this search-only scope. Explicit zero remains zero; absent/null counts remain unknown, and a provider that reports no token usage reports no search count either, because the count lives on the normalized usage object. Counts are not derived from operations, queries, sources, citations, or replayed history, and repeated usage snapshots are updates rather than additions. This is a numeric compatibility approximation, not equivalent billing or accounting.
 
 ## Follow-ups and recovery
 
-Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. When targeting Responses, citation buffering follows the effective upstream history, including replacement history supplied through `extra_body.input`.
+Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. Citation projection follows `citation_policy` only, so a caller that supplies search context solely through `extra_body.input` must select `buffer` explicitly.
 
 Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 

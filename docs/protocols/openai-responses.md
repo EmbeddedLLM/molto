@@ -332,6 +332,7 @@ Termination projection is:
 | `tool_call`                     | `response.completed`, coerced              |
 | `model_context_window_exceeded` | `response.completed`, coerced              |
 | `pause`                         | `response.incomplete` with null details    |
+| `unknown`                       | `response.incomplete` with null details    |
 | `refusal`                       | `response.completed`, coerced              |
 
 Molto retains the more specific source reason in the normalized stream. Reasons without a corresponding Responses termination value use the coercions above.

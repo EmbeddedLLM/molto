@@ -52,7 +52,7 @@ def assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> Non
     """Assert that actual recursively contains the expected value."""
     if isinstance(expected, dict):
         assert isinstance(actual, dict), f"Expected an object at {path}, got {type(actual)}"
-        missing_keys = {key for key in expected if key not in actual}
+        missing_keys = expected.keys() - actual.keys()
         assert not missing_keys, f"Missing keys at {path}: {sorted(missing_keys)}"
         for key, expected_value in expected.items():
             assert_contains_expected(actual[key], expected_value, f"{path}.{key}")

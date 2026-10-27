@@ -837,7 +837,7 @@ def test_client_projects_prompt_cache_as_automatic_cache_control():
 
 
 def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
-    """Ensures Messages retains adjacent containers, empty text, markers, and block ordering."""
+    """Ensures Messages retains adjacent containers, markers, and block ordering."""
     request = NormalizedRequest(
         model="compatible-model",
         max_output_tokens=2048,
@@ -861,7 +861,8 @@ def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
         {
             "role": "assistant",
             "content": [
-                {"type": "text", "text": ""},
+                # An empty text part carries no content and Messages rejects an
+                # empty block, so it is omitted.
                 {"type": "thinking", "thinking": "Thought"},
                 {"type": "text", "text": "Cached", "cache_control": {"type": "ephemeral"}},
                 {"type": "tool_use", "id": "call_1", "name": "lookup", "input": {}},

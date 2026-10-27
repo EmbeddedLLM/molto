@@ -279,11 +279,9 @@ def _search_cassettes() -> tuple[dict, dict]:
     )
 
 
-def test_search_response_omits_signature_only_reasoning() -> None:
-    """Ensures signature-only search reasoning leaves the matched answer unchanged."""
+def test_search_response_rejects_signature_only_reasoning() -> None:
+    """Ensures signature-only search reasoning cannot be silently omitted."""
     chat, responses = _search_cassettes()
-    expected = deepcopy(chat)
-    match_chat_completions_response(expected, responses)
     responses["response"]["body"]["output"].insert(
         0,
         {
@@ -294,9 +292,8 @@ def test_search_response_omits_signature_only_reasoning() -> None:
         },
     )
 
-    match_chat_completions_response(chat, responses)
-
-    assert chat == expected
+    with pytest.raises(ValueError, match="Encrypted Responses reasoning"):
+        match_chat_completions_response(chat, responses)
 
 
 @pytest.mark.parametrize("field", ["content", "summary"])
@@ -448,14 +445,14 @@ def test_search_failure_and_browsing_without_text_stay_empty(action: str) -> Non
     assert choice["finish_reason"] == "stop"
 
 
-def test_search_paused_response_maps_to_length() -> None:
-    """Ensures the reduced paused-search state does not claim successful Chat completion."""
+def test_search_unknown_incomplete_maps_to_stop() -> None:
+    """Ensures a reason-less search incomplete is unknown, not a token-limit stop."""
     chat, responses = _search_cassettes()
     responses["response"]["body"].update(status="incomplete", incomplete_details=None)
 
     match_chat_completions_response(chat, responses)
 
-    assert chat["response"]["body"]["choices"][0]["finish_reason"] == "length"
+    assert chat["response"]["body"]["choices"][0]["finish_reason"] == "stop"
 
 
 @pytest.mark.parametrize("field", ["filters", "max_tool_calls"])

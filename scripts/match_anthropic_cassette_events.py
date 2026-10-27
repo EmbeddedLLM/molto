@@ -591,11 +591,10 @@ def _response_terminal(
         return response, "end_turn"
 
     incomplete_details = response.get("incomplete_details")
-    if incomplete_details is None and (
-        has_search
-        or any(item.get("type") == "web_search_call" for item in response.get("output", []))
-    ):
-        return response, "pause_turn"
+    # A reason-less incomplete response does not establish a pause, so the
+    # translated stream reports the normalized unknown reason as normal completion.
+    if incomplete_details is None or incomplete_details.get("reason") is None:
+        return response, "end_turn"
     if not isinstance(incomplete_details, dict):
         raise ValueError("response.incomplete must contain incomplete_details.")
     reason = incomplete_details.get("reason")

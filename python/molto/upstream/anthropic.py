@@ -437,7 +437,7 @@ class AnthropicMessagesClient(
                     for citation in item.citations
                 ):
                     raise UnsupportedInput(
-                        "Citation ranges must within the associated answer text."
+                        "Citation ranges must be within the associated answer text."
                     )
                 text_blocks = messages_text_blocks(item)
                 if item.cache_breakpoint is not None:
@@ -687,8 +687,6 @@ class AnthropicMessagesClient(
         native_request = AnthropicMessagesCreateRequest.model_validate(
             self._request_body(request, capabilities=self._capabilities)
         )
-        tools = (self._extra_body or {}).get("tools", native_request.tools) or []
-        search_enabled = any(tool.get("type") == "web_search_20250305" for tool in tools)
         async with aclosing(self.native_events(native_request)) as native_events:
             async for event in native_events:
                 if isinstance(event, RawMessageStartEvent):
@@ -697,7 +695,6 @@ class AnthropicMessagesClient(
                         id=message.id,
                         model=message.model,
                         service_tier=message.usage.service_tier,
-                        web_search_enabled=search_enabled,
                     )
                     input_tokens = message.usage.input_tokens
                     cache_creation = message.usage.cache_creation_input_tokens or 0
@@ -846,8 +843,12 @@ class AnthropicMessagesClient(
                             if state.content
                             else initial_input
                         )
+                        if not isinstance(search_input, dict):
+                            # An interrupted or malformed input is provider output, so
+                            # fall back to the observed snapshot instead of rejecting it.
+                            search_input = initial_input if isinstance(initial_input, dict) else {}
                         completed_part = search_call_from_messages(
-                            {"id": part.id, "input": search_input}
+                            {"id": part.id, "input": search_input}, strict=False
                         )
                         yield start_part(event.index, completed_part)
                     elif isinstance(part, SearchResult):
@@ -908,9 +909,8 @@ class AnthropicMessagesClient(
                         + cache_creation
                         + cache_read
                         + raw_usage.output_tokens,
+                        web_search_requests=search_usage,
                     )
-                    if search_usage is not None:
-                        usage.extra_fields["anthropic_web_search_requests"] = search_usage
                 elif isinstance(event, RawMessageStopEvent):
                     if metadata is None:
                         raise ValueError("Anthropic stream ended before its message started.")

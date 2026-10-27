@@ -91,6 +91,9 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "stop": "stop",
     "stop_sequence": "stop",
     "tool_call": "tool_calls",
+    # Chat has no incomplete state, so an unknown source reason is coerced to normal
+    # completion rather than claiming the output limit was reached.
+    "unknown": "stop",
 }
 
 
@@ -1101,7 +1104,12 @@ class OpenAIResponsesAdapter(
                         }
                     )
                 search_calls.clear()
-                if termination_reason in {"content_filter", "max_output_tokens", "pause"}:
+                if termination_reason in {
+                    "content_filter",
+                    "max_output_tokens",
+                    "pause",
+                    "unknown",
+                }:
                     event_type = "response.incomplete"
                     status = "incomplete"
                 else:
@@ -1114,7 +1122,9 @@ class OpenAIResponsesAdapter(
                 )
                 if status == "incomplete":
                     final_response["incomplete_details"] = (
-                        None if termination_reason == "pause" else {"reason": termination_reason}
+                        None
+                        if termination_reason in {"pause", "unknown"}
+                        else {"reason": termination_reason}
                     )
                 yield event(
                     {
@@ -1371,7 +1381,6 @@ class OpenAIChatCompletionsAdapter(
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False
         tool_indices: dict[int, int] = {}
-        search_enabled = any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
 
         def chunk(
             metadata: ResponseStartEvent | ResponseEndEvent,
@@ -1410,18 +1419,9 @@ class OpenAIChatCompletionsAdapter(
         async for normalized_event in events:
             if isinstance(normalized_event, ResponseStartEvent):
                 response_start = normalized_event
-                if normalized_event.web_search_enabled is not None:
-                    search_enabled = normalized_event.web_search_enabled
 
             elif isinstance(normalized_event, PartStartEvent):
                 if isinstance(normalized_event.part, (SearchCall, SearchResult)):
-                    continue
-                if (
-                    isinstance(normalized_event.part, Thinking)
-                    and not normalized_event.part.content
-                    and not normalized_event.part.summary
-                    and search_enabled
-                ):
                     continue
                 if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
@@ -1493,14 +1493,6 @@ class OpenAIChatCompletionsAdapter(
             elif isinstance(normalized_event, PartDeltaEvent):
                 if isinstance(normalized_event.delta, CitationDelta):
                     continue
-                if (
-                    isinstance(normalized_event.delta, ThinkingDelta)
-                    and normalized_event.delta.signature_delta is not None
-                    and not normalized_event.delta.content_delta
-                    and not normalized_event.delta.summary_delta
-                    and search_enabled
-                ):
-                    continue
                 if response_start is None:
                     raise ValueError("Received a delta before its response started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
@@ -1559,13 +1551,6 @@ class OpenAIChatCompletionsAdapter(
             elif isinstance(normalized_event, PartEndEvent):
                 if isinstance(normalized_event.part, (SearchCall, SearchResult)):
                     continue
-                if (
-                    isinstance(normalized_event.part, Thinking)
-                    and not normalized_event.part.content
-                    and not normalized_event.part.summary
-                    and search_enabled
-                ):
-                    continue
                 if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 if isinstance(normalized_event.part, Thinking):
@@ -1604,11 +1589,6 @@ class OpenAIChatCompletionsAdapter(
                             ),
                         },
                     }
-                if not initial_chunk_sent and search_enabled:
-                    yield delta_chunk(
-                        normalized_event, {"role": "assistant", "content": "", "refusal": None}
-                    )
-                    initial_chunk_sent = True
                 yield chunk(
                     normalized_event,
                     choices=[

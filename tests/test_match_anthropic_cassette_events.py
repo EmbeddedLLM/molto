@@ -1988,13 +1988,14 @@ def test_search_stream_without_search_clears_recorded_activity(keep_tool: bool) 
     )
 
 
-def test_ordinary_stream_null_incomplete_details_still_rejected() -> None:
-    """Ensures search pause translation does not change ordinary stream termination validation."""
+def test_stream_null_incomplete_details_maps_to_end_turn() -> None:
+    """Ensures a reason-less incomplete stream is unknown rather than a pause."""
     messages = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
     responses = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
     events = _data_events(responses)
     events[-1]["type"] = "response.incomplete"
     events[-1]["response"]["incomplete_details"] = None
     responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
-    with pytest.raises(ValueError, match="incomplete_details"):
-        match_messages_events(messages, responses)
+    match_messages_events(messages, responses)
+    delta = next(event for event in messages["response"]["sse"] if '"message_delta"' in event)
+    assert '"stop_reason":"end_turn"' in delta.replace(" ", "")

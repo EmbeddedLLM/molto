@@ -339,7 +339,7 @@ async def test_search_stream_normalization(monkeypatch, error):
     assert len(citations) == 1 and citations[0].end_index == 2
     terminal = next(event for event in events if isinstance(event, ResponseEndEvent))
     assert terminal.termination_reason == "pause"
-    assert terminal.usage.extra_fields["anthropic_web_search_requests"] == 2
+    assert terminal.usage.web_search_requests == 2
 
 
 @pytest.mark.parametrize("nested", [False, True])

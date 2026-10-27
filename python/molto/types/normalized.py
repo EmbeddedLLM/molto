@@ -328,10 +328,6 @@ class TextOutput(ExtraModel):
     citations: Annotated[
         list[WebCitation], Field(description="URL attributions local to this text part.")
     ] = []
-    defer_citations: Annotated[
-        bool,
-        Field(description="Delay block-based projection until the citation snapshot is complete."),
-    ] = False
     content_type: Annotated[
         Literal["text-output"],
         Field(description="Content type identifier as a discriminator."),
@@ -413,9 +409,8 @@ OutputItem = Annotated[
 def _reject_input_extras(model_type: type[ExtraModel]) -> Callable[[Any], Any]:
     def validate(value: Any) -> Any:
         if isinstance(value, dict):
-            extra_fields = {
-                key for key in value if key not in model_type.model_fields or key == "extra_fields"
-            }
+            allowed_fields = model_type.model_fields.keys() - {"extra_fields"}
+            extra_fields = value.keys() - allowed_fields
         elif isinstance(value, model_type):
             extra_fields = value.extra_fields.keys()
         else:
@@ -830,6 +825,10 @@ class Usage(ExtraModel):
         ZeroIfNoneInt,
         Field(description="The total number of tokens used."),
     ]
+    web_search_requests: Annotated[
+        int | None,
+        Field(description="Hosted search requests reported by the provider, when known."),
+    ] = None
 
 
 class ResponseStartEvent(ExtraModel):
@@ -851,12 +850,6 @@ class ResponseStartEvent(ExtraModel):
         str | None,
         Field(description="The service tier used for the response."),
     ] = None
-    web_search_enabled: Annotated[
-        bool | None,
-        Field(
-            description="Whether the effective upstream request enables hosted web search, when known."
-        ),
-    ] = None
     event_kind: Annotated[
         Literal["response_start"],
         Field(description="Event type identifier, used as a discriminator."),
@@ -872,6 +865,9 @@ TerminationReason: TypeAlias = Literal[
     "stop",
     "stop_sequence",
     "tool_call",
+    # The source reported an incomplete generation without naming a cause. This is
+    # deliberately distinct from `pause`, which is a cause reported by the source.
+    "unknown",
 ]
 
 

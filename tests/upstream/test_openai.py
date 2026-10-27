@@ -1894,7 +1894,6 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             created_at=1,
             model="reasoning-model",
             service_tier="default",
-            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,
@@ -2996,7 +2995,6 @@ async def test_responses_events_translate_function_call_lifecycle(
             created_at=1,
             model="reasoning-model",
             service_tier="default",
-            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,
@@ -3833,3 +3831,46 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, APIStatusError)
+
+
+@pytest.mark.parametrize(
+    ("incomplete_details", "expected"),
+    [
+        ({"reason": "max_output_tokens"}, "max_output_tokens"),
+        ({"reason": "content_filter"}, "content_filter"),
+        (None, "unknown"),
+        ("absent", "unknown"),
+    ],
+)
+async def test_responses_incomplete_without_a_reason_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, incomplete_details, expected
+):
+    """Ensures a reason-less incomplete response is reported as unknown, never as a pause."""
+    incomplete_response = _response()
+    incomplete_response["status"] = "incomplete"
+    if incomplete_details != "absent":
+        incomplete_response["incomplete_details"] = incomplete_details
+    native_events = [
+        _response_event(
+            {"type": "response.created", "response": _response(), "sequence_number": 0}
+        ),
+        _response_event(
+            {
+                "type": "response.incomplete",
+                "response": incomplete_response,
+                "sequence_number": 1,
+            }
+        ),
+    ]
+
+    async def stub_native_events(native_request: OpenAIResponsesCreateRequest):
+        for event in native_events:
+            yield event
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
+        monkeypatch.setattr(client, "native_events", stub_native_events)
+        events = [event async for event in client.events(NormalizedRequest(model="m"))]
+
+    response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
+    assert response_end.termination_reason == expected

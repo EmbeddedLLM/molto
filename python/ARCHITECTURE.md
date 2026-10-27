@@ -148,7 +148,7 @@ Each implemented coordinator performs the following work:
 5. Select the upstream path from `endpoint`.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
 
-Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
+Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They are opaque: the selected provider SDK merges them into the upstream request after Molto projects it, and Molto never reads them to choose a route, normalize input, construct a request, or project output. Translation guarantees are therefore defined over the normalized request only, and a caller that supplies request semantics through `extra_body` opts out of them. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
 
 The returned `MoltoStream` exposes a copy of the successful upstream response headers as `response_headers`. Coordinator prefetching opens the SDK stream and captures those headers before returning, including on translated routes. Molto retains all response headers; an HTTP server using Molto remains responsible for filtering connection-specific and framing headers before constructing its downstream response.
 
@@ -344,9 +344,9 @@ Service-tier labels are retained as upstream metadata, but target protocols do n
 
 `SearchCall` and `SearchResult` use the existing part lifecycle and link by call identity. They are assistant history/output parts. An unfinished call may have no result, and a search error does not determine overall termination. Responses folds a call and result into one item; Messages emits separate server-tool blocks.
 
-Responses and Messages clients set `ResponseStartEvent.web_search_enabled` from the effective upstream tool declarations, including `extra_body` overrides. Chat projection uses this state for its hosted-search output policy, falling back to normalized request tools when an event source omits it. This keeps transport interpretation in clients and output projection in adapters.
+A block-based target cannot split text it has already emitted, so `AnthropicMessagesAdapter` takes a `citation_policy` selected by the caller through `Molto.messages()`. `buffer` holds every text part until its citation snapshot is final so blocks can be split at citation boundaries, trading text latency and chunk boundaries for exact attribution. `drop`, the default, streams text immediately and omits citations. The policy governs output projection only: request construction keeps input attribution, and search call/result parts are buffered in both modes because that buffering learns the final action rather than splitting text.
 
-`TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. `defer_citations` tells block-based projectors to wait for that snapshot. The Responses normalizer and Messages projector buffer unresolved search or citation parts in start order, allowing ordinary parts to stream when they reach the front. Projection assigns output indices because parts can expand or disappear.
+`TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. The Messages projector buffers unresolved search parts in start order, and buffers text parts when `citation_policy` is `buffer`, allowing other parts to stream when they reach the front. Projection assigns output indices because parts can expand or disappear. No client predicts whether a response will carry citations; only the caller selects that trade.
 
 The [hosted-search contract](../docs/web-search.md) defines supported routes, reductions, failures, usage, and continuation.
 
@@ -409,6 +409,9 @@ The Chat client normalizes token usage and the Responses adapter projects it as:
 | `output_tokens`                           | `completion_tokens`                          | `output_tokens`     |
 | `output_tokens_details.reasoning_tokens`  | `completion_tokens_details.reasoning_tokens` | same semantic field |
 | `total_tokens`                            | `total_tokens`                               | `total_tokens`      |
+| `web_search_requests`                     | `tool_usage.web_search.num_requests`         | no Responses field  |
+
+A hosted-search count is projected into Messages `usage.server_tool_use.web_search_requests` when the normalized request declares a search tool or the observed count is nonzero, because Messages reports server-tool usage only where server tools apply. `web_fetch_requests` is `0` in that search-only scope. A provider that reports no token usage reports no search count either.
 
 Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` directly would expose its internal `extra_fields` container at the public boundary.
 

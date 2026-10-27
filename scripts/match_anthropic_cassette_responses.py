@@ -680,8 +680,10 @@ def _stop_reason(
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
-    if incomplete_details is None and has_search:
-        return "pause_turn"
+    # A reason-less incomplete response is normalized as unknown and coerced to
+    # normal completion; it is not evidence that the turn paused.
+    if incomplete_details is None or incomplete_details.get("reason") is None:
+        return "end_turn"
     if not isinstance(incomplete_details, dict):
         raise ValueError("Incomplete Responses responses must contain incomplete_details.")
     if incomplete_details.get("reason") == "max_output_tokens":

@@ -16,10 +16,24 @@ from molto.types.normalized import (
 def messages_text_blocks(
     part: TextOutput,
 ) -> list[dict[str, Any]]:
-    """Split text at citation boundaries while preserving attribution."""
+    """Split text at citation boundaries into blocks Anthropic accepts.
+
+    Citation boundaries fall on character offsets, so a boundary can isolate
+    whitespace or name a zero-length range. Messages rejects an empty text block
+    and a block without non-whitespace text, so whitespace-only ranges are merged
+    into a neighbouring block and a point annotation is attached to the block that
+    contains its offset. Concatenating the returned blocks reproduces the part.
+    """
     text = part.content
+    if not part.citations:
+        return [{"type": "text", "text": text}] if text else []
+
     boundaries = {0, len(text)}
     for citation in part.citations:
+        if citation.start_index == citation.end_index:
+            # A point annotation names a position, not a range, so it must not
+            # split the text into separate blocks.
+            continue
         boundaries.add(citation.start_index)
         boundaries.add(citation.end_index)
 
@@ -29,28 +43,51 @@ def messages_text_blocks(
         raise ValueError("Citation end precedes its start.")
 
     ordered_boundaries = sorted(boundaries)
-    intervals = set(zip(ordered_boundaries, ordered_boundaries[1:], strict=False))
-    # Point annotations have no answer characters but still carry attribution.
-    for citation in part.citations:
-        if citation.start_index == citation.end_index:
-            intervals.add((citation.start_index, citation.end_index))
+    # Leading spacing has no earlier block to merge into, so it is carried into
+    # the first block that has content.
+    ranges: list[list[int]] = []
+    pending_start: int | None = None
+    for start, end in zip(ordered_boundaries, ordered_boundaries[1:], strict=False):
+        if start == end:
+            continue
+        if not text[start:end].strip():
+            if ranges:
+                ranges[-1][1] = end
+            else:
+                pending_start = start
+            continue
+        ranges.append([start if pending_start is None else pending_start, end])
+        pending_start = None
+
+    if not ranges:
+        # The part has no splittable content; keep it as one block rather than
+        # inventing attribution for a block that carries no text.
+        return [{"type": "text", "text": text}] if text else []
 
     blocks: list[dict[str, Any]] = []
-    for start, end in sorted(intervals):
+    for index, (start, end) in enumerate(ranges):
         block: dict[str, Any] = {"type": "text", "text": text[start:end]}
-        block_citations = []
-        for citation in part.citations:
-            if start == end:
-                matches = citation.start_index == start and citation.end_index == end
-            else:
-                matches = citation.start_index <= start and end <= citation.end_index
-            if matches:
-                block_citations.append(citation_to_messages(citation, text=text))
-
+        block_citations = [
+            citation_to_messages(citation, text=text, block_start=start, block_end=end)
+            for citation in part.citations
+            if _cites_block(citation, start=start, end=end, is_last=index == len(ranges) - 1)
+        ]
         if block_citations:
             block["citations"] = block_citations
         blocks.append(block)
-    return blocks or [{"type": "text", "text": text}]
+    return blocks
+
+
+def _cites_block(citation: WebCitation, *, start: int, end: int, is_last: bool) -> bool:
+    """Report whether an attribution applies to the block spanning `start`..`end`."""
+    if citation.start_index != citation.end_index:
+        # A block may extend past the cited range when surrounding whitespace was
+        # folded into it, so any overlap associates the attribution.
+        return start < citation.end_index and citation.start_index < end
+    if start <= citation.start_index < end:
+        return True
+    # A point annotation at the end of the text belongs to the final block.
+    return is_last and citation.start_index == end
 
 
 def citation_from_responses(annotation: dict[str, Any]) -> WebCitation:
@@ -86,15 +123,20 @@ def citation_to_responses(citation: WebCitation) -> dict[str, Any]:
     }
 
 
-def citation_to_messages(citation: WebCitation, *, text: str) -> dict[str, Any]:
+def citation_to_messages(
+    citation: WebCitation, *, text: str, block_start: int, block_end: int
+) -> dict[str, Any]:
     """Build a Messages citation with the documented answer-range/state fallbacks."""
+    cited_text = citation.cited_text
+    if cited_text is None:
+        # A point annotation has no answer characters of its own, so its excerpt
+        # falls back to the block that carries it rather than to an empty string.
+        cited_text = text[citation.start_index : citation.end_index] or text[block_start:block_end]
     return {
         "type": "web_search_result_location",
         "url": citation.url,
         "title": citation.title if citation.title is not None else "",
-        "cited_text": citation.cited_text
-        if citation.cited_text is not None
-        else text[citation.start_index : citation.end_index],
+        "cited_text": cited_text,
         "encrypted_index": citation.encrypted_index
         if citation.encrypted_index is not None
         else "N/A",
@@ -150,10 +192,19 @@ def search_call_from_responses(item: dict[str, Any]) -> SearchCall:
     )
 
 
-def search_call_from_messages(block: dict[str, Any]) -> SearchCall:
-    """Convert Messages server-search input after its arguments have been collected."""
-    search_input = block["input"]
-    if not isinstance(search_input, dict) or set(search_input) - {"query"}:
+def search_call_from_messages(block: dict[str, Any], *, strict: bool = True) -> SearchCall:
+    """Convert Messages server-search input after its arguments have been collected.
+
+    `strict` validates caller-supplied history. Provider output is normalized with
+    `strict=False` so an unknown or partially parsed input shape cannot turn a
+    provider defect into a request-validation error.
+    """
+    search_input = block.get("input")
+    if not isinstance(search_input, dict):
+        if strict:
+            raise UnsupportedInput("Unsupported Anthropic web search input fields.")
+        return SearchCall(id=block["id"])
+    if strict and set(search_input) - {"query"}:
         raise UnsupportedInput("Unsupported Anthropic web search input fields.")
     return SearchCall(id=block["id"], query=search_input.get("query"))
 

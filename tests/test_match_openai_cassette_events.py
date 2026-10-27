@@ -962,8 +962,8 @@ def test_search_stream_keeps_text_from_multiple_output_parts() -> None:
     assert "".join(_chat_content(event) or "" for event in _data_events(chat)) == expected
 
 
-def test_search_paused_stream_maps_to_length() -> None:
-    """Ensures a paused search's incomplete terminal state cannot become Chat stop."""
+def test_search_unknown_incomplete_stream_maps_to_stop() -> None:
+    """Ensures a reason-less search incomplete is unknown rather than a pause."""
     chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
     responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
     events = _data_events(responses)
@@ -979,4 +979,4 @@ def test_search_paused_stream_maps_to_length() -> None:
         for event in _data_events(chat)
         for choice in event["choices"]
         if choice.get("finish_reason")
-    ] == ["length"]
+    ] == ["stop"]

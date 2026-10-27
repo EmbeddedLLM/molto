@@ -31,16 +31,19 @@ from molto.utils.web_search import (
 )
 
 
-def setup_adapter():
-    adapter = AnthropicMessagesAdapter(PROVIDER_CAPABILITIES["anthropic"])
-    request = adapter.normalize_request(
-        AnthropicMessagesCreateRequest(
-            model="m",
-            max_tokens=100,
-            messages=[{"role": "user", "content": "Search"}],
-            stream=True,
-        )
+def setup_adapter(*, search: bool = False, citation_policy: str = "buffer"):
+    adapter = AnthropicMessagesAdapter(
+        PROVIDER_CAPABILITIES["anthropic"], citation_policy=citation_policy
     )
+    body = {
+        "model": "m",
+        "max_tokens": 100,
+        "messages": [{"role": "user", "content": "Search"}],
+        "stream": True,
+    }
+    if search:
+        body["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
+    request = adapter.normalize_request(AnthropicMessagesCreateRequest(**body))
     return adapter, request
 
 
@@ -235,11 +238,10 @@ async def test_buffered_citations_search_omission_and_collection():
         events += [PartStartEvent(index=index, part=part), PartEndEvent(index=index, part=part)]
     text = TextOutput(
         content="Alpha. Beta.",
-        defer_citations=True,
         citations=[WebCitation(url="https://a", start_index=7, end_index=12)],
     )
     events += [
-        PartStartEvent(index=4, part=TextOutput(content="", defer_citations=True)),
+        PartStartEvent(index=4, part=TextOutput(content="")),
         PartDeltaEvent(index=4, delta=TextDelta(content_delta=text.content)),
         PartEndEvent(index=4, part=text),
         ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="pause"),
@@ -302,16 +304,15 @@ async def test_multi_query_expansion_closes_source():
 @pytest.mark.parametrize("has_token_usage", [False, True])
 async def test_search_usage_observation(count, has_token_usage):
     """Ensures unknown usage remains unknown while an explicitly reported zero survives."""
-    adapter, request = setup_adapter()
+    adapter, request = setup_adapter(search=True)
     usage = Usage(
         input_tokens=1,
         input_tokens_details=InputTokenDetails(),
         output_tokens=1,
         output_tokens_details=OutputTokenDetails(),
         total_tokens=2,
+        web_search_requests=count,
     )
-    if count is not None:
-        usage.extra_fields["web_search_requests"] = count
     end = ResponseEndEvent(
         id="r",
         model="m",
@@ -319,13 +320,12 @@ async def test_search_usage_observation(count, has_token_usage):
         termination_reason="stop",
         usage=usage if has_token_usage else None,
     )
-    if not has_token_usage and count is not None:
-        end.extra_fields["web_search_requests"] = count
     events = [ResponseStartEvent(id="r", model="m"), end]
     response = await adapter.project_response(
         adapter.project_events(iterate(events), request), request
     )
-    if count is None:
+    if count is None or not has_token_usage:
+        # A provider that reports no token usage reports no search count either.
         assert response.usage.server_tool_use is None
     else:
         assert response.usage.server_tool_use.web_search_requests == count
@@ -333,15 +333,28 @@ async def test_search_usage_observation(count, has_token_usage):
 
 
 def test_point_citation_preserves_attribution():
-    """Ensures an empty range keeps its source without associating unrelated text."""
+    """Ensures an empty range keeps its source without emitting an empty block."""
     blocks = messages_text_blocks(
         TextOutput(
             content="ab", citations=[WebCitation(url="https://x", start_index=1, end_index=1)]
         )
     )
-    assert [block["text"] for block in blocks] == ["a", "", "b"]
-    assert blocks[1]["citations"][0]["cited_text"] == ""
-    assert "citations" not in blocks[0] and "citations" not in blocks[2]
+    assert [block["text"] for block in blocks] == ["ab"]
+    assert blocks[0]["citations"][0]["cited_text"] == "ab"
+
+
+def test_whitespace_gap_does_not_emit_a_spacing_block():
+    """Ensures a citation boundary on spacing cannot produce a block Messages rejects."""
+    blocks = messages_text_blocks(
+        TextOutput(
+            content="ab cd",
+            citations=[WebCitation(url="https://x", start_index=2, end_index=3)],
+        )
+    )
+    assert [block["text"] for block in blocks] == ["ab ", "cd"]
+    assert [block["citations"][0]["cited_text"] for block in blocks if "citations" in block] == [
+        " "
+    ]
 
 
 @pytest.mark.parametrize("kind", ["search", "deferred_text"])
@@ -349,11 +362,7 @@ async def test_early_close_releases_source_after_buffered_projection(kind):
     """Ensures closing a buffered block start deterministically releases upstream input."""
     adapter, request = setup_adapter()
     closed = False
-    part = (
-        SearchCall(id="s", query="q")
-        if kind == "search"
-        else TextOutput(content="answer", defer_citations=True)
-    )
+    part = SearchCall(id="s", query="q") if kind == "search" else TextOutput(content="answer")
 
     async def source():
         nonlocal closed
