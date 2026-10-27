@@ -279,18 +279,28 @@ def _chat_semantics(response: BaseModel, upstream: Protocol) -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("protocol", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize(
+    ("protocol", "search_in_extra_body"),
+    [(protocol, False) for protocol in PROTOCOLS] + [("chat/completions", True)],
+)
 @pytest.mark.parametrize("stream", [True, False])
-async def test_native_search_matches_sdk(protocol: Protocol, stream: bool):
-    """Ensures native hosted-search fields and SDK event types remain byte-value equivalent."""
+async def test_native_search_matches_sdk(
+    protocol: Protocol, stream: bool, search_in_extra_body: bool
+):
+    """Ensures native search, including Chat body extensions, preserves SDK requests and output."""
     expected = await _sdk_result(protocol, stream)
+    body = _body(protocol, stream)
+    extra_body = (
+        {"web_search_options": body.pop("web_search_options")} if search_in_extra_body else None
+    )
     async with _get_http_client([_path(protocol, stream)], protocol) as http_client:
         result = await _coordinator(Molto(http_client=http_client), protocol)(
-            body=_body(protocol, stream), endpoint=protocol, api_key="test-api-key"
+            body=body, endpoint=protocol, api_key="test-api-key", extra_body=extra_body
         )
         actual = [event async for event in result] if stream else result
     if stream:
-        _assert_lifecycle(protocol, actual)
+        if protocol != "chat/completions":
+            _assert_lifecycle(protocol, actual)
         assert [type(event) for event in actual] == [type(event) for event in expected]
         assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
             event.model_dump(mode="json", exclude_unset=True) for event in expected
@@ -591,11 +601,23 @@ async def test_chat_search_raw_reasoning_starts_with_assistant_role():
     ]
 
 
-@pytest.mark.parametrize("downstream", PROTOCOLS)
+@pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
 @pytest.mark.parametrize("stream", [True, False])
-async def test_chat_upstream_search_rejected_before_transport(downstream: Protocol, stream: bool):
-    """Ensures every caller rejects hosted search on a Chat upstream before opening HTTP."""
+@pytest.mark.parametrize("search_in_extra_body", [False, True])
+async def test_chat_upstream_search_rejected_before_transport(
+    downstream: Protocol, stream: bool, search_in_extra_body: bool
+):
+    """Ensures translated search and Chat body extensions fail before opening HTTP."""
     requests = []
+    if search_in_extra_body:
+        body = deepcopy(
+            _read_cassette(_matched_cassette_path("simple_text", downstream, "stream-00.yaml"))[
+                "request"
+            ]["body"]
+        )
+        body["stream"] = stream
+    else:
+        body = _body(downstream, stream)
 
     def handler(request: Request) -> Response:
         requests.append(request)
@@ -604,7 +626,10 @@ async def test_chat_upstream_search_rejected_before_transport(downstream: Protoc
     async with AsyncClient(transport=MockTransport(handler)) as http_client:
         with pytest.raises(UnsupportedInput, match="[Ss]earch"):
             result = await _coordinator(Molto(http_client=http_client), downstream)(
-                body=_body(downstream, stream), endpoint="chat/completions", api_key="test-api-key"
+                body=body,
+                endpoint="chat/completions",
+                api_key="test-api-key",
+                extra_body={"web_search_options": {}} if search_in_extra_body else None,
             )
             if stream:
                 _ = [event async for event in result]

@@ -1,20 +1,20 @@
 # Hosted web search
 
-Molto supports basic provider-hosted web search through Responses and Messages upstreams. Searches run at the provider, separately from client functions.
+Molto preserves provider-hosted web search on native routes and translates basic search through Responses and Messages upstreams. Searches run at the provider, separately from client functions.
 
 | Caller protocol  | Responses upstream                          | Messages upstream                   | Chat upstream             |
 | ---------------- | ------------------------------------------- | ----------------------------------- | ------------------------- |
 | Responses        | Native passthrough                          | Search, answer, and URL attribution | Rejected before transport |
 | Messages         | Search, answer, and reduced URL attribution | Native passthrough                  | Rejected before transport |
-| Chat Completions | Mandatory search, answer text               | Mandatory search, answer text       | Rejected before transport |
+| Chat Completions | Mandatory search, answer text               | Mandatory search, answer text       | Native passthrough        |
 
-Both streaming and non-streaming calls use this contract. Native Responses and Messages preserve provider fields and events. Translated non-streaming results collect the same projected events as streaming calls.
+Both streaming and non-streaming calls use this contract. Native routes preserve provider fields and events. Translated non-streaming results collect the same projected events as streaming calls.
 
 Translation supports Responses `web_search` and Messages `web_search_20250305`. Other hosted tools, dynamic filtering, and fetch remain unsupported for translation.
 
 ## Requests and selection
 
-Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type":"web_search_20250305","name":"web_search"}`. Chat requests mandatory hosted search with `web_search_options: {}`. Choose an upstream model that supports search; Molto keeps the requested model.
+Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type":"web_search_20250305","name":"web_search"}`. Chat enables search with `web_search_options: {}`; translated Chat requests require hosted search. Choose an upstream model that supports search; Molto keeps the requested model.
 
 | Setting | Translation |
 | --- | --- |
@@ -25,11 +25,11 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 | Blocked domains | Native Messages preserves `blocked_domains`; translation to Responses rejects an explicit blocklist |
 | Source inclusion | Translated searches to Responses request `web_search_call.action.sources`, preserving existing include values without adding duplicates |
 
-Omitted options remain omitted; native Responses and Messages options pass through unchanged.
+Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search before transport, including search enabled through `extra_body.web_search_options`.
 
 On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. When `extra_body.tools` replaces the projected tools, the effective upstream declarations determine whether Chat omits signature-only reasoning.
 
-Responses and Messages preserve automatic, disabled, required, and supported named selection. Chat requires hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
+Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
 A Messages upstream requires an output-token limit: supply `max_output_tokens` from Responses, `max_completion_tokens` from Chat, or `max_tokens` from Messages. Search budgets do not replace that limit.
 
@@ -142,7 +142,7 @@ Native usage is preserved. Token translation is unchanged. Messages search count
 
 ## Follow-ups and recovery
 
-Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. When targeting Responses, citation buffering follows the effective upstream history, including replacement history supplied through `extra_body.input`.
+Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. When targeting Responses, citation buffering follows the effective upstream history, including replacement history supplied through `extra_body.input`.
 
 Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 

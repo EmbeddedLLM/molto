@@ -294,7 +294,9 @@ Recognized errors use the OpenAI SDK namespace and the [shared error contract](.
 
 ## Hosted web search
 
-Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Molto keeps the requested model, which must support search. Chat upstream search is rejected before transport.
+Native Chat routes forward `web_search_options` from the request or `extra_body` and preserve the provider's response fields, including structured citations. Molto keeps the requested model, which must support search.
+
+Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Translated routes targeting a Chat upstream reject hosted search before transport.
 
 Translated output retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
 

@@ -18,7 +18,6 @@ from molto.types.normalized import (
     WebCitation,
     WebSearchTool,
 )
-from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
@@ -247,21 +246,6 @@ async def test_search_usage_retains_reported_count_only(count):
     )
     assert events[-1].usage.extra_fields.get("web_search_requests") == count
     assert ("web_search_requests" in events[-1].usage.extra_fields) == (count is not None)
-
-
-@pytest.mark.parametrize("stream", [False, True])
-async def test_native_chat_search_rejected_before_transport(stream):
-    """Ensures native search Chat routes fail before constructing SDK transport."""
-    async with httpx.AsyncClient() as http_client:
-        client = OpenAIChatCompletionsClient(http_client, capabilities=CAPABILITIES)
-        request = OpenAIChatCompletionsCreateRequest(
-            model="gpt-5-search-api", messages=[], web_search_options={}, stream=stream
-        )
-        with pytest.raises(UnsupportedInput, match="Chat Completions upstream"):
-            if stream:
-                await anext(client.native_events(request))
-            else:
-                await client.native_response(request)
 
 
 @pytest.mark.parametrize(
@@ -613,21 +597,6 @@ async def test_null_search_usage_remains_unknown():
         ]
     )
     assert "web_search_requests" not in events[-1].extra_fields
-
-
-@pytest.mark.parametrize("stream", [False, True])
-async def test_native_chat_extra_body_search_rejected(stream):
-    """Ensures transport extensions cannot bypass the Chat search upstream exclusion."""
-    async with httpx.AsyncClient() as http_client:
-        client = OpenAIChatCompletionsClient(
-            http_client, capabilities=CAPABILITIES, extra_body={"web_search_options": {}}
-        )
-        request = OpenAIChatCompletionsCreateRequest(model="m", messages=[], stream=stream)
-        with pytest.raises(UnsupportedInput, match="Chat Completions upstream"):
-            if stream:
-                await anext(client.native_events(request))
-            else:
-                await client.native_response(request)
 
 
 async def test_item_done_text_snapshot_rebases_local_citations():

@@ -1032,13 +1032,6 @@ class OpenAIChatCompletionsClient(
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
-        if (
-            request.web_search_options is not None
-            or (self._extra_body or {}).get("web_search_options") is not None
-        ):
-            raise UnsupportedInput(
-                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
-            )
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.chat.completions.create(
@@ -1060,13 +1053,6 @@ class OpenAIChatCompletionsClient(
     async def native_response(
         self, request: OpenAIChatCompletionsCreateRequest
     ) -> OpenAIChatCompletionsResponse:
-        if (
-            request.web_search_options is not None
-            or (self._extra_body or {}).get("web_search_options") is not None
-        ):
-            raise UnsupportedInput(
-                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
-            )
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.chat.completions.create(
@@ -1342,6 +1328,10 @@ class OpenAIChatCompletionsClient(
                 raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        if (self._extra_body or {}).get("web_search_options") is not None:
+            raise UnsupportedInput(
+                "Hosted web search cannot use Chat Completions upstream; select Responses or Messages."
+            )
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
         usage: Usage | None = None

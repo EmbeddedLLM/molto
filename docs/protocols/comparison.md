@@ -51,7 +51,7 @@ Responses is the richer lifecycle protocol. Translating into Responses requires 
 
 ## Hosted-search fidelity
 
-Responses and Messages translate basic search calls, results, and URL attribution. Messages excerpts and opaque references cannot be reconstructed from Responses; Chat retains only answer text and inline links. See [Hosted web search](../web-search.md) for directional mappings and limitations.
+Responses and Messages translate basic search calls, results, and URL attribution. Messages excerpts and opaque references cannot be reconstructed from Responses; translated Chat retains only answer text and inline links. See [Hosted web search](../web-search.md) for directional mappings and limitations.
 
 ## Role and placement
 
