@@ -872,6 +872,7 @@ TerminationReason: TypeAlias = Literal[
     "stop",
     "stop_sequence",
     "tool_call",
+    "unknown",
 ]
 
 
@@ -896,7 +897,9 @@ class ResponseEndEvent(ExtraModel):
     ] = None
     termination_reason: Annotated[
         TerminationReason,
-        Field(description="The provider-neutral reason that generation terminated."),
+        Field(
+            description="The provider-neutral reason generation terminated, or 'unknown' if unavailable."
+        ),
     ]
     stop_sequence: Annotated[
         str | None,

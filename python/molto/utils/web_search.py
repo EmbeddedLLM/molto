@@ -55,11 +55,14 @@ def messages_text_blocks(
 
 def citation_from_responses(annotation: dict[str, Any]) -> WebCitation:
     """Convert a Responses URL annotation with offsets local to its text part."""
+    metadata = (annotation.get("provider_metadata") or {}).get("anthropic") or {}
     return WebCitation(
         url=annotation["url"],
         title=annotation.get("title"),
         start_index=annotation["start_index"],
         end_index=annotation["end_index"],
+        cited_text=metadata.get("cited_text"),
+        encrypted_index=metadata.get("encrypted_index"),
     )
 
 
@@ -75,15 +78,30 @@ def citation_from_messages(citation: dict[str, Any], *, text: str) -> WebCitatio
     )
 
 
-def citation_to_responses(citation: WebCitation) -> dict[str, Any]:
-    """Build a Responses URL annotation, omitting unavailable source context."""
-    return {
+def citation_to_responses(
+    citation: WebCitation, *, include_anthropic_metadata: bool = False
+) -> dict[str, Any]:
+    """Build a URL annotation, optionally retaining Anthropic continuation state."""
+    annotation = {
         "type": "url_citation",
         "url": citation.url,
         "title": citation.title or "",
         "start_index": citation.start_index,
         "end_index": citation.end_index,
     }
+    # This extension belongs to downstream Responses output, not OpenAI requests.
+    if (
+        include_anthropic_metadata
+        and citation.encrypted_index is not None
+        and citation.cited_text is not None
+    ):
+        annotation["provider_metadata"] = {
+            "anthropic": {
+                "encrypted_index": citation.encrypted_index,
+                "cited_text": citation.cited_text,
+            }
+        }
+    return annotation
 
 
 def citation_to_messages(citation: WebCitation, *, text: str) -> dict[str, Any]:
@@ -103,8 +121,12 @@ def citation_to_messages(citation: WebCitation, *, text: str) -> dict[str, Any]:
 
 def search_source_from_responses(source: dict[str, Any]) -> WebSearchSource:
     """Retain observed Responses source metadata without inventing retrieved content."""
+    metadata = (source.get("provider_metadata") or {}).get("anthropic") or {}
     return WebSearchSource(
-        url=source["url"], title=source.get("title"), page_age=source.get("page_age")
+        url=source["url"],
+        title=metadata.get("title", source.get("title")),
+        page_age=metadata.get("page_age", source.get("page_age")),
+        encrypted_content=metadata.get("encrypted_content"),
     )
 
 
@@ -118,9 +140,20 @@ def search_source_from_messages(source: dict[str, Any]) -> WebSearchSource:
     )
 
 
-def search_source_to_responses(search_source: WebSearchSource) -> dict[str, Any]:
-    """Build the Responses URL-source shape."""
-    return {"type": "url", "url": search_source.url}
+def search_source_to_responses(
+    search_source: WebSearchSource, *, include_anthropic_metadata: bool = False
+) -> dict[str, Any]:
+    """Build a URL source, optionally retaining Anthropic continuation state."""
+    source: dict[str, Any] = {"type": "url", "url": search_source.url}
+    if include_anthropic_metadata and search_source.encrypted_content is not None:
+        source["provider_metadata"] = {
+            "anthropic": {
+                key: value
+                for key in ("encrypted_content", "title", "page_age")
+                if (value := getattr(search_source, key)) is not None
+            }
+        }
+    return source
 
 
 def search_source_to_messages(search_source: WebSearchSource) -> dict[str, Any]:

@@ -86,6 +86,7 @@ _STOP_REASONS: dict[TerminationReason, str] = {
     "stop": "end_turn",
     "stop_sequence": "stop_sequence",
     "tool_call": "tool_use",
+    "unknown": "end_turn",
 }
 
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (

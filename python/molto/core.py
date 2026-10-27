@@ -18,6 +18,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
 )
+from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
@@ -209,6 +210,12 @@ class Molto:
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
+        preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
+        if request.has_anthropic_search_metadata() and not preserve_search_metadata:
+            raise UnsupportedInput(
+                "Anthropic search provider_metadata requires endpoint='messages' "
+                "and provider='anthropic'."
+            )
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -230,7 +237,9 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = OpenAIResponsesAdapter(capabilities)
+        adapter = OpenAIResponsesAdapter(
+            capabilities, preserve_anthropic_search_metadata=preserve_search_metadata
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
             upstream = OpenAIChatCompletionsClient(

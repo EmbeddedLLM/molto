@@ -929,7 +929,7 @@ class OpenAIResponsesClient(
                     else:
                         incomplete_details = metadata.incomplete_details
                         if incomplete_details is None or incomplete_details.reason is None:
-                            termination_reason = "pause"
+                            termination_reason = "unknown"
                         else:
                             termination_reason = incomplete_details.reason
                     usage = _responses_usage(metadata.usage)

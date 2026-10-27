@@ -353,11 +353,7 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
     return matches[0]
 
 
-def _response_terminal(
-    events: list[dict[str, Any]],
-    *,
-    has_search: bool = False,
-) -> tuple[dict[str, Any], str]:
+def _response_terminal(events: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
     terminal_events = [
         event
         for event in events
@@ -377,10 +373,10 @@ def _response_terminal(
         return response, "stop"
 
     incomplete_details = response.get("incomplete_details")
-    if has_search and incomplete_details is None:
-        return response, "length"
+    if incomplete_details is None:
+        return response, "stop"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("response.incomplete must contain incomplete_details.")
+        raise ValueError("response.incomplete incomplete_details must be an object or null.")
     reason = incomplete_details.get("reason")
     finish_reasons = {
         "content_filter": "content_filter",
@@ -806,7 +802,7 @@ def match_chat_completions_events(
         isinstance(event.get("item"), dict) and event["item"].get("type") == "web_search_call"
         for event in response_events
     )
-    terminal_response, finish_reason = _response_terminal(response_events, has_search=has_search)
+    terminal_response, finish_reason = _response_terminal(response_events)
     if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):

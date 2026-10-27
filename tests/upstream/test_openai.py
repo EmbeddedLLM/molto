@@ -2885,14 +2885,33 @@ async def test_responses_events_ignore_native_sdk_events(
         assert [event async for event in client.events(NormalizedRequest())] == []
 
 
-async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize(
+    ("response_fields", "termination_reason"),
+    [
+        pytest.param(
+            {"incomplete_details": {"reason": "max_output_tokens"}},
+            "max_output_tokens",
+            id="max-output-tokens",
+        ),
+        pytest.param(
+            {"incomplete_details": {"reason": "content_filter"}},
+            "content_filter",
+            id="content-filter",
+        ),
+        pytest.param({"incomplete_details": None}, "unknown", id="null-details"),
+        pytest.param({}, "unknown", id="absent-details"),
+        pytest.param({"incomplete_details": {"reason": None}}, "unknown", id="null-reason"),
+        pytest.param({"incomplete_details": {}}, "unknown", id="absent-reason"),
+    ],
+)
+async def test_responses_events_retain_incomplete_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    response_fields: dict[str, object],
+    termination_reason: TerminationReason,
+):
+    """Ensures incomplete reasons survive and absent reasons remain unknown, never pauses."""
     incomplete_response = _response()
-    incomplete_response.update(
-        {
-            "incomplete_details": {"reason": "max_output_tokens"},
-            "status": "incomplete",
-        }
-    )
+    incomplete_response.update(status="incomplete", **response_fields)
     native_events = [
         _response_event(
             {
@@ -2922,7 +2941,7 @@ async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.Mon
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
     response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
-    assert response_end.termination_reason == "max_output_tokens"
+    assert response_end.termination_reason == termination_reason
 
 
 async def test_responses_events_translate_function_call_lifecycle(

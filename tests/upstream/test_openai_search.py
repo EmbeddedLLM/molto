@@ -368,7 +368,7 @@ def test_search_history_links_top_level_and_assistant_parts(nested_call, nested_
 
 
 async def test_unclassified_partial_search_does_not_invent_invocation():
-    """Ensures an interrupted actionless item remains unclassified on translated routes."""
+    """Ensures an actionless incomplete search invents neither an invocation nor a pause."""
     item = {"id": "ws_1", "type": "web_search_call", "status": "in_progress"}
     events = await _normalize(
         [
@@ -381,7 +381,7 @@ async def test_unclassified_partial_search_does_not_invent_invocation():
         ]
     )
     assert not any(isinstance(event, PartStartEvent) for event in events)
-    assert events[-1].termination_reason == "pause"
+    assert events[-1].termination_reason == "unknown"
 
 
 async def test_later_text_cannot_overtake_unclassified_search():

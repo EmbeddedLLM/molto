@@ -324,7 +324,7 @@ For the text, reasoning, and function-tool paths:
 - `PartStartEvent` establishes a `Thinking`, `TextOutput`, or `ToolCall` snapshot at a stable output index; native protocols normally start empty, but an initial function-argument fragment is preserved when present;
 - each source reasoning, text, or function-argument chunk becomes one matching `PartDeltaEvent`;
 - `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
-- `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
+- `ResponseEndEvent` carries terminal metadata, a required provider-neutral `TerminationReason` literal, an optional matched stop sequence, and normalized usage. The literal includes `unknown` for an incomplete response whose cause is unavailable.
 
 A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends, and surviving parts are reindexed so normalized indices stay dense. Recorded providers never produce such parts.
 
@@ -336,7 +336,9 @@ The normalized representation preserves the distinction that ambiguous wire prot
 
 Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
 
-Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. A pause maps to Messages `pause_turn`, Responses incomplete with null details, or Chat `length`; the latter is a documented approximation for unfinished generation. Other reasons without a target representation retain their documented normal-completion coercions.
+Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched.
+
+The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, context-window exhaustion, and unknown incomplete causes. Responses `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, becomes `unknown`; explicit reasons remain unchanged. Unknown maps to Responses incomplete with null details, Messages `end_turn`, or Chat `stop`. A genuine Messages-source pause remains `pause` and maps to Messages `pause_turn`, Responses incomplete with null details, or Chat `length`; the latter is a documented approximation for unfinished generation. A reason-less Responses incomplete cannot identify a hosted-search pause, so Messages and Chat callers lose that continuation hint. Other reasons without a target representation retain their documented normal-completion coercions.
 
 ## Hosted search and citations
 
@@ -349,6 +351,8 @@ Responses and Messages clients set `ResponseStartEvent.web_search_enabled` from 
 `TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. `defer_citations` tells block-based projectors to wait for that snapshot. The Responses normalizer and Messages projector buffer unresolved search or citation parts in start order, allowing ordinary parts to stream when they reach the front. Projection assigns output indices because parts can expand or disappear.
 
 The [hosted-search contract](../docs/web-search.md) defines supported routes, reductions, failures, usage, and continuation.
+
+The Responses downstream boundary optionally emits typed `provider_metadata.anthropic` on search sources and URL citations, retaining opaque source content and citation state already held in the IR. The coordinator enables this only for the Anthropic Messages route and rejects metadata-bearing Responses history on other routes. Local history schemas validate the extension eagerly and the adapter restores its existing IR fields. Shared Responses conversion helpers default to standard fields so OpenAI upstream projection does not receive the extension. No conversation store or additional normalized state container is involved.
 
 ## Response collection
 

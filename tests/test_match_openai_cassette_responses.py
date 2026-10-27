@@ -448,14 +448,39 @@ def test_search_failure_and_browsing_without_text_stay_empty(action: str) -> Non
     assert choice["finish_reason"] == "stop"
 
 
-def test_search_paused_response_maps_to_length() -> None:
-    """Ensures the reduced paused-search state does not claim successful Chat completion."""
-    chat, responses = _search_cassettes()
-    responses["response"]["body"].update(status="incomplete", incomplete_details=None)
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_response_maps_to_stop(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to stop without inferring a search pause."""
+    chat, responses = _search_cassettes() if has_search else _cassettes()
+    response = responses["response"]["body"]
+    response.pop("incomplete_details", None)
+    response.update(status="incomplete", **incomplete_fields)
 
     match_chat_completions_response(chat, responses)
 
-    assert chat["response"]["body"]["choices"][0]["finish_reason"] == "length"
+    assert chat["response"]["body"]["choices"][0]["finish_reason"] == "stop"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_response_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    chat, responses = _cassettes()
+    responses["response"]["body"].update(
+        status="incomplete", incomplete_details=incomplete_details
+    )
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_chat_completions_response(chat, responses)
 
 
 @pytest.mark.parametrize("field", ["filters", "max_tool_calls"])

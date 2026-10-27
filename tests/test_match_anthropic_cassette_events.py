@@ -1988,13 +1988,48 @@ def test_search_stream_without_search_clears_recorded_activity(keep_tool: bool) 
     )
 
 
-def test_ordinary_stream_null_incomplete_details_still_rejected() -> None:
-    """Ensures search pause translation does not change ordinary stream termination validation."""
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_stream_maps_to_end_turn(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to end_turn independently of hosted search activity."""
+    if has_search:
+        messages, responses = _search_stream_cassettes()
+    else:
+        messages = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+        responses = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].pop("incomplete_details", None)
+    terminal["response"].update(status="incomplete", **incomplete_fields)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_messages_events(messages, responses)
+
+    message_delta = next(
+        event for event in _data_events(messages) if event["type"] == "message_delta"
+    )
+    assert message_delta["delta"]["stop_reason"] == "end_turn"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_stream_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
     messages = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
     responses = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
     events = _data_events(responses)
     events[-1]["type"] = "response.incomplete"
-    events[-1]["response"]["incomplete_details"] = None
+    events[-1]["response"].update(status="incomplete", incomplete_details=incomplete_details)
     responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
     with pytest.raises(ValueError, match="incomplete_details"):
         match_messages_events(messages, responses)

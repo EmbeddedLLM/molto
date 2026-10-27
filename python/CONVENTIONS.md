@@ -115,7 +115,9 @@ The cross-protocol contract is: Molto is strict during input validation but leni
 
 Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` models reject extras when validated as request parts, including within `AssistantInput`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
 
-Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing a translated upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+
+Never raise `UnsupportedInput` from `native_events()` or `native_response()`: the caller has already validated the exact wire protocol these methods forward.
 
 ## Normalized content and events
 

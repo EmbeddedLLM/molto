@@ -21,7 +21,7 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
-from molto.providers import ReasoningRepresentation
+from molto.providers import ProviderCapabilities, ReasoningRepresentation
 from molto.types.exceptions import (
     APIException,
     AuthenticationError,
@@ -91,6 +91,7 @@ _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "stop": "stop",
     "stop_sequence": "stop",
     "tool_call": "tool_calls",
+    "unknown": "stop",
 }
 
 
@@ -342,6 +343,15 @@ class OpenAIResponsesAdapter(
     ]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    def __init__(
+        self,
+        capabilities: ProviderCapabilities,
+        *,
+        preserve_anthropic_search_metadata: bool = False,
+    ) -> None:
+        super().__init__(capabilities)
+        self._preserve_anthropic_search_metadata = preserve_anthropic_search_metadata
 
     @staticmethod
     def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
@@ -814,7 +824,10 @@ class OpenAIResponsesAdapter(
                             "output_index": output_index,
                             "content_index": 0,
                             "annotation_index": count,
-                            "annotation": citation_to_responses(normalized_event.delta.citation),
+                            "annotation": citation_to_responses(
+                                normalized_event.delta.citation,
+                                include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                            ),
                         }
                     )
                     annotation_counts[output_index] = count + 1
@@ -914,7 +927,11 @@ class OpenAIResponsesAdapter(
                     }
                     if part.sources is not None:
                         item["action"]["sources"] = [
-                            search_source_to_responses(source) for source in part.sources
+                            search_source_to_responses(
+                                source,
+                                include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                            )
+                            for source in part.sources
                         ]
                     if part.error is None:
                         yield event(
@@ -1010,7 +1027,13 @@ class OpenAIResponsesAdapter(
                         ]
 
                 elif isinstance(part, TextOutput):
-                    annotations = [citation_to_responses(citation) for citation in part.citations]
+                    annotations = [
+                        citation_to_responses(
+                            citation,
+                            include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                        )
+                        for citation in part.citations
+                    ]
                     for annotation_index in range(
                         annotation_counts.get(output_index, 0), len(annotations)
                     ):
@@ -1101,7 +1124,12 @@ class OpenAIResponsesAdapter(
                         }
                     )
                 search_calls.clear()
-                if termination_reason in {"content_filter", "max_output_tokens", "pause"}:
+                if termination_reason in {
+                    "content_filter",
+                    "max_output_tokens",
+                    "pause",
+                    "unknown",
+                }:
                     event_type = "response.incomplete"
                     status = "incomplete"
                 else:
@@ -1114,7 +1142,9 @@ class OpenAIResponsesAdapter(
                 )
                 if status == "incomplete":
                     final_response["incomplete_details"] = (
-                        None if termination_reason == "pause" else {"reason": termination_reason}
+                        None
+                        if termination_reason in {"pause", "unknown"}
+                        else {"reason": termination_reason}
                     )
                 yield event(
                     {

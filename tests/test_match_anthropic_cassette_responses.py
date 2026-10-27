@@ -509,7 +509,7 @@ def test_search_counter_is_observed_not_inferred(count: int | None) -> None:
     )
 
 
-def test_search_failed_and_paused_states() -> None:
+def test_search_failed_and_unfinished_states() -> None:
     """Ensures failed searches use unavailable and unfinished searches do not gain results."""
     messages, responses = _search_cassettes()
     response = responses["response"]["body"]
@@ -522,7 +522,7 @@ def test_search_failed_and_paused_states() -> None:
     response.update(status="incomplete", incomplete_details=None)
     response["output"][0]["status"] = "in_progress"
     match_messages_response(messages, responses)
-    assert messages["response"]["body"]["stop_reason"] == "pause_turn"
+    assert messages["response"]["body"]["stop_reason"] == "end_turn"
     assert not any(
         block["type"] == "web_search_tool_result"
         for block in messages["response"]["body"]["content"]
@@ -538,9 +538,36 @@ def test_search_context_size_rejected(size: str) -> None:
         match_messages_response(messages, responses)
 
 
-def test_ordinary_response_null_incomplete_details_still_rejected() -> None:
-    """Ensures search pause translation does not weaken ordinary response validation."""
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_response_maps_to_end_turn(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to end_turn without inferring a search pause."""
+    messages, responses = _search_cassettes() if has_search else _cassettes()
+    response = responses["response"]["body"]
+    response.pop("incomplete_details", None)
+    response.update(status="incomplete", **incomplete_fields)
+
+    match_messages_response(messages, responses)
+
+    assert messages["response"]["body"]["stop_reason"] == "end_turn"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_response_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
     messages, responses = _cassettes()
-    responses["response"]["body"].update(status="incomplete", incomplete_details=None)
+    responses["response"]["body"].update(
+        status="incomplete", incomplete_details=incomplete_details
+    )
     with pytest.raises(ValueError, match="incomplete_details"):
         match_messages_response(messages, responses)

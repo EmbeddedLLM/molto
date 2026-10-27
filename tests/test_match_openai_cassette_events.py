@@ -962,14 +962,26 @@ def test_search_stream_keeps_text_from_multiple_output_parts() -> None:
     assert "".join(_chat_content(event) or "" for event in _data_events(chat)) == expected
 
 
-def test_search_paused_stream_maps_to_length() -> None:
-    """Ensures a paused search's incomplete terminal state cannot become Chat stop."""
-    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
-    responses = read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_stream_maps_to_stop(has_search: bool, incomplete_fields: dict) -> None:
+    """Ensures missing reasons coerce to stop independently of hosted search activity."""
+    directory = CASSETTES / ("web_search" if has_search else "simple_text")
+    chat = read_yaml(str(directory / "openai-chat_completions-stream-00.yaml"))
+    responses = read_yaml(str(directory / "openai-responses-stream-00.yaml"))
     events = _data_events(responses)
     terminal = next(event for event in events if event["type"] == "response.completed")
     terminal["type"] = "response.incomplete"
-    terminal["response"].update(status="incomplete", incomplete_details=None)
+    terminal["response"].pop("incomplete_details", None)
+    terminal["response"].update(status="incomplete", **incomplete_fields)
     responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
 
     match_chat_completions_events(chat, responses)
@@ -979,4 +991,19 @@ def test_search_paused_stream_maps_to_length() -> None:
         for event in _data_events(chat)
         for choice in event["choices"]
         if choice.get("finish_reason")
-    ] == ["length"]
+    ] == ["stop"]
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_stream_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].update(status="incomplete", incomplete_details=incomplete_details)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_chat_completions_events(chat, responses)

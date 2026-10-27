@@ -297,10 +297,13 @@ Molto first preserves a provider-neutral termination reason, then projects it in
 | `tool_call`                     | `tool_use`      | `tool_calls`     | completed                       |
 | `model_context_window_exceeded` | same value      | `stop`           | completed                       |
 | `pause`                         | `pause_turn`    | `length`         | incomplete with null details    |
+| `unknown`                       | `end_turn`      | `stop`           | incomplete with null details    |
 | `refusal`                       | `refusal`       | `stop`           | completed                       |
 | `content_filter`                | `end_turn`      | `content_filter` | incomplete: `content_filter`    |
 
 Values shown as normal completion for a target that lacks the source distinction are deliberate coercions. A matched Anthropic stop sequence is retained separately.
+
+A Responses `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, normalizes to `unknown`. Explicit `max_output_tokens` and `content_filter` reasons retain their mappings. A Messages `pause_turn` normalizes to `pause`; search activity alone does not establish a pause.
 
 ### Usage
 

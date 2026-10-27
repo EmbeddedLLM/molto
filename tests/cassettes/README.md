@@ -22,6 +22,15 @@ These requests were recorded outside pytest through `scripts/recorder_proxy.py`,
 
 Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
 
+### Anthropic hosted-search recordings
+
+These unmodified Anthropic `claude-sonnet-4-6` recordings provide independent provider evidence:
+
+- `anthropic/web_search/*-00.yaml`: streamed search inputs, citations, and search usage.
+- `anthropic/web_search/*-01.yaml`: successful continuation of the same search with original source and citation state restored.
+
+`tests/core/test_anthropic_web_search.py` verifies SDK parity and exact history replay in both response modes. See the [provider metadata contract](../../docs/web-search.md#preserving-anthropic-search-history).
+
 ## Error cassettes
 
 The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
@@ -110,6 +119,8 @@ The `reasoning_raw` scenario is named with `vllm-*` filenames and its test deriv
 ### Hosted search
 
 The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state. Chat preserves the answer and inline links while omitting structured annotations and hosted activity. Native parity still compares each fixture's complete parsed SDK representation.
+
+For independent provider evidence, see [Anthropic hosted-search recordings](#anthropic-hosted-search-recordings).
 
 The Responses stream exposes 13 sources at item completion and a fourteenth URL in the terminal snapshot. Messages stream matching uses the item-completion snapshot, as does incremental translation. Its reasoning signature likewise follows the item-completion snapshot rather than a later terminal ciphertext. Translated comparisons reduce only those unavailable differences and separately assert text/citation association, sources, placeholders, linkage, usage, and lifecycle. Do not erase these fields globally to force equality.
 

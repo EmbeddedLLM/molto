@@ -332,15 +332,18 @@ Termination projection is:
 | `tool_call`                     | `response.completed`, coerced              |
 | `model_context_window_exceeded` | `response.completed`, coerced              |
 | `pause`                         | `response.incomplete` with null details    |
+| `unknown`                       | `response.incomplete` with null details    |
 | `refusal`                       | `response.completed`, coerced              |
 
 Molto retains the more specific source reason in the normalized stream. Reasons without a corresponding Responses termination value use the coercions above.
+
+An upstream `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, normalizes to `unknown`. Explicit `max_output_tokens` and `content_filter` reasons are preserved. Both `unknown` and a Messages-source `pause` project to incomplete Responses with null details, but only the explicit Messages `pause_turn` signal establishes a pause.
 
 ## Hosted web search
 
 Declare `{"type":"web_search"}` in `tools`. Translation to Messages supports allowed domains, approximate location, and search budgets; explicit context size is rejected.
 
-Messages search calls and results become `web_search_call` items, and citations become local URL ranges. Search errors mark the linked item as failed; `pause_turn` produces an incomplete response. See [Hosted web search](../web-search.md) for mappings, attribution losses, and continuation limits.
+Messages search calls and results become `web_search_call` items, and citations become local URL ranges. With an Anthropic Messages upstream, sources and URL citations also carry the typed `provider_metadata.anthropic` extension, preserving original encrypted state and source metadata for continuation. Clients must retain it when replaying output in `input`; metadata-bearing history rejects other upstream routes before transport. The extension is not forwarded in standard OpenAI upstream requests. Search errors mark the linked item as failed; `pause_turn` produces an incomplete response. See [Hosted web search](../web-search.md) for extension fields, mappings, attribution losses, and continuation limits.
 
 ## Errors
 

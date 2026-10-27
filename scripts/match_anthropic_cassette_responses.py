@@ -670,9 +670,7 @@ def _response_content(response: dict[str, Any]) -> tuple[list[dict[str, Any]], b
     return blocks, has_tool_calls
 
 
-def _stop_reason(
-    response: dict[str, Any], *, has_tool_calls: bool, has_search: bool = False
-) -> str:
+def _stop_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
     status = response.get("status")
     if status == "completed":
         return "tool_use" if has_tool_calls else "end_turn"
@@ -680,10 +678,10 @@ def _stop_reason(
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
-    if incomplete_details is None and has_search:
-        return "pause_turn"
+    if incomplete_details is None:
+        return "end_turn"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("Incomplete Responses responses must contain incomplete_details.")
+        raise ValueError("Incomplete Responses incomplete_details must be an object or null.")
     if incomplete_details.get("reason") == "max_output_tokens":
         return "max_tokens"
     return "end_turn"
@@ -728,14 +726,7 @@ def match_messages_response(
     message["role"] = "assistant"
     message["type"] = "message"
     message["content"] = content
-    message["stop_reason"] = _stop_reason(
-        response,
-        has_tool_calls=has_tool_calls,
-        has_search=any(
-            tool.get("type") == "web_search" for tool in responses_request.get("tools", [])
-        )
-        or any(item.get("type") == "web_search_call" for item in response.get("output", [])),
-    )
+    message["stop_reason"] = _stop_reason(response, has_tool_calls=has_tool_calls)
     message["stop_sequence"] = None
     _map_usage(response_usage, message_usage, _cache_lifetimes(matched_request))
     if has_search:
