@@ -749,7 +749,6 @@ class OpenAIResponsesClient(
                         created_at=int(metadata.created_at),
                         model=metadata.model,
                         service_tier=metadata.service_tier,
-                        web_search_enabled=search_enabled,
                     )
                 elif event_type == "response.output_item.added":
                     part = _started_output_item(event.item)

@@ -279,24 +279,16 @@ def _search_cassettes() -> tuple[dict, dict]:
     )
 
 
-def test_search_response_omits_signature_only_reasoning() -> None:
-    """Ensures signature-only search reasoning leaves the matched answer unchanged."""
+def test_search_response_rejects_signature_only_reasoning() -> None:
+    """Ensures search never silently discards signature-only reasoning."""
     chat, responses = _search_cassettes()
-    expected = deepcopy(chat)
-    match_chat_completions_response(expected, responses)
     responses["response"]["body"]["output"].insert(
         0,
-        {
-            "type": "reasoning",
-            "content": [],
-            "summary": [],
-            "encrypted_content": "opaque",
-        },
+        {"type": "reasoning", "content": [], "summary": [], "encrypted_content": "opaque"},
     )
 
-    match_chat_completions_response(chat, responses)
-
-    assert chat == expected
+    with pytest.raises(ValueError, match="Encrypted Responses reasoning"):
+        match_chat_completions_response(chat, responses)
 
 
 @pytest.mark.parametrize("field", ["content", "summary"])
@@ -319,7 +311,7 @@ def test_search_response_still_rejects_signed_reasoning_text(field: str) -> None
 
 
 def test_matches_web_search_response_without_mutating_recordings(tmp_path: Path) -> None:
-    """Ensures actual search recordings yield SDK-valid reduced Chat output and stay intact."""
+    """Ensures reasoning-free search recordings yield SDK-valid Chat output and stay intact."""
     from hashlib import sha256
 
     directory = CASSETTES.parent / "web_search"

@@ -112,13 +112,13 @@ The `matched/{scenario}/` directories currently exercise these scenarios. One sc
 | `prompt_cache_implicit` | Two requests with automatic caching of a user prefix. |
 | `prompt_cache_explicit` | Two requests with an explicit breakpoint on a system prefix and a changing user suffix. |
 | `error-invalid_request_error` | A native invalid-request error scenario (`error-invalid_request_error`) used to exercise native error passthrough on the relevant route. |
-| `web_search` | Search, URL attribution, and reduced Chat output across all three protocols in both modes; covered by `tests/core/test_web_search.py`. |
+| `web_search` | Search and URL attribution between Responses and Messages, native Chat parity, and rejection of signed reasoning on translated Chat routes in both modes; covered by `tests/core/test_web_search.py`. |
 
 The `reasoning_raw` scenario is named with `vllm-*` filenames and its test derives `provider="vllm"` from that filename prefix, selecting the raw reasoning profile across all three protocols. A base URL never selects either behavior.
 
 ### Hosted search
 
-The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state. Chat preserves the answer and inline links while omitting structured annotations and hosted activity. Native parity still compares each fixture's complete parsed SDK representation.
+The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state. The Responses and Messages streaming fixtures retain opaque reasoning state, so their translation to Chat must raise `ValueError` rather than erase that state. Both streaming and non-streaming translated calls consume these upstream streams. The Chat streaming fixture remains a native SDK parity reference, not a faithful projection of the signed-reasoning streams. The non-streaming Responses recording contains no reasoning and remains representable by the Chat response matcher. Chat translation is also covered separately with unsigned raw reasoning. Native parity still compares each fixture's complete parsed SDK representation.
 
 For independent provider evidence, see [Anthropic hosted-search recordings](#anthropic-hosted-search-recordings).
 

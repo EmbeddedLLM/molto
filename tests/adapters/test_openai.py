@@ -1211,6 +1211,37 @@ async def test_chat_projection_initial_chunk_matches_first_part(
     assert events[0].choices[0].delta.model_dump(exclude_unset=True) == expected_delta
 
 
+@pytest.mark.parametrize("search", [False, True])
+@pytest.mark.parametrize("signature_event", ["start", "delta", "end"])
+async def test_chat_projection_rejects_signatures_independently_of_search(
+    search: bool, signature_event: str
+) -> None:
+    """Ensures signed snapshots and deltas fail regardless of search declarations."""
+    adapter = OpenAIChatCompletionsAdapter(_CAPABILITIES)
+    request = adapter.normalize_request(
+        OpenAIChatCompletionsCreateRequest(
+            messages=[{"role": "user", "content": "Hi"}],
+            model="m",
+            stream=True,
+            web_search_options={} if search else None,
+        )
+    )
+    signed = Thinking(content="", summary="", signature="opaque-state")
+    events: list[ModelResponseStreamEvent] = [_CHAT_START]
+    if signature_event == "start":
+        events.append(PartStartEvent(index=0, part=signed))
+    else:
+        events.append(PartStartEvent(index=0, part=Thinking(content="", summary="")))
+        events.append(
+            PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="opaque-state"))
+            if signature_event == "delta"
+            else PartEndEvent(index=0, part=signed)
+        )
+    with pytest.raises(ValueError, match="Chat Completions cannot preserve reasoning signatures"):
+        async for _ in adapter.project_events(_stream(*events), request):
+            pass
+
+
 async def test_chat_projection_preserves_non_empty_later_part_starts() -> None:
     # A non-initial part start may already carry text; preserve it as its own
     # chunk instead of waiting for deltas that may not exist.

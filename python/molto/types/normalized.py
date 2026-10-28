@@ -851,12 +851,6 @@ class ResponseStartEvent(ExtraModel):
         str | None,
         Field(description="The service tier used for the response."),
     ] = None
-    web_search_enabled: Annotated[
-        bool | None,
-        Field(
-            description="Whether the effective upstream request enables hosted web search, when known."
-        ),
-    ] = None
     event_kind: Annotated[
         Literal["response_start"],
         Field(description="Event type identifier, used as a discriminator."),

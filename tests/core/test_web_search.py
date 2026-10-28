@@ -254,32 +254,6 @@ def _messages_semantics(response: BaseModel) -> dict[str, Any]:
     }
 
 
-def _chat_semantics(response: BaseModel, upstream: Protocol) -> dict[str, Any]:
-    data = response.model_dump(mode="json")
-    choice = data["choices"][0]
-    message = choice["message"]
-    assert not message.get("tool_calls")
-    assert not message.get("annotations")
-    assert not message.get("reasoning_content")
-    return {
-        "id": data["id"],
-        "model": data["model"],
-        "created": data["created"] if upstream == "responses" else None,
-        "content": message["content"],
-        "finish_reason": choice["finish_reason"],
-        "usage": {
-            "prompt_tokens": data["usage"]["prompt_tokens"],
-            "completion_tokens": data["usage"]["completion_tokens"],
-            "total_tokens": data["usage"]["total_tokens"],
-            "cached_tokens": data["usage"]["prompt_tokens_details"]["cached_tokens"],
-            "cache_write_tokens": data["usage"]["prompt_tokens_details"].get(
-                "cache_write_tokens", 0
-            ),
-            "reasoning_tokens": data["usage"]["completion_tokens_details"]["reasoning_tokens"],
-        },
-    }
-
-
 @pytest.mark.parametrize(
     ("protocol", "search_in_extra_body"),
     [(protocol, False) for protocol in PROTOCOLS] + [("chat/completions", True)],
@@ -314,7 +288,8 @@ async def test_native_search_matches_sdk(
 
 
 @pytest.mark.parametrize(
-    ("downstream", "upstream"), [route for route in SEARCH_ROUTES if route[0] != route[1]]
+    ("downstream", "upstream"),
+    [route for route in SEARCH_ROUTES if route[0] != route[1] and route[0] != "chat/completions"],
 )
 @pytest.mark.parametrize("stream", [True, False])
 async def test_translated_search_matches_sdk(
@@ -380,10 +355,8 @@ async def test_translated_search_matches_sdk(
             if block.type == "web_search_tool_result"
         ]
         assert actual_semantics == expected_semantics
-    elif downstream == "messages":
-        assert _messages_semantics(actual) == _messages_semantics(expected)
     else:
-        assert _chat_semantics(actual, upstream) == _chat_semantics(expected, upstream)
+        assert _messages_semantics(actual) == _messages_semantics(expected)
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -529,31 +502,42 @@ async def test_messages_search_extra_body_matches_sdk(stream: bool, include: lis
 
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("upstream", RESPONSES_MESSAGES_PROTOCOLS)
-async def test_chat_search_extra_body_matches_sdk(upstream: Protocol, stream: bool):
-    """Ensures transport-only hosted search preserves SDK Chat output in both modes."""
+@pytest.mark.parametrize("search_in_extra_body", [False, True])
+async def test_chat_search_rejects_recorded_signatures(
+    upstream: Protocol, stream: bool, search_in_extra_body: bool
+):
+    """Ensures recorded SDK reasoning signatures fail Chat projection regardless of search declaration."""
+    reference = _collect(upstream, await _sdk_result(upstream, True))
+    if upstream == "responses":
+        assert any(
+            item.type == "reasoning" and item.encrypted_content for item in reference.output
+        )
+    else:
+        assert any(block.type == "thinking" and block.signature for block in reference.content)
     body, expected_request = _request_pair("chat/completions", upstream, stream)
-    body.pop("web_search_options")
-    extra_body = {
-        "tools": expected_request["tools"],
-        "tool_choice": "required"
-        if upstream == "responses"
-        else {"type": "tool", "name": "web_search"},
-    }
-    expected_request.update(extra_body)
-    expected = _collect("chat/completions", await _sdk_result("chat/completions", True))
+    extra_body = None
+    if search_in_extra_body:
+        body.pop("web_search_options")
+        extra_body = {
+            "tools": expected_request["tools"],
+            "tool_choice": "required"
+            if upstream == "responses"
+            else {"type": "tool", "name": "web_search"},
+        }
+        expected_request.update(extra_body)
     async with _get_http_client(
         [_path(upstream)], upstream, expected_body=expected_request
     ) as http_client:
-        result = await Molto(http_client=http_client).chat_completions(
-            body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
-        )
-        if stream:
-            events = [event async for event in result]
-            _assert_lifecycle("chat/completions", events)
-            actual = _collect("chat/completions", events)
-        else:
-            actual = result
-    assert _chat_semantics(actual, upstream) == _chat_semantics(expected, upstream)
+        with pytest.raises(
+            ValueError, match="Chat Completions cannot preserve reasoning signatures"
+        ):
+            result = await Molto(http_client=http_client).chat_completions(
+                body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
+            )
+            if stream:
+                async with result:
+                    async for _ in result:
+                        pass
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -562,7 +546,7 @@ async def test_chat_search_extra_body_matches_sdk(upstream: Protocol, stream: bo
 async def test_chat_search_extra_body_replacement_rejects_signatures(
     upstream: Protocol, stream: bool, replacement: str
 ):
-    """Ensures replacing hosted tools restores signature rejection, even for same-named functions."""
+    """Ensures replacing hosted tools preserves signature rejection, even for same-named functions."""
     body, expected_request = _request_pair("chat/completions", upstream, stream)
     function = (
         {"type": "function", "name": "web_search", "parameters": {}}
@@ -765,14 +749,16 @@ async def test_chat_search_required_with_client_function(
                     body=body, endpoint=upstream, api_key="test-api-key"
                 )
             return
-        result = await Molto(http_client=http_client).chat_completions(
-            body=body, endpoint=upstream, api_key="test-api-key"
-        )
-        if stream:
-            events = [event async for event in result]
-            _assert_lifecycle("chat/completions", events)
-        else:
-            assert not result.choices[0].message.tool_calls
+        with pytest.raises(
+            ValueError, match="Chat Completions cannot preserve reasoning signatures"
+        ):
+            result = await Molto(http_client=http_client).chat_completions(
+                body=body, endpoint=upstream, api_key="test-api-key"
+            )
+            if stream:
+                async with result:
+                    async for _ in result:
+                        pass
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -931,11 +917,23 @@ async def test_fixed_route_followup_history(
         upstream,
         expected_body=expected,
     ) as http_client:
-        result = await _coordinator(Molto(http_client=http_client), downstream)(
-            body=body, endpoint=upstream, api_key="test-api-key"
-        )
-        if stream:
-            _ = [event async for event in result]
+        if downstream == "chat/completions":
+            with pytest.raises(
+                ValueError, match="Chat Completions cannot preserve reasoning signatures"
+            ):
+                result = await Molto(http_client=http_client).chat_completions(
+                    body=body, endpoint=upstream, api_key="test-api-key"
+                )
+                if stream:
+                    async with result:
+                        async for _ in result:
+                            pass
+        else:
+            result = await _coordinator(Molto(http_client=http_client), downstream)(
+                body=body, endpoint=upstream, api_key="test-api-key"
+            )
+            if stream:
+                _ = [event async for event in result]
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -1048,12 +1046,19 @@ class _SearchStream(AsyncByteStream):
         self.closed = True
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), SEARCH_ROUTES)
-@pytest.mark.parametrize("cancel", [False, True])
+@pytest.mark.parametrize(
+    ("downstream", "upstream", "cancel"),
+    [
+        (downstream, upstream, cancel)
+        for downstream, upstream in SEARCH_ROUTES
+        for cancel in (False, True)
+        if downstream != "chat/completions" or not cancel
+    ],
+)
 async def test_search_stream_close_releases_provider(
     downstream: Protocol, upstream: Protocol, cancel: bool
 ):
-    """Ensures early close and cancellation release a hosted-search stream without closing shared HTTP."""
+    """Ensures close, cancellation, and signature rejection release search streams without closing shared HTTP."""
     body, expected = _request_pair(downstream, upstream, True)
     payload = "".join(_read_cassette(_path(upstream))["response"]["sse"])
     provider_stream = _SearchStream(payload, pause=cancel)
@@ -1063,6 +1068,19 @@ async def test_search_stream_close_releases_provider(
         return Response(200, stream=provider_stream, headers={"content-type": "text/event-stream"})
 
     async with AsyncClient(transport=MockTransport(handler)) as http_client:
+        if downstream == "chat/completions":
+            with pytest.raises(
+                ValueError, match="Chat Completions cannot preserve reasoning signatures"
+            ):
+                result = await Molto(http_client=http_client).chat_completions(
+                    body=body, endpoint=upstream, api_key="test-api-key"
+                )
+                async with result:
+                    async for _ in result:
+                        pass
+            assert provider_stream.closed
+            assert not http_client.is_closed
+            return
         result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body, endpoint=upstream, api_key="test-api-key"
         )
@@ -1134,6 +1152,40 @@ async def test_multi_query_projection_matches_sdk(stream: bool, sources, status:
 def _synthetic_events(protocol: Protocol) -> list[dict[str, Any]]:
     """Copy recorded events for synthetic cases without modifying cassette evidence."""
     return [load_sse(record) for record in _sse_records(_read_cassette(_path(protocol)), protocol)]
+
+
+def _without_reasoning(events: list[dict[str, Any]], protocol: Protocol) -> list[dict[str, Any]]:
+    """Model a synthetic reasoning-free turn while retaining search and text lifecycles."""
+    if protocol == "responses":
+        reasoning_indices = {
+            event["output_index"]
+            for event in events
+            if event["type"] == "response.output_item.added"
+            and event["item"]["type"] == "reasoning"
+        }
+        index_key = "output_index"
+    else:
+        reasoning_indices = {
+            event["index"]
+            for event in events
+            if event["type"] == "content_block_start"
+            and event["content_block"]["type"] == "thinking"
+        }
+        index_key = "index"
+    retained = []
+    for event in events:
+        if event.get(index_key) in reasoning_indices:
+            continue
+        if index_key in event:
+            event[index_key] -= sum(index < event[index_key] for index in reasoning_indices)
+        if protocol == "responses" and "response" in event:
+            event["response"]["output"] = [
+                item for item in event["response"].get("output", []) if item["type"] != "reasoning"
+            ]
+        if "sequence_number" in event:
+            event["sequence_number"] = len(retained)
+        retained.append(event)
+    return retained
 
 
 async def _synthetic_replay(
@@ -1293,6 +1345,8 @@ async def test_synthetic_responses_failed_search(stream: bool, downstream: Proto
         if item["status"] == "completed":
             item["status"] = "failed"
             item["action"].pop("sources", None)
+    if downstream == "chat/completions":
+        events = _without_reasoning(events, "responses")
     result, reference = await _synthetic_replay(downstream, "responses", stream, events)
     if downstream == "messages":
         call = next(block for block in result.content if block.type == "server_tool_use")
@@ -1324,6 +1378,8 @@ async def test_synthetic_messages_search_error(
             block["content"] = {"type": "web_search_tool_result_error", "error_code": error_code}
     if not answer:
         events = [event for event in events if event.get("index", -1) < 3]
+    if downstream == "chat/completions":
+        events = _without_reasoning(events, "messages")
     result, reference = await _synthetic_replay(downstream, "messages", stream, events)
     expected_text = "".join(block.text for block in reference.content if block.type == "text")
     if downstream == "responses":
@@ -1335,7 +1391,7 @@ async def test_synthetic_messages_search_error(
         assert result.status == "completed"
         assert result.output_text == expected_text
     else:
-        assert result.choices[0].message.content == expected_text
+        assert result.choices[0].message.content == (expected_text or None)
         assert result.choices[0].finish_reason == "stop"
         assert not result.choices[0].message.tool_calls
 
@@ -1348,6 +1404,8 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
     for event in events:
         if event["type"] == "message_delta":
             event["delta"]["stop_reason"] = "pause_turn"
+    if downstream == "chat/completions":
+        events = _without_reasoning(events, "messages")
     result, reference = await _synthetic_replay(downstream, "messages", stream, events)
     assert reference.stop_reason == "pause_turn"
     assert not any(block.type == "web_search_tool_result" for block in reference.content)
@@ -1359,7 +1417,7 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
         assert getattr(call.action, "sources", None) is None
     else:
         assert result.choices[0].finish_reason == "length"
-        assert result.choices[0].message.content == ""
+        assert result.choices[0].message.content is None
         assert not result.choices[0].message.tool_calls
 
 

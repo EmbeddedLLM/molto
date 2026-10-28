@@ -9,7 +9,7 @@ continuation state are not representable in Chat Completions.
 
 Hosted-search fixtures cover Chat downstream only. Hosted calls and structured
 URL citations are omitted while actual answer text and inline links are retained.
-Signature-only search reasoning is omitted because Chat has no corresponding state.
+Signed or encrypted reasoning is rejected, including on hosted-search turns.
 """
 
 from __future__ import annotations
@@ -250,13 +250,6 @@ def _response_output(
         if item_type == "web_search_call":
             continue
         if item_type == "reasoning":
-            if (
-                has_search
-                and item.get("encrypted_content") is not None
-                and item.get("content") in (None, [])
-                and item.get("summary") in (None, [])
-            ):
-                continue
             if reasoning_content is not None:
                 raise ValueError(
                     "Multiple Responses reasoning items cannot map to Chat Completions."

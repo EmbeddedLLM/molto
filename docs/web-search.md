@@ -2,11 +2,13 @@
 
 Molto preserves provider-hosted web search on native routes and translates basic search through Responses and Messages upstreams. Searches run at the provider, separately from client functions.
 
-| Caller protocol  | Responses upstream                          | Messages upstream                   | Chat upstream             |
-| ---------------- | ------------------------------------------- | ----------------------------------- | ------------------------- |
-| Responses        | Native passthrough                          | Search, answer, and URL attribution | Rejected before transport |
-| Messages         | Search, answer, and reduced URL attribution | Native passthrough                  | Rejected before transport |
-| Chat Completions | Mandatory search, answer text               | Mandatory search, answer text       | Native passthrough        |
+| Caller protocol  | Responses upstream                          | Messages upstream                           | Chat upstream             |
+| ---------------- | ------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Responses        | Native passthrough                          | Search, answer, and URL attribution         | Rejected before transport |
+| Messages         | Search, answer, and reduced URL attribution | Native passthrough                          | Rejected before transport |
+| Chat Completions | Mandatory search; signed reasoning rejected | Mandatory search; signed reasoning rejected | Native passthrough        |
+
+Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned raw reasoning remains representable. The `vllm` profile supports unsigned raw reasoning; provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
 
 Both streaming and non-streaming calls use this contract. Native routes preserve provider fields and events. Translated non-streaming results collect the same projected events as streaming calls.
 
@@ -27,7 +29,7 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 
 Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search before transport, including search enabled through `extra_body.web_search_options`.
 
-On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. When `extra_body.tools` replaces the projected tools, the effective upstream declarations determine whether Chat omits signature-only reasoning.
+On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. Replacing tools does not change reasoning projection: Chat rejects signed or encrypted reasoning whether search was declared, injected, disabled, or absent.
 
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
@@ -86,7 +88,7 @@ Offsets use Python string characters without normalization. Recordings verify AS
 
 Messages buffers text parts until their citations are complete, preserving part order. This can increase text latency and change chunk boundaries.
 
-Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signature-only reasoning with no representable text is omitted on the hosted-search Chat route; other reasoning follows the existing protocol restrictions.
+Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
 
 ## Search activity and results
 
@@ -128,7 +130,7 @@ An individual search failure is separate from an API request failure and from ov
 | Responses -> Messages   | A linked result error uses `error_code: "unavailable"` when no cause is available              |
 | Either upstream -> Chat | Search-error blocks are omitted; actual model content and overall finish state are retained    |
 
-`unavailable` is a fallback, not a provider diagnosis. Chat returns the actual answer, or empty content if none is representable, with the mapped finish reason. Search-result errors remain content; HTTP failures follow the [request error contract](errors.md).
+`unavailable` is a fallback, not a provider diagnosis. When reasoning is representable, Chat returns the actual answer, or empty content if none is representable, with the mapped finish reason. Search-result errors remain content; HTTP failures follow the [request error contract](errors.md).
 
 A Messages pause has these terminal values:
 

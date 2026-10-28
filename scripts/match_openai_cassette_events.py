@@ -32,6 +32,7 @@ settings without touching the recorded response; this mode supports error casset
 Hosted-search cassettes instead cover Responses-to-Chat downstream projection:
 Chat search upstreams are disabled. Match required search requests and answer text,
 omitting hosted operations, structured citations, and provider search usage.
+Signed or encrypted reasoning is rejected, including on hosted-search turns.
 """
 
 from __future__ import annotations
@@ -803,6 +804,13 @@ def match_chat_completions_events(
         for event in response_events
     )
     terminal_response, finish_reason = _response_terminal(response_events)
+    # Validate every snapshot: earlier opaque state must not disappear just
+    # because a terminal snapshot replaces it.
+    for event in response_events:
+        items = [event.get("item"), *event.get("response", {}).get("output", [])]
+        for item in items:
+            if isinstance(item, dict) and item.get("type") == "reasoning":
+                _raw_reasoning_content({"content": [], **item})
     if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):

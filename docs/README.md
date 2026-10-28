@@ -209,7 +209,7 @@ The translated path currently supports:
 - system prompts and supported assistant history;
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
-- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat;
+- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning is rejected;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
 - prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and

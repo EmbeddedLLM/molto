@@ -1894,7 +1894,6 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
             created_at=1,
             model="reasoning-model",
             service_tier="default",
-            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,
@@ -3015,7 +3014,6 @@ async def test_responses_events_translate_function_call_lifecycle(
             created_at=1,
             model="reasoning-model",
             service_tier="default",
-            web_search_enabled=False,
         ),
         PartStartEvent(
             index=0,
