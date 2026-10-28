@@ -77,7 +77,6 @@ from molto.utils.io import json_dumps, json_loads
 from molto.utils.web_search import (
     citation_from_messages,
     messages_text_blocks,
-    search_call_from_messages,
     search_calls_to_messages,
     search_result_from_messages,
     search_result_to_messages,
@@ -845,9 +844,13 @@ class AnthropicMessagesClient(
                             if state.content
                             else initial_input
                         )
-                        completed_part = search_call_from_messages(
-                            {"id": part.id, "input": search_input}
-                        )
+                        # Provider output may add fields or contain a non-object partial value;
+                        # caller-history validation remains strict in the adapter.
+                        if not isinstance(search_input, dict):
+                            search_input = initial_input
+                        if not isinstance(search_input, dict):
+                            search_input = {}
+                        completed_part = SearchCall(id=part.id, query=search_input.get("query"))
                         yield start_part(event.index, completed_part)
                     elif isinstance(part, SearchResult):
                         completed_part = part

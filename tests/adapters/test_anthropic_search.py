@@ -27,6 +27,7 @@ from molto.types.normalized import (
 )
 from molto.utils.web_search import (
     messages_text_blocks,
+    search_call_from_messages,
     search_calls_to_messages,
 )
 
@@ -438,6 +439,37 @@ async def test_early_close_releases_source_after_buffered_projection(kind):
     assert (await anext(stream)).type == "content_block_start"
     await stream.aclose()
     assert closed
+
+
+@pytest.mark.parametrize("search_input", [["a"], None, {"query": "q", "extra": True}])
+def test_search_history_conversion_remains_strict(search_input):
+    """Ensures request-side conversion rejects non-object inputs and unknown argument keys."""
+    with pytest.raises(UnsupportedInput, match="web search input fields"):
+        search_call_from_messages({"id": "s", "input": search_input})
+
+
+def test_search_history_rejects_unsupported_input():
+    """Ensures the request adapter rejects unknown search arguments with UnsupportedInput."""
+    adapter, _ = setup_adapter()
+    request = AnthropicMessagesCreateRequest(
+        model="m",
+        max_tokens=100,
+        messages=[
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "server_tool_use",
+                        "name": "web_search",
+                        "id": "s",
+                        "input": {"query": "q", "extra": True},
+                    }
+                ],
+            }
+        ],
+    )
+    with pytest.raises(UnsupportedInput, match="web search input fields"):
+        adapter.normalize_request(request)
 
 
 def test_dynamic_search_caller_is_outside_basic_scope():

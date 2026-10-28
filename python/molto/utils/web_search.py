@@ -193,7 +193,7 @@ def search_call_from_responses(item: dict[str, Any]) -> SearchCall:
 
 
 def search_call_from_messages(block: dict[str, Any]) -> SearchCall:
-    """Convert Messages server-search input after its arguments have been collected."""
+    """Strictly normalize caller-supplied Messages server-search history."""
     search_input = block["input"]
     if not isinstance(search_input, dict) or set(search_input) - {"query"}:
         raise UnsupportedInput("Unsupported Anthropic web search input fields.")

@@ -434,18 +434,27 @@ def test_browsing_history_omits_linked_results(nested):
 
 @pytest.mark.parametrize("stop_reason", ["pause_turn", "max_tokens"])
 @pytest.mark.parametrize(
-    ("initial_input", "fragments"),
+    ("initial_input", "fragments", "expected_query"),
     [
-        ({}, ["{"]),
-        ({}, ['{"query": "Par']),
-        ({"query": "initial"}, []),
-        ({"query": "initial"}, [""]),
-        ({"query": "initial"}, ['{"query":', '"replacement"}']),
-        ({"query": "initial"}, ["{"]),
+        ({}, ["{"], None),
+        ({}, ['{"query": "Par'], None),
+        ({"query": "initial"}, [], "initial"),
+        ({"query": "initial"}, [""], "initial"),
+        ({"query": "initial"}, ['{"query":', '"replacement"}'], "replacement"),
+        ({"query": "initial"}, ["{"], None),
+        ({"query": "initial", "extra": True}, [], "initial"),
+        ({"query": "initial"}, ['{"query":"replacement","extra":true}'], "replacement"),
+        ({"query": "initial"}, ['{"extra":true}'], None),
+        ({"query": "initial"}, ['["a"'], "initial"),
+        ({}, ['["a"'], None),
+        (None, ['["a"'], None),
+        (None, [], None),
     ],
 )
-async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input, fragments):
-    """Ensures partial search JSON and replacement deltas match SDK input without fake results."""
+async def test_interrupted_search_arguments_match_sdk(
+    stop_reason, initial_input, fragments, expected_query
+):
+    """Ensures SDK object inputs retain queries and non-objects fall back without fake results."""
     from json import dumps
 
     from anthropic import AsyncAnthropic
@@ -521,7 +530,9 @@ async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input
         ]
     completed = [event.part for event in events if isinstance(event, PartEndEvent)]
     assert len(completed) == 1 and isinstance(completed[0], SearchCall)
-    assert completed[0].query == reference.content[0].input.get("query")
+    assert completed[0].query == expected_query
+    if isinstance(reference.content[0].input, dict):
+        assert completed[0].query == reference.content[0].input.get("query")
     assert completed[0].status == "in_progress"
     assert not any(
         isinstance(event, (PartStartEvent, PartEndEvent)) and isinstance(event.part, SearchResult)
