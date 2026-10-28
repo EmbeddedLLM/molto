@@ -830,6 +830,10 @@ class Usage(ExtraModel):
         ZeroIfNoneInt,
         Field(description="The total number of tokens used."),
     ]
+    web_search_requests: Annotated[
+        int | None,
+        Field(description="The reported number of web search requests, or None when unknown."),
+    ] = None
 
 
 class ResponseStartEvent(ExtraModel):

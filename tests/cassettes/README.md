@@ -126,6 +126,8 @@ The Responses stream exposes 13 sources at item completion and a fourteenth URL 
 
 The SDK parses an actionless search item at `response.output_item.added`; strict model reconstruction would require the action that only appears at item completion. Retain the real event and use SDK-parsed native parity. Existing recordings have ASCII citations and successful searches. In-memory Unicode, failed/paused-search, browsing, query-cardinality, and history/error variants are synthetic regression cases, not new provider observations or edited recordings.
 
+Responses recordings can explicitly report zero searches even outside hosted-search scenarios, while the matched Messages fixture omits search usage. Translated Messages parity takes this count from the canonical Responses terminal snapshot when token usage is reported. It compares the projected count, including zero, without rewriting the counterpart fixture or dropping search usage from comparisons.
+
 ### Prompt caching
 
 `matched/prompt_cache_implicit/` and `matched/prompt_cache_explicit/` each contain two streaming requests per protocol, numbered `-00` and `-01` in recording order. Responses remains unmodified and supplies the canonical request content, response ID, model, text deltas, and token counts. Chat also carries the Responses creation timestamp; Messages has no timestamp field.

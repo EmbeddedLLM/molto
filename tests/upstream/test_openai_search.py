@@ -4,6 +4,8 @@ from json import dumps, loads
 
 import httpx
 import pytest
+from openai.types.responses import Response
+from pydantic import BaseModel
 
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.exceptions import UnsupportedInput
@@ -300,8 +302,9 @@ async def test_text_parts_keep_local_citation_offsets(refusal_first: bool):
     assert all(event.part.defer_citations for event in texts)
 
 
-@pytest.mark.parametrize("count", [None, 0, 3])
-async def test_search_usage_retains_reported_count_only(count):
+@pytest.mark.parametrize("count", ["missing", None, 0, 3])
+@pytest.mark.parametrize("search_enabled", [False, True])
+async def test_search_usage_retains_reported_count_only(count, search_enabled):
     """Ensures search counters distinguish unknown from observed zero without item counting."""
     response = _response(
         usage={
@@ -312,16 +315,64 @@ async def test_search_usage_retains_reported_count_only(count):
             "total_tokens": 3,
         }
     )
-    if count is not None:
+    if count != "missing":
         response["tool_usage"] = {"web_search": {"num_requests": count}}
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.completed", response=response),
+        ],
+        normalized_request=NormalizedRequest(
+            model="m", tools=[WebSearchTool()] if search_enabled else [], stream=True
+        ),
+    )
+    assert events[-1].usage.web_search_requests == (None if count == "missing" else count)
+    assert ("web_search_requests" in events[-1].usage.model_dump()) == (
+        count not in ("missing", None)
+    )
+    assert events[-1].usage.extra_fields == {}
+    assert events[-1].extra_fields == {}
+
+
+async def test_typed_search_usage_retains_reported_count(monkeypatch):
+    """Ensures typed SDK tool-usage snapshots normalize just like untyped response extras."""
+
+    class WebSearchUsage(BaseModel):
+        num_requests: int
+
+    class ToolUsage(BaseModel):
+        web_search: WebSearchUsage
+
+    class TypedResponse(Response):
+        tool_usage: ToolUsage
+
+    native_events = OpenAIResponsesClient.native_events
+
+    async def typed_events(client, request):
+        async for event in native_events(client, request):
+            if event.type == "response.completed":
+                event.response = TypedResponse.model_validate(event.response.model_dump())
+                assert isinstance(event.response.tool_usage, ToolUsage)
+            yield event
+
+    monkeypatch.setattr(OpenAIResponsesClient, "native_events", typed_events)
+    response = _response(
+        usage={
+            "input_tokens": 1,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens": 2,
+            "output_tokens_details": {"reasoning_tokens": 0},
+            "total_tokens": 3,
+        },
+        tool_usage={"web_search": {"num_requests": 3}},
+    )
     events = await _normalize(
         [
             _event("response.created", response=_response()),
             _event("response.completed", response=response),
         ]
     )
-    assert events[-1].usage.extra_fields.get("web_search_requests") == count
-    assert ("web_search_requests" in events[-1].usage.extra_fields) == (count is not None)
+    assert events[-1].usage.web_search_requests == 3
 
 
 @pytest.mark.parametrize(
@@ -649,8 +700,8 @@ async def test_input_override_removes_search_history_buffering(input_override):
     assert not texts[0].defer_citations
 
 
-async def test_reported_search_usage_without_token_usage_is_retained():
-    """Ensures an independent search counter survives without inventing token usage."""
+async def test_reported_search_usage_without_token_usage_is_unknown():
+    """Ensures search counts remain unknown without inventing token usage."""
     events = await _normalize(
         [
             _event("response.created", response=_response()),
@@ -661,18 +712,31 @@ async def test_reported_search_usage_without_token_usage_is_retained():
         ]
     )
     assert events[-1].usage is None
-    assert events[-1].extra_fields["web_search_requests"] == 2
+    assert events[-1].extra_fields == {}
 
 
-async def test_null_search_usage_remains_unknown():
+@pytest.mark.parametrize("tool_usage", [None, {"web_search": None}])
+async def test_null_search_usage_remains_unknown(tool_usage):
     """Ensures an explicitly null search-usage object never crashes or becomes zero."""
     events = await _normalize(
         [
             _event("response.created", response=_response()),
-            _event("response.completed", response=_response(tool_usage={"web_search": None})),
+            _event(
+                "response.completed",
+                response=_response(
+                    usage={
+                        "input_tokens": 1,
+                        "input_tokens_details": {"cached_tokens": 0},
+                        "output_tokens": 2,
+                        "output_tokens_details": {"reasoning_tokens": 0},
+                        "total_tokens": 3,
+                    },
+                    tool_usage=tool_usage,
+                ),
+            ),
         ]
     )
-    assert "web_search_requests" not in events[-1].extra_fields
+    assert events[-1].usage.web_search_requests is None
 
 
 async def test_item_done_text_snapshot_rebases_local_citations():

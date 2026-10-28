@@ -208,7 +208,7 @@ async def test_recorded_anthropic_search_preserves_ir_usage_and_citation_state()
         )
         events = [event async for event in client.events(request)]
     assert isinstance(events[-1], ResponseEndEvent)
-    assert events[-1].usage.extra_fields["anthropic_web_search_requests"] == (
+    assert events[-1].usage.web_search_requests == (
         reference.usage.server_tool_use.web_search_requests
     )
     parts = [event.part for event in events if isinstance(event, PartEndEvent)]

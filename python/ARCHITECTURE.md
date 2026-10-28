@@ -403,16 +403,19 @@ Chat Completions cannot provide a Responses output-item ID or exact Responses co
 
 ## Usage mapping
 
-The Chat client normalizes token usage and the Responses adapter projects it as:
+Clients normalize usage and adapters project supported fields explicitly:
 
-| Normalized usage                          | Chat Completions source                      | Responses output    |
-| ----------------------------------------- | -------------------------------------------- | ------------------- |
-| `input_tokens`                            | `prompt_tokens`                              | `input_tokens`      |
-| `input_tokens_details.cached_tokens`      | `prompt_tokens_details.cached_tokens`        | same semantic field |
-| `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens`   | same semantic field |
-| `output_tokens`                           | `completion_tokens`                          | `output_tokens`     |
-| `output_tokens_details.reasoning_tokens`  | `completion_tokens_details.reasoning_tokens` | same semantic field |
-| `total_tokens`                            | `total_tokens`                               | `total_tokens`      |
+| Normalized usage | Responses | Chat Completions | Messages |
+| --- | --- | --- | --- |
+| `input_tokens` | `input_tokens` | `prompt_tokens` | uncached + cache creation + cache read |
+| `input_tokens_details.cached_tokens` | `input_tokens_details.cached_tokens` | `prompt_tokens_details.cached_tokens` | `cache_read_input_tokens` |
+| `input_tokens_details.cache_write_tokens` | `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens` | `cache_creation_input_tokens` |
+| `output_tokens` | `output_tokens` | `completion_tokens` | `output_tokens` |
+| `output_tokens_details.reasoning_tokens` | `output_tokens_details.reasoning_tokens` | `completion_tokens_details.reasoning_tokens` | `output_tokens_details.thinking_tokens` |
+| `total_tokens` | `total_tokens` | `total_tokens` | sum of normalized input and output |
+| `web_search_requests` | source: response-level `tool_usage.web_search.num_requests`; not projected | not reported or projected | `usage.server_tool_use.web_search_requests` |
+
+Search counts require reported token usage and use `None` for unknown; an explicit zero remains zero. Repeated provider counts replace earlier snapshots rather than accumulating. Messages projection supplies `web_fetch_requests: 0` for this search-only scope. No search count travels through event or usage extras.
 
 Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` directly would expose its internal `extra_fields` container at the public boundary.
 

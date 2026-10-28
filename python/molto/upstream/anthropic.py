@@ -894,6 +894,7 @@ class AnthropicMessagesClient(
                         output_details.thinking_tokens if output_details is not None else 0
                     )
                     usage = Usage(
+                        web_search_requests=search_usage,
                         input_tokens=input_tokens + cache_creation + cache_read,
                         input_tokens_details=InputTokenDetails(
                             cached_tokens=cache_read,
@@ -908,8 +909,6 @@ class AnthropicMessagesClient(
                         + cache_read
                         + raw_usage.output_tokens,
                     )
-                    if search_usage is not None:
-                        usage.extra_fields["anthropic_web_search_requests"] = search_usage
                 elif isinstance(event, RawMessageStopEvent):
                     if metadata is None:
                         raise ValueError("Anthropic stream ended before its message started.")

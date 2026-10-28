@@ -867,14 +867,11 @@ class AnthropicMessagesAdapter(
                                 "thinking_tokens": usage.output_tokens_details.reasoning_tokens
                             },
                         }
-                    search_requests = normalized_event.extra_fields.get("web_search_requests")
-                    if search_requests is None and usage is not None:
-                        search_requests = usage.extra_fields.get("web_search_requests")
-                    if search_requests is not None:
-                        raw_usage["server_tool_use"] = {
-                            "web_search_requests": search_requests,
-                            "web_fetch_requests": 0,
-                        }
+                        if usage.web_search_requests is not None:
+                            raw_usage["server_tool_use"] = {
+                                "web_search_requests": usage.web_search_requests,
+                                "web_fetch_requests": 0,
+                            }
                     yield event(
                         {
                             "type": "message_delta",

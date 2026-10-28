@@ -20,7 +20,10 @@ from openai.types.responses.response_output_text import AnnotationURLCitation
 from pydantic import BaseModel
 
 from molto import Molto
-from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.anthropic_messages import (
+    AnthropicMessagesCreateRequest,
+    AnthropicMessagesStreamEventAdapter,
+)
 from molto.types.exceptions import UnsupportedInput
 from molto.upstream.openai import OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse
@@ -1538,10 +1541,67 @@ async def test_synthetic_citation_boundaries_match_sdk_and_history(
 
 
 @pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("upstream", RESPONSES_MESSAGES_PROTOCOLS)
+async def test_synthetic_messages_usage_accounting(upstream: Protocol, stream: bool):
+    """Ensures translated and native Messages preserve exact token, cache, and search counts."""
+    expected_usage = {
+        "input_tokens": 105,
+        "output_tokens": 6039,
+        "cache_read_input_tokens": 7123,
+        "cache_creation_input_tokens": 7345,
+        "output_tokens_details": {"thinking_tokens": 4},
+        "server_tool_use": {"web_search_requests": 1, "web_fetch_requests": 0},
+    }
+    if upstream == "responses":
+        expected_usage["service_tier"] = "standard"
+    events = _synthetic_events(upstream)
+    for event in events:
+        if event.get("response", {}).get("usage") is not None:
+            event["response"]["usage"] = {
+                "input_tokens": 14573,
+                "output_tokens": 6039,
+                "total_tokens": 20612,
+                "input_tokens_details": {"cached_tokens": 7123, "cache_write_tokens": 7345},
+                "output_tokens_details": {"reasoning_tokens": 4},
+            }
+        elif event["type"] == "message_start":
+            event["message"]["usage"] = {**expected_usage, "output_tokens": 0}
+        elif event["type"] == "message_delta":
+            event["usage"] = deepcopy(expected_usage)
+
+    if upstream == "responses" or stream:
+        result, reference = await _synthetic_replay("messages", upstream, stream, events)
+        if upstream == "responses":
+            assert reference.usage.input_tokens == 14573
+            assert reference.usage.output_tokens == expected_usage["output_tokens"]
+            assert reference.model_dump()["tool_usage"]["web_search"]["num_requests"] == 1
+        else:
+            assert (
+                reference.usage.model_dump(exclude_unset=True, exclude_none=True) == expected_usage
+            )
+    else:
+        reference = _collect(
+            "messages",
+            [AnthropicMessagesStreamEventAdapter.validate_python(event) for event in events],
+        )
+        body = _body("messages", False)
+
+        def handler(request: Request) -> Response:
+            assert json_loads(request.content) == body
+            return Response(200, json=reference.model_dump(exclude_unset=True))
+
+        async with AsyncClient(transport=MockTransport(handler)) as http_client:
+            result = await Molto(http_client=http_client).messages(
+                body=body, endpoint="messages", api_key="test-api-key"
+            )
+    assert result.usage.model_dump(exclude_unset=True, exclude_none=True) == expected_usage
+
+
+@pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("count", ["missing", None, 0, 2])
 @pytest.mark.parametrize("token_usage", [True, False])
 async def test_synthetic_observed_search_usage(stream: bool, count, token_usage: bool):
-    """Ensures observed zero and nonzero counts survive while missing/null counts remain unknown."""
+    """Ensures search counts require token usage and preserve observed zero versus unknown."""
     events = _synthetic_events("responses")
     for event in events:
         response = event.get("response", {})
@@ -1553,7 +1613,7 @@ async def test_synthetic_observed_search_usage(stream: bool, count, token_usage:
             if not token_usage:
                 response["usage"] = None
     result, reference = await _synthetic_replay("messages", "responses", stream, events)
-    if count in ("missing", None):
+    if not token_usage or count in ("missing", None):
         assert result.usage.server_tool_use is None
     else:
         assert reference.tool_usage["web_search"]["num_requests"] == count

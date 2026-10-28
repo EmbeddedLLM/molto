@@ -304,14 +304,13 @@ async def test_search_usage_observation(count, has_token_usage):
     """Ensures unknown usage remains unknown while an explicitly reported zero survives."""
     adapter, request = setup_adapter()
     usage = Usage(
+        web_search_requests=count,
         input_tokens=1,
         input_tokens_details=InputTokenDetails(),
         output_tokens=1,
         output_tokens_details=OutputTokenDetails(),
         total_tokens=2,
     )
-    if count is not None:
-        usage.extra_fields["web_search_requests"] = count
     end = ResponseEndEvent(
         id="r",
         model="m",
@@ -319,13 +318,11 @@ async def test_search_usage_observation(count, has_token_usage):
         termination_reason="stop",
         usage=usage if has_token_usage else None,
     )
-    if not has_token_usage and count is not None:
-        end.extra_fields["web_search_requests"] = count
     events = [ResponseStartEvent(id="r", model="m"), end]
     response = await adapter.project_response(
         adapter.project_events(iterate(events), request), request
     )
-    if count is None:
+    if not has_token_usage or count is None:
         assert response.usage.server_tool_use is None
     else:
         assert response.usage.server_tool_use.web_search_requests == count

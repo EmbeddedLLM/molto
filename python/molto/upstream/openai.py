@@ -932,18 +932,11 @@ class OpenAIResponsesClient(
                         else:
                             termination_reason = incomplete_details.reason
                     usage = _responses_usage(metadata.usage)
-                    tool_usage = getattr(metadata, "tool_usage", None)
-                    search_usage = (
-                        (tool_usage.get("web_search") or {})
-                        if isinstance(tool_usage, dict)
-                        else {}
-                    )
-                    if (
-                        defer_citations
-                        and usage is not None
-                        and search_usage.get("num_requests") is not None
-                    ):
-                        usage.extra_fields["web_search_requests"] = search_usage["num_requests"]
+                    if usage is not None:
+                        # Dump metadata so both SDK-typed fields and extras have the same shape.
+                        tool_usage = metadata.model_dump().get("tool_usage") or {}
+                        search_usage = tool_usage.get("web_search") or {}
+                        usage.web_search_requests = search_usage.get("num_requests")
                     yield ResponseEndEvent(
                         id=metadata.id,
                         created_at=int(metadata.created_at),
@@ -951,11 +944,6 @@ class OpenAIResponsesClient(
                         service_tier=metadata.service_tier,
                         termination_reason=termination_reason,
                         usage=usage,
-                        **(
-                            {"web_search_requests": search_usage["num_requests"]}
-                            if defer_citations and search_usage.get("num_requests") is not None
-                            else {}
-                        ),
                     )
                 elif event_type in _IGNORED_RESPONSES_EVENTS:
                     continue

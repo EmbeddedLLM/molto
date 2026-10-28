@@ -286,7 +286,8 @@ def test_rejects_ambiguous_named_tool_selection(choice):
 
 
 @pytest.mark.parametrize("error", [None, "max_uses_exceeded", "too_many_requests"])
-async def test_search_stream_normalization(monkeypatch, error):
+@pytest.mark.parametrize("delta_count", [None, 0, 3])
+async def test_search_stream_normalization(monkeypatch, error, delta_count):
     """Ensures hosted ownership, error identity, full-block citations and pause usage survive."""
     raws = [
         {
@@ -360,7 +361,9 @@ async def test_search_stream_normalization(monkeypatch, error):
             "delta": {"stop_reason": "pause_turn", "stop_sequence": None},
             "usage": {
                 "output_tokens": 2,
-                "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 0},
+                "server_tool_use": None
+                if delta_count is None
+                else {"web_search_requests": delta_count, "web_fetch_requests": 0},
             },
         },
         {"type": "message_stop"},
@@ -402,7 +405,9 @@ async def test_search_stream_normalization(monkeypatch, error):
     assert len(citations) == 1 and citations[0].end_index == 2
     terminal = next(event for event in events if isinstance(event, ResponseEndEvent))
     assert terminal.termination_reason == "pause"
-    assert terminal.usage.extra_fields["anthropic_web_search_requests"] == 2
+    assert terminal.usage.web_search_requests == (2 if delta_count is None else delta_count)
+    assert terminal.usage.extra_fields == {}
+    assert terminal.extra_fields == {}
 
 
 @pytest.mark.parametrize("nested", [False, True])
