@@ -1,5 +1,7 @@
 """Hosted-search Messages request and stream normalization regressions."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -28,6 +30,67 @@ from molto.types.normalized import (
     WebSearchToolChoice,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from tests.core.test_interface import _get_http_client, _read_cassette
+
+
+async def test_recorded_search_citation_ir_has_nonblank_text():
+    """Ensures completed recorded citation IR contains nonblank text and nonblank ranges."""
+    path = (
+        Path(__file__).parents[1]
+        / "cassettes"
+        / "anthropic"
+        / "web_search"
+        / "anthropic-messages-stream-00.yaml"
+    )
+    native = _read_cassette(path)["request"]["body"]
+    request = NormalizedRequest(
+        model=native["model"],
+        input=[
+            UserInput(content=[TextInput(content=native["messages"][0]["content"][0]["text"])])
+        ],
+        tools=[WebSearchTool()],
+        tool_choice="required",
+        max_tool_calls=1,
+        max_output_tokens=native["max_tokens"],
+        stream=True,
+    )
+    async with _get_http_client([path], "messages") as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"], api_key="test"
+        )
+        events = [event async for event in client.events(request)]
+
+    cited_parts = [
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent)
+        and isinstance(event.part, TextOutput)
+        and event.part.citations
+    ]
+    assert cited_parts
+    for part in cited_parts:
+        assert part.content.strip()
+        for citation in part.citations:
+            assert 0 <= citation.start_index <= citation.end_index <= len(part.content)
+            if citation.start_index != citation.end_index:
+                assert part.content[citation.start_index : citation.end_index].strip()
+
+
+@pytest.mark.parametrize("text", ["", " ", "\n\t"])
+@pytest.mark.parametrize("cited", [False, True])
+def test_blank_text_history_is_an_input_error(text, cited):
+    """Ensures unrepresentable blank history fails before sending an invalid Messages request."""
+    part = TextOutput(
+        content=text,
+        citations=[WebCitation(url="https://example.com", start_index=0, end_index=len(text))]
+        if cited
+        else [],
+    )
+    request = NormalizedRequest(
+        model="m", max_output_tokens=100, input=[AssistantInput(content=[part])]
+    )
+    with pytest.raises(UnsupportedInput, match="non-whitespace"):
+        AnthropicMessagesClient._request_body(request)
 
 
 @pytest.mark.parametrize(

@@ -14,11 +14,15 @@ from molto.types.normalized import (
     PartStartEvent,
     SearchCall,
     SearchResult,
+    StreamOptions,
+    TextInput,
     TextOutput,
+    UserInput,
     WebCitation,
     WebSearchTool,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from tests.core.test_interface import _get_http_client, _matched_cassette_path, _read_cassette
 
 CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 
@@ -62,6 +66,78 @@ async def _normalize(wire, normalized_request=None, extra_body=None, expected_in
                 or NormalizedRequest(model="m", tools=[WebSearchTool()], stream=True)
             )
         ]
+
+
+async def test_recorded_search_citation_ir_has_nonblank_text():
+    """Ensures completed recorded citation IR contains nonblank text and nonblank ranges."""
+    path = _matched_cassette_path("web_search", "responses", "stream-00.yaml")
+    native = _read_cassette(path)["request"]["body"]
+    request = NormalizedRequest(
+        model=native["model"],
+        input=[UserInput(content=[TextInput(content=native["input"])])],
+        tools=[WebSearchTool()],
+        tool_choice="required",
+        stream=True,
+        stream_options=StreamOptions(include_obfuscation=False),
+    )
+    expected_body = {
+        **native,
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": native["input"]}]}],
+    }
+    async with _get_http_client([path], expected_body=expected_body) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=CAPABILITIES, api_key="test")
+        events = [event async for event in client.events(request)]
+
+    cited_parts = [
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent)
+        and isinstance(event.part, TextOutput)
+        and event.part.citations
+    ]
+    assert cited_parts
+    for part in cited_parts:
+        assert part.content.strip()
+        for citation in part.citations:
+            assert 0 <= citation.start_index <= citation.end_index <= len(part.content)
+            if citation.start_index != citation.end_index:
+                assert part.content[citation.start_index : citation.end_index].strip()
+
+
+@pytest.mark.parametrize("offset", [0, 1, 3])
+async def test_point_citations_remain_representable_in_ir(offset):
+    """Ensures point attribution at the start, middle, and end survives normalization."""
+    citation = {
+        "type": "url_citation",
+        "url": "https://example.com",
+        "title": "Source",
+        "start_index": offset,
+        "end_index": offset,
+    }
+    item = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "output_text", "text": "abc", "annotations": [citation]}],
+    }
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
+            _event("response.output_item.done", output_index=0, item=item),
+            _event("response.completed", response=_response([item])),
+        ]
+    )
+    text = next(
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextOutput)
+    )
+    assert text.content == "abc"
+    assert text.citations == [
+        WebCitation(url=citation["url"], title="Source", start_index=offset, end_index=offset)
+    ]
 
 
 @pytest.mark.parametrize(

@@ -15,7 +15,9 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from molto.types.normalized import TextOutput, WebCitation
 from molto.utils.io import dump_yaml, json_loads, read_yaml
+from molto.utils.web_search import messages_text_blocks
 
 
 def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
@@ -309,7 +311,6 @@ def _cited_text_content(part: dict[str, Any]) -> list[dict[str, Any]]:
     annotations = part.get("annotations") or []
     if not isinstance(annotations, list):
         raise ValueError("Responses annotations must be a list.")
-    boundaries = {0, len(text)}
     for annotation in annotations:
         if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
             raise ValueError("Only Responses URL citations can map to Messages citations.")
@@ -322,37 +323,21 @@ def _cited_text_content(part: dict[str, Any]) -> list[dict[str, Any]]:
             raise ValueError("Responses URL citation range must be within its text part.")
         if not isinstance(annotation.get("url"), str):
             raise ValueError("Responses URL citations must contain a string url.")
-        boundaries.update((start, end))
-    if not annotations:
-        return [{"type": "text", "text": text}]
-    blocks = []
-    boundaries = sorted(boundaries)
-    intervals = set(zip(boundaries, boundaries[1:], strict=False))
-    # Point citations retain attribution even though they cover no answer characters.
-    intervals.update(
-        (annotation["start_index"], annotation["end_index"])
-        for annotation in annotations
-        if annotation["start_index"] == annotation["end_index"]
+    # Matched fixtures must obey the same nonblank-block rule as replayed history.
+    return messages_text_blocks(
+        TextOutput(
+            content=text,
+            citations=[
+                WebCitation(
+                    url=annotation["url"],
+                    title=annotation.get("title"),
+                    start_index=annotation["start_index"],
+                    end_index=annotation["end_index"],
+                )
+                for annotation in annotations
+            ],
+        )
     )
-    for start, end in sorted(intervals):
-        block: dict[str, Any] = {"type": "text", "text": text[start:end]}
-        citations = [
-            {
-                "type": "web_search_result_location",
-                "url": annotation["url"],
-                "title": annotation.get("title") or "",
-                "encrypted_index": "N/A",
-                "cited_text": text[annotation["start_index"] : annotation["end_index"]],
-            }
-            for annotation in annotations
-            if annotation["start_index"] <= start
-            and end <= annotation["end_index"]
-            and (start < end or annotation["start_index"] == annotation["end_index"])
-        ]
-        if citations:
-            block["citations"] = citations
-        blocks.append(block)
-    return blocks
 
 
 def _map_search_usage(response: dict[str, Any], usage: dict[str, Any]) -> None:

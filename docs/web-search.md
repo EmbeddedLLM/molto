@@ -39,6 +39,8 @@ Budget exhaustion remains provider-specific. A Messages `max_uses_exceeded` resu
 
 Responses URL citations identify a range within a text part. Translated Messages splits that part at citation boundaries and attaches each citation to the corresponding blocks. Concatenating those blocks preserves the answer exactly, including whitespace. Overlapping ranges can associate one source with several blocks. Messages citations map back to ranges spanning their associated text blocks, with offsets local to each projected Responses part.
 
+Messages rejects empty and whitespace-only text blocks in conversation history. Citation projection folds blank fragments into the preceding block, or into the first following block for leading whitespace. Merging can widen a citation's associated block, while its original excerpt remains unchanged. Zero-length annotations remain representable in the normalized output and attach to the block containing their offset; a zero-length annotation at the end of the answer attaches to the final block. Their fallback `cited_text` remains empty because they cover no answer characters. An entirely blank text part has no valid Messages block that can preserve its content and attribution, so projection raises `ValueError`; assistant-history requests reject it with `UnsupportedInput` before transport.
+
 For example, this upstream Responses text part contains answer `"Alpha. Beta."` with a citation on `[7, 12)`:
 
 ```json

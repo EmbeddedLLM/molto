@@ -27,30 +27,39 @@ def messages_text_blocks(
         raise ValueError("Citation offsets fall outside the associated answer text.")
     if any(citation.end_index < citation.start_index for citation in part.citations):
         raise ValueError("Citation end precedes its start.")
+    if not text.strip():
+        raise ValueError("Messages text blocks require non-whitespace text.")
 
     ordered_boundaries = sorted(boundaries)
-    intervals = set(zip(ordered_boundaries, ordered_boundaries[1:], strict=False))
-    # Point annotations have no answer characters but still carry attribution.
-    for citation in part.citations:
-        if citation.start_index == citation.end_index:
-            intervals.add((citation.start_index, citation.end_index))
+    intervals: list[tuple[int, int]] = []
+    # Anthropic rejects blank blocks when replaying history. Merge blank fragments
+    # into adjacent ranges to retain every character without emitting invalid blocks.
+    for start, end in zip(ordered_boundaries, ordered_boundaries[1:], strict=False):
+        if text[start:end].strip():
+            intervals.append((start if intervals else 0, end))
+        elif intervals:
+            intervals[-1] = (intervals[-1][0], end)
 
     blocks: list[dict[str, Any]] = []
-    for start, end in sorted(intervals):
+    for start, end in intervals:
         block: dict[str, Any] = {"type": "text", "text": text[start:end]}
         block_citations = []
         for citation in part.citations:
-            if start == end:
-                matches = citation.start_index == start and citation.end_index == end
+            if citation.start_index == citation.end_index:
+                # Points carry attribution but cannot occupy an empty block;
+                # the final block also owns a point at the end of the answer.
+                matches = (
+                    start <= citation.start_index < end or citation.start_index == end == len(text)
+                )
             else:
-                matches = citation.start_index <= start and end <= citation.end_index
+                matches = citation.start_index < end and start < citation.end_index
             if matches:
                 block_citations.append(citation_to_messages(citation, text=text))
 
         if block_citations:
             block["citations"] = block_citations
         blocks.append(block)
-    return blocks or [{"type": "text", "text": text}]
+    return blocks
 
 
 def citation_from_responses(annotation: dict[str, Any]) -> WebCitation:

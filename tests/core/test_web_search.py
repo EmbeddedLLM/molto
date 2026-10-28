@@ -20,6 +20,7 @@ from openai.types.responses.response_output_text import AnnotationURLCitation
 from pydantic import BaseModel
 
 from molto import Molto
+from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.exceptions import UnsupportedInput
 from molto.upstream.openai import OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse
@@ -1364,24 +1365,30 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
 
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("timing", ["initial", "delta", "final"])
-async def test_synthetic_unicode_overlapping_late_citations(stream: bool, timing: str):
-    """Ensures code-point offsets, overlaps, and late citations preserve exact Unicode answer associations."""
-    text = "A😀βé Z"
+@pytest.mark.parametrize(
+    ("text", "ranges", "expected_text", "associations"),
+    [
+        ("A😀βé Z", [(0, 4), (2, 6)], ["A😀", "βé", " Z"], [[0], [0, 1], [1]]),
+        ("abc de f", [(0, 6), (7, 8)], ["abc de ", "f"], [[0], [1]]),
+        ("abc", [(0, 0)], ["abc"], [[0]]),
+        ("abc", [(1, 1)], ["a", "bc"], [[], [0]]),
+        ("abc", [(3, 3)], ["abc"], [[0]]),
+    ],
+    ids=["unicode-overlap", "whitespace-gap", "point-start", "point-middle", "point-end"],
+)
+async def test_synthetic_citation_boundaries_match_sdk_and_history(
+    stream: bool, timing: str, text, ranges, expected_text, associations
+):
+    """Ensures late citations preserve SDK attribution and exact text in nonblank output/history blocks."""
     citations = [
         {
             "type": "url_citation",
-            "url": "https://example.com/a",
-            "title": None,
-            "start_index": 0,
-            "end_index": 4,
-        },
-        {
-            "type": "url_citation",
-            "url": "https://example.com/b",
-            "title": "B",
-            "start_index": 2,
-            "end_index": 6,
-        },
+            "url": f"https://example.com/{index}",
+            "title": None if index == 0 else "B",
+            "start_index": start,
+            "end_index": end,
+        }
+        for index, (start, end) in enumerate(ranges)
     ]
     events = []
     sent_text = False
@@ -1419,19 +1426,57 @@ async def test_synthetic_unicode_overlapping_late_citations(stream: bool, timing
         event["sequence_number"] = index
     result, reference = await _synthetic_replay("messages", "responses", stream, events)
     blocks = [block for block in result.content if block.type == "text"]
-    assert reference.output_text == text
-    assert [block.text for block in blocks] == ["A😀", "βé", " Z"]
-    assert [[citation.url for citation in block.citations] for block in blocks] == [
-        [citations[0]["url"]],
-        [citations[0]["url"], citations[1]["url"]],
-        [citations[1]["url"]],
+    assert "".join(block.text for block in blocks) == reference.output_text == text
+    assert all(block.text.strip() for block in blocks)
+    assert [block.text for block in blocks] == expected_text
+    message = next(item for item in reference.output if item.type == "message")
+    sources = message.content[0].annotations
+    assert [[citation.url for citation in block.citations or []] for block in blocks] == [
+        [sources[index].url for index in indices] for indices in associations
     ]
     for block in blocks:
-        for citation in block.citations:
-            source = next(source for source in citations if source["url"] == citation.url)
-            assert citation.cited_text == text[source["start_index"] : source["end_index"]]
+        for citation in block.citations or []:
+            source = next(source for source in sources if source.url == citation.url)
+            assert citation.cited_text == text[source.start_index : source.end_index]
             assert citation.encrypted_index == "N/A"
-            assert citation.title == (source["title"] or "")
+            assert citation.title == (source.title or "")
+
+    body, expected_request = _request_pair("responses", "messages", stream)
+    history = message.model_dump(exclude_none=True)
+    for citation in history["content"][0]["annotations"]:
+        citation.setdefault("title", "")
+    body["input"] = [
+        {"role": "user", "content": [{"type": "input_text", "text": body["input"]}]},
+        history,
+        {"role": "user", "content": [{"type": "input_text", "text": "Continue."}]},
+    ]
+    expected_request["messages"].extend(
+        [
+            {
+                "role": "assistant",
+                "content": [block.model_dump(exclude_none=True) for block in blocks],
+            },
+            {"role": "user", "content": [{"type": "text", "text": "Continue."}]},
+        ]
+    )
+    requests = []
+    async with _get_http_client(
+        [_path("messages")],
+        "messages",
+        expected_body=expected_request,
+        requests=requests,
+    ) as http_client:
+        followup = await Molto(http_client=http_client).responses(
+            body=body, endpoint="messages", api_key="test-api-key"
+        )
+        if stream:
+            _ = [event async for event in followup]
+    assert len(requests) == 1
+    outgoing = json_loads(requests[0].content)
+    AnthropicMessagesCreateRequest.model_validate(outgoing)
+    history_blocks = outgoing["messages"][-2]["content"]
+    assert all(block["text"].strip() for block in history_blocks)
+    assert "".join(block["text"] for block in history_blocks) == reference.output_text
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -1692,7 +1737,7 @@ async def test_search_history_without_tools_still_buffers_citations(
 async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
     stream: bool, refusal_first: bool
 ):
-    """Ensures text after refusal snapshots retains balanced lifecycles and local citation offsets."""
+    """Ensures text after refusals retains local citation offsets in nonblank, balanced blocks."""
     events = _synthetic_events("responses")
     if refusal_first:
         # Snapshot-only refusals were already omitted; their index must not
@@ -1763,13 +1808,19 @@ async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
     result, reference = await _synthetic_replay("messages", "responses", stream, events)
     blocks = [block for block in result.content if block.type == "text"]
     assert "".join(block.text for block in blocks) == reference.output_text
-    assert [block.text for block in blocks[-3:]] == [" ", "Ω", " "]
-    assert not blocks[-3].citations
-    assert not blocks[-1].citations
-    assert len(blocks[-2].citations) == 1
-    assert blocks[-2].citations[0].url == citation["url"]
-    assert blocks[-2].citations[0].cited_text == "Ω"
-    assert blocks[-2].citations[0].encrypted_index == "N/A"
+    assert all(block.text.strip() for block in blocks)
+    assert blocks[-1].text == text
+    source = next(item for item in reference.output if item.type == "message").content[-1]
+    annotation = source.annotations[0]
+    assert (annotation.start_index, annotation.end_index) == (1, 2)
+    assert len(blocks[-1].citations) == 1
+    assert blocks[-1].citations[0].url == annotation.url
+    assert (
+        blocks[-1].citations[0].cited_text
+        == source.text[annotation.start_index : annotation.end_index]
+        == "Ω"
+    )
+    assert blocks[-1].citations[0].encrypted_index == "N/A"
 
 
 @pytest.mark.parametrize("stream", [True, False])

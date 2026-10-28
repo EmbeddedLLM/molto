@@ -332,16 +332,87 @@ async def test_search_usage_observation(count, has_token_usage):
         assert response.usage.server_tool_use.web_fetch_requests == 0
 
 
-def test_point_citation_preserves_attribution():
-    """Ensures an empty range keeps its source without associating unrelated text."""
+@pytest.mark.parametrize(
+    "text, ranges, expected_text, expected_sources",
+    [
+        ("abc de f", [(0, 5), (6, 7)], ["abc d", "e ", "f"], [[0], [1], []]),
+        ("abc de f", [(0, 6), (7, 8)], ["abc de ", "f"], [[0], [1]]),
+        (" \ta", [(2, 3)], [" \ta"], [[0]]),
+        ("a \t", [(0, 1)], ["a \t"], [[0]]),
+        ("a b", [(0, 2), (1, 3)], ["a ", "b"], [[0, 1], [1]]),
+        ("a \t b", [(0, 1), (2, 3), (4, 5)], ["a \t ", "b"], [[0, 1], [2]]),
+        ("a \tb", [(0, 1), (3, 4), (1, 1)], ["a \t", "b"], [[0, 2], [1]]),
+        ("a \tb", [(0, 1), (3, 4), (2, 2)], ["a \t", "b"], [[0, 2], [1]]),
+        ("a \tb", [(0, 1), (3, 4), (3, 3)], ["a \t", "b"], [[0], [1, 2]]),
+    ],
+)
+def test_citation_boundaries_preserve_nonblank_blocks(
+    text, ranges, expected_text, expected_sources
+):
+    """Ensures cited whitespace and blank gaps keep exact text and attribution in valid blocks."""
+    part = TextOutput(
+        content=text,
+        citations=[
+            WebCitation(url=f"https://source/{index}", start_index=start, end_index=end)
+            for index, (start, end) in enumerate(ranges)
+        ],
+    )
+    blocks = messages_text_blocks(part)
+
+    assert [block["text"] for block in blocks] == expected_text
+    assert "".join(block["text"] for block in blocks) == text
+    assert all(block["text"].strip() for block in blocks)
+    assert [[citation["url"] for citation in block.get("citations", [])] for block in blocks] == [
+        [f"https://source/{index}" for index in sources] for sources in expected_sources
+    ]
+    for block, sources in zip(blocks, expected_sources, strict=True):
+        assert [citation["cited_text"] for citation in block.get("citations", [])] == [
+            text[ranges[index][0] : ranges[index][1]] for index in sources
+        ]
+    AnthropicMessagesCreateRequest.model_validate(
+        {"model": "m", "max_tokens": 100, "messages": [{"role": "assistant", "content": blocks}]}
+    )
+
+
+@pytest.mark.parametrize(
+    "text, offset, expected_text, citation_index",
+    [
+        ("abc", 0, ["abc"], 0),
+        ("abc", 1, ["a", "bc"], 1),
+        ("abc", 3, ["abc"], 0),
+    ],
+)
+def test_point_citation_preserves_attribution(text, offset, expected_text, citation_index):
+    """Ensures point attribution survives on a nonblank block, including at the answer's end."""
     blocks = messages_text_blocks(
         TextOutput(
-            content="ab", citations=[WebCitation(url="https://x", start_index=1, end_index=1)]
+            content=text,
+            citations=[WebCitation(url="https://x", start_index=offset, end_index=offset)],
         )
     )
-    assert [block["text"] for block in blocks] == ["a", "", "b"]
-    assert blocks[1]["citations"][0]["cited_text"] == ""
-    assert "citations" not in blocks[0] and "citations" not in blocks[2]
+    assert [block["text"] for block in blocks] == expected_text
+    assert "".join(block["text"] for block in blocks) == text
+    assert all(block["text"].strip() for block in blocks)
+    assert blocks[citation_index]["citations"][0]["url"] == "https://x"
+    assert blocks[citation_index]["citations"][0]["cited_text"] == ""
+    assert all(
+        "citations" not in block for index, block in enumerate(blocks) if index != citation_index
+    )
+    AnthropicMessagesCreateRequest.model_validate(
+        {"model": "m", "max_tokens": 100, "messages": [{"role": "assistant", "content": blocks}]}
+    )
+
+
+@pytest.mark.parametrize("text", ["", " ", "\n\t"])
+@pytest.mark.parametrize("cited", [False, True])
+def test_blank_text_cannot_be_projected_losslessly(text, cited):
+    """Ensures an entirely blank part fails explicitly instead of emitting invalid Messages text."""
+    part = TextOutput(
+        content=text,
+        citations=[WebCitation(url="https://x", start_index=0, end_index=0)] if cited else [],
+    )
+    with pytest.raises(ValueError, match="non-whitespace"):
+        messages_text_blocks(part)
 
 
 @pytest.mark.parametrize("kind", ["search", "deferred_text"])

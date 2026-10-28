@@ -362,9 +362,10 @@ def test_search_response_maps_sources_citations_and_usage(sources: list) -> None
     assert messages == matched
 
 
-@pytest.mark.parametrize("text, offset", [("answer", 0), ("answer", 3), ("answer", 6), ("", 0)])
-def test_search_response_preserves_point_citations(text: str, offset: int) -> None:
-    """Ensures point citations retain attribution without inheriting overlapping range citations."""
+@pytest.mark.parametrize("offset", [0, 3, 6])
+def test_search_response_preserves_point_citations(offset: int) -> None:
+    """Ensures point and overlapping range attribution survive in nonblank replayable blocks."""
+    text = "answer"
     messages, responses = _search_cassettes()
     annotations = [
         {
@@ -372,18 +373,15 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
             "url": "https://example.org/point",
             "start_index": offset,
             "end_index": offset,
-        }
+        },
+        {
+            "type": "url_citation",
+            "url": "https://example.org/range",
+            "title": "Range",
+            "start_index": 0,
+            "end_index": len(text),
+        },
     ]
-    if text:
-        annotations.append(
-            {
-                "type": "url_citation",
-                "url": "https://example.org/range",
-                "title": "Range",
-                "start_index": 0,
-                "end_index": len(text),
-            }
-        )
     responses["response"]["body"]["output"][1]["content"] = [
         {"type": "output_text", "text": text, "annotations": annotations}
     ]
@@ -394,9 +392,13 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
     AnthropicMessagesResponse.model_validate(body)
     blocks = [block for block in body["content"] if block["type"] == "text"]
     assert "".join(block["text"] for block in blocks) == text
-    point_index = next(index for index, block in enumerate(blocks) if not block["text"])
-    assert "".join(block["text"] for block in blocks[:point_index]) == text[:offset]
-    assert blocks[point_index]["citations"] == [
+    assert all(block["text"].strip() for block in blocks)
+    point_index = 1 if offset == 3 else 0
+    assert [
+        citation
+        for citation in blocks[point_index]["citations"]
+        if citation["url"] == "https://example.org/point"
+    ] == [
         {
             "type": "web_search_result_location",
             "url": "https://example.org/point",
@@ -405,11 +407,43 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
             "cited_text": "",
         }
     ]
-    assert all(
-        [citation["url"] for citation in block["citations"]] == ["https://example.org/range"]
-        for block in blocks
-        if block["text"]
+    assert [[citation["url"] for citation in block["citations"]] for block in blocks] == [
+        (["https://example.org/point"] if index == point_index else [])
+        + ["https://example.org/range"]
+        for index in range(len(blocks))
+    ]
+    AnthropicMessagesCreateRequest.model_validate(
+        {
+            "model": body["model"],
+            "max_tokens": 100,
+            "messages": [{"role": "assistant", "content": body["content"]}],
+        }
     )
+
+
+@pytest.mark.parametrize("text", ["", " \t"])
+@pytest.mark.parametrize("cited", [False, True])
+def test_search_response_rejects_blank_text(text: str, cited: bool) -> None:
+    """Ensures the matcher rejects wholly blank text instead of generating invalid blocks."""
+    messages, responses = _search_cassettes()
+    responses["response"]["body"]["output"][1]["content"] = [
+        {
+            "type": "output_text",
+            "text": text,
+            "annotations": [
+                {
+                    "type": "url_citation",
+                    "url": "https://example.org/point",
+                    "start_index": 0,
+                    "end_index": 0,
+                }
+            ]
+            if cited
+            else [],
+        }
+    ]
+    with pytest.raises(ValueError, match="non-whitespace"):
+        match_messages_response(messages, responses)
 
 
 @pytest.mark.parametrize(

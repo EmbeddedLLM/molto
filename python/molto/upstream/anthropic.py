@@ -432,6 +432,8 @@ class AnthropicMessagesClient(
                     block["signature"] = item.signature
                 blocks.append(block)
             elif isinstance(item, TextOutput):
+                if not item.content.strip():
+                    raise UnsupportedInput("Messages text blocks require non-whitespace text.")
                 if any(
                     not 0 <= citation.start_index <= citation.end_index <= len(item.content)
                     for citation in item.citations
