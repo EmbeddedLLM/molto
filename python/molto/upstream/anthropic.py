@@ -438,7 +438,7 @@ class AnthropicMessagesClient(
                     for citation in item.citations
                 ):
                     raise UnsupportedInput(
-                        "Citation ranges must within the associated answer text."
+                        "Citation ranges must be within the associated answer text."
                     )
                 text_blocks = messages_text_blocks(item)
                 if item.cache_breakpoint is not None:
