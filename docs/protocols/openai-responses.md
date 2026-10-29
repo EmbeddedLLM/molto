@@ -345,6 +345,8 @@ Declare `{"type":"web_search"}` in `tools`. Translation to Messages supports all
 
 Messages search calls and results become `web_search_call` items, and citations become local URL ranges. With an Anthropic Messages upstream, sources and URL citations also carry the typed `provider_metadata.anthropic` extension, preserving original encrypted state and source metadata for continuation. Clients must retain it when replaying output in `input`; metadata-bearing history rejects other upstream routes before transport. The extension is not forwarded in standard OpenAI upstream requests. Search errors mark the linked item as failed; `pause_turn` produces an incomplete response. See [Hosted web search](../web-search.md) for extension fields, mappings, attribution losses, and continuation limits.
 
+Translated Anthropic history rejects missing, empty, or `"N/A"` search-source and citation state before transport, including when no new search is requested. Retain the provider metadata or explicitly use text-only history. This provider-specific check does not apply to other Messages-compatible providers or native passthrough.
+
 ## Errors
 
 Recognized errors use the OpenAI SDK namespace and the [shared cause chain and status policy](../errors.md).

@@ -1007,7 +1007,7 @@ def _history(protocol: Protocol, search: bool) -> list[dict[str, Any]]:
 async def test_fixed_route_followup_history(
     downstream: Protocol, upstream: Protocol, stream: bool, search: bool
 ):
-    """Ensures ordinary followups and reduced search history reach the fixed upstream, including N/A placeholders."""
+    """Ensures native and compatible-provider followups preserve reduced history and placeholders."""
     body, expected = _request_pair(downstream, upstream, stream)
     body_key = "input" if downstream == "responses" else "messages"
     expected_key = "input" if upstream == "responses" else "messages"
@@ -1039,7 +1039,12 @@ async def test_fixed_route_followup_history(
                             pass
         else:
             result = await _coordinator(Molto(http_client=http_client), downstream)(
-                body=body, endpoint=upstream, api_key="test-api-key"
+                body=body,
+                endpoint=upstream,
+                api_key="test-api-key",
+                provider="openai"
+                if downstream == "responses" and upstream == "messages" and search
+                else None,
             )
             if stream:
                 _ = [event async for event in result]
@@ -1554,7 +1559,7 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
 async def test_synthetic_citation_boundaries_match_sdk_and_history(
     stream: bool, timing: str, text, ranges, expected_text, associations
 ):
-    """Ensures late citations preserve SDK attribution and exact text in nonblank output/history blocks."""
+    """Ensures SDK attribution and exact text survive output and compatible-provider history projection."""
     citations = [
         {
             "type": "url_citation",
@@ -1642,7 +1647,7 @@ async def test_synthetic_citation_boundaries_match_sdk_and_history(
         requests=requests,
     ) as http_client:
         followup = await Molto(http_client=http_client).responses(
-            body=body, endpoint="messages", api_key="test-api-key"
+            body=body, endpoint="messages", provider="openai", api_key="test-api-key"
         )
         if stream:
             _ = [event async for event in followup]
@@ -2067,7 +2072,7 @@ async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
 async def test_search_history_reaches_sdk_error_boundary(
     downstream: Protocol, upstream: Protocol, stream: bool
 ):
-    """Ensures reduced history reaches transport and a recorded SDK rejection propagates without local placeholder validation."""
+    """Ensures native and compatible-provider reduced history retains recorded SDK error parity."""
     body, expected = _request_pair(downstream, upstream, stream)
     for request, protocol in ((body, downstream), (expected, upstream)):
         key = "input" if protocol == "responses" else "messages"
@@ -2093,7 +2098,12 @@ async def test_search_history_reaches_sdk_error_boundary(
     ) as http_client:
         with pytest.raises(error_type) as actual_error:
             result = await _coordinator(Molto(http_client=http_client), downstream)(
-                body=body, endpoint=upstream, api_key="test-api-key"
+                body=body,
+                endpoint=upstream,
+                api_key="test-api-key",
+                provider="openai"
+                if downstream == "responses" and upstream == "messages"
+                else None,
             )
             if stream:
                 _ = [event async for event in result]

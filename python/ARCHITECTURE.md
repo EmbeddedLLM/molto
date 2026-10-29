@@ -356,6 +356,8 @@ The [hosted-search contract](../docs/web-search.md) defines supported routes, re
 
 The Responses downstream boundary optionally emits typed `provider_metadata.anthropic` on search sources and URL citations, retaining opaque source content and citation state already held in the IR. The coordinator enables this only for the Anthropic Messages route and rejects metadata-bearing Responses history on other routes. Local history schemas validate the extension eagerly and the adapter restores its existing IR fields. Shared Responses conversion helpers default to standard fields so OpenAI upstream projection does not receive the extension. No conversation store or additional normalized state container is involved.
 
+`ProviderCapabilities.requires_search_history_state` is enabled only for Anthropic. During translated Messages request construction, the client rejects missing, empty, or `"N/A"` encrypted source content and citation indices before transport. Other opaque strings remain unchanged; this does not validate ciphertext or its issuer. The requirement applies independently of new tool declarations and does not affect native passthrough, compatible-provider profiles, or empty, unknown, and failed search results without source content.
+
 ## Response collection
 
 Streaming remains the canonical translated execution interface. The cross-protocol non-streaming path is:

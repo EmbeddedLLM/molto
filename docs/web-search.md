@@ -192,6 +192,8 @@ An [independent continuation recording](../tests/cassettes/README.md#anthropic-h
 
 Keep the upstream and provider fixed across a conversation. Native routes preserve search history. The Anthropic Responses route preserves opaque search state when clients retain its metadata extension; other translated Responses/Messages history follows the reductions above. Translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. Citation buffering is never inferred from history or tools. A Messages caller who wants attribution selects `citation_policy="buffer"`, including when search context is supplied only through `extra_body.input` or `extra_body.tools`.
 
+When translating history to Messages with `provider="anthropic"` (the endpoint default), Molto rejects missing, empty, or `"N/A"` source `encrypted_content` and citation `encrypted_index` with `UnsupportedInput` before transport. Anthropic requires the original encrypted state for continuation; a display placeholder cannot restore it. Preserve the metadata extension or explicitly choose text-only history. This check applies even without new search tools. Empty results, unknown results, and search errors do not require source ciphertext. Other provider profiles retain their existing reduced-history behavior, and native Messages passthrough leaves validation to the provider. Molto does not inspect other opaque values or validate their issuer; transport overrides remain opaque.
+
 Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 
 When projecting Messages history to Responses, a search result updates the preceding call with the same ID even when they occupy separate assistant messages. The call preserves its query metadata while applying the result's status and supplied sources. Assistant text messages and text runs around search blocks retain their boundaries.
@@ -202,7 +204,7 @@ For a Messages response named `response`, preserve supported assistant blocks wi
 assistant_content = [block.model_dump(exclude_none=True) for block in response.content]
 ```
 
-The SDK/API decides whether reduced history, including `"N/A"` placeholders, is usable. If it rejects replay, the caller can retry with text-only history:
+For compatible providers, the SDK/API decides whether reduced history is usable. If original state is unavailable for Anthropic, or a compatible provider rejects reduced history, the caller can explicitly choose text-only history:
 
 ```python
 assistant_content = "".join(block.text for block in response.content if block.type == "text")

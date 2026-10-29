@@ -362,6 +362,8 @@ Declare `{"type":"web_search_20250305","name":"web_search"}` in `tools`. Transla
 
 With Responses upstream, Messages receives server-tool blocks. `Molto.messages(..., citation_policy="buffer")` also preserves URL citations with reduced source metadata by withholding every text part until completion, including uncited parts. The default `"drop"` streams text without citations. Both modes preserve request-history attribution; native Messages passthrough is unaffected. With Chat upstream, the policy is a no-op: text streams immediately with unchanged chunk boundaries in both modes. See [Hosted web search](../web-search.md) for mappings, placeholders, and continuation limits.
 
+When Messages is the translated upstream and the provider is Anthropic, missing, empty, or `"N/A"` encrypted search-source or citation state raises `UnsupportedInput` before transport. Preserve the original state through the Responses metadata extension or explicitly choose text-only history. Native Messages continues to forward history for provider validation; other provider profiles retain reduced-history support.
+
 ## Current implementation limitations
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.

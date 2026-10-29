@@ -238,6 +238,72 @@ def test_request_search_options_and_history():
     assert text["citations"][0]["encrypted_index"] == "N/A"
 
 
+@pytest.mark.parametrize("provider", ["anthropic", "openai", "vllm"])
+@pytest.mark.parametrize("state", [None, "", "N/A", "original-opaque-state"])
+@pytest.mark.parametrize("part_kind", ["citation", "source", "nested_source"])
+def test_search_history_requires_state_only_for_anthropic(provider, state, part_kind):
+    """Ensures only Anthropic rejects missing state while preserving opaque values and compatible routes."""
+    if part_kind == "citation":
+        part = AssistantInput(
+            content=[
+                TextOutput(
+                    content="answer",
+                    citations=[
+                        WebCitation(
+                            url="https://example.com",
+                            start_index=0,
+                            end_index=6,
+                            encrypted_index=state,
+                        )
+                    ],
+                )
+            ]
+        )
+        field = "encrypted_index"
+    else:
+        part = SearchResult(
+            tool_call_id="ws_1",
+            sources=[WebSearchSource(url="https://example.com", encrypted_content=state)],
+        )
+        if part_kind == "nested_source":
+            part = AssistantInput(content=[part])
+        field = "encrypted_content"
+    request = NormalizedRequest(model="m", max_output_tokens=100, input=[part])
+    capabilities = PROVIDER_CAPABILITIES[provider]
+    if provider == "anthropic" and state in (None, "", "N/A"):
+        with pytest.raises(UnsupportedInput, match=field):
+            AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+    else:
+        body = AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+        block = body["messages"][0]["content"][0]
+        value = (
+            block["citations"][0][field] if part_kind == "citation" else block["content"][0][field]
+        )
+        assert value == ("N/A" if state is None else state)
+
+
+@pytest.mark.parametrize("sources,error", [(None, None), ([], None), (None, "unavailable")])
+def test_anthropic_search_history_without_sources_needs_no_ciphertext(sources, error):
+    """Ensures unknown, empty, and failed searches do not require invented continuation state."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            SearchCall(id="ws_1", query="example"),
+            SearchResult(tool_call_id="ws_1", sources=sources, error=error),
+        ],
+    )
+    body = AnthropicMessagesClient._request_body(
+        request, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+    )
+    blocks = body["messages"][0]["content"]
+    assert len(blocks) == (1 if sources is None and error is None else 2)
+    if sources == []:
+        assert blocks[1]["content"] == []
+    elif error is not None:
+        assert blocks[1]["content"]["error_code"] == error
+
+
 @pytest.mark.parametrize("context", ["low", "medium", "high"])
 def test_rejects_explicit_context_size(context):
     """Ensures an explicit context size cannot silently disappear on Messages targets."""

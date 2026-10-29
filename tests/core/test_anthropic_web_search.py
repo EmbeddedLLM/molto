@@ -231,6 +231,53 @@ async def test_recorded_anthropic_search_preserves_ir_usage_and_citation_state()
 
 
 @pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("state", [None, "", "N/A"])
+@pytest.mark.parametrize("part_kind", ["source", "citation"])
+async def test_recorded_history_rejects_missing_search_state_before_transport(
+    stream: bool, state: str | None, part_kind: str
+):
+    """Ensures SDK-serialized history with lost provider state fails before an Anthropic followup."""
+    requests = []
+    body = _responses_body(stream)
+    async with _get_http_client([SEARCH], "messages", requests=requests) as http_client:
+        molto = Molto(http_client=http_client)
+        result = await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
+        if stream:
+            result = _collect("responses", [event async for event in result])
+        restored = OpenAIResponse.model_validate_json(result.model_dump_json(exclude_none=True))
+        history = [item.model_dump(exclude_none=True) for item in restored.output]
+        if part_kind == "source":
+            target = next(
+                source
+                for item in history
+                if item["type"] == "web_search_call"
+                for source in item["action"]["sources"]
+            )
+            field = "encrypted_content"
+        else:
+            target = next(
+                citation
+                for item in history
+                if item["type"] == "message"
+                for part in item["content"]
+                for citation in part["annotations"]
+            )
+            field = "encrypted_index"
+        if state is None:
+            del target["provider_metadata"]
+        else:
+            target["provider_metadata"]["anthropic"][field] = state
+        body["input"].extend(history)
+        body["input"].append({"role": "user", "content": "Continue."})
+        # Continuation state is required even when no new search is declared.
+        for key in ("tools", "tool_choice", "max_tool_calls"):
+            body.pop(key)
+        with pytest.raises(UnsupportedInput, match=field):
+            await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("stream", [True, False])
 async def test_recorded_search_history_preserves_provider_state(stream: bool):
     """Ensures SDK-serialized Responses history restores the exact native blocks and accepted continuation."""
     native_reference = _collect("messages", await _sdk_events())

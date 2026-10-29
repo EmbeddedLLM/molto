@@ -403,6 +403,9 @@ class AnthropicMessagesClient(
         capabilities: ProviderCapabilities | None,
     ) -> list[dict[str, Any]]:
         blocks: list[dict[str, Any]] = []
+        requires_search_state = (
+            capabilities is not None and capabilities.requires_search_history_state
+        )
         for item in parts:
             if isinstance(item, Thinking):
                 representation = (
@@ -440,6 +443,13 @@ class AnthropicMessagesClient(
                     raise UnsupportedInput(
                         "Citation ranges must be within the associated answer text."
                     )
+                if requires_search_state and any(
+                    citation.encrypted_index in (None, "", "N/A") for citation in item.citations
+                ):
+                    raise UnsupportedInput(
+                        "Anthropic cannot replay citations without their original encrypted_index; "
+                        "preserve provider metadata or send text-only history."
+                    )
                 text_blocks = messages_text_blocks(item)
                 if item.cache_breakpoint is not None:
                     text_blocks[-1]["cache_control"] = _content_block(item, request)[
@@ -456,6 +466,20 @@ class AnthropicMessagesClient(
                         )
                     blocks.extend(search_calls_to_messages(item))
             elif isinstance(item, SearchResult):
+                # Anthropic decrypts original state on replay; the display placeholder
+                # cannot restore it. Compatible providers retain their own policy.
+                if (
+                    requires_search_state
+                    and item.error is None
+                    and any(
+                        source.encrypted_content in (None, "", "N/A")
+                        for source in item.sources or []
+                    )
+                ):
+                    raise UnsupportedInput(
+                        "Anthropic cannot replay search results without their original "
+                        "encrypted_content; preserve provider metadata or send text-only history."
+                    )
                 if item.sources is not None or item.error is not None:
                     blocks.append(search_result_to_messages(item))
             elif isinstance(item, ToolCall):
