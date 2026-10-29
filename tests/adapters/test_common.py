@@ -12,18 +12,27 @@ from molto.types.openai_responses import OpenAIResponsesCreateRequest
 
 
 @pytest.mark.parametrize(
-    ("termination_reason", "chat_reason", "messages_reason", "responses_reason"),
+    (
+        "termination_reason",
+        "chat_reason",
+        "messages_reason",
+        "responses_status",
+        "responses_reason",
+    ),
     [
-        ("max_output_tokens", "length", "max_tokens", "max_output_tokens"),
-        ("content_filter", "content_filter", "end_turn", "content_filter"),
-        ("unknown", "stop", "end_turn", None),
-        ("pause", "length", "pause_turn", None),
+        ("max_output_tokens", "length", "max_tokens", "incomplete", "max_output_tokens"),
+        ("content_filter", "content_filter", "end_turn", "incomplete", "content_filter"),
+        ("unknown", "stop", "end_turn", "incomplete", None),
+        ("pause", "length", "pause_turn", "incomplete", None),
+        ("stop", "stop", "end_turn", "completed", None),
+        ("refusal", "stop", "refusal", "completed", None),
     ],
 )
-async def test_incomplete_termination_projections(
+async def test_termination_projections(
     termination_reason: TerminationReason,
     chat_reason: str,
     messages_reason: str,
+    responses_status: str,
     responses_reason: str | None,
 ) -> None:
     """Ensures all adapters preserve explicit reasons and distinguish unknown from pause."""
@@ -66,8 +75,8 @@ async def test_incomplete_termination_projections(
         event async for event in responses.project_events(normalized_events(), request)
     ]
     terminal = response_events[-1]
-    assert terminal.type == "response.incomplete"
-    assert terminal.response.status == "incomplete"
+    assert terminal.type == f"response.{responses_status}"
+    assert terminal.response.status == responses_status
     assert terminal.response.model_dump()["incomplete_details"] == (
         {"reason": responses_reason} if responses_reason is not None else None
     )

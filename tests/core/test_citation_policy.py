@@ -17,11 +17,11 @@ from tests.core.test_web_search import (
 )
 
 
-@pytest.mark.parametrize("citation_policy", [None, "drop", "buffer"])
+@pytest.mark.parametrize("citation_policy", [None, "drop", "buffer", "auto"])
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("tools_in_extra_body", [False, True])
 async def test_messages_citation_policy_matches_sdk(citation_policy, stream, tools_in_extra_body):
-    """Ensures only citation policy selects buffering, including with opaque search extensions."""
+    """Ensures auto uses declared search while buffer also preserves opaque search citations."""
     body, expected_request = _request_pair("messages", "responses", stream)
     extra_body = None
     if tools_in_extra_body:
@@ -32,7 +32,10 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
         expected_request.update(extra_body)
     expected = _messages_semantics(_collect("messages", await _sdk_result("messages", True)))
     sdk_events = await _sdk_result("responses", True)
-    if citation_policy != "buffer":
+    buffer_text = citation_policy == "buffer" or (
+        citation_policy == "auto" and not tools_in_extra_body
+    )
+    if not buffer_text:
         content = []
         for block in expected["content"]:
             if block["type"] != "text":
@@ -57,7 +60,7 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
             events = [event async for event in result]
             _assert_lifecycle("messages", events)
             actual = _collect("messages", events)
-            if citation_policy != "buffer":
+            if not buffer_text:
                 assert [
                     event.delta.text
                     for event in events
@@ -72,7 +75,8 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
     assert _messages_semantics(actual) == expected
 
 
-async def test_buffered_citations_preserve_sdk_text_stream():
+@pytest.mark.parametrize("citation_policy", ["buffer", "auto"])
+async def test_buffered_citations_preserve_sdk_text_stream(citation_policy):
     """Ensures SDK text iteration exposes the recorded answer without losing citation blocks."""
     body, expected_request = _request_pair("messages", "responses", True)
     reference = _collect("responses", await _sdk_result("responses", True))
@@ -83,7 +87,7 @@ async def test_buffered_citations_preserve_sdk_text_stream():
             body=body,
             endpoint="responses",
             api_key="test-api-key",
-            citation_policy="buffer",
+            citation_policy=citation_policy,
         )
         events = [event async for event in stream]
 
@@ -108,7 +112,7 @@ async def test_buffered_citations_preserve_sdk_text_stream():
     ]
 
 
-@pytest.mark.parametrize("citation_policy", ["drop", "buffer"])
+@pytest.mark.parametrize("citation_policy", ["drop", "buffer", "auto"])
 @pytest.mark.parametrize("stream", [True, False])
 async def test_native_messages_ignore_citation_policy(citation_policy, stream):
     """Ensures projection policy never changes native Messages requests or SDK responses."""

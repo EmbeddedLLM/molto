@@ -1,10 +1,10 @@
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 from httpx import AsyncClient, Headers
 from pydantic import BaseModel
 
-from molto.adapters.anthropic import AnthropicMessagesAdapter
+from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.configs import ENV_CONFIG
 from molto.providers import (
@@ -346,7 +346,7 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-        citation_policy: Literal["buffer", "drop"] = "drop",
+        citation_policy: CitationPolicy = "drop",
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
@@ -354,8 +354,10 @@ class Molto:
         implementation and its capabilities, and `base_url` selects only the
         HTTP destination. With Responses upstream, `citation_policy="buffer"`
         withholds text until each part completes to preserve citation boundaries;
-        the default `"drop"` streams text without citations. The policy has no
-        effect with Chat upstream or native Messages.
+        `"auto"` buffers only when normalized tools or history signal possible
+        citations, otherwise streaming text without citations. The default `"drop"`
+        always streams text without citations. Transport extensions do not inform
+        `"auto"`. The policy has no effect with Chat upstream or native Messages.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)

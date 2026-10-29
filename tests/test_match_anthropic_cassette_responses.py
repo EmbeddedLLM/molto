@@ -364,7 +364,7 @@ def test_search_response_maps_sources_citations_and_usage(sources: list) -> None
 
 @pytest.mark.parametrize("offset", [0, 3, 6])
 def test_search_response_preserves_point_citations(offset: int) -> None:
-    """Ensures point and overlapping range attribution survive in nonblank replayable blocks."""
+    """Ensures point citations keep one block and use its text as their fallback excerpt."""
     text = "answer"
     messages, responses = _search_cassettes()
     annotations = [
@@ -391,12 +391,10 @@ def test_search_response_preserves_point_citations(offset: int) -> None:
     body = messages["response"]["body"]
     AnthropicMessagesResponse.model_validate(body)
     blocks = [block for block in body["content"] if block["type"] == "text"]
-    assert "".join(block["text"] for block in blocks) == text
-    assert all(block["text"].strip() for block in blocks)
-    point_index = 1 if offset == 3 else 0
+    assert [block["text"] for block in blocks] == [text]
     assert [
         citation
-        for citation in blocks[point_index]["citations"]
+        for citation in blocks[0]["citations"]
         if citation["url"] == "https://example.org/point"
     ] == [
         {
@@ -404,13 +402,11 @@ def test_search_response_preserves_point_citations(offset: int) -> None:
             "url": "https://example.org/point",
             "title": "",
             "encrypted_index": "N/A",
-            "cited_text": "",
+            "cited_text": text,
         }
     ]
     assert [[citation["url"] for citation in block["citations"]] for block in blocks] == [
-        (["https://example.org/point"] if index == point_index else [])
-        + ["https://example.org/range"]
-        for index in range(len(blocks))
+        ["https://example.org/point", "https://example.org/range"]
     ]
     AnthropicMessagesCreateRequest.model_validate(
         {

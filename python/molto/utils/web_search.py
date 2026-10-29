@@ -20,13 +20,14 @@ def messages_text_blocks(
     text = part.content
     boundaries = {0, len(text)}
     for citation in part.citations:
-        boundaries.add(citation.start_index)
-        boundaries.add(citation.end_index)
-
-    if any(offset < 0 or offset > len(text) for offset in boundaries):
-        raise ValueError("Citation offsets fall outside the associated answer text.")
-    if any(citation.end_index < citation.start_index for citation in part.citations):
-        raise ValueError("Citation end precedes its start.")
+        if not (0 <= citation.start_index <= len(text) and 0 <= citation.end_index <= len(text)):
+            raise ValueError("Citation offsets fall outside the associated answer text.")
+        if citation.end_index < citation.start_index:
+            raise ValueError("Citation end precedes its start.")
+        # A point names a position, not a range, so it must not split the text.
+        if citation.start_index != citation.end_index:
+            boundaries.add(citation.start_index)
+            boundaries.add(citation.end_index)
     if not text.strip():
         raise ValueError("Messages text blocks require non-whitespace text.")
 
@@ -54,7 +55,9 @@ def messages_text_blocks(
             else:
                 matches = citation.start_index < end and start < citation.end_index
             if matches:
-                block_citations.append(citation_to_messages(citation, text=text))
+                block_citations.append(
+                    citation_to_messages(citation, text=text, block_start=start, block_end=end)
+                )
 
         if block_citations:
             block["citations"] = block_citations
@@ -113,15 +116,19 @@ def citation_to_responses(
     return annotation
 
 
-def citation_to_messages(citation: WebCitation, *, text: str) -> dict[str, Any]:
+def citation_to_messages(
+    citation: WebCitation, *, text: str, block_start: int, block_end: int
+) -> dict[str, Any]:
     """Build a Messages citation with the documented answer-range/state fallbacks."""
+    cited_text = citation.cited_text
+    if cited_text is None:
+        # A point has no excerpt of its own; use the block carrying its attribution.
+        cited_text = text[citation.start_index : citation.end_index] or text[block_start:block_end]
     return {
         "type": "web_search_result_location",
         "url": citation.url,
         "title": citation.title if citation.title is not None else "",
-        "cited_text": citation.cited_text
-        if citation.cited_text is not None
-        else text[citation.start_index : citation.end_index],
+        "cited_text": cited_text,
         "encrypted_index": citation.encrypted_index
         if citation.encrypted_index is not None
         else "N/A",

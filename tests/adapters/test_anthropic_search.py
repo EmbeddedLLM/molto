@@ -7,6 +7,7 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CitationDelta,
     FunctionToolChoice,
     InputTokenDetails,
@@ -53,9 +54,9 @@ async def iterate(events):
         yield event
 
 
-@pytest.mark.parametrize("citation_policy", ["buffer", "drop"])
+@pytest.mark.parametrize("citation_policy", ["buffer", "drop", "auto"])
 async def test_citation_policy_controls_text_latency_without_search(citation_policy):
-    """Ensures only the explicit policy determines whether ordinary text waits for its end."""
+    """Ensures buffer waits for ordinary text while auto and drop preserve immediate deltas."""
     adapter, request = setup_adapter(citation_policy)
     completed = False
 
@@ -83,12 +84,12 @@ async def test_citation_policy_controls_text_latency_without_search(citation_pol
         assert deltas == ["Alpha. ", "Beta."]
 
 
-@pytest.mark.parametrize("citation_policy", ["buffer", "drop"])
+@pytest.mark.parametrize("citation_policy", ["buffer", "drop", "auto"])
 @pytest.mark.parametrize("citation_delivery", ["start", "delta", "end"])
 async def test_explicit_citation_policy_handles_all_citation_delivery(
     citation_policy, citation_delivery
 ):
-    """Ensures buffer preserves final attribution and drop omits even late or initial citations."""
+    """Ensures buffer preserves attribution while drop and unsignaled auto omit unexpected citations."""
     adapter, request = setup_adapter(citation_policy)
     citation = WebCitation(url="https://a", start_index=7, end_index=12)
     events = [
@@ -122,7 +123,50 @@ async def test_explicit_citation_policy_handles_all_citation_delivery(
 def test_citation_policy_rejects_unknown_mode():
     """Ensures an unsupported policy cannot silently discard requested attribution."""
     with pytest.raises(ValueError, match="Unsupported citation policy"):
-        setup_adapter(citation_policy="auto")
+        setup_adapter(citation_policy="invalid")
+
+
+@pytest.mark.parametrize("signal", ["tool", "search_call", "search_result", "citation"])
+async def test_auto_buffers_text_when_request_announces_citations(signal):
+    """Ensures tools or history select auto buffering before text and late citations arrive."""
+    adapter, request = setup_adapter("auto")
+    citation = WebCitation(url="https://a", start_index=7, end_index=12)
+    if signal == "tool":
+        request.tools = [WebSearchTool()]
+    else:
+        part = {
+            "search_call": SearchCall(id="s", query="q"),
+            "search_result": SearchResult(tool_call_id="s", sources=[]),
+            "citation": TextOutput(content="Alpha. Beta.", citations=[citation]),
+        }[signal]
+        request.input = [AssistantInput(content=[part])]
+    completed = False
+
+    async def source():
+        nonlocal completed
+        yield ResponseStartEvent(id="r", model="m")
+        yield PartStartEvent(index=0, part=TextOutput(content=""))
+        yield PartDeltaEvent(index=0, delta=TextDelta(content_delta="Alpha. "))
+        yield PartDeltaEvent(index=0, delta=TextDelta(content_delta="Beta."))
+        yield PartDeltaEvent(index=0, delta=CitationDelta(citation=citation))
+        completed = True
+        yield PartEndEvent(index=0, part=TextOutput(content="Alpha. Beta.", citations=[citation]))
+        yield ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop")
+
+    stream = adapter.project_events(source(), request)
+    assert (await anext(stream)).type == "message_start"
+    start = await anext(stream)
+    assert start.type == "content_block_start"
+    assert completed
+    events = [start, *[event async for event in stream]]
+    blocks = [event.content_block for event in events if event.type == "content_block_start"]
+    assert len(blocks) == 2
+    assert not blocks[0].citations
+    assert blocks[1].citations[0].cited_text == "Beta."
+    assert [event.delta.text for event in events if event.type == "content_block_delta"] == [
+        "Alpha. ",
+        "Beta.",
+    ]
 
 
 @pytest.mark.parametrize("hosted_first", [True, False])
@@ -439,7 +483,7 @@ def test_citation_boundaries_preserve_nonblank_blocks(
     ]
     for block, sources in zip(blocks, expected_sources, strict=True):
         assert [citation["cited_text"] for citation in block.get("citations", [])] == [
-            text[ranges[index][0] : ranges[index][1]] for index in sources
+            text[ranges[index][0] : ranges[index][1]] or block["text"] for index in sources
         ]
     AnthropicMessagesCreateRequest.model_validate(
         {"model": "m", "max_tokens": 100, "messages": [{"role": "assistant", "content": blocks}]}
@@ -450,7 +494,7 @@ def test_citation_boundaries_preserve_nonblank_blocks(
     "text, offset, expected_text, citation_index",
     [
         ("abc", 0, ["abc"], 0),
-        ("abc", 1, ["a", "bc"], 1),
+        ("abc", 1, ["abc"], 0),
         ("abc", 3, ["abc"], 0),
     ],
 )
@@ -466,13 +510,46 @@ def test_point_citation_preserves_attribution(text, offset, expected_text, citat
     assert "".join(block["text"] for block in blocks) == text
     assert all(block["text"].strip() for block in blocks)
     assert blocks[citation_index]["citations"][0]["url"] == "https://x"
-    assert blocks[citation_index]["citations"][0]["cited_text"] == ""
+    assert blocks[citation_index]["citations"][0]["cited_text"] == blocks[citation_index]["text"]
     assert all(
         "citations" not in block for index, block in enumerate(blocks) if index != citation_index
     )
     AnthropicMessagesCreateRequest.model_validate(
         {"model": "m", "max_tokens": 100, "messages": [{"role": "assistant", "content": blocks}]}
     )
+
+
+@pytest.mark.parametrize("offset", [-1, 4])
+def test_point_citation_rejects_offsets_outside_text(offset):
+    """Ensures excluding point citations from splitting does not bypass offset validation."""
+    part = TextOutput(
+        content="abc",
+        citations=[WebCitation(url="https://x", start_index=offset, end_index=offset)],
+    )
+    with pytest.raises(ValueError, match="Citation offsets fall outside"):
+        messages_text_blocks(part)
+
+
+def test_point_citation_preserves_observed_source_state():
+    """Ensures a point's observed source excerpt and encrypted reference beat answer fallbacks."""
+    blocks = messages_text_blocks(
+        TextOutput(
+            content="abc",
+            citations=[
+                WebCitation(
+                    url="https://x",
+                    start_index=1,
+                    end_index=1,
+                    cited_text="source excerpt",
+                    encrypted_index="original-reference",
+                )
+            ],
+        )
+    )
+    assert len(blocks) == 1
+    assert blocks[0]["text"] == "abc"
+    assert blocks[0]["citations"][0]["cited_text"] == "source excerpt"
+    assert blocks[0]["citations"][0]["encrypted_index"] == "original-reference"
 
 
 @pytest.mark.parametrize("text", ["", " ", "\n\t"])

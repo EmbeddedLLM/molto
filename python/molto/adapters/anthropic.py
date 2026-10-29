@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import aclosing
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal, NoReturn, TypeAlias
 
 from anthropic import APIError as AnthropicAPIError
 from anthropic import APIStatusError as AnthropicAPIStatusError
@@ -90,6 +90,8 @@ _STOP_REASONS: dict[TerminationReason, str] = {
     "unknown": "end_turn",
 }
 
+CitationPolicy: TypeAlias = Literal["auto", "buffer", "drop"]
+
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (1024, "minimal"),
     (2048, "low"),
@@ -157,9 +159,24 @@ def _citations(citations: list[dict[str, Any]] | None, text: str) -> list[WebCit
     return result
 
 
+def _citations_are_possible(request: NormalizedRequest) -> bool:
+    """Report whether normalized tools or history signal possible URL citations."""
+    if any(isinstance(tool, WebSearchTool) for tool in request.tools or []):
+        return True
+    for item in request.input or []:
+        parts = item.content if isinstance(item, AssistantInput) else [item]
+        for part in parts:
+            if isinstance(part, (SearchCall, SearchResult)):
+                return True
+            if isinstance(part, TextOutput) and part.citations:
+                return True
+    return False
+
+
 async def _ordered_parts(
     events: AsyncIterator[ModelResponseStreamEvent],
-    citation_policy: Literal["buffer", "drop"],
+    *,
+    buffer_text: bool,
 ) -> AsyncIterator[ModelResponseStreamEvent]:
     """Stream parts in start order, yielding only the end for snapshot-based parts."""
     # Responses may stream "Alpha. Beta." before citing only "Beta.". Messages
@@ -168,8 +185,8 @@ async def _ordered_parts(
     # us to expand a query batch into searches or omit browsing.
     # If part A expands into two blocks, part B must follow both, so later parts
     # wait to preserve order and receive the correct consecutive block indices.
-    # The explicit citation policy determines whether text waits for its final
-    # snapshot; upstream request extensions never select that behavior.
+    # The adapter resolves text buffering from the policy and normalized request;
+    # upstream transport extensions never select that behavior.
     pending: dict[int, deque[ModelResponseStreamEvent]] = {}
     snapshots: set[int] = set()
     async for event in events:
@@ -182,7 +199,7 @@ async def _ordered_parts(
             pending[event.index] = deque()
             part = event.part
             if isinstance(part, (SearchCall, SearchResult)) or (
-                isinstance(part, TextOutput) and citation_policy == "buffer"
+                isinstance(part, TextOutput) and buffer_text
             ):
                 snapshots.add(event.index)
         if isinstance(event, PartEndEvent):
@@ -219,10 +236,10 @@ class AnthropicMessagesAdapter(
         self,
         capabilities: ProviderCapabilities,
         *,
-        citation_policy: Literal["buffer", "drop"] = "drop",
+        citation_policy: CitationPolicy = "drop",
     ) -> None:
         super().__init__(capabilities)
-        if citation_policy not in {"buffer", "drop"}:
+        if citation_policy not in {"auto", "buffer", "drop"}:
             raise ValueError(f"Unsupported citation policy: {citation_policy!r}.")
         self._citation_policy = citation_policy
 
@@ -641,7 +658,10 @@ class AnthropicMessagesAdapter(
         thinking_parts: set[int] = set()
         thinking_signatures: dict[int, str] = {}
 
-        async with aclosing(_ordered_parts(events, self._citation_policy)) as ordered_events:
+        buffer_text = self._citation_policy == "buffer" or (
+            self._citation_policy == "auto" and _citations_are_possible(request)
+        )
+        async with aclosing(_ordered_parts(events, buffer_text=buffer_text)) as ordered_events:
             async for normalized_event in ordered_events:
                 if isinstance(normalized_event, ResponseStartEvent):
                     yield event(

@@ -650,7 +650,7 @@ async def test_chat_upstream_search_rejected_before_transport(downstream: Protoc
 
 @pytest.mark.parametrize(
     ("downstream", "citation_policy"),
-    [("responses", None), ("messages", "drop"), ("messages", "buffer")],
+    [("responses", None), ("messages", "drop"), ("messages", "buffer"), ("messages", "auto")],
 )
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("synthetic_annotations", [False, True])
@@ -662,7 +662,7 @@ async def test_chat_upstream_extra_search_reaches_transport(
     synthetic_annotations: bool,
     extra_search: bool,
 ):
-    """Ensures Chat preserves SDK text chunks under either policy, including opaque search."""
+    """Ensures Chat preserves SDK text chunks under every policy, including opaque search."""
     body = {"model": "test-model", "stream": stream}
     if downstream == "responses":
         body["input"] = "Search"
@@ -1551,7 +1551,7 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
         ("A😀βé Z", [(0, 4), (2, 6)], ["A😀", "βé", " Z"], [[0], [0, 1], [1]]),
         ("abc de f", [(0, 6), (7, 8)], ["abc de ", "f"], [[0], [1]]),
         ("abc", [(0, 0)], ["abc"], [[0]]),
-        ("abc", [(1, 1)], ["a", "bc"], [[], [0]]),
+        ("abc", [(1, 1)], ["abc"], [[0]]),
         ("abc", [(3, 3)], ["abc"], [[0]]),
     ],
     ids=["unicode-overlap", "whitespace-gap", "point-start", "point-middle", "point-end"],
@@ -1617,7 +1617,9 @@ async def test_synthetic_citation_boundaries_match_sdk_and_history(
     for block in blocks:
         for citation in block.citations or []:
             source = next(source for source in sources if source.url == citation.url)
-            assert citation.cited_text == text[source.start_index : source.end_index]
+            assert citation.cited_text == (
+                text[source.start_index : source.end_index] or block.text
+            )
             assert citation.encrypted_index == "N/A"
             assert citation.title == (source.title or "")
 
@@ -1917,11 +1919,11 @@ async def test_synthetic_repeated_searches_preserve_identity(stream: bool):
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("override", [False, True])
 @pytest.mark.parametrize("new_search", [False, True])
-@pytest.mark.parametrize("citation_policy", ["drop", "buffer"])
-async def test_search_history_uses_explicit_citation_policy(
+@pytest.mark.parametrize("citation_policy", ["drop", "buffer", "auto"])
+async def test_search_history_uses_citation_policy(
     stream: bool, override: bool, new_search: bool, citation_policy: str
 ):
-    """Ensures typed or opaque history preserves input attribution without selecting output buffering."""
+    """Ensures auto buffers typed history only while buffer also preserves opaque-history citations."""
     body, expected = _request_pair("messages", "responses", stream)
     for request in (body, expected):
         request.pop("tools")
@@ -1959,7 +1961,7 @@ async def test_search_history_uses_explicit_citation_policy(
     text_blocks = [block for block in result.content if block.type == "text"]
     assert "".join(block.text for block in text_blocks) == reference.output_text
     citations = [citation for block in text_blocks for citation in block.citations or []]
-    if citation_policy == "drop":
+    if citation_policy == "drop" or (citation_policy == "auto" and override):
         assert citations == []
         return
     annotation = (
