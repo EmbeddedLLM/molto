@@ -96,9 +96,10 @@ _STOP_REASONS: dict[TerminationReason, str] = {
 CitationPolicy: TypeAlias = Literal["buffer", "drop"]
 """How a block-based target projects text that may carry URL citations.
 
-`buffer` holds every text part until its citation snapshot is final so blocks can
-be split at citation boundaries, trading text latency and chunk boundaries for
-exact attribution. `drop` streams text immediately and omits citations.
+`buffer` withholds text parts until their citation snapshot is final whenever the
+request shows a citation signal, so blocks can be split at citation boundaries.
+That trades text latency and chunk boundaries for exact attribution on those
+requests only. `drop` always streams text immediately and omits citations.
 """
 
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
@@ -166,6 +167,20 @@ def _citations(citations: list[dict[str, Any]] | None, text: str) -> list[WebCit
             raise UnsupportedInput(f"Unsupported Anthropic citation: {citation['type']}.")
         result.append(citation_from_messages(citation, text=text))
     return result
+
+
+def _citations_are_possible(request: NormalizedRequest) -> bool:
+    """Report whether the request itself shows a hosted-search or citation signal."""
+    if any(isinstance(tool, WebSearchTool) for tool in request.tools or []):
+        return True
+    for item in request.input or []:
+        parts = item.content if isinstance(item, AssistantInput) else [item]
+        for part in parts:
+            if isinstance(part, (SearchCall, SearchResult)):
+                return True
+            if isinstance(part, TextOutput) and part.citations:
+                return True
+    return False
 
 
 async def _ordered_parts(
@@ -653,9 +668,8 @@ class AnthropicMessagesAdapter(
         thinking_parts: set[int] = set()
         thinking_signatures: dict[int, str] = {}
 
-        async with aclosing(
-            _ordered_parts(events, buffer_text=self._citation_policy == "buffer")
-        ) as ordered_events:
+        buffer_text = self._citation_policy == "buffer" and _citations_are_possible(request)
+        async with aclosing(_ordered_parts(events, buffer_text=buffer_text)) as ordered_events:
             async for normalized_event in ordered_events:
                 if isinstance(normalized_event, ResponseStartEvent):
                     yield event(
@@ -741,8 +755,9 @@ class AnthropicMessagesAdapter(
                     index = indices[normalized_event.index]
                     if isinstance(normalized_event.delta, CitationDelta):
                         # Buffered parts consume their citation deltas in
-                        # `_ordered_parts`; in the `drop` policy no text part is
-                        # buffered, so citations are omitted deliberately.
+                        # `_ordered_parts`. Reaching here means the request announced
+                        # no citation signal, so `buffer` falls back to the `drop`
+                        # outcome: the text has already streamed and cannot be split.
                         continue
                     if isinstance(normalized_event.delta, ThinkingDelta):
                         delta = normalized_event.delta

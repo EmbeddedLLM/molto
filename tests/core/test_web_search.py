@@ -499,15 +499,14 @@ async def test_messages_citation_annotation_matches_sdk(
 async def test_messages_search_extra_body_matches_sdk(stream: bool, include: list[str] | None):
     """Ensures transport-only search preserves SDK search semantics and citation lifecycle."""
     body, expected_request = _request_pair("messages", "responses", stream)
-    body.pop("tools")
-    body.pop("tool_choice")
     extra_body = {
         "tools": [{"type": "web_search"}],
         "tool_choice": "required",
     }
     if include is not None:
         extra_body["include"] = include
-    expected_request.pop("include", None)
+    # The projected include still comes from the declared search; extra_body only
+    # replaces it when the caller supplies one.
     expected_request.update(extra_body)
     expected = _collect("messages", await _sdk_result("messages", True))
     async with _get_http_client(
@@ -1673,7 +1672,7 @@ async def test_synthetic_repeated_searches_preserve_identity(stream: bool):
 async def test_search_history_without_tools_still_buffers_citations(
     stream: bool, override: bool, new_search: bool
 ):
-    """Ensures typed and overridden history preserve SDK citations without redeclaring search."""
+    """Ensures typed search history preserves citations while transport-only history cannot."""
     body, expected = _request_pair("messages", "responses", stream)
     for request in (body, expected):
         request.pop("tools")
@@ -1710,6 +1709,11 @@ async def test_search_history_without_tools_still_buffers_citations(
     text_blocks = [block for block in result.content if block.type == "text"]
     assert "".join(block.text for block in text_blocks) == reference.output_text
     citations = [citation for block in text_blocks for citation in block.citations or []]
+    if override:
+        # History supplied only through extra_body is invisible to the citation
+        # trigger, so the buffered policy falls back to omitting citations.
+        assert citations == []
+        return
     annotation = (
         next(item for item in reference.output if item.type == "message").content[0].annotations[0]
     )

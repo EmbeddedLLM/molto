@@ -7,6 +7,8 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
+    CitationDelta,
     FunctionToolChoice,
     InputTokenDetails,
     OutputTokenDetails,
@@ -226,7 +228,7 @@ def test_overlapping_unicode_citations():
 
 async def test_buffered_citations_search_omission_and_collection():
     """Ensures delayed citation splits follow linked search results with dense lifecycles."""
-    adapter, request = setup_adapter()
+    adapter, request = setup_adapter(search=True)
     parts = [
         SearchCall(id="browse", action="open_page"),
         SearchResult(tool_call_id="browse", sources=[]),
@@ -360,7 +362,7 @@ def test_whitespace_gap_does_not_emit_a_spacing_block():
 @pytest.mark.parametrize("kind", ["search", "deferred_text"])
 async def test_early_close_releases_source_after_buffered_projection(kind):
     """Ensures closing a buffered block start deterministically releases upstream input."""
-    adapter, request = setup_adapter()
+    adapter, request = setup_adapter(search=True)
     closed = False
     part = SearchCall(id="s", query="q") if kind == "search" else TextOutput(content="answer")
 
@@ -406,3 +408,88 @@ def test_dynamic_search_caller_is_outside_basic_scope():
     )
     with pytest.raises(UnsupportedInput, match="directly invoked"):
         adapter.normalize_request(request)
+
+
+@pytest.mark.parametrize(
+    "declare",
+    ["tool", "search_history", "citation_history"],
+)
+async def test_buffer_policy_buffers_announced_search(declare: str):
+    """Ensures buffer withholds text when the request declares search or carries search history."""
+    body = {
+        "model": "m",
+        "max_tokens": 100,
+        "messages": [{"role": "user", "content": "Search"}],
+        "stream": True,
+    }
+    if declare == "tool":
+        body["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
+    adapter = AnthropicMessagesAdapter(
+        PROVIDER_CAPABILITIES["anthropic"], citation_policy="buffer"
+    )
+    native = AnthropicMessagesCreateRequest(**body)
+    request = adapter.normalize_request(native)
+    if declare != "tool":
+        part = (
+            SearchCall(id="ws_1", query="q")
+            if declare == "search_history"
+            else TextOutput(
+                content="old",
+                citations=[WebCitation(url="https://example.com", start_index=0, end_index=3)],
+            )
+        )
+        request = request.model_copy(
+            update={"input": [*request.input, AssistantInput(content=[part])]}
+        )
+    events = [
+        ResponseStartEvent(id="r", model="m"),
+        PartStartEvent(index=0, part=TextOutput(content="")),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="answer")),
+        PartEndEvent(index=0, part=TextOutput(content="answer")),
+        ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop"),
+    ]
+    projected = [event async for event in adapter.project_events(iterate(events), request)]
+    texts = [event for event in projected if event.type == "content_block_start"]
+    # Buffered parts emit their completed block instead of streaming deltas.
+    assert not [event for event in projected if event.type == "content_block_delta"]
+    assert [block.content_block.text for block in texts] == ["answer"]
+
+
+async def test_buffer_policy_falls_back_to_drop_without_a_signal():
+    """Ensures buffer without an announced signal streams text and omits citations."""
+    adapter, request = setup_adapter(citation_policy="buffer")
+    citation = WebCitation(url="https://example.com", start_index=0, end_index=3)
+    events = [
+        ResponseStartEvent(id="r", model="m"),
+        PartStartEvent(index=0, part=TextOutput(content="")),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="answer")),
+        PartDeltaEvent(index=0, delta=CitationDelta(citation=citation)),
+        PartEndEvent(index=0, part=TextOutput(content="answer", citations=[citation])),
+        ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop"),
+    ]
+    projected = [event async for event in adapter.project_events(iterate(events), request)]
+    assert [event.delta.text for event in projected if event.type == "content_block_delta"] == [
+        "answer"
+    ]
+    start = next(event for event in projected if event.type == "content_block_start")
+    assert start.content_block.citations is None
+
+
+async def test_drop_policy_omits_citations_for_declared_search():
+    """Ensures drop streams declared search text immediately and omits citations."""
+    adapter, request = setup_adapter(search=True, citation_policy="drop")
+    citation = WebCitation(url="https://example.com", start_index=0, end_index=3)
+    events = [
+        ResponseStartEvent(id="r", model="m"),
+        PartStartEvent(index=0, part=TextOutput(content="")),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="answer")),
+        PartDeltaEvent(index=0, delta=CitationDelta(citation=citation)),
+        PartEndEvent(index=0, part=TextOutput(content="answer", citations=[citation])),
+        ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop"),
+    ]
+    projected = [event async for event in adapter.project_events(iterate(events), request)]
+    assert [event.delta.text for event in projected if event.type == "content_block_delta"] == [
+        "answer"
+    ]
+    start = next(event for event in projected if event.type == "content_block_start")
+    assert start.content_block.citations is None

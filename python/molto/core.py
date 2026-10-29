@@ -344,9 +344,10 @@ class Molto:
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
         HTTP destination. `citation_policy` selects how translated responses
-        project text that may carry URL citations: `buffer` withholds each text
-        part until its citations are final so blocks can be split at citation
-        boundaries, and `drop` streams text immediately without citations.
+        project text that may carry URL citations: `buffer` withholds text parts
+        until their citations are final whenever the request declares hosted search
+        or carries search or citation history, and `drop` always streams text
+        immediately without citations.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
