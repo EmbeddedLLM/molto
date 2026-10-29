@@ -409,9 +409,8 @@ OutputItem = Annotated[
 def _reject_input_extras(model_type: type[ExtraModel]) -> Callable[[Any], Any]:
     def validate(value: Any) -> Any:
         if isinstance(value, dict):
-            extra_fields = {
-                key for key in value if key not in model_type.model_fields or key == "extra_fields"
-            }
+            allowed_fields = model_type.model_fields.keys() - {"extra_fields"}
+            extra_fields = value.keys() - allowed_fields
         elif isinstance(value, model_type):
             extra_fields = value.extra_fields.keys()
         else:

@@ -18,6 +18,8 @@
 
 Each protocol adapter and upstream client translates individual tool declarations through its `_translate_tool` method. Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation.
 
+Cross-layer wire conversions for hosted web search live in `utils/web_search.py`, shared by adapters and upstream clients to prevent duplicated conversions from drifting.
+
 A future `chat()` method is a dispatcher over those coordinators. It should select and delegate to a protocol method rather than duplicate that method's validation, normalization, composition, or projection logic.
 
 Keep same-protocol optimizations visible in the relevant protocol coordinator. Do not hide pair-specific routing inside an adapter or client.
