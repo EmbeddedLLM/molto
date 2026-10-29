@@ -15,7 +15,9 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from molto.types.normalized import TextOutput, WebCitation
 from molto.utils.io import dump_yaml, json_loads, read_yaml
+from molto.utils.web_search import messages_text_blocks
 
 
 def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
@@ -186,7 +188,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
             continue
         if item_type == "web_search_call":
             _append_assistant_content(
-                messages, [*pending_assistant_content, *_search_content(item)]
+                messages, [*pending_assistant_content, *_search_content(item, history=True)]
             )
             pending_assistant_content = []
             continue
@@ -243,7 +245,7 @@ def _web_search_tool(tool: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
+def _search_content(item: dict[str, Any], *, history: bool = False) -> list[dict[str, Any]]:
     action = item.get("action")
     if not isinstance(action, dict):
         raise ValueError("Cannot classify a Responses web search call without its action.")
@@ -257,6 +259,9 @@ def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
     queries = queries or [action.get("query")]
     if any(query is not None and not isinstance(query, str) for query in queries):
         raise ValueError("Responses search query must be a string when present.")
+    # A pooled result cannot complete every expanded call when replayed as history.
+    if history and len(queries) > 1:
+        raise ValueError("Anthropic Messages cannot preserve multi-query search history.")
     call_id = item.get("id")
     if not isinstance(call_id, str):
         raise ValueError("Responses web search calls must contain a string id.")
@@ -309,7 +314,6 @@ def _cited_text_content(part: dict[str, Any]) -> list[dict[str, Any]]:
     annotations = part.get("annotations") or []
     if not isinstance(annotations, list):
         raise ValueError("Responses annotations must be a list.")
-    boundaries = {0, len(text)}
     for annotation in annotations:
         if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
             raise ValueError("Only Responses URL citations can map to Messages citations.")
@@ -322,37 +326,21 @@ def _cited_text_content(part: dict[str, Any]) -> list[dict[str, Any]]:
             raise ValueError("Responses URL citation range must be within its text part.")
         if not isinstance(annotation.get("url"), str):
             raise ValueError("Responses URL citations must contain a string url.")
-        boundaries.update((start, end))
-    if not annotations:
-        return [{"type": "text", "text": text}]
-    blocks = []
-    boundaries = sorted(boundaries)
-    intervals = set(zip(boundaries, boundaries[1:], strict=False))
-    # Point citations retain attribution even though they cover no answer characters.
-    intervals.update(
-        (annotation["start_index"], annotation["end_index"])
-        for annotation in annotations
-        if annotation["start_index"] == annotation["end_index"]
+    # Matched fixtures must obey the same nonblank-block rule as replayed history.
+    return messages_text_blocks(
+        TextOutput(
+            content=text,
+            citations=[
+                WebCitation(
+                    url=annotation["url"],
+                    title=annotation.get("title"),
+                    start_index=annotation["start_index"],
+                    end_index=annotation["end_index"],
+                )
+                for annotation in annotations
+            ],
+        )
     )
-    for start, end in sorted(intervals):
-        block: dict[str, Any] = {"type": "text", "text": text[start:end]}
-        citations = [
-            {
-                "type": "web_search_result_location",
-                "url": annotation["url"],
-                "title": annotation.get("title") or "",
-                "encrypted_index": "N/A",
-                "cited_text": text[annotation["start_index"] : annotation["end_index"]],
-            }
-            for annotation in annotations
-            if annotation["start_index"] <= start
-            and end <= annotation["end_index"]
-            and (start < end or annotation["start_index"] == annotation["end_index"])
-        ]
-        if citations:
-            block["citations"] = citations
-        blocks.append(block)
-    return blocks
 
 
 def _map_search_usage(response: dict[str, Any], usage: dict[str, Any]) -> None:
@@ -670,9 +658,7 @@ def _response_content(response: dict[str, Any]) -> tuple[list[dict[str, Any]], b
     return blocks, has_tool_calls
 
 
-def _stop_reason(
-    response: dict[str, Any], *, has_tool_calls: bool, has_search: bool = False
-) -> str:
+def _stop_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
     status = response.get("status")
     if status == "completed":
         return "tool_use" if has_tool_calls else "end_turn"
@@ -680,12 +666,10 @@ def _stop_reason(
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
-    # A reason-less incomplete response is normalized as unknown and coerced to
-    # normal completion; it is not evidence that the turn paused.
-    if incomplete_details is None or incomplete_details.get("reason") is None:
+    if incomplete_details is None:
         return "end_turn"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("Incomplete Responses responses must contain incomplete_details.")
+        raise ValueError("Incomplete Responses incomplete_details must be an object or null.")
     if incomplete_details.get("reason") == "max_output_tokens":
         return "max_tokens"
     return "end_turn"
@@ -730,14 +714,7 @@ def match_messages_response(
     message["role"] = "assistant"
     message["type"] = "message"
     message["content"] = content
-    message["stop_reason"] = _stop_reason(
-        response,
-        has_tool_calls=has_tool_calls,
-        has_search=any(
-            tool.get("type") == "web_search" for tool in responses_request.get("tools", [])
-        )
-        or any(item.get("type") == "web_search_call" for item in response.get("output", [])),
-    )
+    message["stop_reason"] = _stop_reason(response, has_tool_calls=has_tool_calls)
     message["stop_sequence"] = None
     _map_usage(response_usage, message_usage, _cache_lifetimes(matched_request))
     if has_search:

@@ -1,5 +1,7 @@
 """Hosted-search Messages request and stream normalization regressions."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -28,6 +30,67 @@ from molto.types.normalized import (
     WebSearchToolChoice,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from tests.core.test_interface import _get_http_client, _read_cassette
+
+
+async def test_recorded_search_citation_ir_has_nonblank_text():
+    """Ensures completed recorded citation IR contains nonblank text and nonblank ranges."""
+    path = (
+        Path(__file__).parents[1]
+        / "cassettes"
+        / "anthropic"
+        / "web_search"
+        / "anthropic-messages-stream-00.yaml"
+    )
+    native = _read_cassette(path)["request"]["body"]
+    request = NormalizedRequest(
+        model=native["model"],
+        input=[
+            UserInput(content=[TextInput(content=native["messages"][0]["content"][0]["text"])])
+        ],
+        tools=[WebSearchTool()],
+        tool_choice="required",
+        max_tool_calls=1,
+        max_output_tokens=native["max_tokens"],
+        stream=True,
+    )
+    async with _get_http_client([path], "messages") as http_client:
+        client = AnthropicMessagesClient(
+            http_client, capabilities=PROVIDER_CAPABILITIES["anthropic"], api_key="test"
+        )
+        events = [event async for event in client.events(request)]
+
+    cited_parts = [
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent)
+        and isinstance(event.part, TextOutput)
+        and event.part.citations
+    ]
+    assert cited_parts
+    for part in cited_parts:
+        assert part.content.strip()
+        for citation in part.citations:
+            assert 0 <= citation.start_index <= citation.end_index <= len(part.content)
+            if citation.start_index != citation.end_index:
+                assert part.content[citation.start_index : citation.end_index].strip()
+
+
+@pytest.mark.parametrize("text", ["", " ", "\n\t"])
+@pytest.mark.parametrize("cited", [False, True])
+def test_blank_text_history_is_an_input_error(text, cited):
+    """Ensures unrepresentable blank history fails before sending an invalid Messages request."""
+    part = TextOutput(
+        content=text,
+        citations=[WebCitation(url="https://example.com", start_index=0, end_index=len(text))]
+        if cited
+        else [],
+    )
+    request = NormalizedRequest(
+        model="m", max_output_tokens=100, input=[AssistantInput(content=[part])]
+    )
+    with pytest.raises(UnsupportedInput, match="non-whitespace"):
+        AnthropicMessagesClient._request_body(request)
 
 
 @pytest.mark.parametrize(
@@ -119,7 +182,7 @@ def test_history_projection_preserves_unexpected_value_error(monkeypatch):
 
 
 def test_request_search_options_and_history():
-    """Ensures target-native tools, budget, selection and provider replay state are preserved."""
+    """Ensures target-native tools, budget, selection and reduced history are preserved."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,
@@ -136,12 +199,7 @@ def test_request_search_options_and_history():
                 content=[
                     SearchCall(id="s", query="q"),
                     SearchResult(
-                        tool_call_id="s",
-                        sources=[
-                            WebSearchSource(
-                                url="https://x.test", encrypted_content="opaque-search"
-                            )
-                        ],
+                        tool_call_id="s", sources=[WebSearchSource(url="https://x.test")]
                     ),
                     TextOutput(
                         content="Answer",
@@ -150,7 +208,7 @@ def test_request_search_options_and_history():
                                 url="https://x.test",
                                 start_index=0,
                                 end_index=6,
-                                encrypted_index="opaque-index",
+                                encrypted_index="N/A",
                             )
                         ],
                     ),
@@ -176,8 +234,74 @@ def test_request_search_options_and_history():
     assert body["tool_choice"] == {"type": "tool", "name": "web_search"}
     call, result, text = body["messages"][0]["content"]
     assert call["input"] == {"query": "q"}
-    assert result["content"][0]["encrypted_content"] == "opaque-search"
-    assert text["citations"][0]["encrypted_index"] == "opaque-index"
+    assert result["content"][0]["encrypted_content"] == "N/A"
+    assert text["citations"][0]["encrypted_index"] == "N/A"
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "openai", "vllm"])
+@pytest.mark.parametrize("state", [None, "", "N/A", "original-opaque-state"])
+@pytest.mark.parametrize("part_kind", ["citation", "source", "nested_source"])
+def test_search_history_requires_state_only_for_anthropic(provider, state, part_kind):
+    """Ensures only Anthropic rejects missing state while preserving opaque values and compatible routes."""
+    if part_kind == "citation":
+        part = AssistantInput(
+            content=[
+                TextOutput(
+                    content="answer",
+                    citations=[
+                        WebCitation(
+                            url="https://example.com",
+                            start_index=0,
+                            end_index=6,
+                            encrypted_index=state,
+                        )
+                    ],
+                )
+            ]
+        )
+        field = "encrypted_index"
+    else:
+        part = SearchResult(
+            tool_call_id="ws_1",
+            sources=[WebSearchSource(url="https://example.com", encrypted_content=state)],
+        )
+        if part_kind == "nested_source":
+            part = AssistantInput(content=[part])
+        field = "encrypted_content"
+    request = NormalizedRequest(model="m", max_output_tokens=100, input=[part])
+    capabilities = PROVIDER_CAPABILITIES[provider]
+    if provider == "anthropic" and state in (None, "", "N/A"):
+        with pytest.raises(UnsupportedInput, match=field):
+            AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+    else:
+        body = AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+        block = body["messages"][0]["content"][0]
+        value = (
+            block["citations"][0][field] if part_kind == "citation" else block["content"][0][field]
+        )
+        assert value == ("N/A" if state is None else state)
+
+
+@pytest.mark.parametrize("sources,error", [(None, None), ([], None), (None, "unavailable")])
+def test_anthropic_search_history_without_sources_needs_no_ciphertext(sources, error):
+    """Ensures unknown, empty, and failed searches do not require invented continuation state."""
+    request = NormalizedRequest(
+        model="m",
+        max_output_tokens=100,
+        input=[
+            SearchCall(id="ws_1", query="example"),
+            SearchResult(tool_call_id="ws_1", sources=sources, error=error),
+        ],
+    )
+    body = AnthropicMessagesClient._request_body(
+        request, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+    )
+    blocks = body["messages"][0]["content"]
+    assert len(blocks) == (1 if sources is None and error is None else 2)
+    if sources == []:
+        assert blocks[1]["content"] == []
+    elif error is not None:
+        assert blocks[1]["content"]["error_code"] == error
 
 
 @pytest.mark.parametrize("context", ["low", "medium", "high"])
@@ -228,7 +352,8 @@ def test_rejects_ambiguous_named_tool_selection(choice):
 
 
 @pytest.mark.parametrize("error", [None, "max_uses_exceeded", "too_many_requests"])
-async def test_search_stream_normalization(monkeypatch, error):
+@pytest.mark.parametrize("delta_count", [None, 0, 3])
+async def test_search_stream_normalization(monkeypatch, error, delta_count):
     """Ensures hosted ownership, error identity, full-block citations and pause usage survive."""
     raws = [
         {
@@ -302,7 +427,9 @@ async def test_search_stream_normalization(monkeypatch, error):
             "delta": {"stop_reason": "pause_turn", "stop_sequence": None},
             "usage": {
                 "output_tokens": 2,
-                "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 0},
+                "server_tool_use": None
+                if delta_count is None
+                else {"web_search_requests": delta_count, "web_fetch_requests": 0},
             },
         },
         {"type": "message_stop"},
@@ -344,7 +471,9 @@ async def test_search_stream_normalization(monkeypatch, error):
     assert len(citations) == 1 and citations[0].end_index == 2
     terminal = next(event for event in events if isinstance(event, ResponseEndEvent))
     assert terminal.termination_reason == "pause"
-    assert terminal.usage.web_search_requests == 2
+    assert terminal.usage.web_search_requests == (2 if delta_count is None else delta_count)
+    assert terminal.usage.extra_fields == {}
+    assert terminal.extra_fields == {}
 
 
 @pytest.mark.parametrize("nested", [False, True])
@@ -371,18 +500,27 @@ def test_browsing_history_omits_linked_results(nested):
 
 @pytest.mark.parametrize("stop_reason", ["pause_turn", "max_tokens"])
 @pytest.mark.parametrize(
-    ("initial_input", "fragments"),
+    ("initial_input", "fragments", "expected_query"),
     [
-        ({}, ["{"]),
-        ({}, ['{"query": "Par']),
-        ({"query": "initial"}, []),
-        ({"query": "initial"}, [""]),
-        ({"query": "initial"}, ['{"query":', '"replacement"}']),
-        ({"query": "initial"}, ["{"]),
+        ({}, ["{"], None),
+        ({}, ['{"query": "Par'], None),
+        ({"query": "initial"}, [], "initial"),
+        ({"query": "initial"}, [""], "initial"),
+        ({"query": "initial"}, ['{"query":', '"replacement"}'], "replacement"),
+        ({"query": "initial"}, ["{"], None),
+        ({"query": "initial", "extra": True}, [], "initial"),
+        ({"query": "initial"}, ['{"query":"replacement","extra":true}'], "replacement"),
+        ({"query": "initial"}, ['{"extra":true}'], None),
+        ({"query": "initial"}, ['["a"'], "initial"),
+        ({}, ['["a"'], None),
+        (None, ['["a"'], None),
+        (None, [], None),
     ],
 )
-async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input, fragments):
-    """Ensures partial search JSON and replacement deltas match SDK input without fake results."""
+async def test_interrupted_search_arguments_match_sdk(
+    stop_reason, initial_input, fragments, expected_query
+):
+    """Ensures SDK object inputs retain queries and non-objects fall back without fake results."""
     from json import dumps
 
     from anthropic import AsyncAnthropic
@@ -458,7 +596,9 @@ async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input
         ]
     completed = [event.part for event in events if isinstance(event, PartEndEvent)]
     assert len(completed) == 1 and isinstance(completed[0], SearchCall)
-    assert completed[0].query == reference.content[0].input.get("query")
+    assert completed[0].query == expected_query
+    if isinstance(reference.content[0].input, dict):
+        assert completed[0].query == reference.content[0].input.get("query")
     assert completed[0].status == "in_progress"
     assert not any(
         isinstance(event, (PartStartEvent, PartEndEvent)) and isinstance(event.part, SearchResult)
@@ -467,32 +607,3 @@ async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input
     assert events[-1].termination_reason == (
         "pause" if reference.stop_reason == "pause_turn" else "max_output_tokens"
     )
-
-
-@pytest.mark.parametrize(
-    ("kind", "message"),
-    [
-        ("source", "encrypted_content"),
-        ("citation", "encrypted_index"),
-    ],
-)
-def test_rejects_search_history_without_provider_ciphertext(kind: str, message: str):
-    """Ensures reduced search history is rejected instead of sending a placeholder."""
-    if kind == "source":
-        parts = [
-            SearchCall(id="s", query="q"),
-            SearchResult(tool_call_id="s", sources=[WebSearchSource(url="https://x.test")]),
-        ]
-    else:
-        parts = [
-            TextOutput(
-                content="Answer",
-                citations=[WebCitation(url="https://x.test", start_index=0, end_index=6)],
-            )
-        ]
-    with pytest.raises(UnsupportedInput, match=message):
-        AnthropicMessagesClient._request_body(
-            NormalizedRequest(
-                model="m", max_output_tokens=100, input=[AssistantInput(content=parts)]
-            )
-        )

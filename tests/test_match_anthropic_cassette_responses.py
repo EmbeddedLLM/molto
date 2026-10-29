@@ -362,9 +362,10 @@ def test_search_response_maps_sources_citations_and_usage(sources: list) -> None
     assert messages == matched
 
 
-@pytest.mark.parametrize("text, offset", [("answer", 0), ("answer", 3), ("answer", 6), ("", 0)])
-def test_search_response_preserves_point_citations(text: str, offset: int) -> None:
-    """Ensures point citations retain attribution without inheriting overlapping range citations."""
+@pytest.mark.parametrize("offset", [0, 3, 6])
+def test_search_response_preserves_point_citations(offset: int) -> None:
+    """Ensures point citations keep one block and use its text as their fallback excerpt."""
+    text = "answer"
     messages, responses = _search_cassettes()
     annotations = [
         {
@@ -372,18 +373,15 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
             "url": "https://example.org/point",
             "start_index": offset,
             "end_index": offset,
-        }
+        },
+        {
+            "type": "url_citation",
+            "url": "https://example.org/range",
+            "title": "Range",
+            "start_index": 0,
+            "end_index": len(text),
+        },
     ]
-    if text:
-        annotations.append(
-            {
-                "type": "url_citation",
-                "url": "https://example.org/range",
-                "title": "Range",
-                "start_index": 0,
-                "end_index": len(text),
-            }
-        )
     responses["response"]["body"]["output"][1]["content"] = [
         {"type": "output_text", "text": text, "annotations": annotations}
     ]
@@ -393,23 +391,55 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
     body = messages["response"]["body"]
     AnthropicMessagesResponse.model_validate(body)
     blocks = [block for block in body["content"] if block["type"] == "text"]
-    assert "".join(block["text"] for block in blocks) == text
-    point_index = next(index for index, block in enumerate(blocks) if not block["text"])
-    assert "".join(block["text"] for block in blocks[:point_index]) == text[:offset]
-    assert blocks[point_index]["citations"] == [
+    assert [block["text"] for block in blocks] == [text]
+    assert [
+        citation
+        for citation in blocks[0]["citations"]
+        if citation["url"] == "https://example.org/point"
+    ] == [
         {
             "type": "web_search_result_location",
             "url": "https://example.org/point",
             "title": "",
             "encrypted_index": "N/A",
-            "cited_text": "",
+            "cited_text": text,
         }
     ]
-    assert all(
-        [citation["url"] for citation in block["citations"]] == ["https://example.org/range"]
-        for block in blocks
-        if block["text"]
+    assert [[citation["url"] for citation in block["citations"]] for block in blocks] == [
+        ["https://example.org/point", "https://example.org/range"]
+    ]
+    AnthropicMessagesCreateRequest.model_validate(
+        {
+            "model": body["model"],
+            "max_tokens": 100,
+            "messages": [{"role": "assistant", "content": body["content"]}],
+        }
     )
+
+
+@pytest.mark.parametrize("text", ["", " \t"])
+@pytest.mark.parametrize("cited", [False, True])
+def test_search_response_rejects_blank_text(text: str, cited: bool) -> None:
+    """Ensures the matcher rejects wholly blank text instead of generating invalid blocks."""
+    messages, responses = _search_cassettes()
+    responses["response"]["body"]["output"][1]["content"] = [
+        {
+            "type": "output_text",
+            "text": text,
+            "annotations": [
+                {
+                    "type": "url_citation",
+                    "url": "https://example.org/point",
+                    "start_index": 0,
+                    "end_index": 0,
+                }
+            ]
+            if cited
+            else [],
+        }
+    ]
+    with pytest.raises(ValueError, match="non-whitespace"):
+        match_messages_response(messages, responses)
 
 
 @pytest.mark.parametrize(
@@ -424,53 +454,67 @@ def test_search_response_preserves_point_citations(text: str, offset: int) -> No
     ],
 )
 def test_search_query_presence(action: dict, expected: dict) -> None:
-    """Ensures an absent query is distinct from an explicitly empty query."""
+    """Ensures output and history distinguish absent queries from explicitly empty queries."""
     messages, responses = _search_cassettes()
     responses["response"]["body"]["output"][0]["action"] = {
         "type": "search",
         "sources": [],
         **action,
     }
+    responses["request"]["body"]["input"] = [
+        deepcopy(responses["response"]["body"]["output"][0]),
+        {"role": "user", "content": "Continue."},
+    ]
     match_messages_response(messages, responses)
     assert messages["response"]["body"]["content"][0]["input"] == expected
+    assert (
+        messages["request"]["body"]["messages"][0]["content"]
+        == messages["response"]["body"]["content"][:2]
+    )
 
 
 @pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
-def test_search_batch_response_and_history(queries: list[str]) -> None:
-    """Ensures query batches preserve order, distinct IDs, and one pooled result in both paths."""
-    from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-    from pydantic import TypeAdapter
-
+def test_search_batch_response(queries: list[str]) -> None:
+    """Ensures output query batches preserve order, distinct IDs, and one pooled result."""
     messages, responses = _search_cassettes()
     search = responses["response"]["body"]["output"][0]
     search["action"]["queries"] = queries
-    responses["request"]["body"]["input"] = [
-        deepcopy(search),
-        {"role": "user", "content": "Continue."},
-    ]
-
     match_messages_response(messages, responses)
 
     AnthropicMessagesResponse.model_validate(messages["response"]["body"])
-    TypeAdapter(MessageCreateParamsNonStreaming).validate_python(messages["request"]["body"])
     output = messages["response"]["body"]["content"]
-    history = messages["request"]["body"]["messages"][0]["content"]
-    for blocks in (output, history):
-        calls = [block for block in blocks if block["type"] == "server_tool_use"]
-        results = [block for block in blocks if block["type"] == "web_search_tool_result"]
-        assert [call["input"] for call in calls] == [{"query": query} for query in queries]
-        assert calls[0]["id"] == search["id"]
-        assert len({call["id"] for call in calls}) == len(queries)
-        assert len(results) == 1
-        assert results[0]["tool_use_id"] == search["id"]
-        assert [result["url"] for result in results[0]["content"]] == [
-            source["url"] for source in search["action"]["sources"]
-        ]
-        assert blocks[: len(queries)] == calls
-    assert history == output[: len(queries) + 1]
+    calls = [block for block in output if block["type"] == "server_tool_use"]
+    results = [block for block in output if block["type"] == "web_search_tool_result"]
+    assert [call["input"] for call in calls] == [{"query": query} for query in queries]
+    assert calls[0]["id"] == search["id"]
+    assert len({call["id"] for call in calls}) == len(queries)
+    assert len(results) == 1
+    assert results[0]["tool_use_id"] == search["id"]
+    assert [result["url"] for result in results[0]["content"]] == [
+        source["url"] for source in search["action"]["sources"]
+    ]
+    assert output[: len(queries)] == calls
     matched = deepcopy(messages)
     match_messages_response(messages, responses)
     assert messages == matched
+
+
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_history_rejects_query_batches(queries: list[str]) -> None:
+    """Ensures request matching rejects pooled query history without changing either cassette."""
+    messages, responses = _search_cassettes()
+    search = deepcopy(responses["response"]["body"]["output"][0])
+    search["action"]["queries"] = queries
+    responses["request"]["body"]["input"] = [
+        search,
+        {"role": "user", "content": "Continue."},
+    ]
+    originals = deepcopy((messages, responses))
+
+    with pytest.raises(ValueError, match="cannot preserve multi-query search history"):
+        match_messages_response(messages, responses)
+
+    assert (messages, responses) == originals
 
 
 def test_search_batch_validates_every_query() -> None:
@@ -509,8 +553,8 @@ def test_search_counter_is_observed_not_inferred(count: int | None) -> None:
     )
 
 
-def test_search_failed_and_paused_states() -> None:
-    """Ensures failed searches use unavailable and unfinished searches gain no results or pause."""
+def test_search_failed_and_unfinished_states() -> None:
+    """Ensures failed searches use unavailable and unfinished searches do not gain results."""
     messages, responses = _search_cassettes()
     response = responses["response"]["body"]
     response["output"][0]["status"] = "failed"
@@ -538,9 +582,36 @@ def test_search_context_size_rejected(size: str) -> None:
         match_messages_response(messages, responses)
 
 
-def test_null_incomplete_details_maps_to_end_turn() -> None:
-    """Ensures a reason-less incomplete response is unknown rather than a pause."""
-    messages, responses = _cassettes()
-    responses["response"]["body"].update(status="incomplete", incomplete_details=None)
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_response_maps_to_end_turn(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to end_turn without inferring a search pause."""
+    messages, responses = _search_cassettes() if has_search else _cassettes()
+    response = responses["response"]["body"]
+    response.pop("incomplete_details", None)
+    response.update(status="incomplete", **incomplete_fields)
+
     match_messages_response(messages, responses)
+
     assert messages["response"]["body"]["stop_reason"] == "end_turn"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_response_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    messages, responses = _cassettes()
+    responses["response"]["body"].update(
+        status="incomplete", incomplete_details=incomplete_details
+    )
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_messages_response(messages, responses)

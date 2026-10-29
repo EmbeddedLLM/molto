@@ -16,7 +16,9 @@
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
 - Type modules define schemas and validation. Normalized types must not contain protocol conversions, select routes, or instantiate clients.
 
-Each protocol adapter and upstream client translates individual tool declarations through its `_translate_tool` method. Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation. Hosted-search wire conversions that both the adapter and the client of one protocol need live in `molto/utils/web_search.py`; do not copy them into either layer, and do not add conversions for other protocols there.
+Each protocol adapter and upstream client translates individual tool declarations through its `_translate_tool` method. Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation.
+
+Cross-layer wire conversions for hosted web search live in `utils/web_search.py`, shared by adapters and upstream clients to prevent duplicated conversions from drifting.
 
 A future `chat()` method is a dispatcher over those coordinators. It should select and delegate to a protocol method rather than duplicate that method's validation, normalization, composition, or projection logic.
 
@@ -115,7 +117,9 @@ The cross-protocol contract is: Molto is strict during input validation but leni
 
 Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` models reject extras when validated as request parts, including within `AssistantInput`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
 
-Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing a translated upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+
+Never raise `UnsupportedInput` from `native_events()` or `native_response()`: the caller has already validated the exact wire protocol these methods forward.
 
 ## Normalized content and events
 
@@ -156,7 +160,7 @@ The bypass belongs in the relevant coordinator; transport remains in the matchin
 
 Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.
 
-Treat coordinator `extra_body` and `extra_headers` as request-scoped upstream transport options, not native protocol body fields or normalized semantics. Never validate them against a schema or consult them when routing, normalizing, constructing a request, or projecting output; request semantics belong to the validated request body. Strip client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers before passing `extra_headers` to a provider SDK. Capture successful SDK response headers before consuming events and expose a copy on the returned `MoltoStream`; do not filter response headers in the library, because an HTTP adapter must apply filtering for its own downstream transport.
+Treat coordinator `extra_body` and `extra_headers` as request-scoped upstream transport options, not native protocol body fields or normalized semantics. Strip client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers before passing `extra_headers` to a provider SDK. Capture successful SDK response headers before consuming events and expose a copy on the returned `MoltoStream`; do not filter response headers in the library, because an HTTP adapter must apply filtering for its own downstream transport.
 
 Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.aclose()` closes that client.
 

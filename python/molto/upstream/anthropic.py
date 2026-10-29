@@ -77,7 +77,6 @@ from molto.utils.io import json_dumps, json_loads
 from molto.utils.web_search import (
     citation_from_messages,
     messages_text_blocks,
-    search_call_from_messages,
     search_calls_to_messages,
     search_result_from_messages,
     search_result_to_messages,
@@ -404,6 +403,9 @@ class AnthropicMessagesClient(
         capabilities: ProviderCapabilities | None,
     ) -> list[dict[str, Any]]:
         blocks: list[dict[str, Any]] = []
+        requires_search_state = (
+            capabilities is not None and capabilities.requires_search_history_state
+        )
         for item in parts:
             if isinstance(item, Thinking):
                 representation = (
@@ -432,6 +434,8 @@ class AnthropicMessagesClient(
                     block["signature"] = item.signature
                 blocks.append(block)
             elif isinstance(item, TextOutput):
+                if not item.content.strip():
+                    raise UnsupportedInput("Messages text blocks require non-whitespace text.")
                 if any(
                     not 0 <= citation.start_index <= citation.end_index <= len(item.content)
                     for citation in item.citations
@@ -439,12 +443,12 @@ class AnthropicMessagesClient(
                     raise UnsupportedInput(
                         "Citation ranges must be within the associated answer text."
                     )
-                if any(citation.encrypted_index is None for citation in item.citations):
-                    # Anthropic decrypts the original index on later turns and rejects
-                    # a placeholder, so replaying reduced history cannot succeed.
+                if requires_search_state and any(
+                    citation.encrypted_index in (None, "", "N/A") for citation in item.citations
+                ):
                     raise UnsupportedInput(
-                        "Anthropic Messages cannot replay citations without their original "
-                        "encrypted_index; send text-only history instead."
+                        "Anthropic cannot replay citations without their original encrypted_index; "
+                        "preserve provider metadata or send text-only history."
                     )
                 text_blocks = messages_text_blocks(item)
                 if item.cache_breakpoint is not None:
@@ -462,14 +466,19 @@ class AnthropicMessagesClient(
                         )
                     blocks.extend(search_calls_to_messages(item))
             elif isinstance(item, SearchResult):
-                if item.sources is not None and any(
-                    source.encrypted_content is None for source in item.sources
+                # Anthropic decrypts original state on replay; the display placeholder
+                # cannot restore it. Compatible providers retain their own policy.
+                if (
+                    requires_search_state
+                    and item.error is None
+                    and any(
+                        source.encrypted_content in (None, "", "N/A")
+                        for source in item.sources or []
+                    )
                 ):
-                    # Anthropic decrypts the original content on later turns and rejects
-                    # a placeholder, so replaying reduced history cannot succeed.
                     raise UnsupportedInput(
-                        "Anthropic Messages cannot replay search results without their "
-                        "original encrypted_content; send text-only history instead."
+                        "Anthropic cannot replay search results without their original "
+                        "encrypted_content; preserve provider metadata or send text-only history."
                     )
                 if item.sources is not None or item.error is not None:
                     blocks.append(search_result_to_messages(item))
@@ -859,13 +868,13 @@ class AnthropicMessagesClient(
                             if state.content
                             else initial_input
                         )
+                        # Provider output may add fields or contain a non-object partial value;
+                        # caller-history validation remains strict in the adapter.
                         if not isinstance(search_input, dict):
-                            # An interrupted or malformed input is provider output, so
-                            # fall back to the observed snapshot instead of rejecting it.
-                            search_input = initial_input if isinstance(initial_input, dict) else {}
-                        completed_part = search_call_from_messages(
-                            {"id": part.id, "input": search_input}, strict=False
-                        )
+                            search_input = initial_input
+                        if not isinstance(search_input, dict):
+                            search_input = {}
+                        completed_part = SearchCall(id=part.id, query=search_input.get("query"))
                         yield start_part(event.index, completed_part)
                     elif isinstance(part, SearchResult):
                         completed_part = part
@@ -912,6 +921,7 @@ class AnthropicMessagesClient(
                         output_details.thinking_tokens if output_details is not None else 0
                     )
                     usage = Usage(
+                        web_search_requests=search_usage,
                         input_tokens=input_tokens + cache_creation + cache_read,
                         input_tokens_details=InputTokenDetails(
                             cached_tokens=cache_read,
@@ -925,7 +935,6 @@ class AnthropicMessagesClient(
                         + cache_creation
                         + cache_read
                         + raw_usage.output_tokens,
-                        web_search_requests=search_usage,
                     )
                 elif isinstance(event, RawMessageStopEvent):
                     if metadata is None:

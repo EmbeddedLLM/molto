@@ -280,16 +280,11 @@ def _search_cassettes() -> tuple[dict, dict]:
 
 
 def test_search_response_rejects_signature_only_reasoning() -> None:
-    """Ensures signature-only search reasoning cannot be silently omitted."""
+    """Ensures search never silently discards signature-only reasoning."""
     chat, responses = _search_cassettes()
     responses["response"]["body"]["output"].insert(
         0,
-        {
-            "type": "reasoning",
-            "content": [],
-            "summary": [],
-            "encrypted_content": "opaque",
-        },
+        {"type": "reasoning", "content": [], "summary": [], "encrypted_content": "opaque"},
     )
 
     with pytest.raises(ValueError, match="Encrypted Responses reasoning"):
@@ -316,7 +311,7 @@ def test_search_response_still_rejects_signed_reasoning_text(field: str) -> None
 
 
 def test_matches_web_search_response_without_mutating_recordings(tmp_path: Path) -> None:
-    """Ensures actual search recordings yield SDK-valid reduced Chat output and stay intact."""
+    """Ensures reasoning-free search recordings yield SDK-valid Chat output and stay intact."""
     from hashlib import sha256
 
     directory = CASSETTES.parent / "web_search"
@@ -445,14 +440,39 @@ def test_search_failure_and_browsing_without_text_stay_empty(action: str) -> Non
     assert choice["finish_reason"] == "stop"
 
 
-def test_search_unknown_incomplete_maps_to_stop() -> None:
-    """Ensures a reason-less search incomplete is unknown, not a token-limit stop."""
-    chat, responses = _search_cassettes()
-    responses["response"]["body"].update(status="incomplete", incomplete_details=None)
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_response_maps_to_stop(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to stop without inferring a search pause."""
+    chat, responses = _search_cassettes() if has_search else _cassettes()
+    response = responses["response"]["body"]
+    response.pop("incomplete_details", None)
+    response.update(status="incomplete", **incomplete_fields)
 
     match_chat_completions_response(chat, responses)
 
     assert chat["response"]["body"]["choices"][0]["finish_reason"] == "stop"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_response_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    chat, responses = _cassettes()
+    responses["response"]["body"].update(
+        status="incomplete", incomplete_details=incomplete_details
+    )
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_chat_completions_response(chat, responses)
 
 
 @pytest.mark.parametrize("field", ["filters", "max_tool_calls"])

@@ -298,7 +298,9 @@ Native Chat routes forward `web_search_options` from the request or `extra_body`
 
 Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Translated routes targeting a Chat upstream reject hosted search before transport.
 
-Translated output retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
+Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned raw reasoning remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
+
+For representable output, translated Chat retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
 
 ## Current implementation limitations
 

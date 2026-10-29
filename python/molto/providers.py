@@ -9,10 +9,11 @@ ReasoningRepresentation: TypeAlias = Literal["raw", "summary"]
 @dataclass(frozen=True)
 class ProviderCapabilities:
     thinking: ReasoningRepresentation
+    requires_search_history_state: bool = False
 
 
 PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
-    "anthropic": ProviderCapabilities(thinking="summary"),
+    "anthropic": ProviderCapabilities(thinking="summary", requires_search_history_state=True),
     "openai": ProviderCapabilities(thinking="summary"),
     "vllm": ProviderCapabilities(thinking="raw"),
 }

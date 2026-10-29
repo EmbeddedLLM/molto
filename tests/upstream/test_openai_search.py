@@ -4,6 +4,8 @@ from json import dumps, loads
 
 import httpx
 import pytest
+from openai.types.responses import Response
+from pydantic import BaseModel
 
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.exceptions import UnsupportedInput
@@ -14,12 +16,15 @@ from molto.types.normalized import (
     PartStartEvent,
     SearchCall,
     SearchResult,
+    StreamOptions,
+    TextInput,
     TextOutput,
+    UserInput,
     WebCitation,
     WebSearchTool,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.utils.web_search import messages_text_blocks
+from tests.core.test_interface import _get_http_client, _matched_cassette_path, _read_cassette
 
 CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 
@@ -63,6 +68,78 @@ async def _normalize(wire, normalized_request=None, extra_body=None, expected_in
                 or NormalizedRequest(model="m", tools=[WebSearchTool()], stream=True)
             )
         ]
+
+
+async def test_recorded_search_citation_ir_has_nonblank_text():
+    """Ensures completed recorded citation IR contains nonblank text and nonblank ranges."""
+    path = _matched_cassette_path("web_search", "responses", "stream-00.yaml")
+    native = _read_cassette(path)["request"]["body"]
+    request = NormalizedRequest(
+        model=native["model"],
+        input=[UserInput(content=[TextInput(content=native["input"])])],
+        tools=[WebSearchTool()],
+        tool_choice="required",
+        stream=True,
+        stream_options=StreamOptions(include_obfuscation=False),
+    )
+    expected_body = {
+        **native,
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": native["input"]}]}],
+    }
+    async with _get_http_client([path], expected_body=expected_body) as http_client:
+        client = OpenAIResponsesClient(http_client, capabilities=CAPABILITIES, api_key="test")
+        events = [event async for event in client.events(request)]
+
+    cited_parts = [
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent)
+        and isinstance(event.part, TextOutput)
+        and event.part.citations
+    ]
+    assert cited_parts
+    for part in cited_parts:
+        assert part.content.strip()
+        for citation in part.citations:
+            assert 0 <= citation.start_index <= citation.end_index <= len(part.content)
+            if citation.start_index != citation.end_index:
+                assert part.content[citation.start_index : citation.end_index].strip()
+
+
+@pytest.mark.parametrize("offset", [0, 1, 3])
+async def test_point_citations_remain_representable_in_ir(offset):
+    """Ensures point attribution at the start, middle, and end survives normalization."""
+    citation = {
+        "type": "url_citation",
+        "url": "https://example.com",
+        "title": "Source",
+        "start_index": offset,
+        "end_index": offset,
+    }
+    item = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "output_text", "text": "abc", "annotations": [citation]}],
+    }
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
+            _event("response.output_item.done", output_index=0, item=item),
+            _event("response.completed", response=_response([item])),
+        ]
+    )
+    text = next(
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextOutput)
+    )
+    assert text.content == "abc"
+    assert text.citations == [
+        WebCitation(url=citation["url"], title="Source", start_index=offset, end_index=offset)
+    ]
 
 
 @pytest.mark.parametrize(
@@ -224,8 +301,9 @@ async def test_text_parts_keep_local_citation_offsets(refusal_first: bool):
     assert [event.part.citations[0].end_index for event in texts] == [5, 6]
 
 
-@pytest.mark.parametrize("count", [None, 0, 3])
-async def test_search_usage_retains_reported_count_only(count):
+@pytest.mark.parametrize("count", ["missing", None, 0, 3])
+@pytest.mark.parametrize("search_enabled", [False, True])
+async def test_search_usage_retains_reported_count_only(count, search_enabled):
     """Ensures search counters distinguish unknown from observed zero without item counting."""
     response = _response(
         usage={
@@ -236,15 +314,64 @@ async def test_search_usage_retains_reported_count_only(count):
             "total_tokens": 3,
         }
     )
-    if count is not None:
+    if count != "missing":
         response["tool_usage"] = {"web_search": {"num_requests": count}}
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.completed", response=response),
+        ],
+        normalized_request=NormalizedRequest(
+            model="m", tools=[WebSearchTool()] if search_enabled else [], stream=True
+        ),
+    )
+    assert events[-1].usage.web_search_requests == (None if count == "missing" else count)
+    assert ("web_search_requests" in events[-1].usage.model_dump()) == (
+        count not in ("missing", None)
+    )
+    assert events[-1].usage.extra_fields == {}
+    assert events[-1].extra_fields == {}
+
+
+async def test_typed_search_usage_retains_reported_count(monkeypatch):
+    """Ensures typed SDK tool-usage snapshots normalize just like untyped response extras."""
+
+    class WebSearchUsage(BaseModel):
+        num_requests: int
+
+    class ToolUsage(BaseModel):
+        web_search: WebSearchUsage
+
+    class TypedResponse(Response):
+        tool_usage: ToolUsage
+
+    native_events = OpenAIResponsesClient.native_events
+
+    async def typed_events(client, request):
+        async for event in native_events(client, request):
+            if event.type == "response.completed":
+                event.response = TypedResponse.model_validate(event.response.model_dump())
+                assert isinstance(event.response.tool_usage, ToolUsage)
+            yield event
+
+    monkeypatch.setattr(OpenAIResponsesClient, "native_events", typed_events)
+    response = _response(
+        usage={
+            "input_tokens": 1,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens": 2,
+            "output_tokens_details": {"reasoning_tokens": 0},
+            "total_tokens": 3,
+        },
+        tool_usage={"web_search": {"num_requests": 3}},
+    )
     events = await _normalize(
         [
             _event("response.created", response=_response()),
             _event("response.completed", response=response),
         ]
     )
-    assert events[-1].usage.web_search_requests == count
+    assert events[-1].usage.web_search_requests == 3
 
 
 @pytest.mark.parametrize(
@@ -367,7 +494,7 @@ def test_search_history_links_top_level_and_assistant_parts(nested_call, nested_
 
 
 async def test_unclassified_partial_search_does_not_invent_invocation():
-    """Ensures an interrupted actionless item remains unclassified on translated routes."""
+    """Ensures an actionless incomplete search invents neither an invocation nor a pause."""
     item = {"id": "ws_1", "type": "web_search_call", "status": "in_progress"}
     events = await _normalize(
         [
@@ -440,37 +567,93 @@ async def test_later_text_cannot_overtake_unclassified_search():
     assert [event.index for event in starts] == [0, 1, 2]
 
 
-async def test_translated_search_keeps_projected_include_only():
-    """Ensures the projected include comes from the normalized request, not extra_body."""
-    seen = {}
+@pytest.mark.parametrize(
+    "include",
+    [
+        ["reasoning.encrypted_content"],
+        ["web_search_call.action.sources", "reasoning.encrypted_content"],
+    ],
+)
+async def test_translated_search_forwards_transport_include_verbatim(include):
+    """Ensures opaque include overrides replace the normalized source inclusion unchanged."""
+    await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.completed", response=_response()),
+        ],
+        extra_body={"include": include},
+        expected_include=include,
+    )
 
-    def replay(request):
-        seen["body"] = loads(request.content)
-        return httpx.Response(
-            200,
-            headers={"content-type": "text/event-stream"},
-            text="".join(
-                f"data: {dumps(event)}\n\n"
-                for event in [
-                    _event("response.created", response=_response()),
-                    _event("response.completed", response=_response()),
+
+@pytest.mark.parametrize(
+    "history",
+    [
+        [SearchCall(id="ws_1")],
+        [
+            AssistantInput(
+                content=[
+                    TextOutput(
+                        content="old",
+                        citations=[
+                            WebCitation(url="https://example.com", start_index=0, end_index=3)
+                        ],
+                    )
                 ]
-            ),
-        )
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(replay)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=CAPABILITIES, api_key="test")
-        _ = [
-            event
-            async for event in client.events(
-                NormalizedRequest(model="m", tools=[WebSearchTool()], stream=True)
             )
-        ]
-    assert seen["body"]["include"] == ["web_search_call.action.sources"]
+        ],
+    ],
+)
+@pytest.mark.parametrize("override", [False, True])
+async def test_search_history_does_not_change_text_normalization(history, override):
+    """Ensures typed and overridden history never add projection policy to normalized text."""
+    request = NormalizedRequest(model="m", input=history, stream=True)
+    extra_body = None
+    if override:
+        extra_body = {"input": OpenAIResponsesClient._request_body(request)["input"]}
+        request.input = []
+    part = {"type": "output_text", "text": "answer", "annotations": []}
+    item = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [part],
+    }
+    events = await _normalize(
+        [
+            _event("response.created", response=_response()),
+            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
+            _event(
+                "response.content_part.added",
+                output_index=0,
+                content_index=0,
+                item_id="msg_1",
+                part={**part, "text": ""},
+            ),
+            _event(
+                "response.content_part.done",
+                output_index=0,
+                content_index=0,
+                item_id="msg_1",
+                part=part,
+            ),
+            _event("response.output_item.done", output_index=0, item=item),
+            _event("response.completed", response=_response([item])),
+        ],
+        normalized_request=request,
+        extra_body=extra_body,
+    )
+    texts = [
+        event.part
+        for event in events
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextOutput)
+    ]
+    assert texts == [TextOutput(content="answer", id="msg_1")]
 
 
-async def test_reported_search_usage_requires_token_usage():
-    """Ensures a count without token usage stays unknown instead of inventing usage."""
+async def test_reported_search_usage_without_token_usage_is_unknown():
+    """Ensures search counts remain unknown without inventing token usage."""
     events = await _normalize(
         [
             _event("response.created", response=_response()),
@@ -481,10 +664,11 @@ async def test_reported_search_usage_requires_token_usage():
         ]
     )
     assert events[-1].usage is None
-    assert "web_search_requests" not in events[-1].extra_fields
+    assert events[-1].extra_fields == {}
 
 
-async def test_null_search_usage_remains_unknown():
+@pytest.mark.parametrize("tool_usage", [None, {"web_search": None}])
+async def test_null_search_usage_remains_unknown(tool_usage):
     """Ensures an explicitly null search-usage object never crashes or becomes zero."""
     events = await _normalize(
         [
@@ -499,7 +683,7 @@ async def test_null_search_usage_remains_unknown():
                         "output_tokens_details": {"reasoning_tokens": 0},
                         "total_tokens": 3,
                     },
-                    tool_usage={"web_search": None},
+                    tool_usage=tool_usage,
                 ),
             ),
         ]
@@ -550,60 +734,3 @@ async def test_item_done_text_snapshot_rebases_local_citations():
         (0, 5),
         (5, 11),
     ]
-
-
-@pytest.mark.parametrize(
-    ("text", "ranges"),
-    [
-        ("ab cd", [(2, 3)]),
-        ("a b c", [(0, 1), (2, 5)]),
-        ("Ω x", [(1, 2)]),
-    ],
-)
-async def test_citation_ir_never_projects_blank_blocks(text, ranges):
-    """Ensures client citation ranges never become empty or whitespace-only blocks."""
-    part = {
-        "type": "output_text",
-        "text": text,
-        "annotations": [
-            {
-                "type": "url_citation",
-                "url": f"https://example.com/{index}",
-                "title": "",
-                "start_index": start,
-                "end_index": end,
-            }
-            for index, (start, end) in enumerate(ranges)
-        ],
-    }
-    item = {
-        "id": "msg_1",
-        "type": "message",
-        "role": "assistant",
-        "status": "completed",
-        "content": [part],
-    }
-    events = await _normalize(
-        [
-            _event("response.created", response=_response()),
-            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
-            _event(
-                "response.content_part.done",
-                output_index=0,
-                content_index=0,
-                item_id="msg_1",
-                part=part,
-            ),
-            _event("response.output_item.done", output_index=0, item=item),
-            _event("response.completed", response=_response([item])),
-        ]
-    )
-    texts = [
-        event.part
-        for event in events
-        if isinstance(event, PartEndEvent) and isinstance(event.part, TextOutput)
-    ]
-    assert texts and all(event.part.content for event in events if isinstance(event, PartEndEvent))
-    assert "".join(part.content for part in texts) == text
-    projected = [block for part in texts for block in messages_text_blocks(part)]
-    assert [block["text"] for block in projected if not block["text"].strip()] == []

@@ -9,8 +9,7 @@ continuation state are not representable in Chat Completions.
 
 Hosted-search fixtures cover Chat downstream only. Hosted calls and structured
 URL citations are omitted while actual answer text and inline links are retained.
-Encrypted or signed reasoning is not representable in Chat Completions, so a
-hosted-search turn that carries it is rejected rather than omitted.
+Signed or encrypted reasoning is rejected, including on hosted-search turns.
 """
 
 from __future__ import annotations
@@ -299,9 +298,7 @@ def _response_output(
     return reasoning_content, "".join(text) if has_text else None, tool_calls
 
 
-def _finish_reason(
-    response: dict[str, Any], *, has_tool_calls: bool, has_search: bool = False
-) -> str:
+def _finish_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
     status = response.get("status")
     if status == "completed":
         return "tool_calls" if has_tool_calls else "stop"
@@ -309,12 +306,10 @@ def _finish_reason(
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
-    # A reason-less incomplete response is normalized as unknown, which Chat
-    # coerces to normal completion rather than to the output-token limit.
-    if incomplete_details is None or incomplete_details.get("reason") is None:
+    if incomplete_details is None:
         return "stop"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("Incomplete Responses responses must contain incomplete_details.")
+        raise ValueError("Incomplete Responses incomplete_details must be an object or null.")
     return {
         "content_filter": "content_filter",
         "max_output_tokens": "length",
@@ -385,9 +380,7 @@ def match_chat_completions_response(
         message["tool_calls"] = tool_calls
 
     choice = choices[0]
-    choice["finish_reason"] = _finish_reason(
-        response, has_tool_calls=bool(tool_calls), has_search=has_search
-    )
+    choice["finish_reason"] = _finish_reason(response, has_tool_calls=bool(tool_calls))
     chat_response["id"] = response_id
     chat_response["created"] = created_at
     chat_response["model"] = model

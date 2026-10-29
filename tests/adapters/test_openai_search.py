@@ -190,7 +190,7 @@ async def test_paused_search_remains_incomplete_without_fake_result():
 
 @pytest.mark.parametrize("answer", ["answer", None])
 async def test_chat_search_failure_omits_hosted_blocks_and_maps_pause(answer):
-    """Ensures Chat preserves real answer text and invents no content after a failed paused search."""
+    """Ensures Chat preserves real answer text or absent content after a failed paused search."""
     adapter = OpenAIChatCompletionsAdapter(CAPABILITIES)
     request = adapter.normalize_request(
         OpenAIChatCompletionsCreateRequest(model="m", messages=[], web_search_options={})

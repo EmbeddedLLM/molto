@@ -1,9 +1,4 @@
-"""Cross-adapter projection of normalized terminal and usage state.
-
-One normalized stream must project into three downstream protocols, so the
-behaviour for a reason the target cannot express belongs to a single table here
-rather than to each adapter's own tests.
-"""
+"""Shared termination semantics across downstream protocol adapters."""
 
 import pytest
 
@@ -11,101 +6,77 @@ from molto.adapters.anthropic import AnthropicMessagesAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
-from molto.types.normalized import (
-    PartEndEvent,
-    PartStartEvent,
-    ResponseEndEvent,
-    ResponseStartEvent,
-    TerminationReason,
-    TextOutput,
-)
+from molto.types.normalized import ResponseEndEvent, ResponseStartEvent, TerminationReason
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 
-CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 
+@pytest.mark.parametrize(
+    (
+        "termination_reason",
+        "chat_reason",
+        "messages_reason",
+        "responses_status",
+        "responses_reason",
+    ),
+    [
+        ("max_output_tokens", "length", "max_tokens", "incomplete", "max_output_tokens"),
+        ("content_filter", "content_filter", "end_turn", "incomplete", "content_filter"),
+        ("unknown", "stop", "end_turn", "incomplete", None),
+        ("pause", "length", "pause_turn", "incomplete", None),
+        ("stop", "stop", "end_turn", "completed", None),
+        ("refusal", "stop", "refusal", "completed", None),
+    ],
+)
+async def test_termination_projections(
+    termination_reason: TerminationReason,
+    chat_reason: str,
+    messages_reason: str,
+    responses_status: str,
+    responses_reason: str | None,
+) -> None:
+    """Ensures all adapters preserve explicit reasons and distinguish unknown from pause."""
 
-async def _events(reason: TerminationReason):
-    yield ResponseStartEvent(id="r", created_at=1, model="m")
-    part = TextOutput(content="answer")
-    yield PartStartEvent(index=0, part=part)
-    yield PartEndEvent(index=0, part=part)
-    yield ResponseEndEvent(id="r", created_at=1, model="m", termination_reason=reason)
+    async def normalized_events():
+        yield ResponseStartEvent(id="resp_123", created_at=1, model="m")
+        yield ResponseEndEvent(
+            id="resp_123", created_at=1, model="m", termination_reason=termination_reason
+        )
 
-
-async def _chat(reason: TerminationReason):
-    adapter = OpenAIChatCompletionsAdapter(CAPABILITIES)
-    request = adapter.normalize_request(
+    chat = OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["openai"])
+    request = chat.normalize_request(
         OpenAIChatCompletionsCreateRequest(
-            model="m", messages=[{"role": "user", "content": "q"}], stream=True
+            messages=[{"role": "user", "content": "Hi"}], model="m", stream=True
         )
     )
-    events = [event async for event in adapter.project_events(_events(reason), request)]
-    return next(
-        choice.finish_reason
-        for event in events
-        for choice in event.choices
-        if choice.finish_reason
-    )
+    chat_events = [event async for event in chat.project_events(normalized_events(), request)]
+    assert chat_events[-1].choices[0].finish_reason == chat_reason
 
-
-async def _messages(reason: TerminationReason):
-    adapter = AnthropicMessagesAdapter(CAPABILITIES)
-    request = adapter.normalize_request(
+    messages = AnthropicMessagesAdapter(PROVIDER_CAPABILITIES["anthropic"])
+    request = messages.normalize_request(
         AnthropicMessagesCreateRequest(
+            messages=[{"role": "user", "content": "Hi"}],
             model="m",
-            max_tokens=10,
-            messages=[{"role": "user", "content": "q"}],
+            max_tokens=100,
             stream=True,
         )
     )
-    events = [event async for event in adapter.project_events(_events(reason), request)]
-    return next(event.delta.stop_reason for event in events if event.type == "message_delta")
+    message_events = [
+        event async for event in messages.project_events(normalized_events(), request)
+    ]
+    terminal_delta = next(event for event in message_events if event.type == "message_delta")
+    assert terminal_delta.delta.stop_reason == messages_reason
 
-
-async def _responses(reason: TerminationReason):
-    adapter = OpenAIResponsesAdapter(CAPABILITIES)
-    request = adapter.normalize_request(OpenAIResponsesCreateRequest(model="m", input="q"))
-    events = [event async for event in adapter.project_events(_events(reason), request)]
-    terminal = events[-1]
-    assert terminal.type in {"response.completed", "response.incomplete"}
-    return terminal.response.status, terminal.response.incomplete_details
-
-
-@pytest.mark.parametrize(
-    ("reason", "chat", "messages"),
-    [
-        ("stop", "stop", "end_turn"),
-        ("max_output_tokens", "length", "max_tokens"),
-        ("content_filter", "content_filter", "end_turn"),
-        ("pause", "length", "pause_turn"),
-        # Unknown is not a pause: a target without an incomplete state reports
-        # normal completion rather than the output limit or a continuation hint.
-        ("unknown", "stop", "end_turn"),
-        ("refusal", "stop", "refusal"),
-    ],
-)
-async def test_terminal_reason_projects_into_chat_and_messages(
-    reason: TerminationReason, chat: str, messages: str
-):
-    """Ensures each normalized terminal reason maps to the documented target value."""
-    assert await _chat(reason) == chat
-    assert await _messages(reason) == messages
-
-
-@pytest.mark.parametrize(
-    ("reason", "status", "details"),
-    [
-        ("stop", "completed", None),
-        ("max_output_tokens", "incomplete", {"reason": "max_output_tokens"}),
-        ("content_filter", "incomplete", {"reason": "content_filter"}),
-        ("pause", "incomplete", None),
-        ("unknown", "incomplete", None),
-    ],
-)
-async def test_terminal_reason_projects_into_responses(reason, status, details):
-    """Ensures Responses keeps incomplete states and leaves a reason-less cause null."""
-    projected_status, incomplete_details = await _responses(reason)
-    assert projected_status == status
-    actual_details = None if incomplete_details is None else incomplete_details.model_dump()
-    assert actual_details == details
+    responses = OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["openai"])
+    request = responses.normalize_request(
+        OpenAIResponsesCreateRequest(input="Hi", model="m", stream=True)
+    )
+    response_events = [
+        event async for event in responses.project_events(normalized_events(), request)
+    ]
+    terminal = response_events[-1]
+    assert terminal.type == f"response.{responses_status}"
+    assert terminal.response.status == responses_status
+    assert terminal.response.model_dump()["incomplete_details"] == (
+        {"reason": responses_reason} if responses_reason is not None else None
+    )

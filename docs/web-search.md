@@ -2,11 +2,15 @@
 
 Molto preserves provider-hosted web search on native routes and translates basic search through Responses and Messages upstreams. Searches run at the provider, separately from client functions.
 
-| Caller protocol  | Responses upstream                          | Messages upstream                   | Chat upstream             |
-| ---------------- | ------------------------------------------- | ----------------------------------- | ------------------------- |
-| Responses        | Native passthrough                          | Search, answer, and URL attribution | Rejected before transport |
-| Messages         | Search, answer, and reduced URL attribution | Native passthrough                  | Rejected before transport |
-| Chat Completions | Mandatory search, answer text               | Mandatory search, answer text       | Native passthrough        |
+| Caller protocol  | Responses upstream                          | Messages upstream                           | Chat upstream             |
+| ---------------- | ------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Responses        | Native passthrough                          | Search, answer, and URL attribution         | Rejected before transport |
+| Messages         | Search, answer, and reduced URL attribution | Native passthrough                          | Rejected before transport |
+| Chat Completions | Mandatory search; signed reasoning rejected | Mandatory search; signed reasoning rejected | Native passthrough        |
+
+Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned raw reasoning remains representable. The `vllm` profile supports unsigned raw reasoning; provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
+
+Messages callers receive translated URL citations with `Molto.messages(..., citation_policy="buffer")`, or with `citation_policy="auto"` when the normalized request declares hosted search or carries search or citation history. The default `"drop"` streams text without citations; native Messages passthrough preserves citations under every policy.
 
 Both streaming and non-streaming calls use this contract. Native routes preserve provider fields and events. Translated non-streaming results collect the same projected events as streaming calls.
 
@@ -23,11 +27,13 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 | Search budget | Responses `max_tool_calls` <-> Messages search `max_uses`, copied numerically |
 | Context size | Preserved for Responses; explicit Responses/Chat `search_context_size` rejects when targeting Messages, including `medium` |
 | Blocked domains | Native Messages preserves `blocked_domains`; translation to Responses rejects an explicit blocklist |
-| Source inclusion | Translated searches to Responses request `web_search_call.action.sources`, preserving existing include values without adding duplicates |
+| Source inclusion | Normalized search declarations request `web_search_call.action.sources` from Responses; opaque `extra_body.include` overrides it verbatim |
 
-Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search declared in the request before transport.
+Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`.
 
-`extra_body` and `extra_headers` are opaque extensions: Molto merges them into the upstream request without inspecting them, so they never enable, disable, or reshape translation. Search supplied only through `extra_body.tools` or `extra_body.web_search_options` is therefore forwarded verbatim, not translated, and the resulting annotations are projection input only where the declared request already enables the policy that consumes them.
+`extra_body` and `extra_headers` are opaque upstream request extensions, merged by the provider SDK after Molto constructs its request. They never guide routing, normalization, request translation, or output projection. Headers are filtered once at the credential boundary before forwarding. Translation guarantees cover the normalized request; callers supplying `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for the extensions. Normalized search remains rejected on translated Chat upstreams. A caller can enable search through `extra_body.web_search_options` on a Chat upstream: Molto forwards it verbatim, transport proceeds, and the translated Chat projection drops any returned annotations.
+
+Replacing tools does not change reasoning projection: Chat rejects signed or encrypted reasoning whether search was declared, injected, disabled, or absent.
 
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
@@ -38,6 +44,8 @@ Budget exhaustion remains provider-specific. A Messages `max_uses_exceeded` resu
 ## Answers and attribution
 
 Responses URL citations identify a range within a text part. Translated Messages splits that part at citation boundaries and attaches each citation to the corresponding blocks. Concatenating those blocks preserves the answer exactly, including whitespace. Overlapping ranges can associate one source with several blocks. Messages citations map back to ranges spanning their associated text blocks, with offsets local to each projected Responses part.
+
+Messages rejects empty and whitespace-only text blocks in conversation history. Citation projection folds blank fragments into the preceding block, or into the first following block for leading whitespace. Merging can widen a citation's associated block, while its original excerpt remains unchanged. Zero-length annotations do not split the text and attach to the block containing their offset; a zero-length annotation at the end of the answer attaches to the final block. Their fallback `cited_text` uses that block's text because they cover no answer characters. An original provider-supplied `cited_text` remains unchanged. An entirely blank text part has no valid Messages block that can preserve its content and attribution, so projection raises `ValueError`; assistant-history requests reject it with `UnsupportedInput` before transport.
 
 For example, this upstream Responses text part contains answer `"Alpha. Beta."` with a citation on `[7, 12)`:
 
@@ -78,13 +86,21 @@ It becomes these illustrative Messages content blocks:
 ]
 ```
 
-`cited_text` on this translated route contains the associated **answer range**, which may paraphrase sources. It is not a verified source quotation. `encrypted_index: "N/A"` means citation state is unavailable; it cannot restore provider continuation state. Messages-to-Responses translation loses the original excerpt and encrypted reference. Native Messages preserves both. Missing or null titles become `""` when the translated target requires a string.
+`cited_text` on this translated route contains the associated **answer range**, or the containing block for a zero-length annotation, which may paraphrase sources. It is not a verified source quotation. `encrypted_index: "N/A"` means citation state is unavailable; it cannot restore provider continuation state. The Anthropic Messages-to-Responses route retains the original excerpt and encrypted reference in the [provider metadata extension](#preserving-anthropic-search-history). Native Messages preserves both directly. Missing or null titles become `""` when the translated target requires a string.
 
 Offsets use Python string characters without normalization. Recordings verify ASCII ranges; synthetic Unicode tests do not establish the provider's Unicode indexing convention.
 
-Citations reach a Messages caller only when the caller opts in with `citation_policy="buffer"`. That policy buffers text parts until their citations are complete, preserving part order, but only for requests that announce a citation signal: a declared hosted-search tool, or search or citation history in the normalized request. Those requests pay the latency and chunk-boundary cost for every text part, including uncited ones; other requests stream unchanged. The default `citation_policy="drop"` always streams text immediately and omits citations. Neither mode drops answer text, and no trigger consults `extra_body`, so history supplied only that way must select `buffer` with a declared signal or expect omitted citations. A `buffer` request that receives citations without announcing a signal falls back to the `drop` outcome for that response, because its text has already streamed.
+With Responses upstream, `citation_policy` controls translated Messages text:
 
-Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Chat cannot carry a reasoning signature, so a hosted-search turn whose reasoning is encrypted or signed, as OpenAI and Anthropic both return, is rejected at the signature boundary instead of losing that output. Chat remains usable for providers whose reasoning is unsigned.
+- `"drop"` (default) streams text and discards both citation deltas and snapshot citations.
+- `"buffer"` waits for every text part to complete, including uncited text, then splits it at citation boundaries while preserving part order.
+- `"auto"` behaves like `"buffer"` when the normalized request declares a hosted-search tool or carries search calls, search results, or text with citations in its history. Otherwise it behaves like `"drop"`, including when unexpected citations arrive later. It does not inspect `extra_body`.
+
+Buffering increases text latency and changes chunk boundaries. All policies retain server-tool calls and results, whose buffering is needed to obtain complete actions and queries, and preserve input citations during request construction. The policy is a no-op with a Chat upstream: its normalization drops annotations, and all policies preserve immediate text streaming and chunk boundaries. It does not apply to Responses or Chat downstream.
+
+Each buffered Messages text block starts with empty text and its citations, then emits the full block text in one `text_delta` before stopping. This preserves compatibility with the Anthropic SDK's `text_stream` iterator.
+
+Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
 
 ## Search activity and results
 
@@ -112,7 +128,7 @@ Observed Responses sources become result entries. A URL-only source produces thi
 }
 ```
 
-Available titles and `page_age` are preserved; unavailable age is omitted or null. The `"N/A"` placeholder only satisfies the response schema: it supplies neither retrieved content nor decryptable continuation state, and Anthropic rejects a request that replays it. Native Messages retains the original encrypted content, which is the only form that can be sent back. An explicitly empty source list becomes an empty result list. Missing sources remain unknown and are never reconstructed from answer citations. An unfinished invocation gets no invented successful result.
+Available titles and `page_age` are preserved; unavailable age is omitted or null. The result placeholder supplies neither retrieved content nor valid continuation state. Native Messages retains original encrypted content. An explicitly empty source list becomes an empty result list. Missing sources remain unknown and are never reconstructed from answer citations. An unfinished invocation gets no invented successful result.
 
 Translated Messages omits Responses `open_page` and `find_in_page` operations, retaining the answer and citations.
 
@@ -126,7 +142,7 @@ An individual search failure is separate from an API request failure and from ov
 | Responses -> Messages   | A linked result error uses `error_code: "unavailable"` when no cause is available              |
 | Either upstream -> Chat | Search-error blocks are omitted; actual model content and overall finish state are retained    |
 
-`unavailable` is a fallback, not a provider diagnosis. Chat returns the actual answer, or empty content if none is representable, with the mapped finish reason. Search-result errors remain content; HTTP failures follow the [request error contract](errors.md).
+`unavailable` is a fallback, not a provider diagnosis. When reasoning is representable, Chat returns the actual answer, or empty content if none is representable, with the mapped finish reason. Search-result errors remain content; HTTP failures follow the [request error contract](errors.md).
 
 A Messages pause has these terminal values:
 
@@ -138,27 +154,63 @@ A Messages pause has these terminal values:
 
 A paused search can remain `in_progress` without a result. Chat's `length` approximates unfinished generation; increasing the token limit may not resolve the pause. Continuation is caller-managed.
 
-A Responses response that ends `incomplete` without `incomplete_details` does not establish a pause. Molto normalizes it as `unknown`, which Messages reports as `end_turn` and Chat as `stop`; only a Messages `stop_reason: "pause_turn"` produces the pause row above.
+A Responses-source incomplete response without a reason normalizes to `unknown` and arrives as Messages `end_turn` or Chat `stop`. A hosted-search pause in that form is indistinguishable from any other reason-less incomplete response, so callers lose the `pause_turn` continuation hint and must manage continuation themselves.
 
-Native usage is preserved. Token translation is unchanged. Messages search counts have no public equivalent on translated Responses or Chat and are omitted. When Responses explicitly reports `tool_usage.web_search.num_requests`, translated Messages copies that number to `usage.server_tool_use.web_search_requests` and supplies `web_fetch_requests: 0` for this search-only scope. Explicit zero remains zero; absent/null counts remain unknown, and a provider that reports no token usage reports no search count either, because the count lives on the normalized usage object. Counts are not derived from operations, queries, sources, citations, or replayed history, and repeated usage snapshots are updates rather than additions. This is a numeric compatibility approximation, not equivalent billing or accounting.
+Native usage is preserved. Token translation is unchanged. Reported search counts normalize to `Usage.web_search_requests`; Messages search counts have no public equivalent on translated Responses or Chat and are omitted. When Responses reports both token usage and the response-level sibling `tool_usage.web_search.num_requests`, translated Messages copies that number to `usage.server_tool_use.web_search_requests` and supplies `web_fetch_requests: 0` for this search-only scope. Explicit zero remains zero; absent/null counts remain unknown. Without reported token usage, normalized usage is absent and the search count is unknown; Molto does not synthesize zero-token usage to retain it. Counts are not derived from operations, queries, sources, citations, or replayed history, and repeated usage snapshots are updates rather than additions. This is a numeric compatibility approximation, not equivalent billing or accounting.
+
+## Preserving Anthropic search history
+
+`Molto.responses(endpoint="messages", provider="anthropic")` retains observed Anthropic search state in a typed `provider_metadata.anthropic` extension. Omitting `provider` selects Anthropic by default for this endpoint. This is a Molto extension to Responses, not a standard OpenAI field.
+
+| Responses location                 | Fields in `provider_metadata.anthropic`                                 |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `web_search_call.action.sources[]` | Original `encrypted_content`, plus `title` and `page_age` when supplied |
+| Text `annotations[]` URL citations | Original `encrypted_index` and `cited_text`                             |
+
+For example, an observed search source retains its opaque state alongside the standard URL:
+
+```json
+{
+  "type": "url",
+  "url": "https://example.com/page",
+  "provider_metadata": {
+    "anthropic": {
+      "encrypted_content": "<original encrypted content>",
+      "title": "Original source title"
+    }
+  }
+}
+```
+
+Streaming annotation events, completed search items, and the terminal response preserve the extension. Non-streaming responses use that same projection. Clients must retain the complete output items through serialization and replay them in `body.input`:
+
+```python
+history.extend(item.model_dump(exclude_none=True) for item in response.output)
+```
+
+On the next request, Molto restores the original Messages source and citation fields without forwarding `provider_metadata` itself. Keep the upstream destination and provider fixed. History containing this extension is accepted only with `endpoint="messages"` and `provider="anthropic"`; other routes raise `UnsupportedInput` before transport. Unknown metadata keys and malformed values fail request validation. The extension does not recover state discarded by a client or create Anthropic state for a search originally served by OpenAI.
+
+The extension is supported in the typed Responses request body. `extra_body` remains a caller-owned upstream transport override and bypasses this normalization, as it does for other fields. Normal projection to an OpenAI upstream continues to use standard Responses fields only.
+
+An [independent continuation recording](../tests/cassettes/README.md#anthropic-hosted-search-recordings) confirms HTTP `200` with `end_turn` after replaying the original search through this extension and restoring its encrypted source content and citation references.
 
 ## Follow-ups and recovery
 
-Keep the upstream and provider fixed across a conversation. Native routes preserve search history. Translated Responses/Messages routes map supported calls, results, and citations with the reductions above; translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. Citation projection follows `citation_policy` only, so a caller that supplies search context solely through `extra_body.input` must select `buffer` explicitly.
+Keep the upstream and provider fixed across a conversation. Native routes preserve search history. The Anthropic Responses route preserves opaque search state when clients retain its metadata extension; other translated Responses/Messages history follows the reductions above. Translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search, and `citation_policy="auto"` uses that normalized history to select buffering. A Messages caller who wants attribution regardless of normalized tools or history selects `citation_policy="buffer"`, including when search context is supplied only through `extra_body.input` or `extra_body.tools`. Opaque transport extensions cannot trigger automatic buffering.
+
+When translating history to Messages with `provider="anthropic"` (the endpoint default), Molto rejects missing, empty, or `"N/A"` source `encrypted_content` and citation `encrypted_index` with `UnsupportedInput` before transport. Anthropic requires the original encrypted state for continuation; a display placeholder cannot restore it. Preserve the metadata extension or explicitly choose text-only history. This check applies even without new search tools. Empty results, unknown results, and search errors do not require source ciphertext. Other provider profiles retain their existing reduced-history behavior, and native Messages passthrough leaves validation to the provider. Molto does not inspect other opaque values or validate their issuer; transport overrides remain opaque.
 
 Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 
 When projecting Messages history to Responses, a search result updates the preceding call with the same ID even when they occupy separate assistant messages. The call preserves its query metadata while applying the result's status and supplied sources. Assistant text messages and text runs around search blocks retain their boundaries.
 
-Anthropic decrypts `web_search_result.encrypted_content` and `web_search_result_location.encrypted_index` on later turns and rejects a request where either is missing or modified, so a translated Messages response cannot be replayed: those values were issued by a different provider and Molto never has them. Molto therefore rejects such history locally with `UnsupportedInput` instead of sending a placeholder that the API would reject.
-
-Replay only native Messages content, whose encrypted values are intact:
+For a Messages response named `response`, preserve supported assistant blocks with:
 
 ```python
 assistant_content = [block.model_dump(exclude_none=True) for block in response.content]
 ```
 
-For a translated response, send text-only history instead:
+For compatible providers, the SDK/API decides whether reduced history is usable. If original state is unavailable for Anthropic, or a compatible provider rejects reduced history, the caller can explicitly choose text-only history:
 
 ```python
 assistant_content = "".join(block.text for block in response.content if block.type == "text")

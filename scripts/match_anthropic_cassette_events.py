@@ -305,7 +305,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
             continue
         if item_type == "web_search_call":
             _append_assistant_content(
-                messages, [*pending_assistant_content, *_search_content(item)]
+                messages, [*pending_assistant_content, *_search_content(item, history=True)]
             )
             pending_assistant_content = []
             continue
@@ -567,11 +567,7 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
     return matches[0]
 
 
-def _response_terminal(
-    events: list[dict[str, Any]],
-    *,
-    has_search: bool = False,
-) -> tuple[dict[str, Any], str]:
+def _response_terminal(events: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
     terminal_events = [
         event
         for event in events
@@ -591,12 +587,10 @@ def _response_terminal(
         return response, "end_turn"
 
     incomplete_details = response.get("incomplete_details")
-    # A reason-less incomplete response does not establish a pause, so the
-    # translated stream reports the normalized unknown reason as normal completion.
-    if incomplete_details is None or incomplete_details.get("reason") is None:
+    if incomplete_details is None:
         return response, "end_turn"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("response.incomplete must contain incomplete_details.")
+        raise ValueError("response.incomplete incomplete_details must be an object or null.")
     reason = incomplete_details.get("reason")
     if reason == "max_output_tokens":
         return response, "max_tokens"
@@ -1199,12 +1193,7 @@ def match_messages_events(
 
     created_event = _response_event(response_events, "response.created")
     created_response = created_event.get("response")
-    terminal_response, stop_reason = _response_terminal(
-        response_events,
-        has_search=any(
-            tool.get("type") == "web_search" for tool in responses_request.get("tools", [])
-        ),
-    )
+    terminal_response, stop_reason = _response_terminal(response_events)
     if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):

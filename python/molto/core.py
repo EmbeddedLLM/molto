@@ -18,6 +18,7 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
 )
+from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
@@ -209,6 +210,12 @@ class Molto:
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
+        preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
+        if request.has_anthropic_search_metadata() and not preserve_search_metadata:
+            raise UnsupportedInput(
+                "Anthropic search provider_metadata requires endpoint='messages' "
+                "and provider='anthropic'."
+            )
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -230,7 +237,9 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = OpenAIResponsesAdapter(capabilities)
+        adapter = OpenAIResponsesAdapter(
+            capabilities, preserve_anthropic_search_metadata=preserve_search_metadata
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
             upstream = OpenAIChatCompletionsClient(
@@ -343,11 +352,12 @@ class Molto:
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
-        HTTP destination. `citation_policy` selects how translated responses
-        project text that may carry URL citations: `buffer` withholds text parts
-        until their citations are final whenever the request declares hosted search
-        or carries search or citation history, and `drop` always streams text
-        immediately without citations.
+        HTTP destination. With Responses upstream, `citation_policy="buffer"`
+        withholds text until each part completes to preserve citation boundaries;
+        `"auto"` buffers only when normalized tools or history signal possible
+        citations, otherwise streaming text without citations. The default `"drop"`
+        always streams text without citations. Transport extensions do not inform
+        `"auto"`. The policy has no effect with Chat upstream or native Messages.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
@@ -363,7 +373,7 @@ class Molto:
                 extra_body=extra_body,
                 extra_headers=upstream_headers,
             )
-            adapter = AnthropicMessagesAdapter(capabilities)
+            adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
             if request.stream is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(request)),
@@ -371,7 +381,11 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
+        # Chat normalization drops annotations, so buffering cannot recover citations.
+        adapter = AnthropicMessagesAdapter(
+            capabilities,
+            citation_policy="drop" if endpoint == "chat/completions" else citation_policy,
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(

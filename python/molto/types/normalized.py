@@ -827,7 +827,7 @@ class Usage(ExtraModel):
     ]
     web_search_requests: Annotated[
         int | None,
-        Field(description="Hosted search requests reported by the provider, when known."),
+        Field(description="The reported number of web search requests, or None when unknown."),
     ] = None
 
 
@@ -865,8 +865,6 @@ TerminationReason: TypeAlias = Literal[
     "stop",
     "stop_sequence",
     "tool_call",
-    # The source reported an incomplete generation without naming a cause. This is
-    # deliberately distinct from `pause`, which is a cause reported by the source.
     "unknown",
 ]
 
@@ -892,7 +890,9 @@ class ResponseEndEvent(ExtraModel):
     ] = None
     termination_reason: Annotated[
         TerminationReason,
-        Field(description="The provider-neutral reason that generation terminated."),
+        Field(
+            description="The provider-neutral reason generation terminated, or 'unknown' if unavailable."
+        ),
     ]
     stop_sequence: Annotated[
         str | None,

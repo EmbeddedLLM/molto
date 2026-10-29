@@ -669,7 +669,8 @@ class OpenAIResponsesClient(
             raise UnsupportedInput(str(error)) from error
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
-        native_request = OpenAIResponsesCreateRequest.model_validate(self._request_body(request))
+        request_body = self._request_body(request)
+        native_request = OpenAIResponsesCreateRequest.model_validate(request_body)
         # Only a reasoning item whose `added` snapshot is completely empty (no
         # content, summary, or encrypted state) is deferred: if nothing ever
         # arrives, its part lifecycle is omitted from the IR entirely. An item
@@ -895,21 +896,16 @@ class OpenAIResponsesClient(
                         )
                     else:
                         incomplete_details = metadata.incomplete_details
-                        # A reason-less incomplete response does not establish a pause;
-                        # the normalized stream keeps the cause unknown.
                         if incomplete_details is None or incomplete_details.reason is None:
                             termination_reason = "unknown"
                         else:
                             termination_reason = incomplete_details.reason
                     usage = _responses_usage(metadata.usage)
-                    tool_usage = metadata.model_dump().get("tool_usage")
-                    search_usage = (
-                        (tool_usage.get("web_search") or {})
-                        if isinstance(tool_usage, dict)
-                        else {}
-                    )
-                    if usage is not None and search_usage.get("num_requests") is not None:
-                        usage.web_search_requests = search_usage["num_requests"]
+                    if usage is not None:
+                        # Dump metadata so both SDK-typed fields and extras have the same shape.
+                        tool_usage = metadata.model_dump().get("tool_usage") or {}
+                        search_usage = tool_usage.get("web_search") or {}
+                        usage.web_search_requests = search_usage.get("num_requests")
                     yield ResponseEndEvent(
                         id=metadata.id,
                         created_at=int(metadata.created_at),
