@@ -8,7 +8,7 @@ Molto preserves provider-hosted web search on native routes and translates basic
 | Messages         | Search, answer, and reduced URL attribution | Native passthrough                          | Rejected before transport |
 | Chat Completions | Mandatory search; signed reasoning rejected | Mandatory search; signed reasoning rejected | Native passthrough        |
 
-Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned raw reasoning or summaries remains representable. The `vllm` profile supports unsigned raw reasoning; provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
+Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned raw reasoning remains representable. The `vllm` profile supports unsigned raw reasoning; provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
 
 Messages callers receive translated URL citations with `Molto.messages(..., citation_policy="buffer")`, or with `citation_policy="auto"` when the normalized request declares hosted search or carries search or citation history. The default `"drop"` streams text without citations; native Messages passthrough preserves citations under every policy.
 
@@ -100,7 +100,7 @@ Buffering increases text latency and changes chunk boundaries. All policies reta
 
 Each buffered Messages text block starts with empty text and its citations, then emits the full block text in one `text_delta` before stopping. This preserves compatibility with the Anthropic SDK's `text_stream` iterator.
 
-Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned raw reasoning and summary output are representable; translated summary-history requests still require signatures.
+Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
 
 ## Search activity and results
 

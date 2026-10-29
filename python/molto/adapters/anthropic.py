@@ -881,7 +881,11 @@ class AnthropicMessagesAdapter(
                                 raise ValueError(
                                     "An Anthropic summary block cannot contain raw reasoning."
                                 )
-                            if thinking_signatures.get(index) != (part.signature or None):
+                            if not part.signature:
+                                raise ValueError(
+                                    "An Anthropic reasoning summary requires a signature."
+                                )
+                            if thinking_signatures.get(index) != part.signature:
                                 raise ValueError(
                                     "An Anthropic reasoning signature must be streamed before "
                                     "the block ends."

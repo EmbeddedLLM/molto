@@ -226,7 +226,7 @@ The provider or model renderer can still merge, move, or reinterpret accepted wi
 
 ### Reasoning and continuation state
 
-Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. Translated output supports unsigned raw reasoning and summaries. Responses and Messages output projection accepts a Chat summary without inventing a signature; in the reverse direction, Chat projection rejects any present signature rather than silently discarding it. Request translation still rejects unsigned summary history when normalizing or constructing a Responses or Messages request, so receiving summary text does not establish replayable continuation state.
+Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. In the current implementation, only unsigned raw reasoning is portable through Chat on a translated route. A Chat summary has no signature and therefore cannot satisfy the completed-summary contract required by Responses or Messages; in the reverse direction, a Responses or Messages summary carries a signature that Chat projection rejects rather than silently discarding. Opaque continuation state and summarized reasoning are therefore not currently portable through Chat.
 
 ### Tools and tool results
 
@@ -298,7 +298,7 @@ Native Chat routes forward `web_search_options` from the request or `extra_body`
 
 Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Translated routes targeting a Chat upstream reject hosted search before transport.
 
-Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned raw reasoning or summaries remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
+Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned raw reasoning remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
 
 For representable output, translated Chat retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
 
@@ -307,7 +307,7 @@ For representable output, translated Chat retains answer text and inline links w
 These are implementation gaps rather than inherent claims about the Chat protocol:
 
 - An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
-- Chat cannot carry signed reasoning output. Unsigned summary output is supported, but translated Responses and Messages requests still require signatures when replaying summary history.
+- Translated reasoning through Chat currently supports only unsigned raw reasoning, such as the `vllm` provider profile. Summary profiles fail at the target protocol's signature boundary in either direction.
 - Refusals, hosted tools other than basic web search, moderation, non-web annotations, audio, prediction output, and log probabilities are not carried through the normalized path. Hosted-search structured annotations are deliberately omitted from translated Chat output.
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and pauses map to `finish_reason="length"`; other terminal reasons without an exact Chat mapping become `finish_reason="stop"`.

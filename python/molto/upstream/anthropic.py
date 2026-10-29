@@ -852,6 +852,10 @@ class AnthropicMessagesClient(
                         continue
                     part = state.part
                     if isinstance(part, Thinking):
+                        if self._capabilities.thinking == "summary" and not state.signature:
+                            raise ValueError(
+                                "An Anthropic reasoning summary requires a signature."
+                            )
                         completed_part: (
                             Thinking | TextOutput | ToolCall | SearchCall | SearchResult
                         ) = self._classify_thinking(state.content, signature=state.signature)

@@ -594,10 +594,9 @@ async def test_client_preserves_signature_only_thinking_block(
     ]
 
 
-async def test_client_preserves_unsigned_summary_completion(
+async def test_client_rejects_unsigned_summary_completion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Ensures an unsigned provider thinking block retains its summary and balanced lifecycle."""
     native_events = [
         _MESSAGE_START,
         {
@@ -613,15 +612,10 @@ async def test_client_preserves_unsigned_summary_completion(
         {"type": "content_block_stop", "index": 0},
     ]
 
-    events = await _collect_client_events(
-        monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
-    )
-
-    assert events[1:] == [
-        PartStartEvent(index=0, part=Thinking(content="", summary="")),
-        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
-        PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
-    ]
+    with pytest.raises(ValueError, match="summary requires a signature"):
+        await _collect_client_events(
+            monkeypatch, native_events, PROVIDER_CAPABILITIES["anthropic"]
+        )
 
 
 async def test_client_completes_thinking_block_without_deltas(
