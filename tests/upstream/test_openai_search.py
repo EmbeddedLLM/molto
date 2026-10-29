@@ -299,7 +299,6 @@ async def test_text_parts_keep_local_citation_offsets(refusal_first: bool):
     assert [event.part.content for event in texts] == ["first", "second"]
     assert [event.part.citations[0].start_index for event in texts] == [0, 0]
     assert [event.part.citations[0].end_index for event in texts] == [5, 6]
-    assert all(event.part.defer_citations for event in texts)
 
 
 @pytest.mark.parametrize("count", ["missing", None, 0, 3])
@@ -575,15 +574,15 @@ async def test_later_text_cannot_overtake_unclassified_search():
         ["web_search_call.action.sources", "reasoning.encrypted_content"],
     ],
 )
-async def test_translated_search_merges_transport_include_without_duplicates(include):
-    """Ensures SDK extra_body cannot remove required search sources or caller include values."""
+async def test_translated_search_forwards_transport_include_verbatim(include):
+    """Ensures opaque include overrides replace the normalized source inclusion unchanged."""
     await _normalize(
         [
             _event("response.created", response=_response()),
             _event("response.completed", response=_response()),
         ],
         extra_body={"include": include},
-        expected_include=["web_search_call.action.sources", "reasoning.encrypted_content"],
+        expected_include=include,
     )
 
 
@@ -606,8 +605,8 @@ async def test_translated_search_merges_transport_include_without_duplicates(inc
     ],
 )
 @pytest.mark.parametrize("override", [False, True])
-async def test_search_history_without_tool_declaration_still_defers_citations(history, override):
-    """Ensures typed and overridden search or citation history buffers follow-ups without tools."""
+async def test_search_history_does_not_change_text_normalization(history, override):
+    """Ensures typed and overridden history never add projection policy to normalized text."""
     request = NormalizedRequest(model="m", input=history, stream=True)
     extra_body = None
     if override:
@@ -645,59 +644,12 @@ async def test_search_history_without_tool_declaration_still_defers_citations(hi
         normalized_request=request,
         extra_body=extra_body,
     )
-    assert all(
-        event.part.defer_citations
-        for event in events
-        if isinstance(event, (PartStartEvent, PartEndEvent)) and isinstance(event.part, TextOutput)
-    )
-
-
-@pytest.mark.parametrize(
-    "input_override", [None, [], "New question", [{"role": "user", "content": "New question"}]]
-)
-async def test_input_override_removes_search_history_buffering(input_override):
-    """Ensures replacing search history with plain input does not retain stale citation buffering."""
-    part = {"type": "output_text", "text": "answer", "annotations": []}
-    item = {
-        "id": "msg_1",
-        "type": "message",
-        "role": "assistant",
-        "status": "completed",
-        "content": [part],
-    }
-    events = await _normalize(
-        [
-            _event("response.created", response=_response()),
-            _event("response.output_item.added", output_index=0, item={**item, "content": []}),
-            _event(
-                "response.content_part.added",
-                output_index=0,
-                content_index=0,
-                item_id="msg_1",
-                part={**part, "text": ""},
-            ),
-            _event(
-                "response.content_part.done",
-                output_index=0,
-                content_index=0,
-                item_id="msg_1",
-                part=part,
-            ),
-            _event("response.output_item.done", output_index=0, item=item),
-            _event("response.completed", response=_response([item])),
-        ],
-        normalized_request=NormalizedRequest(
-            model="m", input=[SearchCall(id="ws_1")], stream=True
-        ),
-        extra_body={"input": input_override},
-    )
     texts = [
         event.part
         for event in events
-        if isinstance(event, PartStartEvent) and isinstance(event.part, TextOutput)
+        if isinstance(event, PartEndEvent) and isinstance(event.part, TextOutput)
     ]
-    assert len(texts) == 1
-    assert not texts[0].defer_citations
+    assert texts == [TextOutput(content="answer", id="msg_1")]
 
 
 async def test_reported_search_usage_without_token_usage_is_unknown():

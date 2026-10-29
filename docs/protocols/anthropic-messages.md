@@ -360,7 +360,7 @@ Recognized errors use the Anthropic SDK namespace and the [shared error contract
 
 Declare `{"type":"web_search_20250305","name":"web_search"}` in `tools`. Translation to Responses supports allowed domains, approximate location, and search budgets; explicit blocked domains are rejected.
 
-With Responses upstream, Messages receives server-tool blocks and URL citations with reduced source metadata. Citation-bearing text waits for complete attribution. See [Hosted web search](../web-search.md) for mappings, placeholders, and continuation limits.
+With Responses upstream, Messages receives server-tool blocks. `Molto.messages(..., citation_policy="buffer")` also preserves URL citations with reduced source metadata by withholding every text part until completion, including uncited parts. The default `"drop"` streams text without citations. Both modes preserve request-history attribution; native Messages passthrough is unaffected. See [Hosted web search](../web-search.md) for mappings, placeholders, and continuation limits.
 
 ## Current implementation limitations
 

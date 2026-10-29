@@ -383,7 +383,7 @@ async def test_messages_search_history_does_not_extend_openai_requests(stream: b
         [_path("responses")], "responses", expected_body=expected_request, requests=requests
     ) as http_client:
         result = await Molto(http_client=http_client).messages(
-            body=body, endpoint="responses", api_key="test-api-key"
+            body=body, endpoint="responses", api_key="test-api-key", citation_policy="buffer"
         )
         if stream:
             result = _collect("messages", [event async for event in result])

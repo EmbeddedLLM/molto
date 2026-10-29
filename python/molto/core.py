@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from httpx import AsyncClient, Headers
 from pydantic import BaseModel
@@ -346,12 +346,15 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        citation_policy: Literal["buffer", "drop"] = "drop",
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
-        HTTP destination.
+        HTTP destination. `citation_policy="buffer"` withholds translated text
+        until each part completes to preserve citation boundaries; the default
+        `"drop"` streams text without citations. Native Messages is unaffected.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
@@ -367,7 +370,7 @@ class Molto:
                 extra_body=extra_body,
                 extra_headers=upstream_headers,
             )
-            adapter = AnthropicMessagesAdapter(capabilities)
+            adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
             if request.stream is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(request)),
@@ -375,7 +378,7 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = AnthropicMessagesAdapter(capabilities)
+        adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(

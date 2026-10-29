@@ -7,6 +7,7 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
+    CitationDelta,
     FunctionToolChoice,
     InputTokenDetails,
     OutputTokenDetails,
@@ -32,8 +33,10 @@ from molto.utils.web_search import (
 )
 
 
-def setup_adapter():
-    adapter = AnthropicMessagesAdapter(PROVIDER_CAPABILITIES["anthropic"])
+def setup_adapter(citation_policy="drop"):
+    adapter = AnthropicMessagesAdapter(
+        PROVIDER_CAPABILITIES["anthropic"], citation_policy=citation_policy
+    )
     request = adapter.normalize_request(
         AnthropicMessagesCreateRequest(
             model="m",
@@ -48,6 +51,79 @@ def setup_adapter():
 async def iterate(events):
     for event in events:
         yield event
+
+
+@pytest.mark.parametrize("citation_policy", ["buffer", "drop"])
+async def test_citation_policy_controls_text_latency_without_search(citation_policy):
+    """Ensures only the explicit policy determines whether ordinary text waits for its end."""
+    adapter, request = setup_adapter(citation_policy)
+    completed = False
+
+    async def source():
+        nonlocal completed
+        yield ResponseStartEvent(id="r", model="m")
+        yield PartStartEvent(index=0, part=TextOutput(content=""))
+        yield PartDeltaEvent(index=0, delta=TextDelta(content_delta="Alpha. "))
+        yield PartDeltaEvent(index=0, delta=TextDelta(content_delta="Beta."))
+        completed = True
+        yield PartEndEvent(index=0, part=TextOutput(content="Alpha. Beta."))
+        yield ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop")
+
+    stream = adapter.project_events(source(), request)
+    assert (await anext(stream)).type == "message_start"
+    start = await anext(stream)
+    assert start.type == "content_block_start"
+    assert completed is (citation_policy == "buffer")
+    remaining = [event async for event in stream]
+    deltas = [event.delta.text for event in remaining if event.type == "content_block_delta"]
+    if citation_policy == "buffer":
+        assert start.content_block.text == "Alpha. Beta."
+        assert deltas == []
+    else:
+        assert start.content_block.text == ""
+        assert deltas == ["Alpha. ", "Beta."]
+
+
+@pytest.mark.parametrize("citation_policy", ["buffer", "drop"])
+@pytest.mark.parametrize("citation_delivery", ["start", "delta", "end"])
+async def test_explicit_citation_policy_handles_all_citation_delivery(
+    citation_policy, citation_delivery
+):
+    """Ensures buffer preserves final attribution and drop omits even late or initial citations."""
+    adapter, request = setup_adapter(citation_policy)
+    citation = WebCitation(url="https://a", start_index=7, end_index=12)
+    events = [
+        ResponseStartEvent(id="r", model="m"),
+        PartStartEvent(
+            index=0,
+            part=TextOutput(
+                content="", citations=[citation] if citation_delivery == "start" else []
+            ),
+        ),
+        PartDeltaEvent(index=0, delta=TextDelta(content_delta="Alpha. Beta.")),
+    ]
+    if citation_delivery == "delta":
+        events.append(PartDeltaEvent(index=0, delta=CitationDelta(citation=citation)))
+    events += [
+        PartEndEvent(index=0, part=TextOutput(content="Alpha. Beta.", citations=[citation])),
+        ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="stop"),
+    ]
+    response = await adapter.project_response(
+        adapter.project_events(iterate(events), request), request
+    )
+    assert "".join(block.text for block in response.content) == "Alpha. Beta."
+    if citation_policy == "buffer":
+        assert [block.text for block in response.content] == ["Alpha. ", "Beta."]
+        assert response.content[-1].citations[0].cited_text == "Beta."
+    else:
+        assert len(response.content) == 1
+        assert not response.content[0].citations
+
+
+def test_citation_policy_rejects_unknown_mode():
+    """Ensures an unsupported policy cannot silently discard requested attribution."""
+    with pytest.raises(ValueError, match="Unsupported citation policy"):
+        setup_adapter(citation_policy="auto")
 
 
 @pytest.mark.parametrize("hosted_first", [True, False])
@@ -224,7 +300,7 @@ def test_overlapping_unicode_citations():
 
 async def test_buffered_citations_search_omission_and_collection():
     """Ensures delayed citation splits follow linked search results with dense lifecycles."""
-    adapter, request = setup_adapter()
+    adapter, request = setup_adapter(citation_policy="buffer")
     parts = [
         SearchCall(id="browse", action="open_page"),
         SearchResult(tool_call_id="browse", sources=[]),
@@ -236,11 +312,10 @@ async def test_buffered_citations_search_omission_and_collection():
         events += [PartStartEvent(index=index, part=part), PartEndEvent(index=index, part=part)]
     text = TextOutput(
         content="Alpha. Beta.",
-        defer_citations=True,
         citations=[WebCitation(url="https://a", start_index=7, end_index=12)],
     )
     events += [
-        PartStartEvent(index=4, part=TextOutput(content="", defer_citations=True)),
+        PartStartEvent(index=4, part=TextOutput(content="")),
         PartDeltaEvent(index=4, delta=TextDelta(content_delta=text.content)),
         PartEndEvent(index=4, part=text),
         ResponseEndEvent(id="r", model="m", created_at=0, termination_reason="pause"),
@@ -416,13 +491,9 @@ def test_blank_text_cannot_be_projected_losslessly(text, cited):
 @pytest.mark.parametrize("kind", ["search", "deferred_text"])
 async def test_early_close_releases_source_after_buffered_projection(kind):
     """Ensures closing a buffered block start deterministically releases upstream input."""
-    adapter, request = setup_adapter()
+    adapter, request = setup_adapter(citation_policy="buffer")
     closed = False
-    part = (
-        SearchCall(id="s", query="q")
-        if kind == "search"
-        else TextOutput(content="answer", defer_citations=True)
-    )
+    part = SearchCall(id="s", query="q") if kind == "search" else TextOutput(content="answer")
 
     async def source():
         nonlocal closed

@@ -328,10 +328,6 @@ class TextOutput(ExtraModel):
     citations: Annotated[
         list[WebCitation], Field(description="URL attributions local to this text part.")
     ] = []
-    defer_citations: Annotated[
-        bool,
-        Field(description="Delay block-based projection until the citation snapshot is complete."),
-    ] = False
     content_type: Annotated[
         Literal["text-output"],
         Field(description="Content type identifier as a discriminator."),

@@ -10,6 +10,8 @@ Molto preserves provider-hosted web search on native routes and translates basic
 
 Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned raw reasoning remains representable. The `vllm` profile supports unsigned raw reasoning; provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
 
+Messages callers receive translated URL citations only with `Molto.messages(..., citation_policy="buffer")`. The default `"drop"` streams text without citations; native Messages passthrough preserves citations in either mode.
+
 Both streaming and non-streaming calls use this contract. Native routes preserve provider fields and events. Translated non-streaming results collect the same projected events as streaming calls.
 
 Translation supports Responses `web_search` and Messages `web_search_20250305`. Other hosted tools, dynamic filtering, and fetch remain unsupported for translation.
@@ -25,11 +27,13 @@ Responses declares `{"type":"web_search"}` in `tools`. Messages declares `{"type
 | Search budget | Responses `max_tool_calls` <-> Messages search `max_uses`, copied numerically |
 | Context size | Preserved for Responses; explicit Responses/Chat `search_context_size` rejects when targeting Messages, including `medium` |
 | Blocked domains | Native Messages preserves `blocked_domains`; translation to Responses rejects an explicit blocklist |
-| Source inclusion | Translated searches to Responses request `web_search_call.action.sources`, preserving existing include values without adding duplicates |
+| Source inclusion | Normalized search declarations request `web_search_call.action.sources` from Responses; opaque `extra_body.include` overrides it verbatim |
 
-Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`. Translated routes targeting Chat reject hosted search before transport, including search enabled through `extra_body.web_search_options`.
+Omitted options remain omitted; native options pass through unchanged. Native Chat forwards `web_search_options` supplied in either the request or `extra_body`.
 
-On translated routes, hosted search supplied through `extra_body.tools` uses the same output policy as search declared in the downstream request. Replacing tools does not change reasoning projection: Chat rejects signed or encrypted reasoning whether search was declared, injected, disabled, or absent.
+`extra_body` and `extra_headers` are opaque upstream request extensions, merged by the provider SDK after Molto constructs its request. They never guide routing, normalization, request translation, or output projection. Headers are filtered once at the credential boundary before forwarding. Translation guarantees cover the normalized request; callers supplying `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for the extensions. Normalized search remains rejected on translated Chat upstreams. A caller can enable search through `extra_body.web_search_options` on a Chat upstream: Molto forwards it verbatim, transport proceeds, and the translated Chat projection drops any returned annotations.
+
+Replacing tools does not change reasoning projection: Chat rejects signed or encrypted reasoning whether search was declared, injected, disabled, or absent.
 
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
@@ -86,7 +90,7 @@ It becomes these illustrative Messages content blocks:
 
 Offsets use Python string characters without normalization. Recordings verify ASCII ranges; synthetic Unicode tests do not establish the provider's Unicode indexing convention.
 
-Messages buffers text parts until their citations are complete, preserving part order. This can increase text latency and change chunk boundaries.
+`citation_policy="buffer"` buffers every translated Messages text part until completion, including uncited text, then splits it at citation boundaries while preserving part order. This increases text latency and changes chunk boundaries. The default `"drop"` streams text and discards both citation deltas and snapshot citations. Both modes retain server-tool calls and results, whose buffering is needed to obtain complete actions and queries, and preserve input citations during request construction. The policy has no attribution effect with a Chat upstream, whose normalization drops annotations, and does not apply to Responses or Chat downstream. A future `"auto"` mode may consult only the normalized request; it is not implemented.
 
 Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
 
@@ -184,7 +188,7 @@ An [independent continuation recording](../tests/cassettes/README.md#anthropic-h
 
 ## Follow-ups and recovery
 
-Keep the upstream and provider fixed across a conversation. Native routes preserve search history. The Anthropic Responses route preserves opaque search state when clients retain its metadata extension; other translated Responses/Messages history follows the reductions above. Translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. When targeting Responses, citation buffering follows the effective upstream history, including replacement history supplied through `extra_body.input`.
+Keep the upstream and provider fixed across a conversation. Native routes preserve search history. The Anthropic Responses route preserves opaque search state when clients retain its metadata extension; other translated Responses/Messages history follows the reductions above. Translated Chat history retains only visible text and supported function calls. History can carry citations without redeclaring search. Citation buffering is never inferred from history or tools. A Messages caller who wants attribution selects `citation_policy="buffer"`, including when search context is supplied only through `extra_body.input` or `extra_body.tools`.
 
 Projection to a Messages upstream rejects search-history calls containing more than one query with `UnsupportedInput`. Responses pools results across those queries; expanding that history into separate Messages calls would leave calls without matching results. Single-query history preserves the call/result link.
 

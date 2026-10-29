@@ -306,7 +306,10 @@ async def test_translated_search_matches_sdk(
         [_path(upstream)], upstream, expected_body=expected_request
     ) as http_client:
         result = await _coordinator(Molto(http_client=http_client), downstream)(
-            body=body, endpoint=upstream, api_key="test-api-key"
+            body=body,
+            endpoint=upstream,
+            api_key="test-api-key",
+            **({"citation_policy": "buffer"} if downstream == "messages" else {}),
         )
         if stream:
             events = [event async for event in result]
@@ -413,7 +416,7 @@ async def test_messages_search_selection_matches_sdk(stream: bool, choice_type: 
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
         result = await Molto(http_client=http_client).messages(
-            body=body, endpoint="responses", api_key="test-api-key"
+            body=body, endpoint="responses", api_key="test-api-key", citation_policy="buffer"
         )
         if stream:
             events = [event async for event in result]
@@ -456,7 +459,7 @@ async def test_messages_citation_annotation_matches_sdk(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
         result = await Molto(http_client=http_client).messages(
-            body=body, endpoint="responses", api_key="test-api-key"
+            body=body, endpoint="responses", api_key="test-api-key", citation_policy="buffer"
         )
         if stream:
             events = [event async for event in result]
@@ -473,7 +476,7 @@ async def test_messages_citation_annotation_matches_sdk(
 )
 @pytest.mark.parametrize("stream", [True, False])
 async def test_messages_search_extra_body_matches_sdk(stream: bool, include: list[str] | None):
-    """Ensures transport-only search preserves SDK search semantics and citation lifecycle."""
+    """Ensures opaque search is forwarded verbatim and explicit buffering preserves SDK attribution."""
     body, expected_request = _request_pair("messages", "responses", stream)
     body.pop("tools")
     body.pop("tool_choice")
@@ -483,16 +486,18 @@ async def test_messages_search_extra_body_matches_sdk(stream: bool, include: lis
     }
     if include is not None:
         extra_body["include"] = include
+    expected_request.pop("include")
     expected_request.update(extra_body)
-    expected_request["include"] = list(
-        dict.fromkeys(["web_search_call.action.sources", *(include or [])])
-    )
     expected = _collect("messages", await _sdk_result("messages", True))
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
         result = await Molto(http_client=http_client).messages(
-            body=body, endpoint="responses", api_key="test-api-key", extra_body=extra_body
+            body=body,
+            endpoint="responses",
+            api_key="test-api-key",
+            citation_policy="buffer",
+            extra_body=extra_body,
         )
         if stream:
             events = [event async for event in result]
@@ -528,6 +533,8 @@ async def test_chat_search_rejects_recorded_signatures(
             else {"type": "tool", "name": "web_search"},
         }
         expected_request.update(extra_body)
+        if upstream == "responses":
+            expected_request.pop("include")
     async with _get_http_client(
         [_path(upstream)], upstream, expected_body=expected_request
     ) as http_client:
@@ -622,21 +629,10 @@ async def test_chat_search_raw_reasoning_starts_with_assistant_role():
 
 @pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
 @pytest.mark.parametrize("stream", [True, False])
-@pytest.mark.parametrize("search_in_extra_body", [False, True])
-async def test_chat_upstream_search_rejected_before_transport(
-    downstream: Protocol, stream: bool, search_in_extra_body: bool
-):
-    """Ensures translated search and Chat body extensions fail before opening HTTP."""
+async def test_chat_upstream_search_rejected_before_transport(downstream: Protocol, stream: bool):
+    """Ensures normalized hosted search still fails before opening Chat transport."""
     requests = []
-    if search_in_extra_body:
-        body = deepcopy(
-            _read_cassette(_matched_cassette_path("simple_text", downstream, "stream-00.yaml"))[
-                "request"
-            ]["body"]
-        )
-        body["stream"] = stream
-    else:
-        body = _body(downstream, stream)
+    body = _body(downstream, stream)
 
     def handler(request: Request) -> Response:
         requests.append(request)
@@ -645,14 +641,103 @@ async def test_chat_upstream_search_rejected_before_transport(
     async with AsyncClient(transport=MockTransport(handler)) as http_client:
         with pytest.raises(UnsupportedInput, match="[Ss]earch"):
             result = await _coordinator(Molto(http_client=http_client), downstream)(
-                body=body,
-                endpoint="chat/completions",
-                api_key="test-api-key",
-                extra_body={"web_search_options": {}} if search_in_extra_body else None,
+                body=body, endpoint="chat/completions", api_key="test-api-key"
             )
             if stream:
                 _ = [event async for event in result]
     assert requests == []
+
+
+@pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.parametrize("synthetic_annotations", [False, True])
+async def test_chat_upstream_extra_search_reaches_transport(
+    downstream: Protocol, stream: bool, synthetic_annotations: bool
+):
+    """Ensures opaque Chat search reaches transport and preserves the SDK answer without attribution."""
+    body = {"model": "test-model", "stream": stream}
+    if downstream == "responses":
+        body["input"] = "Search"
+    else:
+        body.update(max_tokens=4096, messages=[{"role": "user", "content": "Search"}])
+    expected = {
+        "model": "test-model",
+        "stream": True,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "Search"}]}],
+        "stream_options": {"include_usage": True},
+        "web_search_options": {},
+    }
+    if downstream == "messages":
+        expected["max_completion_tokens"] = 4096
+        expected["stream_options"]["include_obfuscation"] = False
+    wire = [
+        load_sse(record)
+        for record in _sse_records(_read_cassette(_path("chat/completions")), "chat/completions")
+    ]
+    if synthetic_annotations:
+        # The recording has no annotations. Add an in-memory provider extension
+        # to verify its documented omission without changing the cassette.
+        delta = next(
+            chunk["choices"][0]["delta"]
+            for chunk in wire
+            if chunk.get("choices") and chunk["choices"][0]["delta"].get("content")
+        )
+        delta["annotations"] = [
+            {
+                "type": "url_citation",
+                "url_citation": {
+                    "url": "https://example.com",
+                    "title": "Source",
+                    "start_index": 0,
+                    "end_index": 1,
+                },
+            }
+        ]
+    payload = "".join(dumps_sse(chunk) for chunk in wire) + "data: [DONE]\n\n"
+    requests = []
+
+    def handler(request: Request) -> Response:
+        requests.append(request)
+        assert json_loads(request.content) == expected
+        return Response(200, content=payload, headers={"content-type": "text/event-stream"})
+
+    async with AsyncClient(transport=MockTransport(handler)) as http_client:
+        sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+        async with await sdk.chat.completions.create(**expected) as sdk_stream:
+            sdk_events = [event async for event in sdk_stream]
+        if synthetic_annotations:
+            assert any(
+                getattr(choice.delta, "annotations", None)
+                for chunk in sdk_events
+                for choice in chunk.choices
+            )
+        reference = _collect("chat/completions", sdk_events)
+        result = await _coordinator(Molto(http_client=http_client), downstream)(
+            body=body,
+            endpoint="chat/completions",
+            api_key="test-api-key",
+            extra_body={"web_search_options": {}},
+            **({"citation_policy": "buffer"} if downstream == "messages" else {}),
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_lifecycle(downstream, events)
+            result = _collect(downstream, events)
+    assert len(requests) == 2
+    if downstream == "responses":
+        assert result.output_text == reference.choices[0].message.content
+        assert all(
+            not part.annotations
+            for item in result.output
+            if item.type == "message"
+            for part in item.content
+        )
+    else:
+        assert (
+            "".join(block.text for block in result.content if block.type == "text")
+            == reference.choices[0].message.content
+        )
+        assert all(not block.citations for block in result.content if block.type == "text")
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -988,7 +1073,10 @@ async def test_split_assistant_search_history_matches_combined_sdk(stream: bool,
             [_path("responses")], "responses", expected_body=expected_request
         ) as http_client:
             result = await Molto(http_client=http_client).messages(
-                body=request, endpoint="responses", api_key="test-api-key"
+                body=request,
+                endpoint="responses",
+                api_key="test-api-key",
+                citation_policy="buffer",
             )
             if stream:
                 events = [event async for event in result]
@@ -1199,6 +1287,7 @@ async def _synthetic_replay(
     *,
     request_pair=None,
     extra_body=None,
+    citation_policy="buffer",
 ):
     payload = "".join(dumps_sse(event, event_type=event["type"]) for event in events)
     body, expected_request = request_pair or _request_pair(downstream, upstream, stream)
@@ -1230,7 +1319,11 @@ async def _synthetic_replay(
 
     async with AsyncClient(transport=MockTransport(handler)) as http_client:
         result = await _coordinator(Molto(http_client=http_client), downstream)(
-            body=body, endpoint=upstream, api_key="test-api-key", extra_body=extra_body
+            body=body,
+            endpoint=upstream,
+            api_key="test-api-key",
+            extra_body=extra_body,
+            **({"citation_policy": citation_policy} if downstream == "messages" else {}),
         )
         if stream:
             projected = [event async for event in result]
@@ -1798,10 +1891,11 @@ async def test_synthetic_repeated_searches_preserve_identity(stream: bool):
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("override", [False, True])
 @pytest.mark.parametrize("new_search", [False, True])
-async def test_search_history_without_tools_still_buffers_citations(
-    stream: bool, override: bool, new_search: bool
+@pytest.mark.parametrize("citation_policy", ["drop", "buffer"])
+async def test_search_history_uses_explicit_citation_policy(
+    stream: bool, override: bool, new_search: bool, citation_policy: str
 ):
-    """Ensures typed and overridden history preserve SDK citations without redeclaring search."""
+    """Ensures typed or opaque history preserves input attribution without selecting output buffering."""
     body, expected = _request_pair("messages", "responses", stream)
     for request in (body, expected):
         request.pop("tools")
@@ -1834,10 +1928,14 @@ async def test_search_history_without_tools_still_buffers_citations(
         events,
         request_pair=(body, expected),
         extra_body=extra_body,
+        citation_policy=citation_policy,
     )
     text_blocks = [block for block in result.content if block.type == "text"]
     assert "".join(block.text for block in text_blocks) == reference.output_text
     citations = [citation for block in text_blocks for citation in block.citations or []]
+    if citation_policy == "drop":
+        assert citations == []
+        return
     annotation = (
         next(item for item in reference.output if item.type == "message").content[0].annotations[0]
     )
