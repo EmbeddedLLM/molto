@@ -352,9 +352,10 @@ class Molto:
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
-        HTTP destination. `citation_policy="buffer"` withholds translated text
-        until each part completes to preserve citation boundaries; the default
-        `"drop"` streams text without citations. Native Messages is unaffected.
+        HTTP destination. With Responses upstream, `citation_policy="buffer"`
+        withholds text until each part completes to preserve citation boundaries;
+        the default `"drop"` streams text without citations. The policy has no
+        effect with Chat upstream or native Messages.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
@@ -378,7 +379,11 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
+        # Chat normalization drops annotations, so buffering cannot recover citations.
+        adapter = AnthropicMessagesAdapter(
+            capabilities,
+            citation_policy="drop" if endpoint == "chat/completions" else citation_policy,
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(

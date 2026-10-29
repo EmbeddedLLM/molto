@@ -648,13 +648,21 @@ async def test_chat_upstream_search_rejected_before_transport(downstream: Protoc
     assert requests == []
 
 
-@pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize(
+    ("downstream", "citation_policy"),
+    [("responses", None), ("messages", "drop"), ("messages", "buffer")],
+)
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("synthetic_annotations", [False, True])
+@pytest.mark.parametrize("extra_search", [False, True])
 async def test_chat_upstream_extra_search_reaches_transport(
-    downstream: Protocol, stream: bool, synthetic_annotations: bool
+    downstream: Protocol,
+    citation_policy: str | None,
+    stream: bool,
+    synthetic_annotations: bool,
+    extra_search: bool,
 ):
-    """Ensures opaque Chat search reaches transport and preserves the SDK answer without attribution."""
+    """Ensures Chat preserves SDK text chunks under either policy, including opaque search."""
     body = {"model": "test-model", "stream": stream}
     if downstream == "responses":
         body["input"] = "Search"
@@ -665,8 +673,10 @@ async def test_chat_upstream_extra_search_reaches_transport(
         "stream": True,
         "messages": [{"role": "user", "content": [{"type": "text", "text": "Search"}]}],
         "stream_options": {"include_usage": True},
-        "web_search_options": {},
     }
+    extra_body = {"web_search_options": {}} if extra_search else None
+    if extra_body:
+        expected.update(extra_body)
     if downstream == "messages":
         expected["max_completion_tokens"] = 4096
         expected["stream_options"]["include_obfuscation"] = False
@@ -716,12 +726,23 @@ async def test_chat_upstream_extra_search_reaches_transport(
             body=body,
             endpoint="chat/completions",
             api_key="test-api-key",
-            extra_body={"web_search_options": {}},
-            **({"citation_policy": "buffer"} if downstream == "messages" else {}),
+            extra_body=extra_body,
+            **({"citation_policy": citation_policy} if downstream == "messages" else {}),
         )
         if stream:
             events = [event async for event in result]
             _assert_lifecycle(downstream, events)
+            if downstream == "messages":
+                assert [
+                    event.delta.text
+                    for event in events
+                    if event.type == "content_block_delta" and event.delta.type == "text_delta"
+                ] == [
+                    choice.delta.content
+                    for chunk in sdk_events
+                    for choice in chunk.choices
+                    if choice.delta.content
+                ]
             result = _collect(downstream, events)
     assert len(requests) == 2
     if downstream == "responses":
