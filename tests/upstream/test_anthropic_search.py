@@ -119,7 +119,7 @@ def test_history_projection_preserves_unexpected_value_error(monkeypatch):
 
 
 def test_request_search_options_and_history():
-    """Ensures target-native tools, budget, selection and reduced history are preserved."""
+    """Ensures target-native tools, budget, selection and provider replay state are preserved."""
     request = NormalizedRequest(
         model="m",
         max_output_tokens=100,
@@ -136,7 +136,12 @@ def test_request_search_options_and_history():
                 content=[
                     SearchCall(id="s", query="q"),
                     SearchResult(
-                        tool_call_id="s", sources=[WebSearchSource(url="https://x.test")]
+                        tool_call_id="s",
+                        sources=[
+                            WebSearchSource(
+                                url="https://x.test", encrypted_content="opaque-search"
+                            )
+                        ],
                     ),
                     TextOutput(
                         content="Answer",
@@ -145,7 +150,7 @@ def test_request_search_options_and_history():
                                 url="https://x.test",
                                 start_index=0,
                                 end_index=6,
-                                encrypted_index="N/A",
+                                encrypted_index="opaque-index",
                             )
                         ],
                     ),
@@ -171,8 +176,8 @@ def test_request_search_options_and_history():
     assert body["tool_choice"] == {"type": "tool", "name": "web_search"}
     call, result, text = body["messages"][0]["content"]
     assert call["input"] == {"query": "q"}
-    assert result["content"][0]["encrypted_content"] == "N/A"
-    assert text["citations"][0]["encrypted_index"] == "N/A"
+    assert result["content"][0]["encrypted_content"] == "opaque-search"
+    assert text["citations"][0]["encrypted_index"] == "opaque-index"
 
 
 @pytest.mark.parametrize("context", ["low", "medium", "high"])
@@ -462,3 +467,32 @@ async def test_interrupted_search_arguments_match_sdk(stop_reason, initial_input
     assert events[-1].termination_reason == (
         "pause" if reference.stop_reason == "pause_turn" else "max_output_tokens"
     )
+
+
+@pytest.mark.parametrize(
+    ("kind", "message"),
+    [
+        ("source", "encrypted_content"),
+        ("citation", "encrypted_index"),
+    ],
+)
+def test_rejects_search_history_without_provider_ciphertext(kind: str, message: str):
+    """Ensures reduced search history is rejected instead of sending a placeholder."""
+    if kind == "source":
+        parts = [
+            SearchCall(id="s", query="q"),
+            SearchResult(tool_call_id="s", sources=[WebSearchSource(url="https://x.test")]),
+        ]
+    else:
+        parts = [
+            TextOutput(
+                content="Answer",
+                citations=[WebCitation(url="https://x.test", start_index=0, end_index=6)],
+            )
+        ]
+    with pytest.raises(UnsupportedInput, match=message):
+        AnthropicMessagesClient._request_body(
+            NormalizedRequest(
+                model="m", max_output_tokens=100, input=[AssistantInput(content=parts)]
+            )
+        )

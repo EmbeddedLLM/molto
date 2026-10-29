@@ -112,7 +112,7 @@ Observed Responses sources become result entries. A URL-only source produces thi
 }
 ```
 
-Available titles and `page_age` are preserved; unavailable age is omitted or null. The result placeholder supplies neither retrieved content nor valid continuation state. Native Messages retains original encrypted content. An explicitly empty source list becomes an empty result list. Missing sources remain unknown and are never reconstructed from answer citations. An unfinished invocation gets no invented successful result.
+Available titles and `page_age` are preserved; unavailable age is omitted or null. The `"N/A"` placeholder only satisfies the response schema: it supplies neither retrieved content nor decryptable continuation state, and Anthropic rejects a request that replays it. Native Messages retains the original encrypted content, which is the only form that can be sent back. An explicitly empty source list becomes an empty result list. Missing sources remain unknown and are never reconstructed from answer citations. An unfinished invocation gets no invented successful result.
 
 Translated Messages omits Responses `open_page` and `find_in_page` operations, retaining the answer and citations.
 
@@ -150,13 +150,15 @@ Projection to a Messages upstream rejects search-history calls containing more t
 
 When projecting Messages history to Responses, a search result updates the preceding call with the same ID even when they occupy separate assistant messages. The call preserves its query metadata while applying the result's status and supplied sources. Assistant text messages and text runs around search blocks retain their boundaries.
 
-For a Messages response named `response`, preserve supported assistant blocks with:
+Anthropic decrypts `web_search_result.encrypted_content` and `web_search_result_location.encrypted_index` on later turns and rejects a request where either is missing or modified, so a translated Messages response cannot be replayed: those values were issued by a different provider and Molto never has them. Molto therefore rejects such history locally with `UnsupportedInput` instead of sending a placeholder that the API would reject.
+
+Replay only native Messages content, whose encrypted values are intact:
 
 ```python
 assistant_content = [block.model_dump(exclude_none=True) for block in response.content]
 ```
 
-The SDK/API decides whether reduced history, including `"N/A"` placeholders, is usable. If it rejects replay, the caller can retry with text-only history:
+For a translated response, send text-only history instead:
 
 ```python
 assistant_content = "".join(block.text for block in response.content if block.type == "text")

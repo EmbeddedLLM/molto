@@ -109,7 +109,7 @@ The `reasoning_raw` scenario is named with `vllm-*` filenames and its test deriv
 
 ### Hosted search
 
-The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state. Chat preserves the answer and inline links while omitting structured annotations and hosted activity. Native parity still compares each fixture's complete parsed SDK representation.
+The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state and must not be replayed, because Anthropic rejects a result whose `encrypted_content` or `encrypted_index` was not issued by Anthropic. Chat preserves the answer and inline links while omitting structured annotations and hosted activity. Native parity still compares each fixture's complete parsed SDK representation.
 
 The Responses stream exposes 13 sources at item completion and a fourteenth URL in the terminal snapshot. Messages stream matching uses the item-completion snapshot, as does incremental translation. Its reasoning signature likewise follows the item-completion snapshot rather than a later terminal ciphertext. Translated comparisons reduce only those unavailable differences and separately assert text/citation association, sources, placeholders, linkage, usage, and lifecycle. Do not erase these fields globally to force equality.
 

@@ -928,11 +928,23 @@ async def test_fixed_route_followup_history(
         ]
     body[body_key].extend(_history(downstream, search))
     expected[expected_key].extend(_history(upstream, search))
+    requests = []
     async with _get_http_client(
         [_path(upstream, stream if downstream == upstream else True)],
         upstream,
         expected_body=expected,
+        requests=requests,
     ) as http_client:
+        if search and downstream != upstream and upstream == "messages":
+            # Anthropic cannot decrypt a replayed result that lost its provider state.
+            with pytest.raises(UnsupportedInput, match="encrypted_content"):
+                result = await _coordinator(Molto(http_client=http_client), downstream)(
+                    body=body, endpoint=upstream, api_key="test-api-key"
+                )
+                if stream:
+                    _ = [event async for event in result]
+            assert requests == []
+            return
         result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body, endpoint=upstream, api_key="test-api-key"
         )
@@ -1818,7 +1830,7 @@ async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
 async def test_search_history_reaches_sdk_error_boundary(
     downstream: Protocol, upstream: Protocol, stream: bool
 ):
-    """Ensures reduced history reaches transport and a recorded SDK rejection propagates without local placeholder validation."""
+    """Ensures native history reaches transport while translated history fails before it."""
     body, expected = _request_pair(downstream, upstream, stream)
     for request, protocol in ((body, downstream), (expected, upstream)):
         key = "input" if protocol == "responses" else "messages"
@@ -1829,6 +1841,19 @@ async def test_search_history_reaches_sdk_error_boundary(
         request[key].extend(_history(protocol, True))
     error_path = _matched_cassette_path("error-invalid_request_error", upstream, "stream-00.yaml")
     error_type = AnthropicBadRequestError if upstream == "messages" else OpenAIBadRequestError
+    if downstream != upstream and upstream == "messages":
+        requests = []
+        async with _get_http_client(
+            [error_path], upstream, expected_body=expected, requests=requests
+        ) as http_client:
+            with pytest.raises(UnsupportedInput, match="encrypted_content"):
+                result = await _coordinator(Molto(http_client=http_client), downstream)(
+                    body=body, endpoint=upstream, api_key="test-api-key"
+                )
+                if stream:
+                    _ = [event async for event in result]
+        assert requests == []
+        return
     async with _get_http_client([error_path], upstream, expected_body=expected) as http_client:
         sdk = (
             AsyncAnthropic(api_key="test-api-key", http_client=http_client)
