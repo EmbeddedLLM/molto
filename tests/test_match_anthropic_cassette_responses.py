@@ -458,53 +458,67 @@ def test_search_response_rejects_blank_text(text: str, cited: bool) -> None:
     ],
 )
 def test_search_query_presence(action: dict, expected: dict) -> None:
-    """Ensures an absent query is distinct from an explicitly empty query."""
+    """Ensures output and history distinguish absent queries from explicitly empty queries."""
     messages, responses = _search_cassettes()
     responses["response"]["body"]["output"][0]["action"] = {
         "type": "search",
         "sources": [],
         **action,
     }
+    responses["request"]["body"]["input"] = [
+        deepcopy(responses["response"]["body"]["output"][0]),
+        {"role": "user", "content": "Continue."},
+    ]
     match_messages_response(messages, responses)
     assert messages["response"]["body"]["content"][0]["input"] == expected
+    assert (
+        messages["request"]["body"]["messages"][0]["content"]
+        == messages["response"]["body"]["content"][:2]
+    )
 
 
 @pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
-def test_search_batch_response_and_history(queries: list[str]) -> None:
-    """Ensures query batches preserve order, distinct IDs, and one pooled result in both paths."""
-    from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-    from pydantic import TypeAdapter
-
+def test_search_batch_response(queries: list[str]) -> None:
+    """Ensures output query batches preserve order, distinct IDs, and one pooled result."""
     messages, responses = _search_cassettes()
     search = responses["response"]["body"]["output"][0]
     search["action"]["queries"] = queries
-    responses["request"]["body"]["input"] = [
-        deepcopy(search),
-        {"role": "user", "content": "Continue."},
-    ]
-
     match_messages_response(messages, responses)
 
     AnthropicMessagesResponse.model_validate(messages["response"]["body"])
-    TypeAdapter(MessageCreateParamsNonStreaming).validate_python(messages["request"]["body"])
     output = messages["response"]["body"]["content"]
-    history = messages["request"]["body"]["messages"][0]["content"]
-    for blocks in (output, history):
-        calls = [block for block in blocks if block["type"] == "server_tool_use"]
-        results = [block for block in blocks if block["type"] == "web_search_tool_result"]
-        assert [call["input"] for call in calls] == [{"query": query} for query in queries]
-        assert calls[0]["id"] == search["id"]
-        assert len({call["id"] for call in calls}) == len(queries)
-        assert len(results) == 1
-        assert results[0]["tool_use_id"] == search["id"]
-        assert [result["url"] for result in results[0]["content"]] == [
-            source["url"] for source in search["action"]["sources"]
-        ]
-        assert blocks[: len(queries)] == calls
-    assert history == output[: len(queries) + 1]
+    calls = [block for block in output if block["type"] == "server_tool_use"]
+    results = [block for block in output if block["type"] == "web_search_tool_result"]
+    assert [call["input"] for call in calls] == [{"query": query} for query in queries]
+    assert calls[0]["id"] == search["id"]
+    assert len({call["id"] for call in calls}) == len(queries)
+    assert len(results) == 1
+    assert results[0]["tool_use_id"] == search["id"]
+    assert [result["url"] for result in results[0]["content"]] == [
+        source["url"] for source in search["action"]["sources"]
+    ]
+    assert output[: len(queries)] == calls
     matched = deepcopy(messages)
     match_messages_response(messages, responses)
     assert messages == matched
+
+
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_history_rejects_query_batches(queries: list[str]) -> None:
+    """Ensures request matching rejects pooled query history without changing either cassette."""
+    messages, responses = _search_cassettes()
+    search = deepcopy(responses["response"]["body"]["output"][0])
+    search["action"]["queries"] = queries
+    responses["request"]["body"]["input"] = [
+        search,
+        {"role": "user", "content": "Continue."},
+    ]
+    originals = deepcopy((messages, responses))
+
+    with pytest.raises(ValueError, match="cannot preserve multi-query search history"):
+        match_messages_response(messages, responses)
+
+    assert (messages, responses) == originals
 
 
 def test_search_batch_validates_every_query() -> None:

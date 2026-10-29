@@ -188,7 +188,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
             continue
         if item_type == "web_search_call":
             _append_assistant_content(
-                messages, [*pending_assistant_content, *_search_content(item)]
+                messages, [*pending_assistant_content, *_search_content(item, history=True)]
             )
             pending_assistant_content = []
             continue
@@ -245,7 +245,7 @@ def _web_search_tool(tool: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
+def _search_content(item: dict[str, Any], *, history: bool = False) -> list[dict[str, Any]]:
     action = item.get("action")
     if not isinstance(action, dict):
         raise ValueError("Cannot classify a Responses web search call without its action.")
@@ -259,6 +259,9 @@ def _search_content(item: dict[str, Any]) -> list[dict[str, Any]]:
     queries = queries or [action.get("query")]
     if any(query is not None and not isinstance(query, str) for query in queries):
         raise ValueError("Responses search query must be a string when present.")
+    # A pooled result cannot complete every expanded call when replayed as history.
+    if history and len(queries) > 1:
+        raise ValueError("Anthropic Messages cannot preserve multi-query search history.")
     call_id = item.get("id")
     if not isinstance(call_id, str):
         raise ValueError("Responses web search calls must contain a string id.")

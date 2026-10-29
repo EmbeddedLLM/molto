@@ -92,6 +92,8 @@ Offsets use Python string characters without normalization. Recordings verify AS
 
 With Responses upstream, `citation_policy="buffer"` buffers every Messages text part until completion, including uncited text, then splits it at citation boundaries while preserving part order. This increases text latency and changes chunk boundaries. The default `"drop"` streams text and discards both citation deltas and snapshot citations. Both modes retain server-tool calls and results, whose buffering is needed to obtain complete actions and queries, and preserve input citations during request construction. The policy is a no-op with a Chat upstream: its normalization drops annotations, and both modes preserve immediate text streaming and chunk boundaries. It does not apply to Responses or Chat downstream. A future `"auto"` mode may consult only the normalized request; it is not implemented.
 
+Each buffered Messages text block starts with empty text and its citations, then emits the full block text in one `text_delta` before stopping. This preserves compatibility with the Anthropic SDK's `text_stream` iterator.
+
 Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
 
 ## Search activity and results

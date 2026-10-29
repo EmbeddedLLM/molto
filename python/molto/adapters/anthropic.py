@@ -826,9 +826,20 @@ class AnthropicMessagesAdapter(
                                 {
                                     "type": "content_block_start",
                                     "index": next_index,
-                                    "content_block": block,
+                                    "content_block": {**block, "text": ""}
+                                    if block["type"] == "text"
+                                    else block,
                                 }
                             )
+                            # SDK text iterators consume deltas, not block-start text.
+                            if block["type"] == "text":
+                                yield event(
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": next_index,
+                                        "delta": {"type": "text_delta", "text": block["text"]},
+                                    }
+                                )
                             yield event({"type": "content_block_stop", "index": next_index})
                             next_index += 1
                         continue

@@ -305,7 +305,7 @@ def _messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
             continue
         if item_type == "web_search_call":
             _append_assistant_content(
-                messages, [*pending_assistant_content, *_search_content(item)]
+                messages, [*pending_assistant_content, *_search_content(item, history=True)]
             )
             pending_assistant_content = []
             continue

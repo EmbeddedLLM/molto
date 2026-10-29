@@ -1,8 +1,11 @@
 """Explicit Messages citation policies against recorded provider SDK streams."""
 
 import pytest
+from anthropic import AsyncAnthropic
+from httpx import AsyncClient, MockTransport, Response
 
 from molto import Molto
+from molto.utils.io import dumps_sse
 from tests.core.test_interface import _get_http_client
 from tests.core.test_web_search import (
     _assert_lifecycle,
@@ -67,6 +70,42 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
         else:
             actual = result
     assert _messages_semantics(actual) == expected
+
+
+async def test_buffered_citations_preserve_sdk_text_stream():
+    """Ensures SDK text iteration exposes the recorded answer without losing citation blocks."""
+    body, expected_request = _request_pair("messages", "responses", True)
+    reference = _collect("responses", await _sdk_result("responses", True))
+    async with _get_http_client(
+        [_path("responses")], "responses", expected_body=expected_request
+    ) as http_client:
+        stream = await Molto(http_client=http_client).messages(
+            body=body,
+            endpoint="responses",
+            api_key="test-api-key",
+            citation_policy="buffer",
+        )
+        events = [event async for event in stream]
+
+    payload = "".join(dumps_sse(event, event.type) for event in events)
+    transport = MockTransport(
+        lambda _: Response(200, text=payload, headers={"content-type": "text/event-stream"})
+    )
+    async with AsyncAnthropic(
+        api_key="test-api-key", http_client=AsyncClient(transport=transport)
+    ) as client:
+        sdk_body = {key: value for key, value in body.items() if key != "stream"}
+        async with client.messages.stream(**sdk_body) as sdk_stream:
+            text_chunks = [text async for text in sdk_stream.text_stream]
+            message = await sdk_stream.get_final_message()
+
+    assert "".join(text_chunks) == reference.output_text
+    text_blocks = [block for block in message.content if block.type == "text"]
+    assert text_chunks == [block.text for block in text_blocks]
+    expected = _collect("messages", await _sdk_result("messages", True))
+    assert [block.model_dump() for block in text_blocks] == [
+        block.model_dump() for block in expected.content if block.type == "text"
+    ]
 
 
 @pytest.mark.parametrize("citation_policy", ["drop", "buffer"])

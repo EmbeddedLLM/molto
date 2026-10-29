@@ -122,6 +122,8 @@ The Responses recordings are unchanged canonical source data. The matched Messag
 
 For independent provider evidence, see [Anthropic hosted-search recordings](#anthropic-hosted-search-recordings).
 
+Both Messages cassette matchers reject request history containing multi-query searches, matching runtime translation. A pooled source result cannot complete each expanded server call in replayed history. Response output still expands query batches into separate calls with one pooled result linked to the first call.
+
 The Responses stream exposes 13 sources at item completion and a fourteenth URL in the terminal snapshot. Messages stream matching uses the item-completion snapshot, as does incremental translation. Its reasoning signature likewise follows the item-completion snapshot rather than a later terminal ciphertext. Translated comparisons reduce only those unavailable differences and separately assert text/citation association, sources, placeholders, linkage, usage, and lifecycle. Do not erase these fields globally to force equality.
 
 The SDK parses an actionless search item at `response.output_item.added`; strict model reconstruction would require the action that only appears at item completion. Retain the real event and use SDK-parsed native parity. Existing recordings have ASCII citations and successful searches. In-memory Unicode, failed/paused-search, browsing, query-cardinality, and history/error variants are synthetic regression cases, not new provider observations or edited recordings.

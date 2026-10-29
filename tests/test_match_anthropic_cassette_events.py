@@ -1795,11 +1795,8 @@ def test_search_stream_builds_balanced_sdk_valid_blocks() -> None:
 
 
 @pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
-def test_search_batch_stream_and_history(queries: list[str]) -> None:
-    """Ensures query batches emit balanced SDK-valid blocks and stable linked history."""
-    from anthropic.types.message_create_params import MessageCreateParamsStreaming
-    from pydantic import TypeAdapter
-
+def test_search_batch_stream(queries: list[str]) -> None:
+    """Ensures output query batches emit balanced SDK-valid blocks with one pooled result."""
     messages, responses = _search_stream_cassettes()
     for index, line in enumerate(responses["response"]["sse"]):
         if not line.startswith("data:"):
@@ -1818,14 +1815,8 @@ def test_search_batch_stream_and_history(queries: list[str]) -> None:
         if event["type"] == "response.output_item.done"
         and event["item"]["type"] == "web_search_call"
     )
-    responses["request"]["body"]["input"] = [
-        deepcopy(search),
-        {"role": "user", "content": "Continue."},
-    ]
-
     match_messages_events(messages, responses)
 
-    TypeAdapter(MessageCreateParamsStreaming).validate_python(messages["request"]["body"])
     events = _data_events(messages)
     for event in events:
         if event["type"] != "ping":
@@ -1837,15 +1828,13 @@ def test_search_batch_stream_and_history(queries: list[str]) -> None:
     assert len(calls) == len(queries)
     assert calls[0]["content_block"]["id"] == search["id"]
     assert len({event["content_block"]["id"] for event in calls}) == len(queries)
-    history = messages["request"]["body"]["messages"][0]["content"]
-    for call, query, history_call in zip(calls, queries, history[: len(queries)], strict=True):
+    for call, query in zip(calls, queries, strict=True):
         arguments = "".join(
             event["delta"]["partial_json"]
             for event in events
             if event["type"] == "content_block_delta" and event["index"] == call["index"]
         )
-        assert json_loads(arguments) == history_call["input"] == {"query": query}
-        assert call["content_block"]["id"] == history_call["id"]
+        assert json_loads(arguments) == {"query": query}
     results = [
         event["content_block"]
         for event in starts
@@ -1856,10 +1845,34 @@ def test_search_batch_stream_and_history(queries: list[str]) -> None:
     assert [result["url"] for result in results[0]["content"]] == [
         source["url"] for source in search["action"]["sources"]
     ]
-    assert history[len(queries) :] == results
     matched = deepcopy(messages)
     match_messages_events(messages, responses)
     assert messages == matched
+
+
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_history_rejects_query_batches(queries: list[str]) -> None:
+    """Ensures request matching rejects pooled query history without changing either cassette."""
+    messages, responses = _search_stream_cassettes()
+    search = deepcopy(
+        next(
+            event["item"]
+            for event in _data_events(responses)
+            if event["type"] == "response.output_item.done"
+            and event["item"]["type"] == "web_search_call"
+        )
+    )
+    search["action"]["queries"] = queries
+    responses["request"]["body"]["input"] = [
+        search,
+        {"role": "user", "content": "Continue."},
+    ]
+    originals = deepcopy((messages, responses))
+
+    with pytest.raises(ValueError, match="cannot preserve multi-query search history"):
+        match_messages_events(messages, responses)
+
+    assert (messages, responses) == originals
 
 
 def test_search_request_only_does_not_require_result_sources(tmp_path: Path) -> None:

@@ -76,11 +76,10 @@ async def test_citation_policy_controls_text_latency_without_search(citation_pol
     assert completed is (citation_policy == "buffer")
     remaining = [event async for event in stream]
     deltas = [event.delta.text for event in remaining if event.type == "content_block_delta"]
+    assert start.content_block.text == ""
     if citation_policy == "buffer":
-        assert start.content_block.text == "Alpha. Beta."
-        assert deltas == []
+        assert deltas == ["Alpha. Beta."]
     else:
-        assert start.content_block.text == ""
         assert deltas == ["Alpha. ", "Beta."]
 
 
