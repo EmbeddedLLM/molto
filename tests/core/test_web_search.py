@@ -332,9 +332,7 @@ async def test_translated_search_matches_sdk(
         native = _collect("messages", await _sdk_result("messages", True))
         # Canonical Responses has no Anthropic state. Compare the extension with
         # the Messages SDK before reducing only this unavailable field locally.
-        assert [
-            citation.pop("provider_metadata") for citation in actual_semantics["citations"]
-        ] == [
+        assert [citation.pop("extra_content") for citation in actual_semantics["citations"]] == [
             {
                 "anthropic": citation.model_dump(
                     include={"encrypted_index", "cited_text"}, exclude_none=True
@@ -345,7 +343,7 @@ async def test_translated_search_matches_sdk(
             for citation in block.citations or []
         ]
         assert [
-            [source.provider_metadata for source in item.action.sources]
+            [source.extra_content for source in item.action.sources]
             for item in actual.output
             if item.type == "web_search_call"
         ] == [

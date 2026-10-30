@@ -160,9 +160,9 @@ Native usage is preserved. Token translation is unchanged. Reported search count
 
 ## Preserving Anthropic search history
 
-`Molto.responses(endpoint="messages", provider="anthropic")` retains observed Anthropic search state in a typed `provider_metadata.anthropic` extension. Omitting `provider` selects Anthropic by default for this endpoint. This is a Molto extension to Responses, not a standard OpenAI field.
+`Molto.responses(endpoint="messages", provider="anthropic")` retains observed Anthropic search state in a typed `extra_content.anthropic` extension. Omitting `provider` selects Anthropic by default for this endpoint. This is a Molto extension to Responses, not a standard OpenAI field. It follows the provider-namespaced `extra_content` convention illustrated by [Google](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/migrate/openai/examples#extra-content-examples). The earlier unmerged `provider_metadata` envelope is replaced by `extra_content`; clients must retain the new name in saved history.
 
-| Responses location                 | Fields in `provider_metadata.anthropic`                                 |
+| Responses location                 | Fields in `extra_content.anthropic`                                     |
 | ---------------------------------- | ----------------------------------------------------------------------- |
 | `web_search_call.action.sources[]` | Original `encrypted_content`, plus `title` and `page_age` when supplied |
 | Text `annotations[]` URL citations | Original `encrypted_index` and `cited_text`                             |
@@ -173,7 +173,7 @@ For example, an observed search source retains its opaque state alongside the st
 {
   "type": "url",
   "url": "https://example.com/page",
-  "provider_metadata": {
+  "extra_content": {
     "anthropic": {
       "encrypted_content": "<original encrypted content>",
       "title": "Original source title"
@@ -188,7 +188,7 @@ Streaming annotation events, completed search items, and the terminal response p
 history.extend(item.model_dump(exclude_none=True) for item in response.output)
 ```
 
-On the next request, Molto restores the original Messages source and citation fields without forwarding `provider_metadata` itself. Keep the upstream destination and provider fixed. History containing this extension is accepted only with `endpoint="messages"` and `provider="anthropic"`; other routes raise `UnsupportedInput` before transport. Unknown metadata keys and malformed values fail request validation. The extension does not recover state discarded by a client or create Anthropic state for a search originally served by OpenAI.
+On the next request, Molto restores the original Messages source and citation fields without forwarding `extra_content` itself. Keep the upstream destination and provider fixed. History containing this extension is accepted only with `endpoint="messages"` and `provider="anthropic"`; other routes raise `UnsupportedInput` before transport. Unknown metadata keys and malformed values fail request validation. The extension does not recover state discarded by a client or create Anthropic state for a search originally served by OpenAI.
 
 The extension is supported in the typed Responses request body. `extra_body` remains a caller-owned upstream transport override and bypasses this normalization, as it does for other fields. Normal projection to an OpenAI upstream continues to use standard Responses fields only.
 

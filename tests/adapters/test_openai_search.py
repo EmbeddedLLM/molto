@@ -6,6 +6,7 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
+    AssistantInput,
     CitationDelta,
     PartDeltaEvent,
     PartEndEvent,
@@ -16,6 +17,7 @@ from molto.types.normalized import (
     SearchResult,
     TextOutput,
     WebCitation,
+    WebSearchSource,
     WebSearchTool,
     WebSearchToolChoice,
 )
@@ -81,8 +83,9 @@ def test_chat_search_rejects_conflicting_choice(choice):
         )
 
 
-def test_responses_search_normalizes_options_budget_and_history():
-    """Ensures search queries, sources, and citation ranges survive request normalization."""
+@pytest.mark.parametrize("anthropic_extra_content", [False, True])
+def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_content):
+    """Ensures search history and Anthropic extra_content normalize into the expected IR."""
     request = OpenAIResponsesCreateRequest(
         model="m",
         max_tool_calls=3,
@@ -120,12 +123,61 @@ def test_responses_search_normalizes_options_budget_and_history():
             },
         ],
     )
+    if anthropic_extra_content:
+        history = request.model_dump()["input"]
+        history[0]["action"]["sources"][0]["extra_content"] = {
+            "anthropic": {
+                "encrypted_content": "opaque-source-state",
+                "title": "Original source title",
+                "page_age": "2026-10-01",
+            }
+        }
+        history[1]["content"][0]["annotations"][0]["extra_content"] = {
+            "anthropic": {
+                "encrypted_index": "opaque-citation-index",
+                "cited_text": "Original source excerpt",
+            }
+        }
+        request = OpenAIResponsesCreateRequest(**{**request.model_dump(), "input": history})
+
     normalized = OpenAIResponsesAdapter(CAPABILITIES).normalize_request(request)
+    assert normalized.input == [
+        SearchCall(id="ws_1", query="", status="completed"),
+        SearchResult(
+            tool_call_id="ws_1",
+            sources=[
+                WebSearchSource(
+                    url="https://example.com",
+                    encrypted_content="opaque-source-state" if anthropic_extra_content else None,
+                    title="Original source title" if anthropic_extra_content else None,
+                    page_age="2026-10-01" if anthropic_extra_content else None,
+                )
+            ],
+        ),
+        AssistantInput(
+            content=[
+                TextOutput(
+                    content="answer",
+                    citations=[
+                        WebCitation(
+                            url="https://example.com",
+                            title="Source",
+                            start_index=0,
+                            end_index=6,
+                            encrypted_index="opaque-citation-index"
+                            if anthropic_extra_content
+                            else None,
+                            cited_text="Original source excerpt"
+                            if anthropic_extra_content
+                            else None,
+                        )
+                    ],
+                )
+            ]
+        ),
+    ]
     assert normalized.tools == [WebSearchTool(allowed_domains=["example.com"])]
     assert normalized.max_tool_calls == 3
-    assert normalized.input[0].query == ""
-    assert normalized.input[1].sources[0].url == "https://example.com"
-    assert normalized.input[2].content[0].citations[0].end_index == 6
     body = OpenAIResponsesClient._request_body(normalized)
     assert body["input"][0]["action"]["query"] == ""
     assert body["input"][1]["content"][0]["annotations"][0]["end_index"] == 6

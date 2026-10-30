@@ -213,7 +213,7 @@ class Molto:
         preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
         if request.has_anthropic_search_metadata() and not preserve_search_metadata:
             raise UnsupportedInput(
-                "Anthropic search provider_metadata requires endpoint='messages' "
+                "Anthropic search extra_content requires endpoint='messages' "
                 "and provider='anthropic'."
             )
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
