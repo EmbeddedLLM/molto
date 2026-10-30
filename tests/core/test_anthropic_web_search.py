@@ -144,7 +144,7 @@ async def test_recorded_anthropic_search_translates_sdk_semantics(stream: bool):
         [source.url for source in block.content] for block in native_results
     ]
     assert [
-        source.model_dump().get("provider_metadata")
+        source.model_dump().get("extra_content")
         for call in calls
         for source in call.action.sources
     ] == [
@@ -159,7 +159,7 @@ async def test_recorded_anthropic_search_translates_sdk_semantics(stream: bool):
         for source in block.content
     ]
     assert [
-        citation.model_dump().get("provider_metadata")
+        citation.model_dump().get("extra_content")
         for part in text_parts
         for citation in part.annotations
     ] == [
@@ -264,9 +264,9 @@ async def test_recorded_history_rejects_missing_search_state_before_transport(
             )
             field = "encrypted_index"
         if state is None:
-            del target["provider_metadata"]
+            del target["extra_content"]
         else:
-            target["provider_metadata"]["anthropic"][field] = state
+            target["extra_content"]["anthropic"][field] = state
         body["input"].extend(history)
         body["input"].append({"role": "user", "content": "Continue."})
         # Continuation state is required even when no new search is declared.
@@ -346,7 +346,7 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
             citation.url,
             citation.title,
             part.text[citation.start_index : citation.end_index],
-            citation.provider_metadata,
+            citation.extra_content,
         )
         for item in result.output
         if item.type == "message"
@@ -402,7 +402,7 @@ async def test_search_metadata_rejects_other_upstream_routes(
         raise AssertionError("Provider-specific search state must fail before HTTP")
 
     async with AsyncClient(transport=MockTransport(handle)) as http_client:
-        with pytest.raises(UnsupportedInput, match="metadata"):
+        with pytest.raises(UnsupportedInput, match="extra_content"):
             result = await Molto(http_client=http_client).responses(
                 body=body, endpoint=endpoint, provider=provider, api_key="test-api-key"
             )
@@ -436,6 +436,6 @@ async def test_messages_search_history_does_not_extend_openai_requests(stream: b
             result = _collect("messages", [event async for event in result])
     assert len(requests) == 1
     assert json_loads(requests[0].content) == expected_request
-    assert b"provider_metadata" not in requests[0].content
+    assert b"extra_content" not in requests[0].content
     assert b"original-provider" not in requests[0].content
     assert _messages_semantics(result) == _messages_semantics(reference)

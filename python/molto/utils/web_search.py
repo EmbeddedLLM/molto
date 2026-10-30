@@ -67,7 +67,7 @@ def messages_text_blocks(
 
 def citation_from_responses(annotation: dict[str, Any]) -> WebCitation:
     """Convert a Responses URL annotation with offsets local to its text part."""
-    metadata = (annotation.get("provider_metadata") or {}).get("anthropic") or {}
+    metadata = (annotation.get("extra_content") or {}).get("anthropic") or {}
     return WebCitation(
         url=annotation["url"],
         title=annotation.get("title"),
@@ -107,7 +107,7 @@ def citation_to_responses(
         and citation.encrypted_index is not None
         and citation.cited_text is not None
     ):
-        annotation["provider_metadata"] = {
+        annotation["extra_content"] = {
             "anthropic": {
                 "encrypted_index": citation.encrypted_index,
                 "cited_text": citation.cited_text,
@@ -137,7 +137,7 @@ def citation_to_messages(
 
 def search_source_from_responses(source: dict[str, Any]) -> WebSearchSource:
     """Retain observed Responses source metadata without inventing retrieved content."""
-    metadata = (source.get("provider_metadata") or {}).get("anthropic") or {}
+    metadata = (source.get("extra_content") or {}).get("anthropic") or {}
     return WebSearchSource(
         url=source["url"],
         title=metadata.get("title", source.get("title")),
@@ -162,7 +162,7 @@ def search_source_to_responses(
     """Build a URL source, optionally retaining Anthropic continuation state."""
     source: dict[str, Any] = {"type": "url", "url": search_source.url}
     if include_anthropic_metadata and search_source.encrypted_content is not None:
-        source["provider_metadata"] = {
+        source["extra_content"] = {
             "anthropic": {
                 key: value
                 for key in ("encrypted_content", "title", "page_age")

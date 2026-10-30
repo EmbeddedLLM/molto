@@ -102,7 +102,7 @@ def test_search_history_metadata_survives_repeated_serialization(metadata_locati
     """Ensures source and citation state survives JSON history replay without consumed iterators."""
     history = _search_history()
     if metadata_location in {"source", "both"}:
-        history[0]["action"]["sources"][0]["provider_metadata"] = {
+        history[0]["action"]["sources"][0]["extra_content"] = {
             "anthropic": {
                 "encrypted_content": "opaque-source",
                 "title": "Original source title",
@@ -110,7 +110,7 @@ def test_search_history_metadata_survives_repeated_serialization(metadata_locati
             }
         }
     if metadata_location in {"citation", "both"}:
-        history[1]["content"][0]["annotations"][0]["provider_metadata"] = {
+        history[1]["content"][0]["annotations"][0]["extra_content"] = {
             "anthropic": {"encrypted_index": "opaque-index", "cited_text": "Original excerpt"}
         }
 
@@ -143,7 +143,7 @@ def test_search_history_metadata_survives_repeated_serialization(metadata_locati
         ),
     ],
 )
-def test_search_history_rejects_invalid_provider_metadata(location, metadata):
+def test_search_history_rejects_invalid_extra_content(location, metadata):
     """Ensures malformed or unknown search-state fields fail during request validation."""
     history = _search_history()
     target = (
@@ -151,7 +151,7 @@ def test_search_history_rejects_invalid_provider_metadata(location, metadata):
         if location == "source"
         else history[1]["content"][0]["annotations"][0]
     )
-    target["provider_metadata"] = metadata
+    target["extra_content"] = metadata
 
     with pytest.raises(ValidationError):
         OpenAIResponsesCreateRequest(input=history, model="claude-sonnet-4-6")

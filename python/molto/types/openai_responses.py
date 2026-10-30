@@ -99,12 +99,12 @@ class AnthropicSearchSourceMetadataParam(TypedDict, total=False):
     page_age: str | None
 
 
-class ResponseSearchSourceProviderMetadataParam(TypedDict):
+class ResponseSearchSourceExtraContentParam(TypedDict):
     anthropic: AnthropicSearchSourceMetadataParam
 
 
 class ResponseWebSearchSourceParam(ActionSearchSource, total=False):
-    provider_metadata: ResponseSearchSourceProviderMetadataParam
+    extra_content: ResponseSearchSourceExtraContentParam
 
 
 class ResponseWebSearchActionSearchParam(ActionSearch, total=False):
@@ -124,12 +124,12 @@ class AnthropicCitationMetadataParam(TypedDict):
     cited_text: str
 
 
-class ResponseCitationProviderMetadataParam(TypedDict):
+class ResponseCitationExtraContentParam(TypedDict):
     anthropic: AnthropicCitationMetadataParam
 
 
 class ResponseURLCitationParam(AnnotationURLCitation, total=False):
-    provider_metadata: ResponseCitationProviderMetadataParam
+    extra_content: ResponseCitationExtraContentParam
 
 
 _RETAINED_SDK_ANNOTATIONS = tuple(
@@ -373,13 +373,11 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
             if isinstance(item, ResponseOutputMessageOptionalIDParam):
                 for part in item.content:
                     if part["type"] == "output_text" and any(
-                        "provider_metadata" in annotation for annotation in part["annotations"]
+                        "extra_content" in annotation for annotation in part["annotations"]
                     ):
                         return True
             elif isinstance(item, dict) and item.get("type") == "web_search_call":
-                if any(
-                    "provider_metadata" in source for source in item["action"].get("sources", [])
-                ):
+                if any("extra_content" in source for source in item["action"].get("sources", [])):
                     return True
         return False
 
