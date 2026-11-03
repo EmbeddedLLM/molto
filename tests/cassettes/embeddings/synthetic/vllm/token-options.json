@@ -4,10 +4,7 @@
     "path": "/v1/embeddings",
     "body": {
       "model": "schema-test-model",
-      "input": [
-        11,
-        12
-      ],
+      "input": [11, 12],
       "encoding_format": "float",
       "add_special_tokens": false,
       "truncate_prompt_tokens": 2,
@@ -25,11 +22,7 @@
         {
           "object": "embedding",
           "index": 0,
-          "embedding": [
-            0.125,
-            0.25,
-            0.375
-          ]
+          "embedding": [0.125, 0.25, 0.375]
         }
       ],
       "model": "schema-test-model",

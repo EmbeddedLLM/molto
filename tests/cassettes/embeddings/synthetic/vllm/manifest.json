@@ -24,10 +24,7 @@
       "file": "batch-float.json",
       "body": {
         "model": "schema-test-model",
-        "input": [
-          "one",
-          "two"
-        ],
+        "input": ["one", "two"],
         "encoding_format": "float"
       },
       "extra_body": null
@@ -36,10 +33,7 @@
       "file": "tokens-base64.json",
       "body": {
         "model": "schema-test-model",
-        "input": [
-          11,
-          12
-        ],
+        "input": [11, 12],
         "encoding_format": "base64"
       },
       "extra_body": null
@@ -48,15 +42,7 @@
       "file": "token-batch-float.json",
       "body": {
         "model": "schema-test-model",
-        "input": [
-          [
-            11,
-            12
-          ],
-          [
-            21
-          ]
-        ],
+        "input": [[11, 12], [21]],
         "encoding_format": "float"
       },
       "extra_body": null
@@ -65,10 +51,7 @@
       "file": "dimensions.json",
       "body": {
         "model": "schema-test-model",
-        "input": [
-          "one",
-          "two"
-        ],
+        "input": ["one", "two"],
         "encoding_format": "float",
         "dimensions": 2
       },
@@ -88,10 +71,7 @@
       "file": "token-options.json",
       "body": {
         "model": "schema-test-model",
-        "input": [
-          11,
-          12
-        ],
+        "input": [11, 12],
         "encoding_format": "float"
       },
       "extra_body": {
@@ -99,6 +79,15 @@
         "truncate_prompt_tokens": 2,
         "truncation_side": "left"
       }
+    },
+    {
+      "file": "validation-error.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": [],
+        "encoding_format": "float"
+      },
+      "extra_body": null
     }
   ]
 }

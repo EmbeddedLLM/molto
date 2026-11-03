@@ -20,11 +20,7 @@
         {
           "object": "embedding",
           "index": 0,
-          "embedding": [
-            0.125,
-            0.25,
-            0.375
-          ]
+          "embedding": [0.125, 0.25, 0.375]
         }
       ],
       "model": "schema-test-model",

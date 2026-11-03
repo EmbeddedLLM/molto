@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/embeddings",
+    "body": {
+      "model": "schema-test-model",
+      "input": [],
+      "encoding_format": "float"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "message": "Batch is empty",
+      "code": 400,
+      "error_type": "empty"
+    }
+  }
+}
