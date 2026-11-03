@@ -1,0 +1,46 @@
+timestamp: '2026-11-03T17:02:24.138966+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input:
+    - 9906
+    - 1917
+    model: text-embedding-3-small
+    dimensions: 8
+    encoding_format: float
+response:
+  status_code: 200
+  headers:
+    content-type: application/json
+    openai-version: '2020-10-01'
+    x-request-id: req_57dc65613c51433fb83bcf70fb7a3f90
+  body_bytes: !!binary |
+    eyJvYmplY3QiOiJsaXN0IiwiZGF0YSI6W3sib2JqZWN0IjoiZW1iZWRkaW5nIiwiZW1iZWRkaW5n
+    IjpbLTAuMDIwMjQ4NDEzMDg1OTM3NSwtMC40NjYzMDg1OTM3NSwwLjE5OTU4NDk2MDkzNzUsMC4y
+    OTgzMzk4NDM3NSwtMC40MzEzOTY0ODQzNzUsLTAuMjUxMjIwNzAzMTI1LC0wLjI3NTE0NjQ4NDM3
+    NSwwLjU3MzI0MjE4NzVdLCJpbmRleCI6MH1dLCJtb2RlbCI6InRleHQtZW1iZWRkaW5nLTMtc21h
+    bGwiLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5zIjoyLCJ0b3RhbF90b2tlbnMiOjJ9fQ==
+  body:
+    object: list
+    data:
+    - object: embedding
+      embedding:
+      - -0.0202484130859375
+      - -0.46630859375
+      - 0.1995849609375
+      - 0.29833984375
+      - -0.431396484375
+      - -0.251220703125
+      - -0.275146484375
+      - 0.5732421875
+      index: 0
+    model: text-embedding-3-small
+    usage:
+      prompt_tokens: 2
+      total_tokens: 2

@@ -1,0 +1,88 @@
+{
+  "kind": "deliberately-synthetic-schema-cases",
+  "recorded_at": null,
+  "source": {
+    "version": "3.0.0",
+    "commit": "09acbe5cc421b2981d4385f0dbacc868bccd3ae7",
+    "schema": "https://github.com/michaelfeil/infinity/blob/09acbe5cc421b2981d4385f0dbacc868bccd3ae7/libs/infinity-v3/docs/openapi.json"
+  },
+  "limitations": [
+    "Not captured from a running server.",
+    "schema-test-model is a placeholder; vectors and usage are hand-authored test values, not model output.",
+    "The pinned server source is a protocol reference, not a live-tested server release."
+  ],
+  "cases": [
+    {
+      "file": "single-default.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": "one"
+      },
+      "extra_body": null
+    },
+    {
+      "file": "batch-float.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": [
+          "one",
+          "two"
+        ],
+        "encoding_format": "float"
+      },
+      "extra_body": null
+    },
+    {
+      "file": "tokens-base64.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": [
+          11,
+          12
+        ],
+        "encoding_format": "base64"
+      },
+      "extra_body": null
+    },
+    {
+      "file": "token-batch-float.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": [
+          [
+            11,
+            12
+          ],
+          [
+            21
+          ]
+        ],
+        "encoding_format": "float"
+      },
+      "extra_body": null
+    },
+    {
+      "file": "dimensions.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": [
+          "one",
+          "two"
+        ],
+        "encoding_format": "float",
+        "dimensions": 2
+      },
+      "extra_body": null
+    },
+    {
+      "file": "user.json",
+      "body": {
+        "model": "schema-test-model",
+        "input": "one",
+        "encoding_format": "float",
+        "user": "embedding-test"
+      },
+      "extra_body": null
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/embeddings",
+    "body": {
+      "model": "schema-test-model",
+      "input": [
+        11,
+        12
+      ],
+      "encoding_format": "base64"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "object": "list",
+      "data": [
+        {
+          "object": "embedding",
+          "index": 0,
+          "embedding": "AAAAPgAAgD4AAMA+"
+        }
+      ],
+      "model": "schema-test-model",
+      "usage": {
+        "prompt_tokens": 2,
+        "total_tokens": 2
+      }
+    }
+  }
+}

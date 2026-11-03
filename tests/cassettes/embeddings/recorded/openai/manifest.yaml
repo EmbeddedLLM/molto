@@ -1,0 +1,126 @@
+classification: recorded
+capture_date: '2026-11-03T17:02:19.497125+00:00'
+repository_revision: acf4abe8775e539c3c0aa02c11456054b3ea379b
+python: 3.12.9
+versions:
+  openai: 2.53.0
+  httpx: 0.28.1
+  pydantic: 2.13.4
+provider: openai
+upstream_base_url: https://api.openai.com/v1
+protocol: embeddings
+auth: Bearer API key (masked)
+sdk_max_retries: 0
+driver: Native AsyncOpenAI.embeddings.create, independent of Molto; request/response
+  event hooks capture wire JSON and original decoded HTTP response bytes.
+scenarios:
+- scenario: single-omitted-encoding
+  file: single-omitted-encoding.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input: Molto preserves vector identity.
+    dimensions: 8
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  parsed_representation: list
+  sha256: 4fa16a82166e79ab02b881dca416c97bce30f25744ff48beb7d1946d78167810
+- scenario: batch-float
+  file: batch-float.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input:
+    - A query about documents.
+    - Documents answer the query.
+    dimensions: 8
+    encoding_format: float
+    user: molto-public-embedding-fixture
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  - 1
+  parsed_representation: list
+  sha256: 7821d70c6662c5afec82e7e83c0460d509fcaf62509bdb0f3a08b100c0c9bcfd
+- scenario: batch-base64
+  file: batch-base64.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input:
+    - A query about documents.
+    - Documents answer the query.
+    dimensions: 8
+    encoding_format: base64
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  - 1
+  parsed_representation: str
+  sha256: 1fa3633f540903e87125e2ed48f174e9ff576ef3e137e5b61ad30f89acadee0e
+- scenario: token-array-float
+  file: token-array-float.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input:
+    - 9906
+    - 1917
+    dimensions: 8
+    encoding_format: float
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  parsed_representation: list
+  sha256: ea18ce7e3886858db52d460b925c704db3de3158507fdb9d6e2eea1a8ca0c7e8
+- scenario: token-batch-base64
+  file: token-batch-base64.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input:
+    - - 9906
+      - 1917
+    - - 791
+      - 407
+    dimensions: 8
+    encoding_format: base64
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  - 1
+  parsed_representation: str
+  sha256: a9a121aa39bdbdb35d132a2e6c2ee123ff27f21bac4ade2e0cecf8b92dd26153
+- scenario: default-dimensions
+  file: default-dimensions.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input: A small public recording.
+  result: success
+  returned_model: text-embedding-3-small
+  indices:
+  - 0
+  parsed_representation: list
+  sha256: 0fd2b657d48387c3a11db613df4d4d618ab17631792d122ce03443a9b0ec829d
+- scenario: invalid-dimensions
+  file: invalid-dimensions.yaml
+  sdk_arguments:
+    model: text-embedding-3-small
+    input: A small public recording.
+    dimensions: 0
+    encoding_format: float
+  result: upstream_error
+  error_type: BadRequestError
+  status_code: 400
+  sha256: 96ace4e4ac2f829a45d719e2fb32d8685de0f584bb6f48e0494af62402df3dc7
+- scenario: missing-model
+  file: missing-model.yaml
+  sdk_arguments:
+    model: molto-missing-embedding-model
+    input: A small public recording.
+    encoding_format: float
+  result: upstream_error
+  error_type: NotFoundError
+  status_code: 404
+  sha256: 797759df9ee4a80c8abdc9351906ab26d317cdc6d2be9a4287e34569b3d4dc5b
