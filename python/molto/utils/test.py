@@ -67,6 +67,45 @@ def assert_contains_expected(actual: Any, expected: Any, path: str = "$") -> Non
         assert actual == expected, f"Value mismatch at {path}: {actual!r} != {expected!r}"
 
 
+def assert_chat_choice_matches(actual: dict[str, Any], expected: dict[str, Any]) -> None:
+    """Compare Chat choices without discarding or trusting duplicated provider text."""
+    assert "delta" in actual and "delta" in expected
+    for key in actual.keys() | expected.keys():
+        if key == "text":
+            # Together may send {"text": "Hi", "delta": {"content": "Hi"}},
+            # while translated Chat only has delta. Check the duplicate so a
+            # contradictory text value cannot disappear from the comparison.
+            for choice in (actual, expected):
+                if "text" in choice:
+                    assert choice["text"] == (choice["delta"].get("content") or ""), (
+                        "Choice text must equal delta.content"
+                    )
+        else:
+            assert key in actual and key in expected, f"Missing choice field: {key}"
+            assert actual[key] == expected[key], f"Choice field mismatch: {key}"
+
+
+def assert_chat_completions_chunks_match(
+    actual: list[dict[str, Any]], expected: list[dict[str, Any]]
+) -> None:
+    """Compare reconstructed chunks exactly except for verified duplicate choice text."""
+    assert len(actual) == len(expected), "Chat chunk counts differ"
+    for actual_chunk, expected_chunk in zip(actual, expected, strict=True):
+        assert actual_chunk.keys() == expected_chunk.keys(), "Chat chunk fields differ"
+        for key in actual_chunk:
+            if key == "choices":
+                actual_choices, expected_choices = actual_chunk[key], expected_chunk[key]
+                assert len(actual_choices) == len(expected_choices), "Chat choice counts differ"
+                for actual_choice, expected_choice in zip(
+                    actual_choices, expected_choices, strict=True
+                ):
+                    assert_chat_choice_matches(actual_choice, expected_choice)
+            else:
+                assert actual_chunk[key] == expected_chunk[key], (
+                    f"Chat chunk field mismatch: {key}"
+                )
+
+
 def reconstructable_chat_completions_chunks(
     sse: str,
     body: dict[str, Any],
@@ -88,14 +127,26 @@ def reconstructable_chat_completions_chunks(
         # TODO: Remove this as soon as we support logprobs
         if choice.get("logprobs") in (None, ""):
             choice.pop("logprobs", None)
-        if choice["finish_reason"] is not None:
-            delta = choice["delta"]
-            for field_name in ("content", "reasoning_content"):
-                if delta.get(field_name) in (None, ""):
-                    delta.pop(field_name, None)
+        delta = choice["delta"]
+        for field_name in ("content", "refusal", "reasoning_content", "reasoning", "token_id"):
+            if delta.get(field_name) in (None, ""):
+                delta.pop(field_name, None)
+        # Native Together uses reasoning; translated Chat uses reasoning_content.
+        if "reasoning" in delta and "reasoning_content" not in delta:
+            delta["reasoning_content"] = delta.pop("reasoning")
+        for tool in delta.get("tool_calls") or []:
+            # Function type can be repeated or omitted on argument continuations;
+            # SDK validation already limits this field to the function variant.
+            tool["type"] = tool.get("type") or "function"
+            if tool.get("id") is None:
+                tool.pop("id", None)
+            function = tool.get("function")
+            if isinstance(function, dict) and function.get("name") is None:
+                function.pop("name", None)
 
     usage = chunk.get("usage")
     if not isinstance(usage, dict):
+        chunk["usage"] = None
         return [chunk]
 
     prompt_details = usage.get("prompt_tokens_details") or {}
@@ -692,6 +743,14 @@ class OpenAICassetteTransport(httpx.AsyncBaseTransport):
             return httpx.Response(
                 status_code,
                 content="".join(response["sse"]).encode("utf-8"),
+                headers=headers,
+                request=request,
+            )
+
+        if "body_bytes" in response:
+            return httpx.Response(
+                status_code,
+                content=response["body_bytes"],
                 headers=headers,
                 request=request,
             )

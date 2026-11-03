@@ -364,6 +364,8 @@ class OpenAIResponsesAdapter(
     ) -> Input:
         message_type = message.get("type", "message")
         if message_type == "reasoning":
+            if message.get("format") is not None:
+                raise UnsupportedInput("Responses reasoning format cannot be translated.")
             content = message.get("content") or []
             summary = message.get("summary") or []
             if not all(part.get("type") == "reasoning_text" for part in content):
@@ -1005,6 +1007,11 @@ class OpenAIChatCompletionsAdapter(
     ) -> Input:
         role = message.get("role")
         content = message.get("content")
+        attachments = [message, *(message.get("tool_calls") or [])]
+        if isinstance(content, list):
+            attachments.extend(content)
+        if any(dict(attachment).get("extra_content") for attachment in attachments):
+            raise UnsupportedInput("Chat Completions extra_content cannot be translated.")
 
         if role == "user" and isinstance(content, list):
             parts: list[TextInput | ImageUrlInput] = []
@@ -1084,11 +1091,20 @@ class OpenAIChatCompletionsAdapter(
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             items: list[Thinking | TextOutput | ToolCall] = []
+            reasoning = message.get("reasoning")
             reasoning_content = message.get("reasoning_content")
-            if reasoning_content is not None:
-                if not isinstance(reasoning_content, str):
-                    raise UnsupportedInput("Chat Completions reasoning_content must be a string.")
-                items.append(self._classify_thinking(reasoning_content))
+            if reasoning and reasoning_content:
+                raise UnsupportedInput("Chat Completions cannot translate both reasoning aliases.")
+            selected_reasoning = (
+                reasoning if reasoning or reasoning_content is None else reasoning_content
+            )
+            if selected_reasoning is not None:
+                reasoning_parts = (
+                    selected_reasoning
+                    if isinstance(selected_reasoning, list)
+                    else [selected_reasoning]
+                )
+                items.extend(self._classify_thinking(part) for part in reasoning_parts)
             items.extend(
                 TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
                 for part in text_parts

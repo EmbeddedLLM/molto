@@ -4,7 +4,7 @@ from contextlib import aclosing
 from typing import Any, NoReturn
 
 from httpx import URL, AsyncClient, Headers, Request
-from openai import AsyncOpenAI, omit
+from openai import AsyncOpenAI, OpenAIError, omit
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
@@ -32,6 +32,8 @@ class BaseClient[
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        required_api_key: str | None = None,
+        bearer_auth: bool = False,
     ) -> None:
         self._http_client = http_client
         self._api_key = api_key
@@ -39,6 +41,8 @@ class BaseClient[
         self._capabilities = capabilities
         self._extra_body = extra_body
         self._extra_headers = extra_headers
+        self._required_api_key = required_api_key
+        self._bearer_auth = bearer_auth
         self.response_headers = Headers()
 
     def _capture_response_headers(self, headers: Headers) -> None:
@@ -46,6 +50,10 @@ class BaseClient[
         self.response_headers.update(headers)
 
     def _make_sdk_client(self) -> AsyncOpenAI:
+        if self._required_api_key and not self._api_key:
+            raise OpenAIError(
+                f"Missing credentials. Set {self._required_api_key} or pass api_key."
+            )
         return AsyncOpenAI(
             api_key=self._api_key,
             base_url=self._base_url or self.DEFAULT_BASE_URL,

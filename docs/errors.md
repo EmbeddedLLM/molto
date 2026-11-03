@@ -58,3 +58,7 @@ The upstream client constructs the intended request using its effective base URL
 ## Implementation and verification
 
 See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Cassette-backed coverage includes streaming and non-streaming requests across native and translated routes for every error scenario. Non-streaming tests use non-streaming recordings and compare provider SDK exceptions and their normalized cause chains; translated calls still stream upstream internally. Missing-credential tests cover both result modes and assert that no HTTP request is sent.
+
+## Hosted-provider errors
+
+Together additionally recognizes `model_not_available` on OpenAI SDK status errors as model-not-found, and `is longer than the model's context length` only on `BadRequestError` as context overflow. Other provider error rules remain unchanged. Historical Together error recordings are replayed against the independent SDK in their recorded mode through each public coordinator, preserving bodies, status, headers, and the acyclic cause chain. Required hosted-provider credentials fail locally before HTTP even when unrelated OpenAI/Anthropic keys are configured.

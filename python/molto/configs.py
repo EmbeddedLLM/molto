@@ -24,7 +24,9 @@ class EnvConfig(BaseSettings):
     molto_log_level_stderr: str = "INFO"
     # External services
     anthropic_api_key: SecretStr = ""
+    aws_bearer_token_bedrock: SecretStr = ""
     deepseek_api_key: SecretStr = ""
+    fireworks_api_key: SecretStr = ""
     gemini_api_key: SecretStr = ""
     openai_api_key: SecretStr = ""
     openrouter_api_key: SecretStr = ""

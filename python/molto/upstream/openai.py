@@ -160,6 +160,8 @@ def _function_call_part(item: Any) -> ToolCall:
 
 def _reasoning_part(item: Any) -> Thinking:
     """Project a Responses reasoning item snapshot into a normalized part."""
+    if getattr(item, "format", None) is not None:
+        raise ValueError("Responses reasoning format cannot be translated.")
     return Thinking(
         content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
         summary="".join(part.text for part in item.summary if part.type == "summary_text"),
@@ -740,6 +742,7 @@ class OpenAIChatCompletionsClient(
     """OpenAI Chat Completions transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+    REASONING_FIELD = "reasoning_content"
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
@@ -780,8 +783,8 @@ class OpenAIChatCompletionsClient(
         except Exception as error:
             self._handle_error(error)
 
-    @staticmethod
-    def _assistant_message(parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
+    @classmethod
+    def _assistant_message(cls, parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
         message: dict[str, Any] = {"role": "assistant"}
         reasoning_parts: list[str] = []
         text_parts: list[dict[str, Any]] = []
@@ -791,11 +794,15 @@ class OpenAIChatCompletionsClient(
                     raise UnsupportedInput(
                         "Chat Completions cannot represent thinking signatures."
                     )
+                if part.summary:
+                    raise UnsupportedInput(
+                        "Chat Completions cannot represent reasoning summaries."
+                    )
                 if text_parts or "tool_calls" in message:
                     raise UnsupportedInput(
                         "Chat Completions cannot preserve this assistant reasoning order."
                     )
-                reasoning_parts.append(part.content or part.summary)
+                reasoning_parts.append(part.content)
             elif isinstance(part, TextOutput):
                 if "tool_calls" in message:
                     raise UnsupportedInput(
@@ -817,15 +824,15 @@ class OpenAIChatCompletionsClient(
                     }
                 )
         if reasoning_parts:
-            message["reasoning_content"] = "\n".join(reasoning_parts)
+            message[cls.REASONING_FIELD] = "\n".join(reasoning_parts)
         if len(text_parts) == 1 and "prompt_cache_breakpoint" not in text_parts[0]:
             message["content"] = text_parts[0]["text"]
-        else:
-            message["content"] = text_parts if text_parts or not parts else None
+        elif text_parts or not parts:
+            message["content"] = text_parts
         return message
 
-    @staticmethod
-    def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
+    @classmethod
+    def _messages(cls, request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_parts: list[Thinking | TextOutput | ToolCall] = []
         explicit_assistant = False
@@ -836,7 +843,7 @@ class OpenAIChatCompletionsClient(
         def flush_assistant() -> None:
             nonlocal explicit_assistant
             if explicit_assistant or assistant_parts:
-                messages.append(OpenAIChatCompletionsClient._assistant_message(assistant_parts))
+                messages.append(cls._assistant_message(assistant_parts))
                 assistant_parts.clear()
                 explicit_assistant = False
 
@@ -1085,11 +1092,27 @@ class OpenAIChatCompletionsClient(
 
                 if chunk.choices:
                     choice = chunk.choices[0]
-                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
+                    if any(
+                        getattr(attachment, "extra_content", None)
+                        for attachment in (choice.delta, *(choice.delta.tool_calls or []))
+                    ):
+                        raise ValueError("Chat Completions extra_content cannot be translated.")
+                    reasoning_delta = getattr(choice.delta, self.REASONING_FIELD, None)
+                    alternate_reasoning_field = (
+                        "reasoning_content" if self.REASONING_FIELD == "reasoning" else "reasoning"
+                    )
+                    if getattr(choice.delta, alternate_reasoning_field, None):
+                        raise ValueError(
+                            f"Chat Completions reasoning field {alternate_reasoning_field!r} "
+                            f"cannot be translated with the {self.REASONING_FIELD!r} dialect."
+                        )
                     # Reasoning and text may interleave: a non-empty reasoning chunk
                     # ends an active text part and starts a new thinking part. Empty
                     # reasoning chunks carry nothing and never start or switch parts.
                     if reasoning_delta:
+                        if active_tool_call_index is not None:
+                            yield end_tool_call(active_tool_call_index)
+                            active_tool_call_index = None
                         if active_part == "text":
                             ended_part = end_active_part()
                             if ended_part is not None:
@@ -1102,29 +1125,31 @@ class OpenAIChatCompletionsClient(
                             delta=self._classify_thinking_delta(reasoning_delta),
                         )
 
-                    if choice.delta.content is not None:
-                        is_empty_role_chunk = (
-                            choice.delta.role is not None and choice.delta.content == ""
+                    if choice.delta.content:
+                        if active_tool_call_index is not None:
+                            yield end_tool_call(active_tool_call_index)
+                            active_tool_call_index = None
+                        if active_part == "thinking":
+                            ended_part = end_active_part()
+                            if ended_part is not None:
+                                yield ended_part
+                        if active_part is None:
+                            yield start_part(TextOutput(content=""))
+                        part_text += choice.delta.content
+                        yield PartDeltaEvent(
+                            index=active_part_index,
+                            delta=TextDelta(content_delta=choice.delta.content),
                         )
-                        if not is_empty_role_chunk:
-                            if active_part == "thinking":
-                                ended_part = end_active_part()
-                                if ended_part is not None:
-                                    yield ended_part
-                            if active_part is None:
-                                yield start_part(TextOutput(content=""))
-                            if choice.delta.content:
-                                part_text += choice.delta.content
-                                yield PartDeltaEvent(
-                                    index=active_part_index,
-                                    delta=TextDelta(content_delta=choice.delta.content),
-                                )
 
-                    if choice.delta.tool_calls is not None:
+                    if choice.delta.tool_calls:
                         ended_part = end_active_part()
                         if ended_part is not None:
                             yield ended_part
                         for tool_call_delta in choice.delta.tool_calls:
+                            if tool_call_delta.index is None:
+                                raise ValueError(
+                                    "Chat Completions tool-call deltas require an index."
+                                )
                             function_delta = tool_call_delta.function
                             state = tool_calls.get(tool_call_delta.index)
                             if state is None:

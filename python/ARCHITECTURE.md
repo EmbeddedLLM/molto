@@ -16,11 +16,11 @@ Native same-protocol and cross-protocol routes support streaming and non-streami
 
 `endpoint`, `provider`, and `base_url` are independent:
 
-| Concept    | Purpose                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
-| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
-| `base_url` | Selects only the HTTP destination.                                                                                            |
+| Concept | Purpose |
+| --- | --- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`. |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, `vllm`, or an explicit hosted-provider profile. |
+| `base_url` | Selects only the HTTP destination. |
 
 Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
@@ -491,3 +491,11 @@ To add another upstream protocol:
 4. add cassette-backed parity tests against the downstream SDK contract.
 
 To add another downstream protocol, add an adapter that normalizes its request and projects normalized events without performing transport.
+
+## Hosted compatibility boundaries
+
+[Hosted provider configuration and evidence](../docs/provider-compatibility.md) remain separate from endpoint selection. The coordinator chooses default URLs and required credential names; clients implement one protocol without switching it. Fireworks selects raw Chat reasoning and summary semantics for its other protocols. Bedrock requires an explicit regional URL; provider names never imply model availability.
+
+Together's Chat subclass selects its documented `reasoning` dialect and recognizes provider-specific semantic errors. Gemini's Chat subclass repairs missing tool indices only with unambiguous identity; the generic normalizer rejects missing indices rather than silently discarding calls. Native history schemas have narrow Google attachment and OpenRouter reasoning-format extensions. Cross-protocol paths reject populated opaque state they cannot preserve.
+
+The native recording driver never invokes Molto translation. Reviewed original exchanges, historical matched fixtures, and synthetic probes have separate provenance; a supported serializer is not evidence of live model compatibility.

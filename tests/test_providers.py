@@ -17,7 +17,12 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 def test_provider_capabilities_are_explicit_and_immutable() -> None:
     assert PROVIDER_CAPABILITIES == {
         "anthropic": ProviderCapabilities(thinking="summary"),
+        "bedrock": ProviderCapabilities(thinking="summary"),
+        "fireworks": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),
+        "gemini": ProviderCapabilities(thinking="raw"),
+        "openrouter": ProviderCapabilities(thinking="summary"),
+        "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),
     }
     with pytest.raises(FrozenInstanceError):

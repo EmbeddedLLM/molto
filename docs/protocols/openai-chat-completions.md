@@ -127,7 +127,7 @@ One user message becomes one normalized user input. Ordered text and image parts
 
 System and developer messages accept scalar text or ordered text-part lists and become role-less instructions. Their sequence position and part markers are retained while targeting Responses or Chat, but their original role identity is lost. A later Chat projection emits every normalized instruction as `developer`. Messages projects instructions into top-level `system`, retaining separate blocks when any system block is marked. With any cache markers present, mid-conversation instructions are rejected because hoisting would change the cached prefix.
 
-Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, and function tool calls. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
+Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content` or string/ordered-string-array `reasoning`, and function tool calls. Two populated reasoning aliases reject on translated routes. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
 Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
 
@@ -328,3 +328,7 @@ External protocol references:
 
 - [OpenAI Chat Completions create reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 - [vLLM OpenAI-compatible server](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/)
+
+## Hosted extensions
+
+See [provider compatibility](../provider-compatibility.md) for strict reasoning aliases, Google `extra_content` at message/part/call attachments, Gemini missing index repair, and exact native history preservation. Native acceptance does not establish translated portability; populated opaque state rejects where there is no lossless mapping. Together emits its documented upstream `reasoning` dialect; translated downstream Chat output continues to use `reasoning_content`.

@@ -83,6 +83,8 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
+See [hosted provider compatibility](provider-compatibility.md) for provider keys, exact destinations, history constraints, and the recorded/matched/synthetic evidence matrix.
+
 Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
 
 Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.

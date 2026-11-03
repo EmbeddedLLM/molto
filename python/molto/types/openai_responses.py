@@ -78,6 +78,10 @@ class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
         Literal["in_progress", "completed", "incomplete"] | None,
         Field(description="The reasoning item status."),
     ] = None
+    format: Annotated[
+        str | None,
+        Field(description="Provider-specific reasoning format required for native continuation."),
+    ] = None
 
 
 class ResponseOutputTextCacheBreakpointParam(ResponseOutputTextParam, total=False):

@@ -6,7 +6,7 @@ Normal test runs are playback-only. Do not record or rewrite cassettes during a 
 
 ## Recorded cassettes
 
-The cassettes under provider directories such as `openai/` preserve the recorded request and response as closely as possible. Authorization values and secret-looking request fields are masked, and only selected headers are retained so the fixtures remain safe and deterministic.
+The cassettes under provider directories such as `openai/` preserve the recorded request and response as closely as possible. Authorization is masked and API-key headers are excluded. The recorder masks known header/query credentials, including exact echoed values, but arbitrary body or query content is not automatically safe. Use controlled prompts and review every persisted field before promotion; retain required opaque continuation state or withhold the capture. Only selected headers are retained.
 
 Recorded headers are informational. In particular, `content-length` is not guaranteed to match the serialized body after sanitization or other approved cassette edits and must not be used as a fixture integrity check.
 
@@ -47,7 +47,7 @@ The context-length streaming requests use the same model and equivalent streamin
 
 The streaming and non-streaming recordings under `errors/context_length_exceeded/` have their repeated request text shortened to a single `x` to keep fixtures small and replay fast. The original instruction and recorded responses, including token counts and SSE events, are preserved. These shortened requests test error handling through replay; they no longer reproduce context overflow against a live provider.
 
-An error delivered inside an HTTP `200` stream is recorded under `response.sse`, retaining status `200`; it must not be rewritten as an HTTP `400` error. The OpenAI SDK may raise a plain `APIError` for such an event without attaching an HTTP status to the exception. If the SDK disconnects before the upstream stream finishes, the recorder saves the SSE lines received so far without adding a disconnect marker. That recording may be partial and does not establish which events the provider would have sent afterward.
+An error delivered inside an HTTP `200` stream is recorded under `response.sse`, retaining status `200`; it must not be rewritten as an HTTP `400` error. The OpenAI SDK may raise a plain `APIError` for such an event without attaching an HTTP status to the exception. If the SDK disconnects before the upstream stream finishes, the recorder saves the SSE lines received so far without inventing terminal events. New captures include `stream_status` (`complete`, `disconnected`, or `transport_error`), `terminal_event`, and `error_event`. HTTP EOF does not prove model completion; an absent terminal marker remains visible. Legacy captures without these fields may be partial. SSE lines are normalized event evidence, not original TCP chunks or newline bytes.
 
 ## Matched cassettes
 
@@ -133,3 +133,22 @@ Relevant test entry points and canonicalization helpers:
 - `tests/utils/test_test_utils.py` covers the canonicalization helpers themselves.
 
 When a matcher changes an SSE payload discriminator, update the corresponding `event:` header as part of the same change. Keep JSON key order and whitespace stable unless the changed value requires reserialization; this keeps fixture diffs focused on intentional semantic alignment.
+
+## Provider recording workflow
+
+`scripts/recorder_proxy.py` defaults to `/tmp/molto-recordings`, binds localhost, and makes one upstream attempt. Native SDK recording callers must also use `max_retries=0`. Non-SSE responses retain `response.body_bytes` as authoritative bytes and a decoded `body` for inspection. Replay prefers bytes; successful response matching drops this raw field on deliberately modified copies. Request-only error matching preserves the complete response unchanged.
+
+Use the standalone native Chat scenario driver outside pytest:
+
+```bash
+uv run --extra test python -m scripts.record_provider_conversation \
+  --provider togetherai --key-env TOGETHER_AI_API_KEY \
+  --base-url https://api.together.ai/v1 --model Qwen/Qwen3.5-9B \
+  --scenario tools --output-dir /tmp/molto-recordings/together-tools
+```
+
+Add `--stream` to record native streaming independently. `--scenario text` records two turns; `tools` records three sequential turns; `parallel` requires two distinct calls and their results. Failed SDK accumulation or incomplete scenarios retain the capture and failure manifest. The driver is Chat-only; other protocols need their native SDK scenario driver before new coverage can be claimed.
+
+Inspect staged captures, scan credentials and private content, and validate actual SDK output against subsequent requests. Copy approved originals unchanged into a recorded directory and commit before editing matched copies. Never generate expected fixtures from Molto output or run pytest in recording mode.
+
+See the [provider evidence matrix](../../docs/provider-compatibility.md) for fresh `provider_recordings/2026-11-03/` captures and the separate historical matched `reference_pr76/` corpus. Together error fixtures imported from PR #76 commit `42b9040cb2c74b3676d1749b2c4473c16b3bda9f` retain their original bytes; they are historical response evidence with matched requests, not fresh live availability.

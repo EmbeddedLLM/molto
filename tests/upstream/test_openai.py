@@ -511,10 +511,11 @@ def test_responses_client_rejects_message_identity_on_mixed_assistant_content(pa
 
 
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
+    """Ensures parallel image results follow the complete call-linked tool result block."""
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call all tools.")]),
-            Thinking(content="", summary="I should call all tools in parallel."),
+            Thinking(content="I should call all tools in parallel.", summary=""),
             ToolCall(
                 tool_call_id="call_a",
                 tool_name="read_image",
@@ -706,7 +707,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call both tools.")]),
-            Thinking(content="", summary="I should call both tools in parallel."),
+            Thinking(content="I should call both tools in parallel.", summary=""),
             ToolCall(
                 tool_call_id="call_a",
                 tool_name="read_image",
@@ -725,7 +726,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
                 tool_call_id="call_b",
                 content=[TextInput(content="Text from b.txt")],
             ),
-            Thinking(content="", summary="Let me try again."),
+            Thinking(content="Let me try again.", summary=""),
             ToolCall(
                 tool_call_id="call_c",
                 tool_name="read_image",

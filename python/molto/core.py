@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Mapping
+from dataclasses import replace
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
@@ -9,9 +10,12 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_PROVIDER_BY_ENDPOINT,
+    PROVIDER_BASE_URLS,
     PROVIDER_CAPABILITIES,
+    PROVIDER_KEY_NAMES,
     Endpoint,
     Provider,
+    ProviderCapabilities,
 )
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
@@ -29,9 +33,16 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.together import TogetherAIChatCompletionsClient
 
 VLLM_DUMMY_API_KEY = "EMPTY"
+
+_CHAT_CLIENTS = {
+    "togetherai": TogetherAIChatCompletionsClient,
+    "gemini": GeminiChatCompletionsClient,
+}
 
 _CREDENTIAL_HEADERS = frozenset(
     {
@@ -169,6 +180,8 @@ class Molto:
             return ENV_CONFIG.openai_api_key_plain
         if api_key is None and provider == "anthropic":
             return ENV_CONFIG.anthropic_api_key_plain
+        if api_key is None and provider in PROVIDER_KEY_NAMES:
+            return getattr(ENV_CONFIG, PROVIDER_KEY_NAMES[provider].lower()).get_secret_value()
         if api_key is None and provider == "vllm":
             return VLLM_DUMMY_API_KEY
         return api_key
@@ -179,7 +192,26 @@ class Molto:
         # endpoint cannot surface as an unrelated translation error.
         if endpoint not in DEFAULT_PROVIDER_BY_ENDPOINT:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
+        if provider == "gemini" and endpoint != "chat/completions":
+            raise ValueError("Gemini supports only the Chat Completions upstream.")
+        if provider is not None and provider not in PROVIDER_CAPABILITIES:
+            raise ValueError(f"Unsupported provider: {provider!r}.")
         return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
+
+    @staticmethod
+    def _resolve_provider_options(
+        provider: Provider, endpoint: Endpoint, base_url: str | None
+    ) -> tuple[str | None, ProviderCapabilities]:
+        if provider == "togetherai" and endpoint != "chat/completions" and not base_url:
+            raise ValueError(
+                "Together AI requires an explicit base_url for an alternative upstream endpoint."
+            )
+        if provider == "bedrock" and not base_url:
+            raise ValueError("Bedrock requires an explicit regional base_url and model/profile.")
+        capabilities = PROVIDER_CAPABILITIES[provider]
+        if provider == "fireworks" and endpoint == "chat/completions":
+            capabilities = replace(capabilities, thinking="raw")
+        return base_url or PROVIDER_BASE_URLS.get(provider, {}).get(endpoint), capabilities
 
     async def responses(
         self,
@@ -210,13 +242,17 @@ class Molto:
         request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
+        base_url, capabilities = self._resolve_provider_options(
+            resolved_provider, endpoint, base_url
+        )
         upstream_headers = _upstream_headers(extra_headers)
 
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -233,9 +269,11 @@ class Molto:
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -245,6 +283,8 @@ class Molto:
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -279,12 +319,16 @@ class Molto:
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
+        base_url, capabilities = self._resolve_provider_options(
+            resolved_provider, endpoint, base_url
+        )
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -304,6 +348,8 @@ class Molto:
             upstream = OpenAIResponsesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -313,6 +359,8 @@ class Molto:
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -347,12 +395,16 @@ class Molto:
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
+        base_url, capabilities = self._resolve_provider_options(
+            resolved_provider, endpoint, base_url
+        )
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "messages":
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
@@ -372,15 +424,19 @@ class Molto:
             upstream = OpenAIResponsesClient(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
                 extra_headers=upstream_headers,
             )
         elif endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
+            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
                 self._http_client,
                 api_key=resolved_api_key,
+                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
+                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
                 base_url=base_url,
                 capabilities=capabilities,
                 extra_body=extra_body,
