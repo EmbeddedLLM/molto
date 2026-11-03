@@ -55,6 +55,14 @@ Molto deliberately raises the downstream SDK's `AuthenticationError` instead of 
 
 The upstream client constructs the intended request using its effective base URL and endpoint, preserving SDK path-prefix and trailing-slash behavior. The adapter wraps it in the synthetic response.
 
+## Embeddings
+
+Embedding clients reuse OpenAI SDK HTTP transport for all three wire protocols. Errors therefore use OpenAI SDK classes, including native Cohere and VoyageAI responses. The provider status, body, response bytes, and URL remain intact. Codes `model_not_found` and `context_length_exceeded` use their corresponding normalized categories; SDK authentication and not-found classes use `AuthenticationError` and `ResourceNotFoundError`. An unknown provider error is not classified by guessed message text. Other SDK errors, including rate limits and transport failures, pass through unchanged.
+
+Missing embedding keys fail locally before the SDK can fall back to an unrelated OpenAI environment key, using the same synthetic-401 convention above. Self-hosted routes require an explicit base URL and use the non-secret `EMPTY` key when none is supplied. Unsupported task options, input forms, or output encodings raise `UnsupportedInput` or public request validation errors before HTTP; malformed output or inconsistent vector correspondence raises output-side validation errors.
+
+Embedding replay covers real OpenAI invalid-dimensions/missing-model errors, Cohere missing-model errors, and VoyageAI authentication failures. Engine validation errors and unavailable native-provider success cases use explicitly synthetic schema fixtures; they are not live verification. See the [embedding evidence matrix](provider-embeddings.md).
+
 ## Implementation and verification
 
 See [error translation conventions](../python/CONVENTIONS.md#error-translation) for implementation and [error cassettes](../tests/cassettes/README.md#error-cassettes) for replay requirements. Cassette-backed coverage includes streaming and non-streaming requests across native and translated routes for every error scenario. Non-streaming tests use non-streaming recordings and compare provider SDK exceptions and their normalized cause chains; translated calls still stream upstream internally. Missing-credential tests cover both result modes and assert that no HTTP request is sent.

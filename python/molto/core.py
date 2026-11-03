@@ -5,11 +5,20 @@ from httpx import AsyncClient, Headers
 from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter
-from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
+from molto.adapters.embeddings import project_embeddings_response
+from molto.adapters.openai import (
+    OpenAIChatCompletionsAdapter,
+    OpenAIResponsesAdapter,
+    _raise_openai_error,
+)
 from molto.configs import ENV_CONFIG
 from molto.providers import (
+    DEFAULT_EMBEDDING_PROVIDER,
     DEFAULT_PROVIDER_BY_ENDPOINT,
+    EMBEDDING_PROVIDERS,
     PROVIDER_CAPABILITIES,
+    EmbeddingEndpoint,
+    EmbeddingProvider,
     Endpoint,
     Provider,
 )
@@ -18,10 +27,16 @@ from molto.types.anthropic_messages import (
     AnthropicMessagesResponse,
     AnthropicMessagesStreamEvent,
 )
+from molto.types.embeddings import CohereEmbeddingOptions, VoyageEmbeddingOptions
+from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
+)
+from molto.types.openai_embeddings import (
+    OpenAIEmbeddingsCreateRequest,
+    OpenAIEmbeddingsResponse,
 )
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
@@ -29,6 +44,11 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.embeddings import (
+    CohereEmbeddingsClient,
+    OpenAIEmbeddingsClient,
+    VoyageAIEmbeddingsClient,
+)
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 VLLM_DUMMY_API_KEY = "EMPTY"
@@ -163,13 +183,77 @@ class Molto:
     async def aclose(self) -> None:
         await self._http_client.aclose()
 
+    async def embeddings(
+        self,
+        body: BaseModel | dict[str, Any],
+        endpoint: EmbeddingEndpoint = "embeddings",
+        provider: EmbeddingProvider | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        extra_body: Mapping[str, Any] | None = None,
+        extra_headers: Mapping[str, str] | None = None,
+        *,
+        options: CohereEmbeddingOptions | VoyageEmbeddingOptions | None = None,
+    ) -> OpenAIEmbeddingsResponse:
+        """Create dense embeddings with an OpenAI-shaped request and result.
+
+        `endpoint` selects the wire protocol independently of `provider` and
+        `base_url`. Cohere and Voyage task/truncation controls use their typed
+        `options`; native provider metadata is retained in `provider_metadata`.
+        Unknown token usage is `None`, never an invented zero. See
+        `docs/provider-embeddings.md` for supported forms and evidence limits.
+        """
+        request = OpenAIEmbeddingsCreateRequest.model_validate(body)
+        if endpoint not in DEFAULT_EMBEDDING_PROVIDER:
+            raise UnsupportedInput(f"Unsupported embedding endpoint: {endpoint!r}.")
+        resolved_provider = provider or DEFAULT_EMBEDDING_PROVIDER[endpoint]
+        if resolved_provider not in EMBEDDING_PROVIDERS[endpoint]:
+            raise UnsupportedInput(
+                f"Provider {resolved_provider!r} does not support embedding endpoint {endpoint!r}."
+            )
+        if resolved_provider in {"infinity", "vllm"} and not base_url:
+            raise UnsupportedInput(
+                f"Provider {resolved_provider!r} requires an explicit base_url."
+            )
+        transport = {
+            "api_key": self._resolve_api_key(resolved_provider, api_key),
+            "base_url": base_url,
+            "extra_body": extra_body,
+            "extra_headers": _upstream_headers(extra_headers),
+        }
+        try:
+            if endpoint == "embeddings":
+                if options is not None:
+                    raise UnsupportedInput(
+                        "Native embedding options require their matching endpoint."
+                    )
+                upstream = OpenAIEmbeddingsClient(self._http_client, **transport)
+                return await upstream.native_response(request)
+            if endpoint == "cohere/embed":
+                if options is not None and not isinstance(options, CohereEmbeddingOptions):
+                    raise UnsupportedInput("Cohere embeddings require CohereEmbeddingOptions.")
+                upstream = CohereEmbeddingsClient(self._http_client, **transport)
+            else:
+                if options is not None and not isinstance(options, VoyageEmbeddingOptions):
+                    raise UnsupportedInput("Voyage embeddings require VoyageEmbeddingOptions.")
+                upstream = VoyageAIEmbeddingsClient(self._http_client, **transport)
+            return project_embeddings_response(await upstream.response(request, options))
+        except Exception as error:
+            _raise_openai_error(error)
+
     @staticmethod
-    def _resolve_api_key(provider: Provider, api_key: str | None) -> str | None:
+    def _resolve_api_key(
+        provider: Provider | EmbeddingProvider, api_key: str | None
+    ) -> str | None:
         if api_key is None and provider == "openai":
             return ENV_CONFIG.openai_api_key_plain
         if api_key is None and provider == "anthropic":
             return ENV_CONFIG.anthropic_api_key_plain
-        if api_key is None and provider == "vllm":
+        if api_key is None and provider == "cohere":
+            return ENV_CONFIG.cohere_api_key_plain
+        if api_key is None and provider == "voyageai":
+            return ENV_CONFIG.voyage_api_key_plain
+        if api_key is None and provider in {"vllm", "infinity"}:
             return VLLM_DUMMY_API_KEY
         return api_key
 

@@ -7,7 +7,9 @@ Molto has two design goals:
 - Support any implemented downstream protocol through any implemented upstream protocol with one provider-neutral translation model.
 - Bypass translation when both sides use the same protocol, preserving native requests, events, and responses with the [shared error policy](errors.md).
 
-Streaming and non-streaming requests are supported on native and translated routes. Streaming is the translated execution primitive; translated non-streaming responses are collected from the downstream-native event stream produced by the same event projector.
+Conversational streaming and non-streaming requests are supported on native and translated routes. Streaming is the conversational translated execution primitive; translated non-streaming responses are collected from the downstream-native event stream produced by the same event projector.
+
+`Molto.embeddings()` provides a separate OpenAI-shaped dense embedding API, with native OpenAI-compatible transport and Cohere/VoyageAI translation. It does not use conversational messages or streams. See the [five-provider support matrix, examples, and evidence limits](provider-embeddings.md).
 
 ## Cross-protocol contract
 
@@ -32,6 +34,7 @@ The public method selects the protocol returned to the application. The `endpoin
 | OpenAI Responses | `Molto.responses()` | `responses` | OpenAI Responses SDK events | OpenAI SDK `Response` | [OpenAI Responses](protocols/openai-responses.md) |
 | OpenAI Chat Completions | `Molto.chat_completions()` | `chat/completions` | OpenAI `ChatCompletionChunk` values | OpenAI SDK `ChatCompletion` | [OpenAI Chat Completions](protocols/openai-chat-completions.md) |
 | Anthropic Messages | `Molto.messages()` | `messages` | Anthropic Messages SDK events | Anthropic SDK `Message` | [Anthropic Messages](protocols/anthropic-messages.md) |
+| OpenAI Embeddings | `Molto.embeddings()` | `embeddings` | Not supported | OpenAI SDK `CreateEmbeddingResponse` | [Embeddings](provider-embeddings.md) |
 
 Use Responses when an application benefits from typed output items and a rich streaming lifecycle. Use Chat Completions for applications built around the widely supported `messages` and choice-delta interface. Use Messages for applications that need the Anthropic SDK contract and its content-block model. The selected upstream endpoint does not have to match that choice.
 

@@ -16,7 +16,7 @@
     "body": {
       "message": "Batch is empty",
       "code": 400,
-      "error_type": "empty"
+      "error_type": "Empty"
     }
   }
 }

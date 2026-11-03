@@ -4,7 +4,9 @@
 
 Molto is an LLM protocol translation library and the facade for its public coordinators. Its implemented `Molto.responses()`, `Molto.chat_completions()`, and `Molto.messages()` methods each accept one native protocol and return that same protocol to the caller.
 
-Three upstream endpoints are implemented:
+`Molto.embeddings()` accepts an OpenAI embeddings request and returns an OpenAI SDK `CreateEmbeddingResponse`. Its separate non-streaming path supports dense embeddings through OpenAI-compatible, Cohere v2, and VoyageAI protocols. The [embedding matrix](../docs/provider-embeddings.md) distinguishes implemented routes, faithful live recordings, and synthetic schema coverage.
+
+Three conversational upstream endpoints are implemented:
 
 - `responses`: native Responses passthrough or cross-protocol translation through Responses;
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
@@ -122,6 +124,20 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 ## Error translation
 
 Upstream clients normalize recognized SDK failures as `APIException`; downstream adapters project them into their SDK namespace. Both native and translated routes use this pipeline for streaming and non-streaming requests. See [Errors](../docs/errors.md) for recognition rules, status mappings, and special cases.
+
+## Embeddings
+
+Embedding routes have separate `EmbeddingEndpoint` and `EmbeddingProvider` types. `embeddings` selects the OpenAI wire protocol; `cohere/embed` selects Cohere v2 Embed; `voyage/embeddings` selects VoyageAI's embedding protocol. These names select protocols, not literal URL paths. The coordinator rejects mismatched providers and requires explicit destinations for Infinity and vLLM. It never infers protocol support from a URL or switches endpoints.
+
+`OpenAIEmbeddingsCreateRequest` tracks the pinned SDK's five body parameters. Strict scalar types preserve strings, batches, token IDs, and token batches without coercion. `CohereEmbeddingOptions` and `VoyageEmbeddingOptions` retain native task and truncation vocabularies rather than claiming equivalence between similarly named controls. Extra body fields remain request-scoped upstream transport options, applied after projection under the restrictions in the embedding guide.
+
+`BaseHTTPClient` owns the shared HTTP transport configuration, SDK construction, and URL joining. Conversational `BaseClient` adds reasoning capabilities and event lifecycle methods. Embedding clients inherit the transport without implementing artificial streams. Every SDK wrapper borrows the facade's HTTP client; only `Molto.aclose()` closes it.
+
+The native embedding client delegates to `AsyncOpenAI.embeddings.create()` and returns its parsed response directly. In particular, omission of `encoding_format` remains omitted at the method boundary, allowing the SDK to request base64 and decode it to float32 values. Explicit base64 remains a string. Native indices, order, usage, model identity, and provider extensions remain intact.
+
+Cohere and VoyageAI clients construct their own wire requests and reuse the SDK's generic HTTP transport, retries, and status exceptions. Their small `NormalizedEmbeddingResponse` carries indexed dense vectors, source model identity, optional usage, and provider metadata. The embedding adapter projects that result into the OpenAI SDK model. Cohere's response has no model identity, so its effective requested model is retained; billed units remain metadata, never fabricated token usage. An unavailable usage value is explicitly `None` at the public boundary. Request and result cardinality checks protect input correspondence on translated routes.
+
+This path does not tokenize, truncate, split batches, pool vectors, or emulate asynchronous provider jobs. Multimodal inputs, contextual groups, sparse outputs, quantized vectors, and multiple vectors per input are outside the declared dense text contract and rejected where their semantics cannot be preserved. It introduces no conversational IR fields or events.
 
 ## Orchestration facade and coordinators
 

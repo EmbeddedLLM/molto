@@ -4,6 +4,14 @@ These YAML files capture sanitized HTTP requests and provider responses for dete
 
 Normal test runs are playback-only. Do not record or rewrite cassettes during a test run.
 
+## Embedding evidence
+
+`embeddings/recorded/{openai,cohere,voyageai}/` contains independent native HTTP captures made outside pytest on 2026-11-03. Each manifest identifies the driver, API/SDK version or schema reference, request parameters, status, and fixture hashes. Authentication is masked and headers are whitelisted; `response.body_bytes` retains the decoded original HTTP response bytes. Tests replay those bytes and compare exact request bodies. No vector values are matched across independently generated models.
+
+OpenAI captures include text and token-ID inputs, single inputs and batches, omitted/float/base64 encoding, explicit/default dimensions, and real request errors. Public native replay compares against the parsed pinned OpenAI SDK on the same evidence. Cohere v2 captures cover query/document/classification/clustering tasks, dimensions, float/base64, and a missing-model error. The VoyageAI captures are real authentication failures, not successful embeddings.
+
+`embeddings/synthetic/` contains explicitly hand-authored schema fixtures. Infinity and vLLM manifests pin the reviewed server source versions; these fixtures establish local request/response and SDK parity, not live server/model compatibility. VoyageAI synthetic success cases likewise do not substitute for a successful live capture. The [support matrix](../../docs/provider-embeddings.md) records the remaining access and deployment gaps. Existing conversational cassettes are unchanged.
+
 ## Recorded cassettes
 
 The cassettes under provider directories such as `openai/` preserve the recorded request and response as closely as possible. Authorization values and secret-looking request fields are masked, and only selected headers are retained so the fixtures remain safe and deterministic.
