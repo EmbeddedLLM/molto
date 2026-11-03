@@ -1,0 +1,93 @@
+filename: 2026-11-03-01a1a24a-3a24-7980-bea2-5cafea924fdb
+request:
+  body:
+    chat_template_kwargs:
+      enable_thinking: false
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    - annotations: null
+      audio: null
+      content: Blue lantern.
+      function_call: null
+      reasoning_content: null
+      refusal: null
+      role: assistant
+      tool_calls: null
+    - content:
+      - text: Repeat the phrase
+        type: text
+      - text: ' exactly, preserving its spaces.'
+        type: text
+      role: user
+    model: Qwen/Qwen3.5-9B
+    stream: true
+    stream_options:
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '583'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1a24a-3a24-7980-bea2-5cafea924fdb
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: 3df5bdb0-aws_as1
+  sse:
+  - 'data: {"id":"3df5bdb0-aws_as1","object":"chat.completion.chunk","created":1793724136,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"3df5bdb0-aws_as1","object":"chat.completion.chunk","created":1793724136,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"content":"blue","reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"3df5bdb0-aws_as1","object":"chat.completion.chunk","created":1793724136,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"content":"
+    lantern","reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"3df5bdb0-aws_as1","object":"chat.completion.chunk","created":1793724136,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":null},"logprobs":null,"finish_reason":"stop","matched_stop":248046}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"3df5bdb0-aws_as1","object":"chat.completion.chunk","created":1793724136,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[],"usage":{"prompt_tokens":46,"completion_tokens":3,"total_tokens":49,"prompt_tokens_details":{"cached_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-03T16:42:15.972344+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

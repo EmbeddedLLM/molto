@@ -1,0 +1,64 @@
+filename: 2026-11-03-01a1a248-064f-7a73-93d8-785d24ef18ed
+request:
+  body:
+    chat_template_kwargs:
+      enable_thinking: false
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    model: Qwen/Qwen3.5-9B
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '257'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1a248-064f-7a73-93d8-785d24ef18ed
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      matched_stop: 248046
+      message:
+        content: 'Understood: blue lantern.'
+        reasoning_content: null
+        role: assistant
+    created: 1793723991
+    id: 8affa33b-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 7
+      prompt_tokens: 24
+      prompt_tokens_details:
+        cached_tokens: 0
+      total_tokens: 31
+  body_bytes: !!binary |
+    eyJpZCI6IjhhZmZhMzNiLWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzNzIzOTkxLCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiVW5kZXJzdG9v
+    ZDogYmx1ZSBsYW50ZXJuLiIsInJlYXNvbmluZ19jb250ZW50IjpudWxsfSwiZmluaXNoX3JlYXNv
+    biI6InN0b3AiLCJtYXRjaGVkX3N0b3AiOjI0ODA0Nn1dLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5z
+    IjoyNCwiY29tcGxldGlvbl90b2tlbnMiOjcsInRvdGFsX3Rva2VucyI6MzEsInByb21wdF90b2tl
+    bnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowfX0sInN5c3RlbV9maW5nZXJwcmludCI6ImRl
+    ZmF1bHQifQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 8affa33b-aws_as1
+  status_code: 200
+timestamp: '2026-11-03T16:39:51.631142+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

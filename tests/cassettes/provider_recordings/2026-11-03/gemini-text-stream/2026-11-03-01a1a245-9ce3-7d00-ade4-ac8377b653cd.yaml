@@ -1,0 +1,42 @@
+filename: 2026-11-03-01a1a245-9ce3-7d00-ade4-ac8377b653cd
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    model: gemini-3.8-flash
+    stream: true
+    stream_options:
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '248'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1a245-9ce3-7d00-ade4-ac8377b653cd
+response:
+  body:
+  - error:
+      code: 400
+      message: User location is not supported for the API use.
+      status: FAILED_PRECONDITION
+  body_bytes: !!binary |
+    W3sKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6IDQwMCwKICAgICJtZXNzYWdlIjogIlVzZXIgbG9j
+    YXRpb24gaXMgbm90IHN1cHBvcnRlZCBmb3IgdGhlIEFQSSB1c2UuIiwKICAgICJzdGF0dXMiOiAi
+    RkFJTEVEX1BSRUNPTkRJVElPTiIKICB9Cn0KXQ==
+  headers:
+    content-type: application/json; charset=UTF-8
+  status_code: 400
+timestamp: '2026-11-03T16:37:13.571661+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

@@ -1,0 +1,42 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-03T16:39:14.713815+00:00",
+  "revision": "acf4abe8775e539c3c0aa02c11456054b3ea379b",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "provider": "togetherai",
+  "upstream_protocol": "chat/completions",
+  "upstream_url": "https://api.together.ai/v1/chat/completions",
+  "requested_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  "authentication": "Bearer credential from TOGETHER_AI_API_KEY; value excluded",
+  "scenario": "text",
+  "stream": true,
+  "max_tokens": 512,
+  "extra_body": null,
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "turns": [
+    {
+      "turn": 0,
+      "status": "incomplete",
+      "files": [
+        "2026-11-03-01a1a247-77d3-7502-818d-fd7c1de887b7.yaml"
+      ]
+    }
+  ],
+  "status": "incomplete",
+  "failure": {
+    "type": "BadRequestError",
+    "traceback": [
+      "  File \"/home/akk/jiahuei/molto/scripts/record_provider_conversation.py\", line 211, in record\n    result = await client.chat.completions.create(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py\", line 2907, in create\n    return await self._post(\n           ^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/_base_client.py\", line 1992, in post\n    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/_base_client.py\", line 1777, in request\n    raise self._make_status_error_from_response(err.response) from None\n"
+    ]
+  }
+}

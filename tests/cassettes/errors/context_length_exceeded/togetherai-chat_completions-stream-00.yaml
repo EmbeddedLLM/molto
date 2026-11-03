@@ -1,0 +1,40 @@
+filename: 2026-10-15-01a13eab-a682-7d50-8f8f-a1430e6a65c6
+request:
+  body:
+    max_completion_tokens: 16
+    messages:
+    - content:
+      - text: Reply with OK. x
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    reasoning:
+      enabled: false
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '600210'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+    x-run-id: errors/context_length_exceeded/togetherai-chat_completions-stream-00.yaml
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a13eab-a682-7d50-8f8f-a1430e6a65c6
+response:
+  body: "{\n  \"id\": \"p5Ja2FC-3pDw3Z-a4ad70aaacc7ce2a\",\n  \"error\": {\n    \"\
+    message\": \"The input (300016 tokens) is longer than the model's context length\
+    \ (262144 tokens).\",\n    \"type\": \"invalid_request_error\",\n    \"param\"\
+    : null,\n    \"code\": null\n  }\n}"
+  headers:
+    connection: keep-alive
+    content-length: '239'
+    content-type: application/json; charset=utf-8
+  status_code: 400
+timestamp: '2026-10-15T08:26:39.106719+00:00'

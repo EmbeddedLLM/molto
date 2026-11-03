@@ -1,0 +1,49 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-03T16:44:45.917135+00:00",
+  "revision": "acf4abe8775e539c3c0aa02c11456054b3ea379b",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "source_hashes": {
+    "driver_sha256": "a5167dbfe0343f098c734225c2e8ae9289bd66afd17825e34d9073a5cc76ae2d",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96"
+  },
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "provider": "togetherai",
+  "upstream_protocol": "chat/completions",
+  "upstream_url": "https://api.together.ai/v1/chat/completions",
+  "requested_model": "Qwen/Qwen3.5-9B",
+  "authentication": "Bearer credential from TOGETHER_AI_API_KEY; value excluded",
+  "scenario": "parallel",
+  "stream": false,
+  "max_tokens": 2048,
+  "extra_body": null,
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; original SSE and role metadata retained and checked independently",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "Qwen/Qwen3.5-9B",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-03-01a1a24c-855d-7172-8cb3-817eee18c561.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "complete",
+      "returned_model": "Qwen/Qwen3.5-9B",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-03-01a1a24c-8976-7ed0-8e69-8a1c23475c34.yaml"
+      ]
+    }
+  ],
+  "status": "complete"
+}

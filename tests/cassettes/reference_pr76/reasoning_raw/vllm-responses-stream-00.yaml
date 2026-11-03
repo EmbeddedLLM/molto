@@ -1,0 +1,301 @@
+filename: 2026-08-06-019fd608-3a23-7c21-854f-c54ee90d8b87
+request:
+  body:
+    input:
+    - content:
+      - text: What is 2+2?
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: deepseek-v4-flash
+    reasoning:
+      effort: high
+      summary: detailed
+    stream: true
+    stream_options:
+      include_obfuscation: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '164'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 019fd608-3a23-7c21-854f-c54ee90d8b87
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"in_progress","background":false,"completed_at":null,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"type":"reasoning","id":"21bc613b-7f19-4b70-a424-a87ac884b29a","status":"in_progress","content":[],"summary":[]},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"part":{"type":"reasoning_text","text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"We","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" need","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" answer","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" simple","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":".","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" Need","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" comply","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":".","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":" ","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"2","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"+","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"2","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"=","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":"4","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.delta
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","content_index":0,"delta":".","item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.reasoning_text.done
+
+    '
+  - 'data: {"type":"response.reasoning_text.done","content_index":0,"item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"sequence_number":19,"text":"We
+    need answer simple. Need comply. 2+2=4."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"21bc613b-7f19-4b70-a424-a87ac884b29a","output_index":0,"part":{"type":"reasoning_text","text":"We
+    need answer simple. Need comply. 2+2=4."},"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"type":"reasoning","id":"21bc613b-7f19-4b70-a424-a87ac884b29a","status":"completed","content":[{"type":"reasoning_text","text":"We
+    need answer simple. Need comply. 2+2=4."}],"summary":[]},"output_index":0,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"type":"message","id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","status":"in_progress","content":[],"phase":"final_answer","role":"assistant"},"output_index":1,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"4","item_id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","logprobs":[],"output_index":1,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","logprobs":[],"output_index":1,"sequence_number":25,"text":"4"}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"4"},"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"type":"message","id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"4"}],"phase":"final_answer","role":"assistant"},"output_index":1,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"dd202e25-34f0-473e-bdea-25f69fa8cca9","object":"response","created_at":1786002291,"status":"completed","background":false,"completed_at":1786002292,"content_filters":null,"error":null,"frequency_penalty":0.0,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"model":"deepseek-v4-flash","moderation":null,"output":[{"type":"reasoning","id":"21bc613b-7f19-4b70-a424-a87ac884b29a","status":"completed","content":[{"type":"reasoning_text","text":"We
+    need answer simple. Need comply. 2+2=4."}],"summary":[]},{"type":"message","id":"513c9890-3ea4-4eb6-94e7-559cfebe1efc","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"4"}],"phase":"final_answer","role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"high","summary":"detailed"},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":null},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":90,"input_tokens_details":{"cached_tokens":0},"output_tokens":17,"output_tokens_details":{"reasoning_tokens":15},"total_tokens":107},"user":null,"metadata":{}},"sequence_number":28}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-06T07:44:51.235611+00:00'

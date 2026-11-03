@@ -1,0 +1,115 @@
+filename: 2026-11-03-01a1a247-8559-7771-8432-233c32264740
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - reasoning_content: 'Let me break down this request:
+
+
+        1. First, I need to add 2 and 3 using the add function
+
+        2. Then, I need to add that result + 4
+
+        3. Finally, give me the final answer
+
+
+        Let me start with the first addition: 2 + 3
+
+        '
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: call_01a1a24784bb7f62b0009316
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_01a1a24784bb7f62b0009316
+    model: Qwen/Qwen3.5-9B
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '964'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1a247-8559-7771-8432-233c32264740
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      matched_stop: 248044
+      message:
+        reasoning_content: 'Great! 2 + 3 = 5. Now I need to add that result (5) and
+          4.
+
+          '
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a":5,"b":4}'
+            name: add
+          id: call_01a1a24786f67f40b619e9a6
+          type: function
+    created: 1793723958
+    id: 1a4d0b49-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 40
+      completion_tokens_details:
+        reasoning_tokens: 27
+      prompt_tokens: 433
+      prompt_tokens_details:
+        cached_tokens: 0
+      total_tokens: 473
+  body_bytes: !!binary |
+    eyJpZCI6IjFhNGQwYjQ5LWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzNzIzOTU4LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJ0b29sX2NhbGxzIjpbeyJpZCI6
+    ImNhbGxfMDFhMWEyNDc4NmY2N2Y0MGI2MTllOWE2IiwidHlwZSI6ImZ1bmN0aW9uIiwiZnVuY3Rp
+    b24iOnsibmFtZSI6ImFkZCIsImFyZ3VtZW50cyI6IntcImFcIjo1LFwiYlwiOjR9In19XSwicmVh
+    c29uaW5nX2NvbnRlbnQiOiJHcmVhdCEgMiArIDMgPSA1LiBOb3cgSSBuZWVkIHRvIGFkZCB0aGF0
+    IHJlc3VsdCAoNSkgYW5kIDQuXG4ifSwiZmluaXNoX3JlYXNvbiI6InRvb2xfY2FsbHMiLCJtYXRj
+    aGVkX3N0b3AiOjI0ODA0NH1dLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5zIjo0MzMsImNvbXBsZXRp
+    b25fdG9rZW5zIjo0MCwidG90YWxfdG9rZW5zIjo0NzMsInByb21wdF90b2tlbnNfZGV0YWlscyI6
+    eyJjYWNoZWRfdG9rZW5zIjowfSwiY29tcGxldGlvbl90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25p
+    bmdfdG9rZW5zIjoyN319LCJzeXN0ZW1fZmluZ2VycHJpbnQiOiJkZWZhdWx0In0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 1a4d0b49-aws_as1
+  status_code: 200
+timestamp: '2026-11-03T16:39:18.617168+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

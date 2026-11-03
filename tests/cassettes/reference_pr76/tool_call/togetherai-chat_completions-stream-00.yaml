@@ -1,0 +1,211 @@
+filename: 2026-10-13-01a135b7-1533-76a0-a8b1-c87c2fc84d0e
+request:
+  body:
+    max_completion_tokens: 4096
+    messages:
+    - content:
+      - text: Call Bash with command `sleep 5`, then call DateTime and respond with
+          its result. Describe your action before calling each tool.
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      enabled: false
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_obfuscation: false
+      include_usage: true
+    tools:
+    - function:
+        description: Execute bash commands.
+        name: Bash
+        parameters:
+          additionalProperties: false
+          properties:
+            command:
+              description: Shell command to execute.
+              maxLength: 200
+              minLength: 1
+              type: string
+          required:
+          - command
+          type: object
+        strict: false
+      type: function
+    - function:
+        description: Get the current date and time in UTC (ISO 8601 format).
+        name: DateTime
+        parameters:
+          additionalProperties: false
+          properties: {}
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '875'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 3.1.0
+    x-run-id: tool_call/togetherai-chat_completions-stream-00.yaml
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a135b7-1533-76a0-a8b1-c87c2fc84d0e
+response:
+  headers:
+    cache-control: no-cache, no-transform
+    connection: keep-alive
+    content-type: text/event-stream;charset=utf-8
+  sse:
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"role":"assistant","content":"","reasoning":null}}],"model":"gpt-5.6-luna","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"I","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"I","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"’ll","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"’ll","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    first","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    first","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    run","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    run","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    the","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    the","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    requested","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    requested","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    five","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    five","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"-second","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"-second","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"
+    sleep","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"
+    sleep","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":".","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":".","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":"call_MdFqoCBvXRzjO16kvaXaSLGU","index":0,"type":"function","function":{"name":"Bash","arguments":""}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"{\""}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"command"}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"\":\""}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"sleep"}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"
+    "}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"5"}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"content":"","tool_calls":[{"id":null,"index":0,"type":"function","function":{"name":null,"arguments":"\"}"}}],"reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":"tool_calls","delta":{"token_id":null,"content":"","reasoning":null}}],"model":"gpt-5.6-luna","usage":null,"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0a7add5f93f55b30006a7dc43543cc8198b1ae7057d8afb153","object":"chat.completion.chunk","created":1786627125,"choices":[],"model":"gpt-5.6-luna","usage":{"prompt_tokens":186,"total_tokens":223,"completion_tokens":37,"reasoning_tokens":0,"prompt_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":0}},"service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-13T14:42:33.395204+00:00'

@@ -1,0 +1,348 @@
+{
+  "provenance": "matched",
+  "source_pr": "https://github.com/EmbeddedLLM/molto/pull/76",
+  "source_revision": "42b9040cb2c74b3676d1749b2c4473c16b3bda9f",
+  "description": "Historical matched scenarios imported byte-for-byte. Model/request alignment is not live provider availability evidence.",
+  "files": [
+    {
+      "path": "simple_text/anthropic-messages-non_stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/anthropic-messages-non_stream-00.yaml",
+      "sha256": "5751286f49cdc700beda9e1ad9352c3c7d2be28e9f77ffbd329d381f47cdf71e"
+    },
+    {
+      "path": "simple_text/anthropic-messages-non_stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/anthropic-messages-non_stream-01.yaml",
+      "sha256": "475ab45d56fb9c34dbccdc6233dc92095698045215717fd4ec1f8ba6ff7ed332"
+    },
+    {
+      "path": "simple_text/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/anthropic-messages-stream-00.yaml",
+      "sha256": "5c53db3f14b4ce47526d2a1232fc9d36e12f5acc68295f1ebf2863d079449977"
+    },
+    {
+      "path": "simple_text/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/anthropic-messages-stream-01.yaml",
+      "sha256": "f3f89d4b443ab7d1cf3073eab0da8baf2fb1183bdb8cb3e94558c3e0ab66b44a"
+    },
+    {
+      "path": "simple_text/openai-chat_completions-non_stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-chat_completions-non_stream-00.yaml",
+      "sha256": "6b1556226e7ad1602a5af5b0b62a8ab4da0e65daa89c0ce413dca45fb7651ca8"
+    },
+    {
+      "path": "simple_text/openai-chat_completions-non_stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-chat_completions-non_stream-01.yaml",
+      "sha256": "0fdf9e356ac9ca6e37738233017130744654310e920ceaef6958eecdcc6d8f97"
+    },
+    {
+      "path": "simple_text/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-chat_completions-stream-00.yaml",
+      "sha256": "2bc134f2ac8afa417b675f2e8a9bdd987db13705a5a36f2e2e682d8259c75a92"
+    },
+    {
+      "path": "simple_text/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-chat_completions-stream-01.yaml",
+      "sha256": "4cb97ad76dfad0bf169a37f78d50ef9db45bfaaac988a3270429efe0c6e51758"
+    },
+    {
+      "path": "simple_text/openai-responses-non_stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-responses-non_stream-00.yaml",
+      "sha256": "cf412f02753a5f27bae9bb4f58863c97597ad198290015d317531f0d284886bf"
+    },
+    {
+      "path": "simple_text/openai-responses-non_stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-responses-non_stream-01.yaml",
+      "sha256": "f508ec002dcbd4d9e4bce69a234011afc9638dd9764b1930f943eebcf28e06a3"
+    },
+    {
+      "path": "simple_text/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-responses-stream-00.yaml",
+      "sha256": "1101d4f3596ae4b7c22cbf63b1c22f28e3374df567599123922be238ca6bca0c"
+    },
+    {
+      "path": "simple_text/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/openai-responses-stream-01.yaml",
+      "sha256": "e8d21289a7cec20c8eb00fd5c1e7e93f03e9b63a7cd0212ec190e8e71e363479"
+    },
+    {
+      "path": "simple_text/togetherai-chat_completions-non_stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/togetherai-chat_completions-non_stream-00.yaml",
+      "sha256": "346c0a370b0b0d85765aa30cb034dec2fd4bc5957f8f23aa3f3c040637ae7a57"
+    },
+    {
+      "path": "simple_text/togetherai-chat_completions-non_stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/togetherai-chat_completions-non_stream-01.yaml",
+      "sha256": "b1ef080aed55ebb0f65d60033e1cfc4ae7951160bdbda8816c2df67316720ef7"
+    },
+    {
+      "path": "simple_text/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "f2bbb34cba408dd2eaf9e9b14f4f31f67618934f8ee8f8a5641076395f093d0d"
+    },
+    {
+      "path": "simple_text/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/simple_text/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "e50ff54bc85360f4ac9fa03cca955df15fa8251afa40499ae0132486b8cc11c8"
+    },
+    {
+      "path": "reasoning_raw/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "98826c0e5baec4013a450d8c9f2cee24db0b6928563462af8088d20fc4b9d47e"
+    },
+    {
+      "path": "reasoning_raw/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "adeee290e2765b4689f4e2f10a34248e58233fe543ac4622e70966036cbe4995"
+    },
+    {
+      "path": "reasoning_raw/vllm-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-chat_completions-stream-00.yaml",
+      "sha256": "61dbf17b4201beabf939e8332405d9edce7d67a9cc11c9af1363645af6c79f8e"
+    },
+    {
+      "path": "reasoning_raw/vllm-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-chat_completions-stream-01.yaml",
+      "sha256": "fb68b9037fb70e0d9bc471d0d71696684576b139578454d234e57c8809ffecb0"
+    },
+    {
+      "path": "reasoning_raw/vllm-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-messages-stream-00.yaml",
+      "sha256": "12ac2791fdc30d9d5a824882e7f5ad80d878d0c6a5814ff9208f539ad8214701"
+    },
+    {
+      "path": "reasoning_raw/vllm-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-messages-stream-01.yaml",
+      "sha256": "daa86fb01bc0d076363ae6066c1bfdf44e2870aa06554629b38ef6686228e618"
+    },
+    {
+      "path": "reasoning_raw/vllm-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-responses-stream-00.yaml",
+      "sha256": "63fb2287f4b3455696ee904ceace0def2cc01a8fdf55c3fb139fdeaafb6d2613"
+    },
+    {
+      "path": "reasoning_raw/vllm-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/reasoning_raw/vllm-responses-stream-01.yaml",
+      "sha256": "d10751f2ec899c31bec63c9f224afd4ebd1f02592aafb3121ec5601153799e0e"
+    },
+    {
+      "path": "input_image_base64/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/anthropic-messages-stream-00.yaml",
+      "sha256": "cdc1d06ea147ea2d2ece28f0430e78c29e4b6e47e6c122c7b29e81c850ae37f2"
+    },
+    {
+      "path": "input_image_base64/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/anthropic-messages-stream-01.yaml",
+      "sha256": "55d5791094df696fbfb063d971494f21b9567941200cc100644705d0b564495a"
+    },
+    {
+      "path": "input_image_base64/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/openai-chat_completions-stream-00.yaml",
+      "sha256": "63c496a776bea9b9cd8178ba9d94cd88a8f950c551d5ae1bae8dff0387ad5f54"
+    },
+    {
+      "path": "input_image_base64/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/openai-chat_completions-stream-01.yaml",
+      "sha256": "36dc995a88b59d496c5e1b8207cc662addb3e0e36e96dceddea33fd460b59649"
+    },
+    {
+      "path": "input_image_base64/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/openai-responses-stream-00.yaml",
+      "sha256": "af58d4214393473c477d0ad1a5931f581c2ef8a371cfe84994ee230dbe888635"
+    },
+    {
+      "path": "input_image_base64/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/openai-responses-stream-01.yaml",
+      "sha256": "7ecc2bd8ba51b8cc7d558879eb005907cb49bd8b50cd483424b1c3cb611f5d42"
+    },
+    {
+      "path": "input_image_base64/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "3341e07cb862ed8c11c01d43566b449106cb9f8d648486ea3dfba30b241abfdb"
+    },
+    {
+      "path": "input_image_base64/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_base64/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "bf9311b67c31437bc9491b8d6a8f35ba2e8cd54ac84fc694fa30177fd21dcae2"
+    },
+    {
+      "path": "input_image_remote_url/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/anthropic-messages-stream-00.yaml",
+      "sha256": "ba86bc8c3fd65711735e1330580966bc81511913a03f7b94cfeea2ac680e407c"
+    },
+    {
+      "path": "input_image_remote_url/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/anthropic-messages-stream-01.yaml",
+      "sha256": "7f920ca4aae7624779818b3473c9db9fd5933688d6a2b41f24979350f25b0ea5"
+    },
+    {
+      "path": "input_image_remote_url/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/openai-chat_completions-stream-00.yaml",
+      "sha256": "4bf6008ea63deed2ba9fe3e95866b3032167b76da67c5fa9dbf1f4a958547125"
+    },
+    {
+      "path": "input_image_remote_url/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/openai-chat_completions-stream-01.yaml",
+      "sha256": "f22a72f5dac63d43e465c83b96c590f4269e7ab386ec718cae3567a80e1baa2e"
+    },
+    {
+      "path": "input_image_remote_url/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/openai-responses-stream-00.yaml",
+      "sha256": "7864caf8b65ea1cbb77f819f7db6034851ac00822784fb9c607b33401fef3609"
+    },
+    {
+      "path": "input_image_remote_url/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/openai-responses-stream-01.yaml",
+      "sha256": "9dc337e97b99c14c6bef14e102ab8747a630d3768cafcf63d556e53779f7d229"
+    },
+    {
+      "path": "input_image_remote_url/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "5f3cad48e42b0d831875c19c4078f171c271f84068de453133f50da56b774caf"
+    },
+    {
+      "path": "input_image_remote_url/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/input_image_remote_url/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "50badeeacd46a187bed572cfd2954666fe54bb7f75b6d0f1c29cdb48f14ccaf4"
+    },
+    {
+      "path": "tool_call/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/anthropic-messages-stream-00.yaml",
+      "sha256": "52afb819762ba8ead63234be670c3f20ec3eeda5bbf2c961feaafa64d238a9dc"
+    },
+    {
+      "path": "tool_call/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/anthropic-messages-stream-01.yaml",
+      "sha256": "81e81db8b15aacadefa90c35af1e54dc5ff82d5630c95a5207d1cacbb0698f56"
+    },
+    {
+      "path": "tool_call/anthropic-messages-stream-02.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/anthropic-messages-stream-02.yaml",
+      "sha256": "9d970e1a9526fd610a49cf6b6c3876b026ea84f92328096edb9be23de1e46e11"
+    },
+    {
+      "path": "tool_call/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-chat_completions-stream-00.yaml",
+      "sha256": "dc91bcac720be765e656fb1e0c60b0a8c52e891338fa173678a292c1111ae7c1"
+    },
+    {
+      "path": "tool_call/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-chat_completions-stream-01.yaml",
+      "sha256": "f6aad71337ad220eb417ffb4d846cd86f4f78d4acce7a698fb8e3c748a5a8322"
+    },
+    {
+      "path": "tool_call/openai-chat_completions-stream-02.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-chat_completions-stream-02.yaml",
+      "sha256": "05327692ba72bca403f956644fcd0a2fec24a223542b97cb8c6e8ed939ce0a86"
+    },
+    {
+      "path": "tool_call/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-responses-stream-00.yaml",
+      "sha256": "a78ac313ca8235d5f89129883dcd3b5cdd09465f6938069a0bba5bc7f70e281a"
+    },
+    {
+      "path": "tool_call/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-responses-stream-01.yaml",
+      "sha256": "124cc695b3c7e5826417adf9a1e8b2da5ea84dc862dd029fdfab0544f3c69b8f"
+    },
+    {
+      "path": "tool_call/openai-responses-stream-02.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/openai-responses-stream-02.yaml",
+      "sha256": "80d606311c7a53685afdd674c715bf5b411fb5df4fdf227aef08ab6efcd4e07a"
+    },
+    {
+      "path": "tool_call/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "56c1b6dafff46325ee86aa5ea26bb247c1a583e946f9b568c3f64747755bfbae"
+    },
+    {
+      "path": "tool_call/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "0110b8a09faf2a5dd5e91792045d99cfa3a0c46a8a009a29a65762562f41c917"
+    },
+    {
+      "path": "tool_call/togetherai-chat_completions-stream-02.yaml",
+      "source_path": "tests/cassettes/matched/tool_call/togetherai-chat_completions-stream-02.yaml",
+      "sha256": "76d4c19d5c808cb1c8544bbbcb8ec8348a54cd2e0a630bb499c286abf91c6a10"
+    },
+    {
+      "path": "tool_call_choice/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/anthropic-messages-stream-00.yaml",
+      "sha256": "aa48c9ea4504b84b49cca4c6f95e2233c59e1b76e45d704dd83297ce35f6db93"
+    },
+    {
+      "path": "tool_call_choice/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/anthropic-messages-stream-01.yaml",
+      "sha256": "169a0b8d9ad182596241cadef6ddd97c9c09ba41873e601399c6ef653ad51d6b"
+    },
+    {
+      "path": "tool_call_choice/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/openai-chat_completions-stream-00.yaml",
+      "sha256": "07c18429204a949b32a6b843ec5992d3d12a8d04f62b8c412e37a40152ba8d06"
+    },
+    {
+      "path": "tool_call_choice/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/openai-chat_completions-stream-01.yaml",
+      "sha256": "49d57af08aeb6758b61fed0efb9fd271f26b05968a3970bf2c98dde8002d5a13"
+    },
+    {
+      "path": "tool_call_choice/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/openai-responses-stream-00.yaml",
+      "sha256": "0b01e87f9f8b2f30fe8ea5755286b5fd8f53c0204763be07aef1c07dece0ea9f"
+    },
+    {
+      "path": "tool_call_choice/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/openai-responses-stream-01.yaml",
+      "sha256": "991918329ee33efb9dea57d6d9d437cc6f87d5a3814fcd06e3ae6f0e99aa87da"
+    },
+    {
+      "path": "tool_call_choice/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "0c83196573415c84438977d652d17ed677861e91685dbf55b3a840623e03d96b"
+    },
+    {
+      "path": "tool_call_choice/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_choice/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "2b528efb23c73d986af1b3e3e905c7588b2d7bb571f41eda633d457ab270129f"
+    },
+    {
+      "path": "tool_call_parallel/anthropic-messages-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/anthropic-messages-stream-00.yaml",
+      "sha256": "d8be72857eb651830cfa8b6f113655e9150e40b6172d77b00b5a5e17a3db3b07"
+    },
+    {
+      "path": "tool_call_parallel/anthropic-messages-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/anthropic-messages-stream-01.yaml",
+      "sha256": "5896819c97159b0553f5033ce9360633d94bcbcd4ceefc8022f0131bed621d87"
+    },
+    {
+      "path": "tool_call_parallel/openai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/openai-chat_completions-stream-00.yaml",
+      "sha256": "254b197aaa36551cdd63833592ab5ea878837ce937cebeb1bb87d417bc196519"
+    },
+    {
+      "path": "tool_call_parallel/openai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/openai-chat_completions-stream-01.yaml",
+      "sha256": "1d69997261fd342d91d85720dd0a018f7be0e08496455180c584d9254df5678a"
+    },
+    {
+      "path": "tool_call_parallel/openai-responses-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/openai-responses-stream-00.yaml",
+      "sha256": "ce1a6d6540b4417c695f51144198bac2b9d8901d18065c8e43e6fd718423ad33"
+    },
+    {
+      "path": "tool_call_parallel/openai-responses-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/openai-responses-stream-01.yaml",
+      "sha256": "9b4445ee6b4f2c529724f80d6b8079d7f15e108c0ebabe1a33a822abacbcd97f"
+    },
+    {
+      "path": "tool_call_parallel/togetherai-chat_completions-stream-00.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/togetherai-chat_completions-stream-00.yaml",
+      "sha256": "fb13e6a2f708a5d999ea1a1d2c51495f251e2a1746c04ecfa85287a0e1fb9068"
+    },
+    {
+      "path": "tool_call_parallel/togetherai-chat_completions-stream-01.yaml",
+      "source_path": "tests/cassettes/matched/tool_call_parallel/togetherai-chat_completions-stream-01.yaml",
+      "sha256": "d08382f236cfee24a4d5b930ab2925f0b99f0c716064c82e00c697d1b7ef4f2b"
+    }
+  ]
+}

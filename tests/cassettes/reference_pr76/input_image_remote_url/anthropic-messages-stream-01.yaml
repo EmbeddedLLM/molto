@@ -1,0 +1,324 @@
+filename: 2026-08-19-01a0186f-0f28-7030-b7c9-dc5824bc0d3f
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - type: text
+        text: What logo is this?
+      - type: image
+        source:
+          type: url
+          url: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+      role: user
+    - content:
+      - type: text
+        text: That is the **GitHub logo**, featuring the stylized “Octocat” silhouette.
+      role: assistant
+    - content:
+      - type: text
+        text: What is the animal?
+      role: user
+    model: gpt-5.6-luna
+    stream: true
+    thinking:
+      type: disabled
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '651'
+    content-type: application/json
+    user-agent: Anthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0186f-0f28-7030-b7c9-dc5824bc0d3f
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_0d14dcd1c4918aa7006a85553f9f648198979c6cc6185e3216","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":433,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"global"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type":"ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"It"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"’s"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    an"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    **"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"oct"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ocat"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"—"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Git"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hub"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"’s"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    fictional"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    mascot"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    combining"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    an"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    **"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"oct"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"opus"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    and"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    a"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    cat"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":433,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":28,"output_tokens_details":{"thinking_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-08-19T05:12:06.696969+00:00'
