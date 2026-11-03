@@ -170,6 +170,51 @@ def test_chat_normalizes_complete_assistant_messages_without_flattening_parts():
     ]
 
 
+@pytest.mark.parametrize("arguments", ['{"city":"Paris"}', "{bad json", '["not","an","object"]'])
+@pytest.mark.parametrize("protocol", ["responses", "chat/completions"])
+def test_tool_history_preserves_raw_arguments(protocol, arguments):
+    """Ensures valid, malformed, and non-object JSON arguments survive OpenAI history projection."""
+    if protocol == "responses":
+        request = OpenAIResponsesCreateRequest(
+            model="m",
+            input=[
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": arguments,
+                }
+            ],
+        )
+        normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+        [tool_call] = normalized.input
+    else:
+        request = OpenAIChatCompletionsCreateRequest(
+            model="m",
+            messages=[
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "call_1",
+                            "function": {"name": "lookup", "arguments": arguments},
+                        }
+                    ],
+                }
+            ],
+        )
+        normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+        [assistant] = normalized.input
+        [tool_call] = assistant.content
+
+    assert tool_call.args == arguments
+    responses = OpenAIResponsesClient._native_request(normalized).model_dump()
+    chat = OpenAIChatCompletionsClient._native_request(normalized).model_dump()
+    assert responses["input"][0]["arguments"] == arguments
+    assert chat["messages"][0]["tool_calls"][0]["function"]["arguments"] == arguments
+
+
 def test_adapters_preserve_multimodal_input_boundaries_and_order():
     responses = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
         OpenAIResponsesCreateRequest(
@@ -543,6 +588,36 @@ def _chat_adapter(capabilities: ProviderCapabilities):
 _RESPONSE_START = ResponseStartEvent(id="resp_123", created_at=1, model="m")
 _RESPONSE_END = ResponseEndEvent(id="resp_123", created_at=1, model="m", termination_reason="stop")
 _CHAT_START = ResponseStartEvent(id="chatcmpl_123", created_at=1, model="m")
+
+
+@pytest.mark.parametrize("arguments", ['{"city":"Paris"}', "{bad json", '["not","an","object"]'])
+@pytest.mark.parametrize("protocol", ["responses", "chat/completions"])
+async def test_response_projection_preserves_raw_tool_arguments(protocol, arguments):
+    """Ensures collected OpenAI output retains raw tool JSON without parsing or repairing it."""
+    factory = _responses_adapter if protocol == "responses" else _chat_adapter
+    adapter, request = factory(_CAPABILITIES)
+    part = ToolCall(tool_name="lookup", args=arguments, tool_call_id="call_1")
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=part),
+                PartEndEvent(index=0, part=part),
+                ResponseEndEvent(
+                    id="resp_123", created_at=1, model="m", termination_reason="tool_call"
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    if protocol == "responses":
+        [tool_call] = response.output
+        assert tool_call.arguments == arguments
+    else:
+        [tool_call] = response.choices[0].message.tool_calls
+        assert tool_call.function.arguments == arguments
 
 
 async def test_responses_response_projection_returns_terminal_response() -> None:

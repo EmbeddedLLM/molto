@@ -10,6 +10,8 @@ same content. It also synchronizes fields that can pass through the conversion,
 including the response ID, creation time, model, target-default service tier, tool
 calls, and usage. Cache requests also copy the canonical cache options, keys,
 retention, and content-part breakpoints without changing their prefix boundaries.
+Tool-result images move to user messages after the complete tool-response block,
+preserving their source order and the portable call IDs in their labels.
 
 Matched reasoning requests carry the canonical Responses effort as
 `reasoning_effort`. When a continuation contains reasoning history but omits a
@@ -128,6 +130,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
         raise ValueError("Responses input must be a string or an input-item list.")
 
     messages: list[dict[str, Any]] = []
+    deferred_image_messages: list[dict[str, Any]] = []
     tool_call_ids: set[str] = set()
     returned_tool_call_ids: set[str] = set()
     for item in response_input:
@@ -135,6 +138,9 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type != "function_call_output":
+            messages.extend(deferred_image_messages)
+            deferred_image_messages.clear()
         if item_type == "reasoning":
             messages.append(
                 {
@@ -175,9 +181,53 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
                 raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
             if call_id in returned_tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
+            image_content: list[dict[str, Any]] = []
+            if isinstance(output, list):
+                text_content = []
+                for part in output:
+                    if not isinstance(part, dict) or part.get("type") != "input_image":
+                        text_content.append(part)
+                        continue
+                    image_url = part.get("image_url")
+                    if not isinstance(image_url, str):
+                        raise ValueError("Responses image content requires an image_url string.")
+                    mapped_url = {"url": image_url}
+                    if part.get("detail") is not None:
+                        if part["detail"] not in {"auto", "low", "high"}:
+                            raise ValueError(
+                                "Responses image detail cannot map to Chat Completions."
+                            )
+                        mapped_url["detail"] = part["detail"]
+                    image_content.append({"type": "image_url", "image_url": mapped_url})
+                content = _response_message_content(text_content, preserve_parts=True)
+            else:
+                content = _response_message_content(output, preserve_parts=True)
+            if (deferred_image_messages or image_content) and _has_cache_breakpoint(output):
+                raise ValueError("Tool-result image relocation cannot preserve cache breakpoints.")
+            if image_content:
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"The image result of tool call {call_id!r} will be "
+                            "attached as user prompt after all tool responses."
+                        ),
+                    }
+                )
+                # Chat tool messages cannot carry images, and every parallel
+                # result must precede any user message containing those images.
+                deferred_image_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                            *image_content,
+                        ],
+                    }
+                )
             messages.append(
                 {
-                    "content": _response_message_content(output, preserve_parts=True),
+                    "content": content,
                     "role": "tool",
                     "tool_call_id": call_id,
                 }
@@ -205,6 +255,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             messages[-1].update(message)
         else:
             messages.append(message)
+    messages.extend(deferred_image_messages)
     return messages
 
 

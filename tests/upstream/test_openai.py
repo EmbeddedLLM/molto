@@ -265,7 +265,7 @@ def test_responses_adapter_preserves_user_message_and_part_boundaries():
 
 def test_responses_client_projects_typed_text_history_without_phase():
     """Ensures assistant history uses output text without inventing phase metadata."""
-    body = OpenAIResponsesClient._request_body(
+    body = OpenAIResponsesClient._native_request(
         NormalizedRequest(
             input=[
                 UserInput(
@@ -279,7 +279,7 @@ def test_responses_client_projects_typed_text_history_without_phase():
             ],
             model="m",
         )
-    )
+    ).model_dump()
 
     assert body["input"] == [
         {
@@ -311,7 +311,7 @@ def test_responses_client_projects_typed_text_history_without_phase():
 
 def test_responses_client_preserves_history_item_ids():
     """Ensures reasoning item and assistant message identities survive projection."""
-    body = OpenAIResponsesClient._request_body(
+    body = OpenAIResponsesClient._native_request(
         NormalizedRequest(
             input=[
                 Thinking(content="Prior thought", summary="", id="rs_123"),
@@ -322,7 +322,7 @@ def test_responses_client_preserves_history_item_ids():
             ],
             model="m",
         )
-    )
+    ).model_dump()
 
     assert body["input"][0]["id"] == "rs_123"
     assert body["input"][1]["id"] == "msg_123"
@@ -355,9 +355,10 @@ def test_chat_completions_client_preserves_user_message_and_part_boundaries():
 
 @pytest.mark.parametrize("summary", [None, "auto", "detailed"])
 def test_chat_completions_client_maps_supported_reasoning_configuration(summary):
-    body = OpenAIChatCompletionsClient._request_body(
+    """Ensures supported reasoning controls reach the Chat request unchanged."""
+    body = OpenAIChatCompletionsClient._native_request(
         NormalizedRequest(model="m", reasoning=Reasoning(effort="high", summary=summary))
-    )
+    ).model_dump()
 
     assert body["reasoning_effort"] == "high"
 
@@ -391,11 +392,11 @@ def test_openai_clients_preserve_assistant_message_and_text_part_boundaries(empt
         ]
     )
 
-    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+    assert OpenAIChatCompletionsClient._native_request(request).model_dump()["messages"] == [
         {"role": "assistant", "content": parts},
         {"role": "assistant", "content": "Next"},
     ]
-    assert OpenAIResponsesClient._request_body(request)["input"] == [
+    assert OpenAIResponsesClient._native_request(request).model_dump()["input"] == [
         {
             "type": "message",
             "role": "assistant",
@@ -437,7 +438,7 @@ def test_chat_client_rejects_unrepresentable_order_within_assistant_message(cont
     request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
 
     with pytest.raises(UnsupportedInput):
-        OpenAIChatCompletionsClient._request_body(request)
+        OpenAIChatCompletionsClient._native_request(request)
 
 
 def test_chat_client_preserves_adjacent_reasoning_only_assistant_messages():
@@ -451,7 +452,7 @@ def test_chat_client_preserves_adjacent_reasoning_only_assistant_messages():
         ],
     )
 
-    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+    assert OpenAIChatCompletionsClient._native_request(request).model_dump()["messages"] == [
         {"role": "assistant", "reasoning_content": "First"},
         {"role": "assistant", "reasoning_content": "Second"},
         {"role": "assistant", "content": "Answer"},
@@ -476,7 +477,7 @@ def test_responses_client_preserves_ordered_assistant_text_runs():
         ],
     )
 
-    items = OpenAIResponsesClient._request_body(request)["input"]
+    items = OpenAIResponsesClient._native_request(request).model_dump()["input"]
 
     assert [item["type"] for item in items] == [
         "message",
@@ -507,10 +508,11 @@ def test_responses_client_rejects_message_identity_on_mixed_assistant_content(pa
     )
 
     with pytest.raises(UnsupportedInput, match="message ID"):
-        OpenAIResponsesClient._request_body(request)
+        OpenAIResponsesClient._native_request(request)
 
 
 def test_chat_completions_client_remaps_parallel_image_result_after_tool_messages():
+    """Ensures deferred tool images follow all linked parallel tool results."""
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call all tools.")]),
@@ -555,7 +557,7 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
         ],
         model="m",
     )
-    messages = OpenAIChatCompletionsClient._request_body(request)["messages"]
+    messages = OpenAIChatCompletionsClient._native_request(request).model_dump()["messages"]
     assert [message["role"] for message in messages] == [
         "user",
         "assistant",
@@ -740,7 +742,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
         ],
         model="m",
     )
-    messages = OpenAIChatCompletionsClient._request_body(request)["messages"]
+    messages = OpenAIChatCompletionsClient._native_request(request).model_dump()["messages"]
     assert [message["role"] for message in messages] == [
         "user",
         "assistant",
@@ -1070,8 +1072,8 @@ def test_openai_clients_project_function_tools_and_history():
         tool_choice=FunctionToolChoice(name="lookup"),
     )
 
-    responses = OpenAIResponsesClient._request_body(request)
-    chat = OpenAIChatCompletionsClient._request_body(request)
+    responses = OpenAIResponsesClient._native_request(request).model_dump()
+    chat = OpenAIChatCompletionsClient._native_request(request).model_dump()
 
     assert responses["input"] == [
         {
@@ -1148,6 +1150,7 @@ def test_openai_clients_project_function_tools_and_history():
     [OpenAIResponsesClient, OpenAIChatCompletionsClient],
 )
 def test_openai_clients_reject_failed_tool_results(client):
+    """Ensures OpenAI projections reject tool outcomes they cannot preserve."""
     request = NormalizedRequest(
         input=[
             ToolReturn(
@@ -1160,7 +1163,7 @@ def test_openai_clients_reject_failed_tool_results(client):
     )
 
     with pytest.raises(UnsupportedInput, match="cannot preserve non-successful"):
-        client._request_body(request)
+        client._native_request(request)
 
 
 @pytest.mark.parametrize(
@@ -1184,8 +1187,8 @@ def test_openai_clients_project_prompt_cache_fields(prompt_cache, expected):
     request = NormalizedRequest(model="m", stream=True, prompt_cache=prompt_cache)
 
     for body in (
-        OpenAIResponsesClient._request_body(request),
-        OpenAIChatCompletionsClient._request_body(request),
+        OpenAIResponsesClient._native_request(request).model_dump(),
+        OpenAIChatCompletionsClient._native_request(request).model_dump(),
     ):
         assert {
             field: body[field] for field in body if field.startswith("prompt_cache")
@@ -1197,8 +1200,8 @@ def test_openai_clients_omit_unset_prompt_cache():
     request = NormalizedRequest(model="m", stream=True)
 
     for body in (
-        OpenAIResponsesClient._request_body(request),
-        OpenAIChatCompletionsClient._request_body(request),
+        OpenAIResponsesClient._native_request(request).model_dump(),
+        OpenAIChatCompletionsClient._native_request(request).model_dump(),
     ):
         assert not [field for field in body if field.startswith("prompt_cache")]
 
@@ -1209,7 +1212,7 @@ def test_openai_clients_map_prompt_cache_ttl(ttl):
     request = NormalizedRequest(model="m", stream=True, prompt_cache=PromptCache(ttl=ttl))
 
     for client in (OpenAIResponsesClient, OpenAIChatCompletionsClient):
-        body = client._request_body(request)
+        body = client._native_request(request).model_dump()
         assert body["prompt_cache_options"] == {"ttl": "30m"}
         assert "prompt_cache_retention" not in body
 
@@ -1224,6 +1227,7 @@ def test_openai_clients_map_prompt_cache_ttl(ttl):
 def test_openai_clients_project_unmarked_instructions_as_text_parts(
     client, input_field, text_type
 ):
+    """Ensures unmarked instructions retain their ordered text-part shape."""
     request = NormalizedRequest(
         model="m",
         input=[
@@ -1232,7 +1236,7 @@ def test_openai_clients_project_unmarked_instructions_as_text_parts(
         ],
     )
 
-    body = client._request_body(request)
+    body = client._native_request(request).model_dump()
 
     assert body[input_field] == [
         {"role": "developer", "content": [{"type": text_type, "text": text}]}
@@ -1288,7 +1292,7 @@ def test_openai_clients_preserve_content_cache_breakpoints(client, input_field, 
         ],
     )
 
-    body = client._request_body(request)
+    body = client._native_request(request).model_dump()
 
     assert body[input_field] == [
         {
@@ -1347,7 +1351,7 @@ def test_openai_clients_map_breakpoint_lifetimes(client, ttl):
         ],
     )
 
-    body = client._request_body(request)
+    body = client._native_request(request).model_dump()
     assert body["prompt_cache_options"] == {"mode": "explicit", "ttl": "30m"}
     assert body["prompt_cache_key"] == "turn-1"
     assert "prompt_cache_retention" not in body
@@ -1368,7 +1372,7 @@ def test_openai_clients_preserve_tool_text_cache_breakpoint():
         ],
     )
 
-    assert OpenAIResponsesClient._request_body(request)["input"] == [
+    assert OpenAIResponsesClient._native_request(request).model_dump()["input"] == [
         {
             "type": "function_call_output",
             "call_id": "call_123",
@@ -1382,7 +1386,7 @@ def test_openai_clients_preserve_tool_text_cache_breakpoint():
             ],
         }
     ]
-    assert OpenAIChatCompletionsClient._request_body(request)["messages"] == [
+    assert OpenAIChatCompletionsClient._native_request(request).model_dump()["messages"] == [
         {
             "role": "tool",
             "tool_call_id": "call_123",
@@ -1410,7 +1414,7 @@ def test_responses_client_preserves_tool_image_cache_breakpoint():
         ],
     )
 
-    assert OpenAIResponsesClient._request_body(request)["input"] == [
+    assert OpenAIResponsesClient._native_request(request).model_dump()["input"] == [
         {
             "type": "function_call_output",
             "call_id": "call_123",
@@ -1438,7 +1442,7 @@ def test_responses_client_preserves_assistant_marker_and_history_id(item_id):
         ],
     )
 
-    assert OpenAIResponsesClient._request_body(request)["input"] == [
+    assert OpenAIResponsesClient._native_request(request).model_dump()["input"] == [
         {
             **({"id": item_id} if item_id is not None else {}),
             "type": "message",
@@ -1480,7 +1484,7 @@ def test_chat_client_rejects_cache_breakpoint_after_relocated_tool_image(marker_
     with pytest.raises(
         UnsupportedInput, match="tool-result images must move past the marked part"
     ):
-        OpenAIChatCompletionsClient._request_body(request)
+        OpenAIChatCompletionsClient._native_request(request)
 
 
 @pytest.mark.parametrize(
@@ -1523,8 +1527,9 @@ def test_chat_completions_client_rejects_unrepresentable_request_fields(
     normalized_request: NormalizedRequest,
     error: str,
 ):
+    """Ensures unsupported request semantics fail before Chat transport."""
     with pytest.raises(UnsupportedInput, match=error):
-        OpenAIChatCompletionsClient._request_body(normalized_request)
+        OpenAIChatCompletionsClient._native_request(normalized_request)
 
 
 def test_chat_completions_client_ignores_responses_history_item_ids():
@@ -1552,9 +1557,10 @@ def test_chat_completions_client_ignores_responses_history_item_ids():
             model="m",
         )
 
-    assert OpenAIChatCompletionsClient._request_body(
-        request("responses_item_id")
-    ) == OpenAIChatCompletionsClient._request_body(request(None))
+    assert (
+        OpenAIChatCompletionsClient._native_request(request("responses_item_id")).model_dump()
+        == OpenAIChatCompletionsClient._native_request(request(None)).model_dump()
+    )
 
 
 @pytest.mark.parametrize("termination_reason", ["content_filter", "max_output_tokens"])
@@ -2276,13 +2282,14 @@ async def test_responses_events_reject_reasoning_outside_capability(
 
 
 def test_responses_client_rejects_unsigned_summary_history() -> None:
+    """Ensures Responses rejects summaries without required opaque state."""
     request = NormalizedRequest(
         input=[Thinking(content="", summary="Summary")],
         model="m",
     )
 
     with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesClient._request_body(request)
+        OpenAIResponsesClient._native_request(request)
 
 
 async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(

@@ -1,10 +1,13 @@
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from molto.utils.io import dumps_sse
+from molto.utils.io import dumps_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
     reconstructable_anthropic_event,
@@ -237,11 +240,14 @@ def _reconstructable(events: list[dict[str, Any]], body: dict[str, Any]) -> list
 
 
 def test_reconstructable_responses_event_preserves_reconstructable_fields():
+    """Ensure generated metadata and absent/null incomplete details do not break parity."""
     expected_events = _responses_events()
     expected_events[0]["item"]["phase"] = "final_answer"
+    expected_events[1]["response"]["incomplete_details"] = None
     expected_events[1]["response"]["output"][0]["phase"] = "final_answer"
     actual_events = deepcopy(expected_events)
     actual_events[0]["item"].pop("phase")
+    actual_events[1]["response"].pop("incomplete_details")
     actual_events[1]["response"]["output"][0].pop("phase")
     actual_events[0]["item"]["id"] = "msg_generated"
     actual_events[1]["response"].pop("background")
@@ -258,9 +264,103 @@ def test_reconstructable_responses_event_preserves_reconstructable_fields():
 
 
 def test_reconstructable_responses_event_validates_event_and_request():
+    """Ensures malformed requests and incomplete events still raise SDK validation errors."""
     event = _responses_events()[0]
 
-    with pytest.raises(ValidationError):
-        reconstructable_responses_event(dumps_sse({"type": "invalid"}), {})
+    for invalid in (
+        {"type": "invalid"},
+        {"type": "response.incomplete"},
+        {"type": "response.incomplete", "response": {"usage": {}}},
+    ):
+        with pytest.raises(ValidationError):
+            reconstructable_responses_event(dumps_sse(invalid), {})
     with pytest.raises(ValidationError):
         reconstructable_responses_event(dumps_sse(event), {"invalid": True})
+
+
+@pytest.fixture
+async def incomplete_responses_event() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Parse the recorded incomplete stream through the OpenAI SDK independently."""
+    cassette = read_yaml(
+        Path(__file__).parents[1]
+        / "cassettes/errors/incomplete_response/openai-responses-stream-00.yaml"
+    )
+
+    def replay(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            cassette["response"]["status_code"],
+            headers={"content-type": "text/event-stream"},
+            content="".join(cassette["response"]["sse"]),
+        )
+
+    body = cassette["request"]["body"]
+    async with AsyncOpenAI(
+        api_key="test-api-key",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(replay)),
+    ) as sdk:
+        events = [event async for event in await sdk.responses.create(**body)]
+    assert events[-1].type == "response.incomplete"
+    return events[-1].model_dump(mode="json", exclude_unset=True), body
+
+
+def test_reconstructable_responses_event_preserves_incomplete_result(
+    incomplete_responses_event: tuple[dict[str, Any], dict[str, Any]],
+) -> None:
+    """Ensure incomplete SDK results retain their recorded status, output, and usage."""
+    event, body = incomplete_responses_event
+    expected = event["response"]
+    actual = reconstructable_responses_event(dumps_sse(event), body)
+
+    assert actual["type"] == "response.incomplete"
+    response = actual["response"]
+    assert response["status"] == expected["status"] == "incomplete"
+    assert (
+        response["incomplete_details"]
+        == expected["incomplete_details"]
+        == {"reason": "max_output_tokens"}
+    )
+    assert response["output"] == [
+        {key: value for key, value in item.items() if key != "id"} for item in expected["output"]
+    ]
+    assert response["output"][0]["content"][0]["text"]
+    assert response["usage"] == expected["usage"]
+
+
+def test_reconstructable_responses_event_requires_recorded_cache_write_count(
+    incomplete_responses_event: tuple[dict[str, Any], dict[str, Any]],
+) -> None:
+    """Ensure comparison validation cannot invent a missing incomplete cache-write count."""
+    event, body = deepcopy(incomplete_responses_event)
+    event["response"]["usage"]["input_tokens_details"].pop("cache_write_tokens", None)
+    with pytest.raises(ValidationError, match="cache_write_tokens"):
+        reconstructable_responses_event(dumps_sse(event), body)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["incomplete_reason", "status", "partial_text", "usage", "cache_usage"]
+)
+def test_reconstructable_responses_event_rejects_changed_incomplete_result(
+    incomplete_responses_event: tuple[dict[str, Any], dict[str, Any]],
+    mutation: str,
+) -> None:
+    """Ensure an incorrect incomplete reason, partial result, or token count fails parity."""
+    event, body = incomplete_responses_event
+    expected = reconstructable_responses_event(dumps_sse(event), body)
+    changed = deepcopy(event)
+    response = changed["response"]
+    if mutation == "incomplete_reason":
+        response["incomplete_details"]["reason"] = "content_filter"
+    elif mutation == "status":
+        response["status"] = "completed"
+    elif mutation == "partial_text":
+        response["output"][0]["content"][0]["text"] += " changed"
+    elif mutation == "cache_usage":
+        response["usage"]["input_tokens_details"]["cache_write_tokens"] += 1
+    else:
+        response["usage"]["output_tokens"] += 1
+
+    with pytest.raises(AssertionError, match="Value mismatch"):
+        assert_contains_expected(
+            reconstructable_responses_event(dumps_sse(changed), body),
+            expected,
+        )

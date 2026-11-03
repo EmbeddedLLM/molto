@@ -433,6 +433,8 @@ An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI o
 
 The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Recognized errors on every route follow the [error translation](../docs/errors.md) contract; unknown SDK errors pass through unchanged. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
+Translated clients build one validated upstream-native request model and pass it directly to native transport. Serialization at the SDK boundary retains the request models' unset/`None` exclusions; native passthrough keeps its original validated request.
+
 SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters do not perform HTTP requests; they use `httpx` only to construct the compatibility response required to project local credential failures as SDK authentication errors.
 
 Closure propagates through the complete translated pipeline: adapter wrappers close the projector and its normalized input, client wrappers close the normalizer, and normalizers context-manage their native iterators. This releases the SDK response deterministically on collection failure, cancellation, or explicit early closure without closing the shared HTTP client.
@@ -474,6 +476,8 @@ Parity differs by path:
 - same-protocol routes assert exact request bodies and parsed SDK stream events or non-streaming responses;
 - Chat Completions to Responses compares reconstructible Responses events and validates event ordering, sequence numbers, generated IDs, and function-call identity;
 - Responses to Chat Completions compares ordered text, reasoning, and function-argument deltas, finish state, and semantic usage without requiring unavailable fingerprints or identical usage-chunk placement.
+
+Matched public-route conversations carry actual returned SDK output cumulatively into subsequent requests. Test-side SDK collection and explicit input-shape conversion remain independent of Molto's translators and collectors; saved requests supply only new user input/tool results and per-turn settings. History is checked before sending, and outgoing upstream requests remain independently compared. Cache scenarios use separate prefix-changing requests. See the [continuation checks and intentional fixture corrections](../tests/cassettes/README.md#actual-output-continuation).
 
 ## Current limitations and extension path
 

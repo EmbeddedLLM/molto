@@ -9,6 +9,7 @@ from molto.types.anthropic_messages import (
 )
 from molto.utils.io import dump_yaml, read_yaml
 from scripts.match_anthropic_cassette_responses import main, match_messages_response
+from tests.cassette_discovery import matcher_pairs
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "simple_text"
 
@@ -21,9 +22,16 @@ def _cassettes(turn: int = 0) -> tuple[dict, dict]:
     return messages, responses
 
 
-@pytest.mark.parametrize("turn", [0, 1])
-def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> None:
-    messages, responses = _cassettes(turn)
+@pytest.mark.parametrize(
+    ("turn", "messages_path", "responses_path"),
+    matcher_pairs("simple_text", "messages", "non_stream"),
+)
+def test_matches_real_non_streaming_cassette_and_is_idempotent(
+    turn: int, messages_path: Path, responses_path: Path
+) -> None:
+    """Ensures every discovered conversation turn matches valid native output idempotently."""
+    messages = read_yaml(messages_path)
+    responses = read_yaml(responses_path)
     transport = deepcopy(messages["response"]["headers"])
 
     match_messages_response(messages, responses)

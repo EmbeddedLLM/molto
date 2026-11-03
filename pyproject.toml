@@ -85,11 +85,9 @@ dependencies = [
     "loguru~=0.7",
     "openai>=2.45.0,<3.2",
     "orjson~=3.11",
-    "pycountry~=26.2.16",
     "pydantic-ai-slim[retries]~=1.104.0",
-    "pydantic-extra-types~=2.11.1",
     "pydantic-settings~=2.13.1",
-    "pydantic[email,timezone]>=2.12.5",
+    "pydantic>=2.12.5",
     "uuid-utils~=0.14.1",
 ]
 dynamic = ["version"]
