@@ -30,18 +30,26 @@ def recording_args(monkeypatch, tmp_path):
         reasoning="none",
         stream=False,
         max_tokens=2048,
+        auth="api-key",
+        extra_body=None,
     )
 
 
 @pytest.mark.parametrize("protocol", ["responses", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("scenario", ["text", "tools"])
+@pytest.mark.parametrize("bearer", [False, True])
 async def test_native_driver_replays_exact_recorded_conversation(
-    monkeypatch, recording_args, protocol, stream, scenario
+    monkeypatch, recording_args, protocol, stream, scenario, bearer
 ):
     """Ensures actual native SDK output yields each exact recorded next request and linked tool result."""
     args = recording_args
     args.protocol, args.stream, args.scenario = protocol, stream, scenario
+    if bearer:
+        args.auth = "bearer"
+        args.extra_body = {"provider": {"max_price": {"prompt": 0, "completion": 0}}}
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "unrelated-api-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "unrelated-token")
     args.base_url = "https://api.fireworks.ai/inference" + (
         "/v1" if protocol == "responses" else ""
     )
@@ -58,13 +66,18 @@ async def test_native_driver_replays_exact_recorded_conversation(
     def handler(request):
         captured = recordings[len(requests)]
         requests.append(json.loads(request.content))
-        assert requests[-1] == captured["request"]["body"]
+        assert requests[-1] == captured["request"]["body"] | (args.extra_body or {})
         assert str(request.url) == manifest["upstream_url"]
         if protocol == "responses":
             assert request.headers["authorization"] == "Bearer native-test-key"
             assert requests[-1]["store"] is False
         else:
-            assert request.headers["x-api-key"] == "native-test-key"
+            if bearer:
+                assert request.headers["authorization"] == "Bearer native-test-key"
+                assert "x-api-key" not in request.headers
+            else:
+                assert request.headers["x-api-key"] == "native-test-key"
+                assert "authorization" not in request.headers
         result = captured["response"]
         if "sse" in result:
             return httpx.Response(
@@ -84,6 +97,7 @@ async def test_native_driver_replays_exact_recorded_conversation(
         assert upstream.is_closed
     actual = json.loads((args.output_dir / "manifest.json").read_text())
     assert actual["status"] == "complete"
+    assert actual["extra_body"] == args.extra_body
     assert len(requests) == len(recordings)
     assert all(
         turn["status"] == "complete" and len(turn["files"]) == 1 for turn in actual["turns"]

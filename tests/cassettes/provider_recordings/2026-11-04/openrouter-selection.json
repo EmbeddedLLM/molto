@@ -34,12 +34,8 @@
       ],
       "architecture": {
         "modality": "text->text",
-        "input_modalities": [
-          "text"
-        ],
-        "output_modalities": [
-          "text"
-        ],
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "tokenizer": "Other",
         "instruct_type": null
       }
@@ -51,24 +47,11 @@
         "prompt": "0",
         "completion": "0"
       },
-      "supported_parameters": [
-        "include_reasoning",
-        "max_tokens",
-        "reasoning",
-        "seed",
-        "temperature",
-        "tool_choice",
-        "tools",
-        "top_p"
-      ],
+      "supported_parameters": ["include_reasoning", "max_tokens", "reasoning", "seed", "temperature", "tool_choice", "tools", "top_p"],
       "architecture": {
         "modality": "text->text",
-        "input_modalities": [
-          "text"
-        ],
-        "output_modalities": [
-          "text"
-        ],
+        "input_modalities": ["text"],
+        "output_modalities": ["text"],
         "tokenizer": "Other",
         "instruct_type": null
       }

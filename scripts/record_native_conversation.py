@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from anthropic import AsyncAnthropic
+from anthropic import omit as anthropic_omit
 from dotenv import load_dotenv
 from openai import AsyncOpenAI, omit
 
@@ -49,6 +50,8 @@ def initial_history(protocol: str, scenario: str) -> list[dict]:
 
 def request_body(args, history: list[dict], turn: int) -> dict:
     body = {"model": args.model}
+    if args.extra_body is not None:
+        body["extra_body"] = args.extra_body
     schema = {
         "type": "object",
         "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
@@ -217,8 +220,8 @@ async def record(args) -> int:
         "stream": args.stream,
         "reasoning_setting": args.reasoning,
         "max_tokens": args.max_tokens,
-        "extra_body": None,
-        "authentication": f"{'Bearer' if args.protocol == 'responses' else 'x-api-key'} credential from {args.key_env}; value excluded",
+        "extra_body": args.extra_body,
+        "authentication": f"{'Bearer' if args.protocol == 'responses' or args.auth == 'bearer' else 'x-api-key'} credential from {args.key_env}; value excluded",
         "sdk_retries": 0,
         "proxy_retries": 0,
         "accumulation_policy": "Responses terminal output or Anthropic SDK final content; model_dump(exclude_unset=True); exclude only __json_buf/parsed_output SDK bookkeeping; manual actual-output history",
@@ -232,8 +235,14 @@ async def record(args) -> int:
             transport=httpx.ASGITransport(app=recorder_proxy.app)
         ) as transport:
             client_type = AsyncOpenAI if args.protocol == "responses" else AsyncAnthropic
+            auth = {"api_key": key}
+            if args.protocol == "messages":
+                auth = {
+                    "api_key": None if args.auth == "bearer" else key,
+                    "auth_token": key if args.auth == "bearer" else None,
+                }
             async with client_type(
-                api_key=key,
+                **auth,
                 base_url="http://recorder.local" + url.path,
                 http_client=transport,
                 default_headers=(
@@ -243,7 +252,12 @@ async def record(args) -> int:
                         "OpenAI-Project": omit,
                     }
                     if args.protocol == "responses"
-                    else None
+                    else {
+                        "Authorization": f"Bearer {key}"
+                        if args.auth == "bearer"
+                        else anthropic_omit,
+                        "X-Api-Key": anthropic_omit if args.auth == "bearer" else key,
+                    }
                 ),
                 max_retries=0,
                 timeout=120,
@@ -325,6 +339,13 @@ def main() -> int:
     parser.add_argument("--protocol", choices=("responses", "messages"), required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--key-env", required=True)
+    parser.add_argument("--auth", choices=("api-key", "bearer"), default="api-key")
+    parser.add_argument(
+        "--extra-body",
+        type=json.loads,
+        default=None,
+        help="Nonsecret provider settings only; persisted verbatim in the manifest.",
+    )
     parser.add_argument("--model", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--scenario", choices=("text", "tools", "parallel"), default="text")

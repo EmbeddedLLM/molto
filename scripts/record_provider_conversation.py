@@ -70,11 +70,27 @@ def accumulation_chunk(event, roles: dict[int, str]):
 def verify_accumulation(events: list[dict], history: dict) -> None:
     """Fail if SDK accumulation changes reasoning bytes or opaque attachment values."""
     reasoning = {"reasoning": [], "reasoning_content": []}
+    details: dict[int, dict] = {}
     for event in events:
         for choice in event["choices"]:
             if choice["index"] != 0:
                 raise ValueError("The recording scenario requires exactly one choice.")
             delta = choice["delta"]
+            for detail in delta.get("reasoning_details") or []:
+                index = detail.get("index")
+                if type(index) is not int or detail.get("type") not in {
+                    "reasoning.text",
+                    "reasoning.summary",
+                }:
+                    raise ValueError("Cannot independently verify this reasoning_details shape.")
+                collected_detail = details.setdefault(index, {})
+                for field, value in detail.items():
+                    if field in {"text", "summary"} and isinstance(value, str):
+                        collected_detail[field] = collected_detail.get(field, "") + value
+                    elif field not in collected_detail or collected_detail[field] == value:
+                        collected_detail[field] = value
+                    else:
+                        raise ValueError("Provider changed reasoning_details metadata.")
             if delta.get("role") is not None and delta["role"] != history.get("role"):
                 raise ValueError("Accumulated role differs from the original provider metadata.")
             for field, fragments in reasoning.items():
@@ -97,6 +113,8 @@ def verify_accumulation(events: list[dict], history: dict) -> None:
     for field, fragments in reasoning.items():
         if fragments and history.get(field) != "".join(fragments):
             raise ValueError("SDK accumulation changed reasoning history.")
+    if details and history.get("reasoning_details") != list(details.values()):
+        raise ValueError("SDK accumulation changed reasoning_details history.")
 
 
 def validate_turn(history: dict, finish_reason: str, scenario: str, turn: int) -> None:
@@ -170,7 +188,9 @@ async def record(args: argparse.Namespace) -> int:
         "proxy_retries": 0,
         "accumulation_policy": (
             "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; "
-            "original SSE and role metadata retained and checked independently"
+            "original SSE and role metadata retained and checked independently; "
+            "reasoning_details text/summary fragments and stable metadata independently checked; "
+            "unverifiable detail shapes rejected without repairing SDK history"
         ),
         "history_policy": (
             "omit-absent-sdk-null-bookkeeping" if args.stream else "native-exclude-unset"

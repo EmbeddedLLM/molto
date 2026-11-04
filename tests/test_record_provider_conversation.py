@@ -430,3 +430,67 @@ def test_history_omits_only_unemitted_sdk_null_bookkeeping(field, emitted):
         assert history[field] is None
     assert message.model_dump() == original
     assert field in driver.assistant_history(message)
+
+
+def test_reasoning_detail_verification_rejects_sdk_metadata_concatenation():
+    """Ensures repeated detail metadata cannot be silently corrupted in actual SDK history."""
+    from openai.lib.streaming.chat import ChatCompletionStreamState
+    from openai.types.chat import ChatCompletionChunk
+
+    state = ChatCompletionStreamState()
+    events = []
+    for text in ("First ", "thought."):
+        event = ChatCompletionChunk.model_validate(
+            {
+                "id": "chat",
+                "created": 1,
+                "model": "m",
+                "object": "chat.completion.chunk",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "reasoning_details": [
+                                {
+                                    "index": 0,
+                                    "type": "reasoning.text",
+                                    "format": "unknown",
+                                    "text": text,
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            }
+        )
+        events.append(event.model_dump(exclude_unset=True))
+        state.handle_chunk(event)
+    history = state.current_completion_snapshot.choices[0].message.model_dump(exclude_unset=True)
+    assert history["reasoning_details"][0]["format"] == "unknownunknown"
+    with pytest.raises(ValueError, match="changed reasoning_details"):
+        driver.verify_accumulation(events, history)
+    correct = deepcopy(history)
+    correct["reasoning_details"][0]["format"] = "unknown"
+    driver.verify_accumulation(events, correct)
+    assert history["reasoning_details"][0]["format"] == "unknownunknown"
+
+
+def test_reasoning_detail_verification_rejects_unverifiable_opaque_shape():
+    """Ensures encrypted payloads are not certified using invented concatenation semantics."""
+    events = [
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "reasoning_details": [
+                            {"index": 0, "type": "reasoning.encrypted", "data": "opaque"}
+                        ]
+                    },
+                }
+            ]
+        }
+    ]
+    with pytest.raises(ValueError, match="Cannot independently verify"):
+        driver.verify_accumulation(events, {})
