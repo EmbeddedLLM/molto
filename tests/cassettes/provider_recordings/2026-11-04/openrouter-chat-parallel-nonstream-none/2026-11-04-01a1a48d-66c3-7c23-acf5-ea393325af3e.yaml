@@ -1,0 +1,126 @@
+filename: 2026-11-04-01a1a48d-66c3-7c23-acf5-ea393325af3e
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: true
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    stream: false
+    tool_choice: required
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '604'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/chat/completions
+  query_params: {}
+request_id: 01a1a48d-66c3-7c23-acf5-ea393325af3e
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      logprobs: null
+      message:
+        content: null
+        reasoning: null
+        refusal: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a": 2, "b": 3}'
+            name: add
+          id: call-491008b7-3a5f-4d21-bf99-c6b8302c2cbe
+          index: 0
+          type: function
+        - function:
+            arguments: '{"a": 7, "b": 4}'
+            name: add
+          id: call-bc0804e9-fe45-4bf4-a1f6-9db9529cbb6c
+          index: 1
+          type: function
+      native_finish_reason: tool_calls
+    created: 1793762092
+    id: gen-1793762092-85TakoQFHFbT78qVZsf6
+    model: nvidia/nemotron-3.5-lightning:free
+    object: chat.completion
+    provider: Nvidia
+    service_tier: null
+    system_fingerprint: null
+    usage:
+      completion_tokens: 45
+      completion_tokens_details:
+        audio_tokens: 0
+        image_tokens: 0
+        reasoning_tokens: 0
+      cost: 0
+      cost_details:
+        upstream_inference_completions_cost: 0
+        upstream_inference_cost: 0
+        upstream_inference_prompt_cost: 0
+      is_byok: false
+      prompt_tokens: 319
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+        video_tokens: 0
+      total_tokens: 364
+  body_bytes: !!binary |
+    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjIwOTItODVUYWtvUUZIRmJUNzhxVlpzZjYiLCJv
+    YmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVhdGVkIjoxNzkzNzYyMDkyLCJtb2RlbCI6Im52
+    aWRpYS9uZW1vdHJvbi0zLjUtbGlnaHRuaW5nOmZyZWUiLCJwcm92aWRlciI6Ik52aWRpYSIsInN5
+    c3RlbV9maW5nZXJwcmludCI6bnVsbCwic2VydmljZV90aWVyIjpudWxsLCJjaG9pY2VzIjpbeyJp
+    bmRleCI6MCwibG9ncHJvYnMiOm51bGwsImZpbmlzaF9yZWFzb24iOiJ0b29sX2NhbGxzIiwibmF0
+    aXZlX2ZpbmlzaF9yZWFzb24iOiJ0b29sX2NhbGxzIiwibWVzc2FnZSI6eyJyb2xlIjoiYXNzaXN0
+    YW50IiwiY29udGVudCI6bnVsbCwicmVmdXNhbCI6bnVsbCwicmVhc29uaW5nIjpudWxsLCJ0b29s
+    X2NhbGxzIjpbeyJ0eXBlIjoiZnVuY3Rpb24iLCJpbmRleCI6MCwiaWQiOiJjYWxsLTQ5MTAwOGI3
+    LTNhNWYtNGQyMS1iZjk5LWM2YjgzMDJjMmNiZSIsImZ1bmN0aW9uIjp7Im5hbWUiOiJhZGQiLCJh
+    cmd1bWVudHMiOiJ7XCJhXCI6IDIsIFwiYlwiOiAzfSJ9fSx7InR5cGUiOiJmdW5jdGlvbiIsImlu
+    ZGV4IjoxLCJpZCI6ImNhbGwtYmMwODA0ZTktZmU0NS00YmY0LWExZjYtOWRiOTUyOWNiYjZjIiwi
+    ZnVuY3Rpb24iOnsibmFtZSI6ImFkZCIsImFyZ3VtZW50cyI6IntcImFcIjogNywgXCJiXCI6IDR9
+    In19XX19XSwidXNhZ2UiOnsicHJvbXB0X3Rva2VucyI6MzE5LCJjb21wbGV0aW9uX3Rva2VucyI6
+    NDUsInRvdGFsX3Rva2VucyI6MzY0LCJjb3N0IjowLCJpc19ieW9rIjpmYWxzZSwicHJvbXB0X3Rv
+    a2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjAsImNhY2hlX3dyaXRlX3Rva2VucyI6MCwi
+    YXVkaW9fdG9rZW5zIjowLCJ2aWRlb190b2tlbnMiOjB9LCJjb3N0X2RldGFpbHMiOnsidXBzdHJl
+    YW1faW5mZXJlbmNlX2Nvc3QiOjAsInVwc3RyZWFtX2luZmVyZW5jZV9wcm9tcHRfY29zdCI6MCwi
+    dXBzdHJlYW1faW5mZXJlbmNlX2NvbXBsZXRpb25zX2Nvc3QiOjB9LCJjb21wbGV0aW9uX3Rva2Vu
+    c19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjAsImltYWdlX3Rva2VucyI6MCwiYXVkaW9f
+    dG9rZW5zIjowfX19
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:14:52.739849+00:00'
+upstream_url: https://openrouter.ai/api/v1/chat/completions

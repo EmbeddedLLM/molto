@@ -1,0 +1,95 @@
+filename: 2026-11-04-01a1a489-606f-7512-aacc-1cb8486a9d6c
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '674'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/chat/completions
+  query_params: {}
+request_id: 01a1a489-606f-7512-aacc-1cb8486a9d6c
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'data: {"id":"gen-1793761829-THCBYflvuSKw0WbDvsgo","object":"chat.completion.chunk","created":1793761829,"model":"nvidia/nemotron-3.5-lightning:free","provider":"Nvidia","choices":[{"index":0,"delta":{"content":null,"role":"assistant","tool_calls":[{"index":0,"id":"call-b1dab1e4-4159-4314-b273-0f23ea63b84f","type":"function","function":{"name":"add","arguments":""}}]},"finish_reason":null,"native_finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"gen-1793761829-THCBYflvuSKw0WbDvsgo","object":"chat.completion.chunk","created":1793761829,"model":"nvidia/nemotron-3.5-lightning:free","provider":"Nvidia","choices":[{"index":0,"delta":{"content":null,"role":"assistant","tool_calls":[{"index":0,"function":{"arguments":"{\n  \"a\":
+    2,\n  \"b\": 3\n}"}}]},"finish_reason":null,"native_finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"gen-1793761829-THCBYflvuSKw0WbDvsgo","object":"chat.completion.chunk","created":1793761829,"model":"nvidia/nemotron-3.5-lightning:free","provider":"Nvidia","choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"tool_calls","native_finish_reason":"tool_calls"}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"gen-1793761829-THCBYflvuSKw0WbDvsgo","object":"chat.completion.chunk","created":1793761829,"model":"nvidia/nemotron-3.5-lightning:free","provider":"Nvidia","service_tier":null,"choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"tool_calls","native_finish_reason":"tool_calls"}],"usage":{"prompt_tokens":324,"completion_tokens":17,"total_tokens":341,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T03:10:28.975479+00:00'
+upstream_url: https://openrouter.ai/api/v1/chat/completions

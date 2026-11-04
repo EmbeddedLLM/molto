@@ -1,0 +1,50 @@
+filename: 2026-11-04-01a1a48b-ec31-71e0-a75f-f43f90ba3a71
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    model: liquid/lfm-2.5-2.6b:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '336'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/chat/completions
+  query_params: {}
+request_id: 01a1a48b-ec31-71e0-a75f-f43f90ba3a71
+response:
+  body:
+    error:
+      code: 400
+      message: Reasoning is mandatory for this endpoint and cannot be disabled.
+      metadata:
+        provider_name: null
+  body_bytes: !!binary |
+    eyJlcnJvciI6eyJtZXNzYWdlIjoiUmVhc29uaW5nIGlzIG1hbmRhdG9yeSBmb3IgdGhpcyBlbmRw
+    b2ludCBhbmQgY2Fubm90IGJlIGRpc2FibGVkLiIsImNvZGUiOjQwMCwibWV0YWRhdGEiOnsicHJv
+    dmlkZXJfbmFtZSI6bnVsbH19fQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-11-04T03:13:15.825583+00:00'
+upstream_url: https://openrouter.ai/api/v1/chat/completions

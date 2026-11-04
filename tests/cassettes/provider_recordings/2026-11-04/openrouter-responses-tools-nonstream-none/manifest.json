@@ -1,0 +1,69 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-04T03:10:53.179861+00:00",
+  "revision": "99375e622c14f7ada37273eb0c79395baa82e6d9",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "source_hashes": {
+    "driver_sha256": "c5216c8626576ed431cb885bad638ef46344b3b77adf31357cdefc2104894b62",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96",
+    "validation_sha256": "67f4c07b0730a542ac01f8218c83c5e0a876af460cb4e1008771006c9ef016a5"
+  },
+  "provider": "openrouter",
+  "upstream_protocol": "responses",
+  "upstream_url": "https://openrouter.ai/api/v1/responses",
+  "requested_model": "nvidia/nemotron-3.5-lightning:free",
+  "scenario": "tools",
+  "stream": false,
+  "reasoning_setting": "none",
+  "max_tokens": 1024,
+  "extra_body": {
+    "provider": {
+      "max_price": {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0
+      },
+      "allow_fallbacks": false
+    }
+  },
+  "authentication": "Bearer credential from OPENROUTER_API_KEY; value excluded",
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "Responses terminal output or Anthropic SDK final content; model_dump(exclude_unset=True); exclude only __json_buf/parsed_output SDK bookkeeping; manual actual-output history",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-04-01a1a489-c140-7c31-aaf2-46a14bcfd428.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-04-01a1a489-c48d-7883-9d54-8123763449aa.yaml"
+      ]
+    },
+    {
+      "turn": 2,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a489-c7b3-7de1-8fdf-32558b93a45f.yaml"
+      ]
+    }
+  ],
+  "status": "complete"
+}

@@ -1,0 +1,115 @@
+filename: 2026-11-04-01a1a48b-bd7f-7dc1-b7b0-0ee94022d5b5
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '597'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /api/v1/messages
+  query_params: {}
+request_id: 01a1a48b-bd7f-7dc1-b7b0-0ee94022d5b5
+response:
+  body:
+    container: null
+    content:
+    - signature: ''
+      thinking: We need to call add with 2 and 3. Then call add again with result
+        (5) and 4. Then give final answer. Use tool calls.
+      type: thinking
+    - caller:
+        type: direct
+      id: call-0b6cfa06-9c01-44e0-90aa-0af77c4fc2d0
+      input:
+        a: 2
+        b: 3
+      name: add
+      type: tool_use
+    context_management: null
+    id: msg_TWY0zQO11zD4JiwbFyGs
+    model: nvidia/nemotron-3.5-lightning:free
+    provider: Nvidia
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: null
+      cache_read_input_tokens: 0
+      cost: 0
+      cost_details:
+        upstream_inference_completions_cost: 0
+        upstream_inference_cost: 0
+        upstream_inference_prompt_cost: 0
+      inference_geo: null
+      input_tokens: 324
+      is_byok: false
+      output_tokens: 67
+      output_tokens_details:
+        thinking_tokens: 34
+      server_tool_use: null
+      service_tier: null
+      speed: standard
+  body_bytes: !!binary |
+    eyJpZCI6Im1zZ19UV1kwelFPMTF6RDRKaXdiRnlHcyIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6
+    ImFzc2lzdGFudCIsImNvbnRhaW5lciI6bnVsbCwiY29udGVudCI6W3sidHlwZSI6InRoaW5raW5n
+    IiwidGhpbmtpbmciOiJXZSBuZWVkIHRvIGNhbGwgYWRkIHdpdGggMiBhbmQgMy4gVGhlbiBjYWxs
+    IGFkZCBhZ2FpbiB3aXRoIHJlc3VsdCAoNSkgYW5kIDQuIFRoZW4gZ2l2ZSBmaW5hbCBhbnN3ZXIu
+    IFVzZSB0b29sIGNhbGxzLiIsInNpZ25hdHVyZSI6IiJ9LHsidHlwZSI6InRvb2xfdXNlIiwiaWQi
+    OiJjYWxsLTBiNmNmYTA2LTljMDEtNDRlMC05MGFhLTBhZjc3YzRmYzJkMCIsImNhbGxlciI6eyJ0
+    eXBlIjoiZGlyZWN0In0sIm5hbWUiOiJhZGQiLCJpbnB1dCI6eyJiIjozLCJhIjoyfX1dLCJtb2Rl
+    bCI6Im52aWRpYS9uZW1vdHJvbi0zLjUtbGlnaHRuaW5nOmZyZWUiLCJzdG9wX3JlYXNvbiI6InRv
+    b2xfdXNlIiwic3RvcF9kZXRhaWxzIjpudWxsLCJzdG9wX3NlcXVlbmNlIjpudWxsLCJ1c2FnZSI6
+    eyJpbnB1dF90b2tlbnMiOjMyNCwib3V0cHV0X3Rva2VucyI6NjcsIm91dHB1dF90b2tlbnNfZGV0
+    YWlscyI6eyJ0aGlua2luZ190b2tlbnMiOjM0fSwiY2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5z
+    IjpudWxsLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfY3JlYXRpb24iOm51bGws
+    ImluZmVyZW5jZV9nZW8iOm51bGwsInNlcnZlcl90b29sX3VzZSI6bnVsbCwic2VydmljZV90aWVy
+    IjpudWxsLCJzcGVlZCI6InN0YW5kYXJkIiwiY29zdCI6MCwiaXNfYnlvayI6ZmFsc2UsImNvc3Rf
+    ZGV0YWlscyI6eyJ1cHN0cmVhbV9pbmZlcmVuY2VfY29zdCI6MCwidXBzdHJlYW1faW5mZXJlbmNl
+    X3Byb21wdF9jb3N0IjowLCJ1cHN0cmVhbV9pbmZlcmVuY2VfY29tcGxldGlvbnNfY29zdCI6MH19
+    LCJjb250ZXh0X21hbmFnZW1lbnQiOm51bGwsInByb3ZpZGVyIjoiTnZpZGlhIn0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    request-id: gen-1793761983-TWY0zQO11zD4JiwbFyGs
+  status_code: 200
+timestamp: '2026-11-04T03:13:03.871791+00:00'
+upstream_url: https://openrouter.ai/api/v1/messages

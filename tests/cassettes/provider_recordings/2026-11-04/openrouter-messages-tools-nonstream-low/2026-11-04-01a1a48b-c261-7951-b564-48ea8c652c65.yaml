@@ -1,0 +1,132 @@
+filename: 2026-11-04-01a1a48b-c261-7951-b564-48ea8c652c65
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - signature: ''
+        thinking: We need to call add with 2 and 3. Then call add again with result
+          (5) and 4. Then give final answer. Use tool calls.
+        type: thinking
+      - caller:
+          type: direct
+        id: call-0b6cfa06-9c01-44e0-90aa-0af77c4fc2d0
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: call-0b6cfa06-9c01-44e0-90aa-0af77c4fc2d0
+        type: tool_result
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1049'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /api/v1/messages
+  query_params: {}
+request_id: 01a1a48b-c261-7951-b564-48ea8c652c65
+response:
+  body:
+    container: null
+    content:
+    - signature: ''
+      thinking: Now we have result 5. Need to add 5 and 4.
+      type: thinking
+    - caller:
+        type: direct
+      id: call-ed77770e-a9ce-4127-86fd-0b0cee72f4e7
+      input:
+        a: 5
+        b: 4
+      name: add
+      type: tool_use
+    context_management: null
+    id: msg_xu3VmPQVpNghyN67fhC6
+    model: nvidia/nemotron-3.5-lightning:free
+    provider: Nvidia
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: null
+      cache_read_input_tokens: 0
+      cost: 0
+      cost_details:
+        upstream_inference_completions_cost: 0
+        upstream_inference_cost: 0
+        upstream_inference_prompt_cost: 0
+      inference_geo: null
+      input_tokens: 409
+      is_byok: false
+      output_tokens: 49
+      output_tokens_details:
+        thinking_tokens: 16
+      server_tool_use: null
+      service_tier: null
+      speed: standard
+  body_bytes: !!binary |
+    eyJpZCI6Im1zZ194dTNWbVBRVnBOZ2h5TjY3ZmhDNiIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6
+    ImFzc2lzdGFudCIsImNvbnRhaW5lciI6bnVsbCwiY29udGVudCI6W3sidHlwZSI6InRoaW5raW5n
+    IiwidGhpbmtpbmciOiJOb3cgd2UgaGF2ZSByZXN1bHQgNS4gTmVlZCB0byBhZGQgNSBhbmQgNC4i
+    LCJzaWduYXR1cmUiOiIifSx7InR5cGUiOiJ0b29sX3VzZSIsImlkIjoiY2FsbC1lZDc3NzcwZS1h
+    OWNlLTQxMjctODZmZC0wYjBjZWU3MmY0ZTciLCJjYWxsZXIiOnsidHlwZSI6ImRpcmVjdCJ9LCJu
+    YW1lIjoiYWRkIiwiaW5wdXQiOnsiYiI6NCwiYSI6NX19XSwibW9kZWwiOiJudmlkaWEvbmVtb3Ry
+    b24tMy41LWxpZ2h0bmluZzpmcmVlIiwic3RvcF9yZWFzb24iOiJ0b29sX3VzZSIsInN0b3BfZGV0
+    YWlscyI6bnVsbCwic3RvcF9zZXF1ZW5jZSI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjo0
+    MDksIm91dHB1dF90b2tlbnMiOjQ5LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsidGhpbmtpbmdf
+    dG9rZW5zIjoxNn0sImNhY2hlX2NyZWF0aW9uX2lucHV0X3Rva2VucyI6bnVsbCwiY2FjaGVfcmVh
+    ZF9pbnB1dF90b2tlbnMiOjAsImNhY2hlX2NyZWF0aW9uIjpudWxsLCJpbmZlcmVuY2VfZ2VvIjpu
+    dWxsLCJzZXJ2ZXJfdG9vbF91c2UiOm51bGwsInNlcnZpY2VfdGllciI6bnVsbCwic3BlZWQiOiJz
+    dGFuZGFyZCIsImNvc3QiOjAsImlzX2J5b2siOmZhbHNlLCJjb3N0X2RldGFpbHMiOnsidXBzdHJl
+    YW1faW5mZXJlbmNlX2Nvc3QiOjAsInVwc3RyZWFtX2luZmVyZW5jZV9wcm9tcHRfY29zdCI6MCwi
+    dXBzdHJlYW1faW5mZXJlbmNlX2NvbXBsZXRpb25zX2Nvc3QiOjB9fSwiY29udGV4dF9tYW5hZ2Vt
+    ZW50IjpudWxsLCJwcm92aWRlciI6Ik52aWRpYSJ9
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    request-id: gen-1793761985-xu3VmPQVpNghyN67fhC6
+  status_code: 200
+timestamp: '2026-11-04T03:13:05.121396+00:00'
+upstream_url: https://openrouter.ai/api/v1/messages
