@@ -169,7 +169,7 @@ async def test_complete_native_conversations_carry_actual_history(
     expected_first = deepcopy(first)
     if stream:
         # The pinned SDK's snapshot explicitly materializes these null placeholders.
-        for field in ("annotations", "audio", "function_call", "refusal", "tool_calls"):
+        for field in ("refusal", "tool_calls"):
             expected_first.setdefault(field, None)
     assert requests[1]["messages"][1] == expected_first
     if scenario == "text":
@@ -193,7 +193,7 @@ async def test_complete_native_conversations_carry_actual_history(
         else:
             expected_second = deepcopy(messages[1])
             if stream:
-                for field in ("annotations", "audio", "function_call", "refusal"):
+                for field in ("refusal",):
                     expected_second.setdefault(field, None)
             assert requests[2]["messages"][3] == expected_second
             assert requests[2]["messages"][4] == {
@@ -403,3 +403,30 @@ def test_accumulation_rejects_changing_roles_without_mutating_chunks():
     assert original.model_dump() == before
     with pytest.raises(ValueError, match="changed the role"):
         driver.accumulation_chunk(original, {0: "user"})
+
+
+@pytest.mark.parametrize("field", ["annotations", "audio", "function_call"])
+@pytest.mark.parametrize("emitted", [False, True])
+def test_history_omits_only_unemitted_sdk_null_bookkeeping(field, emitted):
+    """Ensures only absent SDK-created nulls are removed and native emitted nulls remain unchanged."""
+    from openai.types.chat import ChatCompletionMessage
+
+    message = ChatCompletionMessage.model_validate(
+        {
+            "role": "assistant",
+            "content": "Answer",
+            "annotations": None,
+            "audio": None,
+            "function_call": None,
+        }
+    )
+    original = message.model_dump()
+    delta = {"role": "assistant", "content": "Answer"}
+    if emitted:
+        delta[field] = None
+    history = driver.assistant_history(message, [{"choices": [{"index": 0, "delta": delta}]}])
+    assert (field in history) is emitted
+    if emitted:
+        assert history[field] is None
+    assert message.model_dump() == original
+    assert field in driver.assistant_history(message)

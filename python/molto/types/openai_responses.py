@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 from openai import AsyncStream
 from openai.types.responses import Response, ResponseCompletedEvent, ResponseStreamEvent
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
+from openai.types.responses.function_tool_param import FunctionToolParam
 from openai.types.responses.response_create_params import (
     ContextManagement,
     Conversation,
@@ -168,6 +169,18 @@ OpenAIResponsesInputItemParam: TypeAlias = Union[
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
 
 
+class ResponseFunctionToolOptionalStrictParam(FunctionToolParam, total=False):
+    """Preserve omitted strictness accepted by recorded compatible Responses APIs."""
+
+    strict: bool | None
+
+
+OpenAIResponsesToolParam: TypeAlias = Union[
+    ResponseFunctionToolOptionalStrictParam,
+    *(item for item in get_args(ToolParam) if item is not FunctionToolParam),  # pyright: ignore[reportInvalidTypeForm]
+]
+
+
 class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by `AsyncOpenAI.responses.create`.
 
@@ -283,7 +296,7 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         Field(description="How the model should select tools."),
     ] = None
     tools: Annotated[
-        list[ToolParam] | None,
+        list[OpenAIResponsesToolParam] | None,
         Field(description="Tools available to the model."),
     ] = None
     top_logprobs: Annotated[

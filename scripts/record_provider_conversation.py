@@ -27,10 +27,18 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 from scripts import recorder_proxy
 
 
-def assistant_history(message) -> dict:
+def assistant_history(message, events: list[dict] | None = None) -> dict:
     """Remove only SDK bookkeeping and empty output-only annotations."""
     history = message.model_dump(exclude_unset=True)
     history.pop("parsed", None)
+    if events is not None:
+        emitted = {
+            field for event in events for choice in event["choices"] for field in choice["delta"]
+        }
+        # Fireworks rejects these SDK-created nulls when they were absent on wire.
+        for field in ("annotations", "audio", "function_call"):
+            if history.get(field) is None and field not in emitted:
+                history.pop(field, None)
     if history.get("annotations") == []:
         history.pop("annotations")
     for call in history.get("tool_calls") or []:
@@ -164,6 +172,9 @@ async def record(args: argparse.Namespace) -> int:
             "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; "
             "original SSE and role metadata retained and checked independently"
         ),
+        "history_policy": (
+            "omit-absent-sdk-null-bookkeeping" if args.stream else "native-exclude-unset"
+        ),
         "turns": [],
         "status": "incomplete",
     }
@@ -259,7 +270,9 @@ async def record(args: argparse.Namespace) -> int:
                             raise ValueError("The recording scenario requires exactly one choice.")
                         choice = result.choices[0]
                         turn_info["finish_reason"] = choice.finish_reason
-                        history = assistant_history(choice.message)
+                        history = assistant_history(
+                            choice.message, events if args.stream else None
+                        )
                         if args.stream:
                             verify_accumulation(events, history)
                         validate_turn(history, choice.finish_reason, args.scenario, turn)

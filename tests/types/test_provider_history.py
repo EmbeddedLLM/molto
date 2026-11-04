@@ -167,3 +167,87 @@ def test_openrouter_reasoning_format_round_trips_sdk_history():
     request = OpenAIResponsesCreateRequest(model="model", input=[item])
     assert request.model_dump()["input"] == [item]
     assert request.model_dump()["input"] == [item]
+
+
+def test_assistant_null_tools_placeholder_preserves_native_history():
+    """Ensures Fireworks' observed null tools placeholder survives repeated native serialization."""
+    message = {"role": "assistant", "content": "Answer", "tools": None}
+    parsed = ChatCompletionMessage.model_validate(message).model_dump(exclude_unset=True)
+    request = OpenAIChatCompletionsCreateRequest(model="model", messages=[parsed])
+    assert request.model_dump()["messages"] == [message]
+    assert request.model_dump()["messages"] == [message]
+
+
+@pytest.mark.parametrize("tools", [[], {}, [{"type": "function"}], "", False, 1])
+def test_assistant_tools_placeholder_rejects_populated_values(tools):
+    """Ensures the observed null placeholder cannot accept tool definitions or unrelated values."""
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="model", messages=[{"role": "assistant", "content": "Answer", "tools": tools}]
+        )
+
+
+@pytest.mark.parametrize("role", ["user", "system", "developer", "tool"])
+def test_tools_placeholder_remains_assistant_only(role):
+    """Ensures the Fireworks placeholder does not weaken unrelated message schemas."""
+    message = {"role": role, "content": "Text", "tools": None}
+    if role == "tool":
+        message["tool_call_id"] = "call_1"
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(model="model", messages=[message])
+
+
+@pytest.mark.parametrize("field", ["tools", "tool_calls"])
+def test_null_tools_placeholder_has_no_translated_tool_semantics(field):
+    """Ensures empty assistant metadata cannot introduce normalized tool definitions."""
+    from molto.adapters.openai import OpenAIChatCompletionsAdapter
+    from molto.providers import PROVIDER_CAPABILITIES
+    from molto.types.normalized import AssistantInput, TextOutput
+
+    request = OpenAIChatCompletionsCreateRequest(
+        model="model", messages=[{"role": "assistant", "content": "Answer", field: None}]
+    )
+    normalized = OpenAIChatCompletionsAdapter(
+        PROVIDER_CAPABILITIES["fireworks"]
+    ).normalize_request(request)
+    assert normalized.tools is None
+    assert normalized.input == [AssistantInput(content=[TextOutput(content="Answer")])]
+
+
+def test_function_call_null_outer_name_preserves_native_history():
+    """Ensures Fireworks' outer null name never replaces the function's actual tool name."""
+    call = {
+        "id": "call_1",
+        "type": "function",
+        "name": None,
+        "function": {"name": "add", "arguments": '{"a":2,"b":3}'},
+    }
+    message = {"role": "assistant", "tool_calls": [call]}
+    request = OpenAIChatCompletionsCreateRequest(model="model", messages=[message])
+    assert request.model_dump()["messages"] == [message]
+    assert request.model_dump()["messages"] == [message]
+
+
+@pytest.mark.parametrize("name", ["add", "", [], {}, False, 1])
+def test_function_call_outer_name_rejects_populated_values(name):
+    """Ensures the known null placeholder cannot introduce competing function identities."""
+    call = {
+        "id": "call_1",
+        "type": "function",
+        "name": name,
+        "function": {"name": "add", "arguments": "{}"},
+    }
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="model", messages=[{"role": "assistant", "tool_calls": [call]}]
+        )
+
+
+def test_null_tool_calls_preserves_native_history():
+    """Ensures Fireworks' emitted empty call placeholder survives exact native continuation."""
+    body = {
+        "model": "test",
+        "messages": [{"role": "assistant", "content": "done", "tool_calls": None}],
+    }
+    request = OpenAIChatCompletionsCreateRequest.model_validate(body)
+    assert request.model_dump(exclude_none=True)["messages"] == body["messages"]
