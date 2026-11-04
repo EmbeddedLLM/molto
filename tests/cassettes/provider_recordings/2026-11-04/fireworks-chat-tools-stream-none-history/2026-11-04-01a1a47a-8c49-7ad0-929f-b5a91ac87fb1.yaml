@@ -1,0 +1,107 @@
+filename: 2026-11-04-01a1a47a-8c49-7ad0-929f-b5a91ac87fb1
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '603'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a47a-8c49-7ad0-929f-b5a91ac87fb1
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: chatcmpl-692220a2c9f849d88c51ae2b3707e3b2
+  sse:
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"chatcmpl-tool-924f398034e8d8c6","type":"function","function":{"name":"add","arguments":""}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\":
+    "}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"2,
+    \"b\": "}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"3}"}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls","raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-692220a2c9f849d88c51ae2b3707e3b2","object":"chat.completion.chunk","created":1793760857,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[],"usage":{"prompt_tokens":325,"total_tokens":356,"completion_tokens":31,"prompt_tokens_details":{"cached_tokens":324},"completion_tokens_details":{"reasoning_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T02:54:17.161367+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

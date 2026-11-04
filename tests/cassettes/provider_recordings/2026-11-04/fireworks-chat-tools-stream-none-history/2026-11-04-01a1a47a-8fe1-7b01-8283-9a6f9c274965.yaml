@@ -1,0 +1,108 @@
+filename: 2026-11-04-01a1a47a-8fe1-7b01-8283-9a6f9c274965
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-924f398034e8d8c6
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-924f398034e8d8c6
+    - content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 5, "b": 4}'
+          name: add
+        id: chatcmpl-tool-b431018cf8fce7fb
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: chatcmpl-tool-b431018cf8fce7fb
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1090'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a47a-8fe1-7b01-8283-9a6f9c274965
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: chatcmpl-17a757ff87b040d19ad842cb3245e08d
+  sse:
+  - 'data: {"id":"chatcmpl-17a757ff87b040d19ad842cb3245e08d","object":"chat.completion.chunk","created":1793760858,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-17a757ff87b040d19ad842cb3245e08d","object":"chat.completion.chunk","created":1793760858,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"9"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-17a757ff87b040d19ad842cb3245e08d","object":"chat.completion.chunk","created":1793760858,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{},"finish_reason":"stop","raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-17a757ff87b040d19ad842cb3245e08d","object":"chat.completion.chunk","created":1793760858,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[],"usage":{"prompt_tokens":146,"total_tokens":148,"completion_tokens":2,"prompt_tokens_details":{"cached_tokens":145},"completion_tokens_details":{"reasoning_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T02:54:18.081996+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

@@ -1,0 +1,52 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-04T02:54:39.894147+00:00",
+  "revision": "fc583f156f25d1cb24d39ae919752b653754c14d",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "source_hashes": {
+    "driver_sha256": "67f4c07b0730a542ac01f8218c83c5e0a876af460cb4e1008771006c9ef016a5",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96"
+  },
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "provider": "fireworks",
+  "upstream_protocol": "chat/completions",
+  "upstream_url": "https://api.fireworks.ai/inference/v1/chat/completions",
+  "requested_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+  "authentication": "Bearer credential from FIREWORKS_API_KEY; value excluded",
+  "scenario": "parallel",
+  "stream": false,
+  "max_tokens": 4096,
+  "extra_body": {
+    "reasoning_effort": "low"
+  },
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; original SSE and role metadata retained and checked independently",
+  "history_policy": "native-exclude-unset",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-04-01a1a47a-e6bf-7fa3-99ce-c482b0fe87e6.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "complete",
+      "returned_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a47a-ead8-78f1-89d3-c3e837fd1b25.yaml"
+      ]
+    }
+  ],
+  "status": "complete"
+}

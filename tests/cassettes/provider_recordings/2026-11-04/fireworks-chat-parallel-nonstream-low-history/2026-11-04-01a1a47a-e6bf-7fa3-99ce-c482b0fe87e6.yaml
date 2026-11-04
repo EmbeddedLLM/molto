@@ -1,0 +1,109 @@
+filename: 2026-11-04-01a1a47a-e6bf-7fa3-99ce-c482b0fe87e6
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning_effort: low
+    stream: false
+    tool_choice: required
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '532'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a47a-e6bf-7fa3-99ce-c482b0fe87e6
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: ''
+        reasoning_content: 'We need to call add twice in parallel: first 2 and 3,
+          then 7 and 4. Use function tool. Probably we can call both calls simultaneously.
+          The tool allows multiple invokes. We''ll output calls.'
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a": 2, "b": 3}'
+            name: add
+          id: chatcmpl-tool-b7aff231d20eaa8c
+          index: 0
+          name: null
+          type: function
+        - function:
+            arguments: '{"a": 7, "b": 4}'
+            name: add
+          id: chatcmpl-tool-97688f275c14254e
+          index: 1
+          name: null
+          type: function
+        tools: null
+    created: 1793760881
+    id: chatcmpl-fb97897c8f5a41a490accfc57b26923d
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 109
+      completion_tokens_details:
+        reasoning_tokens: 47
+      output_tokens_details:
+        reasoning_tokens: 47
+      prompt_tokens: 320
+      prompt_tokens_details:
+        cached_tokens: 319
+      total_tokens: 429
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLWZiOTc4OTdjOGY1YTQxYTQ5MGFjY2ZjNTdiMjY5MjNkIiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzc2MDg4MSwibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    IiwicmVhc29uaW5nX2NvbnRlbnQiOiJXZSBuZWVkIHRvIGNhbGwgYWRkIHR3aWNlIGluIHBhcmFs
+    bGVsOiBmaXJzdCAyIGFuZCAzLCB0aGVuIDcgYW5kIDQuIFVzZSBmdW5jdGlvbiB0b29sLiBQcm9i
+    YWJseSB3ZSBjYW4gY2FsbCBib3RoIGNhbGxzIHNpbXVsdGFuZW91c2x5LiBUaGUgdG9vbCBhbGxv
+    d3MgbXVsdGlwbGUgaW52b2tlcy4gV2UnbGwgb3V0cHV0IGNhbGxzLiIsInRvb2xfY2FsbHMiOlt7
+    ImluZGV4IjowLCJpZCI6ImNoYXRjbXBsLXRvb2wtYjdhZmYyMzFkMjBlYWE4YyIsInR5cGUiOiJm
+    dW5jdGlvbiIsImZ1bmN0aW9uIjp7Im5hbWUiOiJhZGQiLCJhcmd1bWVudHMiOiJ7XCJhXCI6IDIs
+    IFwiYlwiOiAzfSJ9LCJuYW1lIjpudWxsfSx7ImluZGV4IjoxLCJpZCI6ImNoYXRjbXBsLXRvb2wt
+    OTc2ODhmMjc1YzE0MjU0ZSIsInR5cGUiOiJmdW5jdGlvbiIsImZ1bmN0aW9uIjp7Im5hbWUiOiJh
+    ZGQiLCJhcmd1bWVudHMiOiJ7XCJhXCI6IDcsIFwiYlwiOiA0fSJ9LCJuYW1lIjpudWxsfV0sInRv
+    b2xzIjpudWxsfSwiZmluaXNoX3JlYXNvbiI6InRvb2xfY2FsbHMifV0sInVzYWdlIjp7InByb21w
+    dF90b2tlbnMiOjMyMCwidG90YWxfdG9rZW5zIjo0MjksImNvbXBsZXRpb25fdG9rZW5zIjoxMDks
+    InByb21wdF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjozMTl9LCJjb21wbGV0aW9u
+    X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjQ3fSwib3V0cHV0X3Rva2Vuc19k
+    ZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjQ3fX19
+  headers:
+    connection: keep-alive
+    content-length: '1002'
+    content-type: application/json
+    x-request-id: chatcmpl-fb97897c8f5a41a490accfc57b26923d
+  status_code: 200
+timestamp: '2026-11-04T02:54:40.319668+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

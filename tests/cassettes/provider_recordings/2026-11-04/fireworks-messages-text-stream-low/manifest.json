@@ -1,0 +1,51 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-04T02:54:23.097491+00:00",
+  "revision": "fc583f156f25d1cb24d39ae919752b653754c14d",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "source_hashes": {
+    "driver_sha256": "546c67befd2393f7b9899a942772a97fcd3cbf75bfb2ac6c6a6b4a738a9ea846",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96",
+    "validation_sha256": "67f4c07b0730a542ac01f8218c83c5e0a876af460cb4e1008771006c9ef016a5"
+  },
+  "provider": "fireworks",
+  "upstream_protocol": "messages",
+  "upstream_url": "https://api.fireworks.ai/inference/v1/messages",
+  "requested_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+  "scenario": "text",
+  "stream": true,
+  "reasoning_setting": "low",
+  "max_tokens": 2048,
+  "extra_body": null,
+  "authentication": "x-api-key credential from FIREWORKS_API_KEY; value excluded",
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "Responses terminal output or Anthropic SDK final content; model_dump(exclude_unset=True); manual actual-output history",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a47a-a398-75d0-a33d-2b7df82b0e46.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "complete",
+      "returned_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a47a-a79d-7e22-a21b-e265d1ffb891.yaml"
+      ]
+    }
+  ],
+  "status": "complete"
+}

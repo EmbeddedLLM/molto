@@ -1,0 +1,128 @@
+filename: 2026-11-04-01a1a479-53a6-7053-adfb-bf546bf0e004
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-bf4314efe4595302
+      id: fc_885d0b3c71cf42a5a856d31915d77ece
+      name: add
+      status: completed
+      type: function_call
+    - call_id: chatcmpl-tool-bf4314efe4595302
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '855'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-53a6-7053-adfb-bf546bf0e004
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: 3eb0684a-367a-4fe7-9cb8-58922d190d70
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_51408536dfa84b55a32efa380cac3a7a","object":"response","created_at":1793760777,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_51408536dfa84b55a32efa380cac3a7a","object":"response","created_at":1793760777,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"function_call","id":"fc_b965613629284107a80239de17b03e8d","status":"in_progress","call_id":"chatcmpl-tool-bde540262d899c7f","name":"add","arguments":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":3,"item_id":"fc_b965613629284107a80239de17b03e8d","output_index":0,"delta":"{\"a\":
+    "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":4,"item_id":"fc_b965613629284107a80239de17b03e8d","output_index":0,"delta":"5,
+    \"b\": "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":5,"item_id":"fc_b965613629284107a80239de17b03e8d","output_index":0,"delta":"4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","sequence_number":6,"item_id":"fc_b965613629284107a80239de17b03e8d","output_index":0,"arguments":"{\"a\":
+    5, \"b\": 4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":7,"output_index":0,"item":{"type":"function_call","id":"fc_b965613629284107a80239de17b03e8d","status":"completed","call_id":"chatcmpl-tool-bde540262d899c7f","name":"add","arguments":"{\"a\":
+    5, \"b\": 4}"}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":8,"response":{"id":"resp_51408536dfa84b55a32efa380cac3a7a","object":"response","created_at":1793760777,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"fc_b965613629284107a80239de17b03e8d","type":"function_call","call_id":"chatcmpl-tool-bde540262d899c7f","name":"add","arguments":"{\"a\":
+    5, \"b\": 4}","status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":375,"output_tokens":31,"total_tokens":406,"input_tokens_details":{"cached_tokens":374},"output_tokens_details":{"reasoning_tokens":0}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:52:57.126660+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

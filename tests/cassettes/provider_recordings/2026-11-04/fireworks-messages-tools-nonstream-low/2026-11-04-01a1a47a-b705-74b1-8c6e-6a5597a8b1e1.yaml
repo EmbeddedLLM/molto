@@ -1,0 +1,104 @@
+filename: 2026-11-04-01a1a47a-b705-74b1-8c6e-6a5597a8b1e1
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - signature: ''
+        thinking: We need to call add with a=2,b=3 => get result 5. Then call add
+          with a=result (5) and b=4 => get 9. Then answer final answer 9. Must use
+          function calls.
+        type: thinking
+      - id: chatcmpl-tool-ad701f4c4d90c79c
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: chatcmpl-tool-ad701f4c4d90c79c
+        type: tool_result
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '969'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a47a-b705-74b1-8c6e-6a5597a8b1e1
+response:
+  body:
+    content:
+    - signature: ''
+      thinking: Now call add with a=5,b=4.
+      type: thinking
+    - id: chatcmpl-tool-855fbc74251c869a
+      input:
+        a: 5
+        b: 4
+      name: add
+      type: tool_use
+    id: msg_7bbc54e072fd2b6d2e443589
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 324
+      inference_geo: null
+      input_tokens: 101
+      output_tokens: 44
+      service_tier: null
+  body_bytes: !!binary |
+    eyJjb250ZW50IjpbeyJ0eXBlIjoidGhpbmtpbmciLCJ0aGlua2luZyI6Ik5vdyBjYWxsIGFkZCB3
+    aXRoIGE9NSxiPTQuIiwic2lnbmF0dXJlIjoiIn0seyJ0eXBlIjoidG9vbF91c2UiLCJpZCI6ImNo
+    YXRjbXBsLXRvb2wtODU1ZmJjNzQyNTFjODY5YSIsIm5hbWUiOiJhZGQiLCJpbnB1dCI6eyJhIjo1
+    LCJiIjo0fX1dLCJpZCI6Im1zZ183YmJjNTRlMDcyZmQyYjZkMmU0NDM1ODkiLCJtb2RlbCI6ImFj
+    Y291bnRzL2ZpcmV3b3Jrcy9tb2RlbHMvbmVtb3Ryb24tbGlnaHRuaW5nLTNwNS0zMGItYTNiIiwi
+    cm9sZSI6ImFzc2lzdGFudCIsInN0b3BfZGV0YWlscyI6bnVsbCwic3RvcF9yZWFzb24iOiJ0b29s
+    X3VzZSIsInN0b3Bfc2VxdWVuY2UiOm51bGwsInR5cGUiOiJtZXNzYWdlIiwidXNhZ2UiOnsiaW5w
+    dXRfdG9rZW5zIjoxMDEsIm91dHB1dF90b2tlbnMiOjQ0LCJjYWNoZV9jcmVhdGlvbl9pbnB1dF90
+    b2tlbnMiOjAsImNhY2hlX3JlYWRfaW5wdXRfdG9rZW5zIjozMjQsImNhY2hlX2NyZWF0aW9uIjpu
+    dWxsLCJzZXJ2aWNlX3RpZXIiOm51bGwsImluZmVyZW5jZV9nZW8iOm51bGx9fQ==
+  headers:
+    connection: keep-alive
+    content-length: '559'
+    content-type: application/json
+    x-request-id: af4d1213-cb89-480e-8836-86a7525cd32a
+  status_code: 200
+timestamp: '2026-11-04T02:54:28.101076+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages

@@ -1,0 +1,403 @@
+filename: 2026-11-04-01a1a47c-346c-7483-8f3a-17d55838302c
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    - content: null
+      reasoning_content: 'We need to call add twice in parallel: first 2 and 3, then
+        7 and 4. Use function calls. Provide both results. So we need to output two
+        calls perhaps simultaneously. The tool calls likely separate calls. Use the
+        format. We''ll produce two calls: add with a=2,b=3 and add with a=7,b=4. Then
+        after receiving results, give both results.
+
+
+        We need to produce calls. Use the function namespace.'
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-bb763d43250b2fed
+        type: function
+      - function:
+          arguments: '{"a": 7, "b": 4}'
+          name: add
+        id: chatcmpl-tool-a9cf5439dfe44505
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-bb763d43250b2fed
+    - content: '11'
+      role: tool
+      tool_call_id: chatcmpl-tool-a9cf5439dfe44505
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning_effort: low
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1439'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a47c-346c-7483-8f3a-17d55838302c
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: chatcmpl-a19b00efa4a545de93be32bf927e8469
+  sse:
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"We"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    have"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    results"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":":"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    5"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    and"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    1"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"1"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"."},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    Provide"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    both"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"
+    results"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"reasoning_content":"."},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"The"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    results"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    of"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    the"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    parallel"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    additions"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    are"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":":\n\n"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"-"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    **"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"+"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"3"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    ="},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"5"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"**"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"  "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"\n"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"-"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    **"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"7"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"+"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"4"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    ="},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"
+    "},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"content":"**"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{},"finish_reason":"stop","raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-a19b00efa4a545de93be32bf927e8469","object":"chat.completion.chunk","created":1793760966,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[],"usage":{"prompt_tokens":225,"total_tokens":275,"completion_tokens":50,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":15},"output_tokens_details":{"reasoning_tokens":15}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T02:56:05.740670+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

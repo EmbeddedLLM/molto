@@ -1,0 +1,183 @@
+filename: 2026-11-04-01a1a47a-5468-75c2-83f8-6797d56276e8
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: true
+    thinking:
+      type: disabled
+    tool_choice:
+      disable_parallel_tool_use: false
+      type: any
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '519'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a47a-5468-75c2-83f8-6797d56276e8
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: f7fe10ee-6add-496f-98c7-ef491c195dc8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"content":[],"id":"msg_c10d7f5cbafaf17b207fb34e","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","role":"assistant","stop_details":null,"stop_reason":null,"stop_sequence":null,"type":"message","usage":{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":null,"service_tier":null,"inference_geo":null}}}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type":"ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"chatcmpl-tool-bbd3bcdaa2aa0e13","name":"add","input":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"partial_json":"{\"a\":
+    ","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"partial_json":"2, \"b\":
+    ","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"partial_json":"3}","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"chatcmpl-tool-b0a7105a90a985af","name":"add","input":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"partial_json":"{\"a\":
+    ","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"partial_json":"7, \"b\":
+    ","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"partial_json":"4}","type":"input_json_delta"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null},"type":"message_delta","usage":{"input_tokens":1,"output_tokens":61,"cache_creation_input_tokens":0,"cache_read_input_tokens":319}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: message_stop
+timestamp: '2026-11-04T02:54:02.856738+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages

@@ -1,0 +1,160 @@
+filename: 2026-11-04-01a1a47b-92de-73e1-a74f-b0b214357872
+request:
+  body:
+    input:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice: required
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '541'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a47b-92de-73e1-a74f-b0b214357872
+response:
+  body:
+    background: null
+    created_at: 1793760925
+    error: null
+    id: resp_1e773eb93dd84267b5e7eb24eb830ef8
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - id: rs_8ca10dcfe31d4a8f8d032ea59226b541
+      summary:
+      - text: 'We need to call add twice in parallel: first add 2+3, second add 7+4.
+          Must output both results. Use function calls. Since they want parallel,
+          we can call both at once. Use the function tool with two calls? Usually
+          we can call multiple functions in a single <｜DSML｜function_calls> maybe.
+          But format: we can invoke functions sequentially but they said parallel.
+          Probably we can call both at same time using two separate calls. I''ll produce
+          two function calls.'
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-9f10b2e98f994183
+      id: fc_27862a1737ba47d58a49813eff0b034a
+      name: add
+      status: completed
+      type: function_call
+    - arguments: '{"a": 7, "b": 4}'
+      call_id: chatcmpl-tool-9877fb7ec6f67938
+      id: fc_bcb92ae7f0324e99aaa4ec33156636ec
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: true
+    previous_response_id: null
+    reasoning:
+      effort: low
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice: required
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 320
+      input_tokens_details:
+        cached_tokens: 319
+      output_tokens: 169
+      output_tokens_details:
+        reasoning_tokens: 107
+      total_tokens: 489
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMWU3NzNlYjkzZGQ4NDI2N2I1ZTdlYjI0ZWI4MzBlZjgiLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA5MjUsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoicnNfOGNhMTBkY2ZlMzFkNGE4ZjhkMDMyZWE1OTIyNmI1
+    NDEiLCJ0eXBlIjoicmVhc29uaW5nIiwic3VtbWFyeSI6W3sidHlwZSI6InN1bW1hcnlfdGV4dCIs
+    InRleHQiOiJXZSBuZWVkIHRvIGNhbGwgYWRkIHR3aWNlIGluIHBhcmFsbGVsOiBmaXJzdCBhZGQg
+    MiszLCBzZWNvbmQgYWRkIDcrNC4gTXVzdCBvdXRwdXQgYm90aCByZXN1bHRzLiBVc2UgZnVuY3Rp
+    b24gY2FsbHMuIFNpbmNlIHRoZXkgd2FudCBwYXJhbGxlbCwgd2UgY2FuIGNhbGwgYm90aCBhdCBv
+    bmNlLiBVc2UgdGhlIGZ1bmN0aW9uIHRvb2wgd2l0aCB0d28gY2FsbHM/IFVzdWFsbHkgd2UgY2Fu
+    IGNhbGwgbXVsdGlwbGUgZnVuY3Rpb25zIGluIGEgc2luZ2xlIDzvvZxEU01M772cZnVuY3Rpb25f
+    Y2FsbHM+IG1heWJlLiBCdXQgZm9ybWF0OiB3ZSBjYW4gaW52b2tlIGZ1bmN0aW9ucyBzZXF1ZW50
+    aWFsbHkgYnV0IHRoZXkgc2FpZCBwYXJhbGxlbC4gUHJvYmFibHkgd2UgY2FuIGNhbGwgYm90aCBh
+    dCBzYW1lIHRpbWUgdXNpbmcgdHdvIHNlcGFyYXRlIGNhbGxzLiBJJ2xsIHByb2R1Y2UgdHdvIGZ1
+    bmN0aW9uIGNhbGxzLiJ9XX0seyJpZCI6ImZjXzI3ODYyYTE3MzdiYTQ3ZDU4YTQ5ODEzZWZmMGIw
+    MzRhIiwidHlwZSI6ImZ1bmN0aW9uX2NhbGwiLCJjYWxsX2lkIjoiY2hhdGNtcGwtdG9vbC05ZjEw
+    YjJlOThmOTk0MTgzIiwibmFtZSI6ImFkZCIsImFyZ3VtZW50cyI6IntcImFcIjogMiwgXCJiXCI6
+    IDN9Iiwic3RhdHVzIjoiY29tcGxldGVkIn0seyJpZCI6ImZjX2JjYjkyYWU3ZjAzMjRlOTlhYWE0
+    ZWMzMzE1NjYzNmVjIiwidHlwZSI6ImZ1bmN0aW9uX2NhbGwiLCJjYWxsX2lkIjoiY2hhdGNtcGwt
+    dG9vbC05ODc3ZmI3ZWM2ZjY3OTM4IiwibmFtZSI6ImFkZCIsImFyZ3VtZW50cyI6IntcImFcIjog
+    NywgXCJiXCI6IDR9Iiwic3RhdHVzIjoiY29tcGxldGVkIn1dLCJwcmV2aW91c19yZXNwb25zZV9p
+    ZCI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjozMjAsIm91dHB1dF90b2tlbnMiOjE2OSwi
+    dG90YWxfdG9rZW5zIjo0ODksImlucHV0X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMi
+    OjMxOX0sIm91dHB1dF90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjoxMDd9fSwi
+    ZXJyb3IiOm51bGwsImluY29tcGxldGVfZGV0YWlscyI6bnVsbCwiaW5zdHJ1Y3Rpb25zIjpudWxs
+    LCJtYXhfb3V0cHV0X3Rva2VucyI6MjA0OCwibWF4X3Rvb2xfY2FsbHMiOm51bGwsInBhcmFsbGVs
+    X3Rvb2xfY2FsbHMiOnRydWUsInJlYXNvbmluZyI6eyJlZmZvcnQiOiJsb3cifSwic3RvcmUiOmZh
+    bHNlLCJ0ZW1wZXJhdHVyZSI6MS4wLCJ0ZXh0Ijp7ImZvcm1hdCI6eyJ0eXBlIjoidGV4dCJ9fSwi
+    dG9vbF9jaG9pY2UiOiJyZXF1aXJlZCIsInRvb2xzIjpbeyJ0eXBlIjoiZnVuY3Rpb24iLCJuYW1l
+    IjoiYWRkIiwiZGVzY3JpcHRpb24iOiJBZGQgdHdvIGludGVnZXJzLiIsInBhcmFtZXRlcnMiOnsi
+    dHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYSI6eyJ0eXBlIjoiaW50ZWdlciJ9LCJiIjp7
+    InR5cGUiOiJpbnRlZ2VyIn19LCJyZXF1aXJlZCI6WyJhIiwiYiJdLCJhZGRpdGlvbmFsUHJvcGVy
+    dGllcyI6ZmFsc2V9fV0sInRvcF9wIjowLjk1LCJ0b3BfbG9ncHJvYnMiOm51bGwsInRydW5jYXRp
+    b24iOiJkaXNhYmxlZCIsInVzZXIiOm51bGwsImJhY2tncm91bmQiOm51bGwsIm1ldGFkYXRhIjp7
+    fX0=
+  headers:
+    connection: keep-alive
+    content-length: '1883'
+    content-type: application/json
+    x-request-id: d8e20cb7-d7c0-4283-888e-09971540a4a3
+  status_code: 200
+timestamp: '2026-11-04T02:55:24.382054+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

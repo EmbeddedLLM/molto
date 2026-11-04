@@ -1,0 +1,100 @@
+filename: 2026-11-04-01a1a47a-49e6-7250-999c-f8acca844f4e
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    - content:
+      - id: chatcmpl-tool-89dc4d51645b8ec9
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      - id: chatcmpl-tool-871d876931bc4961
+        input:
+          a: 7
+          b: 4
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: chatcmpl-tool-89dc4d51645b8ec9
+        type: tool_result
+      - content: '11'
+        tool_use_id: chatcmpl-tool-871d876931bc4961
+        type: tool_result
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: false
+    thinking:
+      type: disabled
+    tool_choice:
+      type: none
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '903'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a47a-49e6-7250-999c-f8acca844f4e
+response:
+  body:
+    content:
+    - text: '2 + 3 = 5
+
+        7 + 4 = 11'
+      type: text
+    id: msg_1db7a71b07fbc6db240b4397
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 125
+      inference_geo: null
+      input_tokens: 1
+      output_tokens: 17
+      service_tier: null
+  body_bytes: !!binary |
+    eyJjb250ZW50IjpbeyJ0eXBlIjoidGV4dCIsInRleHQiOiIyICsgMyA9IDVcbjcgKyA0ID0gMTEi
+    fV0sImlkIjoibXNnXzFkYjdhNzFiMDdmYmM2ZGIyNDBiNDM5NyIsIm1vZGVsIjoiYWNjb3VudHMv
+    ZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMwYi1hM2IiLCJyb2xlIjoi
+    YXNzaXN0YW50Iiwic3RvcF9kZXRhaWxzIjpudWxsLCJzdG9wX3JlYXNvbiI6ImVuZF90dXJuIiwi
+    c3RvcF9zZXF1ZW5jZSI6bnVsbCwidHlwZSI6Im1lc3NhZ2UiLCJ1c2FnZSI6eyJpbnB1dF90b2tl
+    bnMiOjEsIm91dHB1dF90b2tlbnMiOjE3LCJjYWNoZV9jcmVhdGlvbl9pbnB1dF90b2tlbnMiOjAs
+    ImNhY2hlX3JlYWRfaW5wdXRfdG9rZW5zIjoxMjUsImNhY2hlX2NyZWF0aW9uIjpudWxsLCJzZXJ2
+    aWNlX3RpZXIiOm51bGwsImluZmVyZW5jZV9nZW8iOm51bGx9fQ==
+  headers:
+    connection: keep-alive
+    content-length: '436'
+    content-type: application/json
+    x-request-id: 64b02261-9996-4241-b4c5-70652774d2cf
+  status_code: 200
+timestamp: '2026-11-04T02:54:00.166138+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages

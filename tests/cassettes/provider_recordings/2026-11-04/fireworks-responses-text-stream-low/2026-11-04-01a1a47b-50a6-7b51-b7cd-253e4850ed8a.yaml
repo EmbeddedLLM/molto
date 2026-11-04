@@ -1,0 +1,2216 @@
+filename: 2026-11-04-01a1a47b-50a6-7b51-b7cd-253e4850ed8a
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    - id: rs_c8e31c8657b942ada0f6e8a2fa729850
+      summary:
+      - text: "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User\
+          \ says: \"Remember the exact phrase: blue  lantern.\"\n   - Instruction:\
+          \ \"Reply briefly.\"\n   - The user is asking me to \"remember\" a specific\
+          \ phrase: \"blue lantern\"\n   - They want me to reply briefly, presumably\
+          \ just confirming or echoing that phrase, or perhaps just outputting it.\n\
+          \n2.  **Identify Core Request:**\n   - The user wants me to remember/reproduce\
+          \ the exact phrase \"blue lantern\".\n   - They want a brief reply.\n\n\
+          3.  **Determine Response:**\n   - The most direct and brief reply that \"\
+          remembers\" the phrase would be to just output the phrase itself, or a short\
+          \ confirmation.\n   - Since they said \"Remember the exact phrase: blue\
+          \ lantern.\", I should probably just output \"blue lantern\" briefly.\n\
+          \   - Or maybe \"Blue lantern.\" as a direct echo.\n   - Given the instruction\
+          \ \"Reply briefly\", I'll just output the phrase exactly as given, or a\
+          \ minimal confirmation.\n\n   Let's keep it ultra brief: \"blue lantern\"\
+          \ or \"Blue lantern.\"\n\n   I'll output: blue lantern\n\n   Check constraints:\
+          \ \n   - Remember the exact phrase: blue lantern. \n   - Reply briefly.\n\
+          \   - Output matches.\n\n   I'll just say: blue lantern\n   Done.✅"
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        text: blue lantern
+        type: output_text
+      id: msg_fdf7762f133e4d96ba45463175e0bdee
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Repeat the phrase
+        type: input_text
+      - text: ' exactly, preserving its spaces.'
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning:
+      effort: low
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1967'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a47b-50a6-7b51-b7cd-253e4850ed8a
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: f1b041ad-1170-44ed-8d79-58e73e4e687b
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_f2c0015104de40d29e602d4ffcd041d2","object":"response","created_at":1793760907,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_f2c0015104de40d29e602d4ffcd041d2","object":"response","created_at":1793760907,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"reasoning","id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","status":"in_progress","summary":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.added","sequence_number":3,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":4,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Here"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":5,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''s"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":6,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    a"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":7,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    thinking"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":8,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    process"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":9,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":10,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n1"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":11,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":12,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"  **"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":13,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Anal"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":14,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"yze"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":15,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    User"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":16,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Input"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":17,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":**"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":18,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":19,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    User"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":20,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    says"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":21,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":22,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":23,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Remember"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":24,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":25,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exact"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":26,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":27,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":28,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":29,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":30,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":31,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Reply"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":32,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    briefly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":33,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":".\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":34,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":35,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Then"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":36,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    says"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":37,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":38,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":39,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Repeat"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":40,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":41,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":42,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exactly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":43,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":44,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    preserving"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":45,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    its"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":46,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    spaces"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":47,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":".\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":48,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":49,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":50,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    need"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":51,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    to"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":52,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":53,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":54,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exact"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":55,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":56,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":57,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":58,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":59,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":60,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    with"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":61,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":62,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    space"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":63,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    preserved"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":64,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":65,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n2"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":66,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":67,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"  **"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":68,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Ident"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":69,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"ify"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":70,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":71,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Core"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":72,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Task"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":73,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":**"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":74,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":75,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":76,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":77,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exact"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":78,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":79,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":80,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":81,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":82,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":83,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":84,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Pres"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":85,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"erve"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":86,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":87,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    space"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":88,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    ("}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":89,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"so"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":90,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    it"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":91,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''s"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":92,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    two"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":93,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    words"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":94,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":95,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    not"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":96,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":97,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"bl"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":98,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"uel"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":99,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"an"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":100,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"tern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":101,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":102,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    or"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":103,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":104,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":105,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":106,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":107,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    with"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":108,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    trailing"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":109,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    space"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":110,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":")"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":111,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":112,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Reply"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":113,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    briefly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":114,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    ("}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":115,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"which"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":116,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    is"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":117,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    already"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":118,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    implied"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":119,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":120,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    but"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":121,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":122,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''ll"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":123,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    keep"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":124,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    it"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":125,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    minimal"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":126,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":")"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":127,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n3"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":128,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":129,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"  **"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":130,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Check"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":131,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    for"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":132,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Constra"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":133,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"ints"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":134,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":**"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":135,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":136,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":137,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"ex"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":138,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"act"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":139,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":140,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":141,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":142,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":143,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":144,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":145,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":146,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"pres"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":147,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"erving"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":148,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    its"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":149,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    spaces"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":150,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":151,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":152,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    The"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":153,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":154,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    is"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":155,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    two"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":156,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    words"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":157,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":158,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":159,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":160,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":161,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    and"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":162,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":163,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"lan"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":164,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"tern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":165,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":166,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    with"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":167,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    one"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":168,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    space"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":169,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    in"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":170,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    between"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":171,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":172,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n4"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":173,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":174,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"  **"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":175,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Form"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":176,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"ulate"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":177,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":178,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":**"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":179,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":180,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Just"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":181,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":182,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":183,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    `"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":184,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":185,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":186,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"`"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":187,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":188,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Make"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":189,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    sure"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":190,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    no"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":191,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    extra"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":192,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    characters"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":193,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":194,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    quotes"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":195,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    unless"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":196,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    specified"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":197,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":198,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    but"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":199,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    usually"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":200,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    just"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":201,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":202,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":203,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    is"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":204,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    fine"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":205,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":206,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n   -"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":207,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    The"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":208,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    prompt"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":209,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    says"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":210,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":211,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Reply"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":212,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    briefly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":213,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":".\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":214,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    and"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":215,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":216,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Repeat"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":217,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":218,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":219,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exactly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":220,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":221,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    preserving"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":222,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    its"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":223,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    spaces"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":224,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":".\""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":225,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n   I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":226,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''ll"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":227,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    just"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":228,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":229,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":230,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":231,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exactly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":232,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    as"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":233,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    requested"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":234,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":235,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n   Output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":236,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":237,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    `"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":238,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":239,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":240,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"`"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":241,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    ("}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":242,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"or"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":243,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    maybe"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":244,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    with"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":245,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    a"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":246,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    newline"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":247,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":248,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    but"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":249,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":250,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''ll"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":251,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    keep"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":252,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    it"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":253,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    clean"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":254,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":")"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":255,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n   Let"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":256,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''s"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":257,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    just"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":258,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":259,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":260,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":261,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":262,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n   Wait"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":263,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":264,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    should"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":265,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":266,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    include"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":267,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    quotes"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":268,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"?"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":269,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    The"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":270,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    prompt"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":271,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    says"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":272,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    \""}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":273,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"Repeat"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":274,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":275,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    phrase"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":276,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    exactly"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":277,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":278,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    Usually"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":279,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":","}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":280,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    that"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":281,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    means"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":282,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    just"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":283,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    the"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":284,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    content"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":285,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":286,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    I"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":287,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"''ll"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":288,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    output"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":289,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    `"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":290,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":291,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":292,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"`"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":293,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    without"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":294,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    extra"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":295,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    fl"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":296,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"uff"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":297,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":298,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"\n\n   Final"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":299,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":":"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":300,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    `"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":301,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"blue"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":302,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"
+    lantern"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":303,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"delta":"`"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":304,"output_index":1,"item":{"type":"message","id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","status":"in_progress","role":"assistant","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":305,"item_id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","output_index":1,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":306,"item_id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","output_index":1,"content_index":0,"delta":"blue","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":307,"item_id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","output_index":1,"content_index":0,"delta":"
+    lantern","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.done","sequence_number":308,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"text":"Here''s
+    a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Remember
+    the exact phrase: blue lantern. Reply briefly.\"\n   - Then says: \"Repeat the
+    phrase exactly, preserving its spaces.\"\n   - I need to output the exact phrase
+    \"blue lantern\" with the space preserved.\n\n2.  **Identify the Core Task:**\n   -
+    Output the exact phrase \"blue lantern\"\n   - Preserve the space (so it''s two
+    words, not \"bluelantern\" or \"blue lantern \" with trailing space)\n   - Reply
+    briefly (which is already implied, but I''ll keep it minimal)\n\n3.  **Check for
+    Constraints:**\n   - \"exact phrase: blue lantern\"\n   - \"preserving its spaces\"\n   -
+    The phrase is two words: \"blue\" and \"lantern\" with one space in between.\n\n4.  **Formulate
+    Output:**\n   - Just output: `blue lantern`\n   - Make sure no extra characters,
+    quotes unless specified, but usually just the phrase is fine.\n   - The prompt
+    says \"Reply briefly.\" and \"Repeat the phrase exactly, preserving its spaces.\"\n\n   I''ll
+    just output the phrase exactly as requested.\n\n   Output: `blue lantern` (or
+    maybe with a newline, but I''ll keep it clean)\n\n   Let''s just output: blue
+    lantern\n\n   Wait, should I include quotes? The prompt says \"Repeat the phrase
+    exactly\". Usually, that means just the content. I''ll output `blue lantern` without
+    extra fluff.\n\n   Final: `blue lantern`"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.done","sequence_number":309,"item_id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":"Here''s
+    a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Remember
+    the exact phrase: blue lantern. Reply briefly.\"\n   - Then says: \"Repeat the
+    phrase exactly, preserving its spaces.\"\n   - I need to output the exact phrase
+    \"blue lantern\" with the space preserved.\n\n2.  **Identify the Core Task:**\n   -
+    Output the exact phrase \"blue lantern\"\n   - Preserve the space (so it''s two
+    words, not \"bluelantern\" or \"blue lantern \" with trailing space)\n   - Reply
+    briefly (which is already implied, but I''ll keep it minimal)\n\n3.  **Check for
+    Constraints:**\n   - \"exact phrase: blue lantern\"\n   - \"preserving its spaces\"\n   -
+    The phrase is two words: \"blue\" and \"lantern\" with one space in between.\n\n4.  **Formulate
+    Output:**\n   - Just output: `blue lantern`\n   - Make sure no extra characters,
+    quotes unless specified, but usually just the phrase is fine.\n   - The prompt
+    says \"Reply briefly.\" and \"Repeat the phrase exactly, preserving its spaces.\"\n\n   I''ll
+    just output the phrase exactly as requested.\n\n   Output: `blue lantern` (or
+    maybe with a newline, but I''ll keep it clean)\n\n   Let''s just output: blue
+    lantern\n\n   Wait, should I include quotes? The prompt says \"Repeat the phrase
+    exactly\". Usually, that means just the content. I''ll output `blue lantern` without
+    extra fluff.\n\n   Final: `blue lantern`"}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":310,"output_index":0,"item":{"type":"reasoning","id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","status":"completed","summary":[{"type":"summary_text","text":"Here''s
+    a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Remember
+    the exact phrase: blue lantern. Reply briefly.\"\n   - Then says: \"Repeat the
+    phrase exactly, preserving its spaces.\"\n   - I need to output the exact phrase
+    \"blue lantern\" with the space preserved.\n\n2.  **Identify the Core Task:**\n   -
+    Output the exact phrase \"blue lantern\"\n   - Preserve the space (so it''s two
+    words, not \"bluelantern\" or \"blue lantern \" with trailing space)\n   - Reply
+    briefly (which is already implied, but I''ll keep it minimal)\n\n3.  **Check for
+    Constraints:**\n   - \"exact phrase: blue lantern\"\n   - \"preserving its spaces\"\n   -
+    The phrase is two words: \"blue\" and \"lantern\" with one space in between.\n\n4.  **Formulate
+    Output:**\n   - Just output: `blue lantern`\n   - Make sure no extra characters,
+    quotes unless specified, but usually just the phrase is fine.\n   - The prompt
+    says \"Reply briefly.\" and \"Repeat the phrase exactly, preserving its spaces.\"\n\n   I''ll
+    just output the phrase exactly as requested.\n\n   Output: `blue lantern` (or
+    maybe with a newline, but I''ll keep it clean)\n\n   Let''s just output: blue
+    lantern\n\n   Wait, should I include quotes? The prompt says \"Repeat the phrase
+    exactly\". Usually, that means just the content. I''ll output `blue lantern` without
+    extra fluff.\n\n   Final: `blue lantern`"}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":311,"item_id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","output_index":1,"content_index":0,"text":"blue
+    lantern","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":312,"item_id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","output_index":1,"content_index":0,"part":{"type":"output_text","text":"blue
+    lantern","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":313,"output_index":1,"item":{"type":"message","id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","status":"completed","role":"assistant","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[]}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":314,"response":{"id":"resp_f2c0015104de40d29e602d4ffcd041d2","object":"response","created_at":1793760908,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"rs_2fa83b9fd36346ef8f9cc18d46caf818","type":"reasoning","summary":[{"type":"summary_text","text":"Here''s
+    a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Remember
+    the exact phrase: blue lantern. Reply briefly.\"\n   - Then says: \"Repeat the
+    phrase exactly, preserving its spaces.\"\n   - I need to output the exact phrase
+    \"blue lantern\" with the space preserved.\n\n2.  **Identify the Core Task:**\n   -
+    Output the exact phrase \"blue lantern\"\n   - Preserve the space (so it''s two
+    words, not \"bluelantern\" or \"blue lantern \" with trailing space)\n   - Reply
+    briefly (which is already implied, but I''ll keep it minimal)\n\n3.  **Check for
+    Constraints:**\n   - \"exact phrase: blue lantern\"\n   - \"preserving its spaces\"\n   -
+    The phrase is two words: \"blue\" and \"lantern\" with one space in between.\n\n4.  **Formulate
+    Output:**\n   - Just output: `blue lantern`\n   - Make sure no extra characters,
+    quotes unless specified, but usually just the phrase is fine.\n   - The prompt
+    says \"Reply briefly.\" and \"Repeat the phrase exactly, preserving its spaces.\"\n\n   I''ll
+    just output the phrase exactly as requested.\n\n   Output: `blue lantern` (or
+    maybe with a newline, but I''ll keep it clean)\n\n   Let''s just output: blue
+    lantern\n\n   Wait, should I include quotes? The prompt says \"Repeat the phrase
+    exactly\". Usually, that means just the content. I''ll output `blue lantern` without
+    extra fluff.\n\n   Final: `blue lantern`"}]},{"id":"msg_8a951d1d6b464caa9d0ac4f79e5d4523","type":"message","role":"assistant","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[]}],"status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":53,"output_tokens":326,"total_tokens":379,"input_tokens_details":{"cached_tokens":52},"output_tokens_details":{"reasoning_tokens":322}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:55:07.430157+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

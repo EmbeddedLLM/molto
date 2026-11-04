@@ -1,0 +1,116 @@
+filename: 2026-11-04-01a1a47a-bb0e-76c2-9702-d3de266723dc
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - signature: ''
+        thinking: We need to call add with a=2,b=3 => get result 5. Then call add
+          with a=result (5) and b=4 => get 9. Then answer final answer 9. Must use
+          function calls.
+        type: thinking
+      - id: chatcmpl-tool-ad701f4c4d90c79c
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: chatcmpl-tool-ad701f4c4d90c79c
+        type: tool_result
+      role: user
+    - content:
+      - signature: ''
+        thinking: Now call add with a=5,b=4.
+        type: thinking
+      - id: chatcmpl-tool-855fbc74251c869a
+        input:
+          a: 5
+          b: 4
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '9'
+        tool_use_id: chatcmpl-tool-855fbc74251c869a
+        type: tool_result
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      type: none
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '1282'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a47a-bb0e-76c2-9702-d3de266723dc
+response:
+  body:
+    content:
+    - signature: ''
+      thinking: We have result 9. Provide final answer 9.
+      type: thinking
+    - text: 2 + 3 = 5, then 5 + 4 = 9. The final answer is **9**.
+      type: text
+    id: msg_ed66a87d74f68372f7e6b519
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      inference_geo: null
+      input_tokens: 208
+      output_tokens: 39
+      service_tier: null
+  body_bytes: !!binary |
+    eyJjb250ZW50IjpbeyJ0eXBlIjoidGhpbmtpbmciLCJ0aGlua2luZyI6IldlIGhhdmUgcmVzdWx0
+    IDkuIFByb3ZpZGUgZmluYWwgYW5zd2VyIDkuIiwic2lnbmF0dXJlIjoiIn0seyJ0eXBlIjoidGV4
+    dCIsInRleHQiOiIyICsgMyA9IDUsIHRoZW4gNSArIDQgPSA5LiBUaGUgZmluYWwgYW5zd2VyIGlz
+    ICoqOSoqLiJ9XSwiaWQiOiJtc2dfZWQ2NmE4N2Q3NGY2ODM3MmY3ZTZiNTE5IiwibW9kZWwiOiJh
+    Y2NvdW50cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIs
+    InJvbGUiOiJhc3Npc3RhbnQiLCJzdG9wX2RldGFpbHMiOm51bGwsInN0b3BfcmVhc29uIjoiZW5k
+    X3R1cm4iLCJzdG9wX3NlcXVlbmNlIjpudWxsLCJ0eXBlIjoibWVzc2FnZSIsInVzYWdlIjp7Imlu
+    cHV0X3Rva2VucyI6MjA4LCJvdXRwdXRfdG9rZW5zIjozOSwiY2FjaGVfY3JlYXRpb25faW5wdXRf
+    dG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfY3JlYXRpb24iOm51
+    bGwsInNlcnZpY2VfdGllciI6bnVsbCwiaW5mZXJlbmNlX2dlbyI6bnVsbH19
+  headers:
+    connection: keep-alive
+    content-length: '558'
+    content-type: application/json
+    x-request-id: aa63e007-182e-4009-b2f6-9ef66f22667f
+  status_code: 200
+timestamp: '2026-11-04T02:54:29.134640+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages

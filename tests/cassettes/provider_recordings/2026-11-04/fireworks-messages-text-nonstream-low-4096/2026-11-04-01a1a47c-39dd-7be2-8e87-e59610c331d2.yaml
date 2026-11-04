@@ -1,0 +1,149 @@
+filename: 2026-11-04-01a1a47c-39dd-7be2-8e87-e59610c331d2
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    - content:
+      - signature: ''
+        thinking: "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   -\
+          \ User says: \"Remember the exact phrase: blue lantern.\"\n   - Request:\
+          \ \"Reply briefly.\"\n   - Key elements: exact phrase \"blue lantern\",\
+          \ brief reply.\n\n2.  **Identify Core Task:**\n   - The user is asking me\
+          \ to \"remember\" or acknowledge the exact phrase \"blue lantern\".\n  \
+          \ - They want a brief reply.\n   - This seems like a simple confirmation\
+          \ or repetition task.\n\n3.  **Determine Response:**\n   - The phrase is\
+          \ \"blue lantern\".\n   - I need to reply briefly.\n   - I should just confirm\
+          \ or repeat the phrase as requested, keeping it short.\n   - Possible replies:\
+          \ \"Blue lantern.\" or \"I remember: blue lantern.\" or just the phrase\
+          \ itself.\n   - Since they said \"Remember the exact phrase: blue lantern.\"\
+          \ and \"Reply briefly.\", the most direct brief reply is just the phrase,\
+          \ or a short confirmation.\n\n   Let's keep it minimal: \"Blue lantern.\"\
+          \ or \"Remembered: blue lantern.\"\n   I'll go with just the phrase as a\
+          \ brief reply, or a very short confirmation. Actually, the instruction is\
+          \ \"Remember the exact phrase: blue lantern. Reply briefly.\" So I should\
+          \ output the phrase briefly. I'll just say: \"Blue lantern.\"\n\n   Wait,\
+          \ maybe they want me to output the phrase exactly as given. I'll just reply\
+          \ with the phrase.\n   \"Blue lantern.\" is perfect. It's brief and exact.\n\
+          \   I'll output that.✅"
+        type: thinking
+      - text: Blue lantern.
+        type: text
+      role: assistant
+    - content:
+      - text: Repeat the phrase
+        type: text
+      - text: ' exactly, preserving its spaces.'
+        type: text
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '1940'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a47c-39dd-7be2-8e87-e59610c331d2
+response:
+  body:
+    content:
+    - signature: ''
+      thinking: "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User\
+        \ says: \"Remember the exact phrase: blue lantern.\"\n   - Then says: \"Reply\
+        \ briefly.\"\n   - Then says: \"Repeat the phrase exactly, preserving its\
+        \ spaces.\"\n   - Actually, looking at the full message: \"Remember the exact\
+        \ phrase: blue lantern. Reply briefly. Repeat the phrase exactly, preserving\
+        \ its spaces.\"\n\n   Wait, let me re-read carefully. The user's message is:\
+        \ \"Remember the exact phrase: blue lantern.\nReply briefly.\nRepeat the phrase\
+        \ exactly, preserving its spaces.\"\n\n   Actually, it might be structured\
+        \ as:\n   - First line: \"Remember the exact phrase: blue lantern.\"\n   -\
+        \ Second line: \"Reply briefly.\"\n   - Third line: \"Repeat the phrase exactly,\
+        \ preserving its spaces.\"\n\n   But often users paste things like:\n   \"\
+        Remember the exact phrase: blue lantern. Reply briefly. Repeat the phrase\
+        \ exactly, preserving its spaces.\"\n\n   I need to output just the phrase\
+        \ \"blue lantern\" preserving spaces, briefly.\n\n   Let me check: The prompt\
+        \ says \"Remember the exact phrase: blue lantern.\" Then \"Reply briefly.\"\
+        \ Then \"Repeat the phrase exactly, preserving its spaces.\"\n\n   The core\
+        \ request seems to be: output \"blue lantern\" exactly, with a space, briefly.\n\
+        \n   I'll just output: \"blue lantern\"\n\n   But wait, maybe they want me\
+        \ to repeat the phrase \"blue lantern\" exactly as given, with the space.\
+        \ I'll just do that.\n\n   Let's output precisely: \"blue lantern\" (with\
+        \ a space between blue and lantern, no extra spaces or formatting).\n\n  \
+        \ I'll keep it brief as requested.✅"
+      type: thinking
+    - text: blue lantern
+      type: text
+    id: msg_e66f8b1c24372e375d859aa5
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 53
+      inference_geo: null
+      input_tokens: 1
+      output_tokens: 350
+      service_tier: null
+  body_bytes: !!binary |
+    eyJjb250ZW50IjpbeyJ0eXBlIjoidGhpbmtpbmciLCJ0aGlua2luZyI6IkhlcmUncyBhIHRoaW5r
+    aW5nIHByb2Nlc3M6XG5cbjEuICAqKkFuYWx5emUgVXNlciBJbnB1dDoqKlxuICAgLSBVc2VyIHNh
+    eXM6IFwiUmVtZW1iZXIgdGhlIGV4YWN0IHBocmFzZTogYmx1ZSBsYW50ZXJuLlwiXG4gICAtIFRo
+    ZW4gc2F5czogXCJSZXBseSBicmllZmx5LlwiXG4gICAtIFRoZW4gc2F5czogXCJSZXBlYXQgdGhl
+    IHBocmFzZSBleGFjdGx5LCBwcmVzZXJ2aW5nIGl0cyBzcGFjZXMuXCJcbiAgIC0gQWN0dWFsbHks
+    IGxvb2tpbmcgYXQgdGhlIGZ1bGwgbWVzc2FnZTogXCJSZW1lbWJlciB0aGUgZXhhY3QgcGhyYXNl
+    OiBibHVlIGxhbnRlcm4uIFJlcGx5IGJyaWVmbHkuIFJlcGVhdCB0aGUgcGhyYXNlIGV4YWN0bHks
+    IHByZXNlcnZpbmcgaXRzIHNwYWNlcy5cIlxuXG4gICBXYWl0LCBsZXQgbWUgcmUtcmVhZCBjYXJl
+    ZnVsbHkuIFRoZSB1c2VyJ3MgbWVzc2FnZSBpczogXCJSZW1lbWJlciB0aGUgZXhhY3QgcGhyYXNl
+    OiBibHVlIGxhbnRlcm4uXG5SZXBseSBicmllZmx5LlxuUmVwZWF0IHRoZSBwaHJhc2UgZXhhY3Rs
+    eSwgcHJlc2VydmluZyBpdHMgc3BhY2VzLlwiXG5cbiAgIEFjdHVhbGx5LCBpdCBtaWdodCBiZSBz
+    dHJ1Y3R1cmVkIGFzOlxuICAgLSBGaXJzdCBsaW5lOiBcIlJlbWVtYmVyIHRoZSBleGFjdCBwaHJh
+    c2U6IGJsdWUgbGFudGVybi5cIlxuICAgLSBTZWNvbmQgbGluZTogXCJSZXBseSBicmllZmx5Llwi
+    XG4gICAtIFRoaXJkIGxpbmU6IFwiUmVwZWF0IHRoZSBwaHJhc2UgZXhhY3RseSwgcHJlc2Vydmlu
+    ZyBpdHMgc3BhY2VzLlwiXG5cbiAgIEJ1dCBvZnRlbiB1c2VycyBwYXN0ZSB0aGluZ3MgbGlrZTpc
+    biAgIFwiUmVtZW1iZXIgdGhlIGV4YWN0IHBocmFzZTogYmx1ZSBsYW50ZXJuLiBSZXBseSBicmll
+    Zmx5LiBSZXBlYXQgdGhlIHBocmFzZSBleGFjdGx5LCBwcmVzZXJ2aW5nIGl0cyBzcGFjZXMuXCJc
+    blxuICAgSSBuZWVkIHRvIG91dHB1dCBqdXN0IHRoZSBwaHJhc2UgXCJibHVlIGxhbnRlcm5cIiBw
+    cmVzZXJ2aW5nIHNwYWNlcywgYnJpZWZseS5cblxuICAgTGV0IG1lIGNoZWNrOiBUaGUgcHJvbXB0
+    IHNheXMgXCJSZW1lbWJlciB0aGUgZXhhY3QgcGhyYXNlOiBibHVlIGxhbnRlcm4uXCIgVGhlbiBc
+    IlJlcGx5IGJyaWVmbHkuXCIgVGhlbiBcIlJlcGVhdCB0aGUgcGhyYXNlIGV4YWN0bHksIHByZXNl
+    cnZpbmcgaXRzIHNwYWNlcy5cIlxuXG4gICBUaGUgY29yZSByZXF1ZXN0IHNlZW1zIHRvIGJlOiBv
+    dXRwdXQgXCJibHVlIGxhbnRlcm5cIiBleGFjdGx5LCB3aXRoIGEgc3BhY2UsIGJyaWVmbHkuXG5c
+    biAgIEknbGwganVzdCBvdXRwdXQ6IFwiYmx1ZSBsYW50ZXJuXCJcblxuICAgQnV0IHdhaXQsIG1h
+    eWJlIHRoZXkgd2FudCBtZSB0byByZXBlYXQgdGhlIHBocmFzZSBcImJsdWUgbGFudGVyblwiIGV4
+    YWN0bHkgYXMgZ2l2ZW4sIHdpdGggdGhlIHNwYWNlLiBJJ2xsIGp1c3QgZG8gdGhhdC5cblxuICAg
+    TGV0J3Mgb3V0cHV0IHByZWNpc2VseTogXCJibHVlIGxhbnRlcm5cIiAod2l0aCBhIHNwYWNlIGJl
+    dHdlZW4gYmx1ZSBhbmQgbGFudGVybiwgbm8gZXh0cmEgc3BhY2VzIG9yIGZvcm1hdHRpbmcpLlxu
+    XG4gICBJJ2xsIGtlZXAgaXQgYnJpZWYgYXMgcmVxdWVzdGVkLuKchSIsInNpZ25hdHVyZSI6IiJ9
+    LHsidHlwZSI6InRleHQiLCJ0ZXh0IjoiYmx1ZSBsYW50ZXJuIn1dLCJpZCI6Im1zZ19lNjZmOGIx
+    YzI0MzcyZTM3NWQ4NTlhYTUiLCJtb2RlbCI6ImFjY291bnRzL2ZpcmV3b3Jrcy9tb2RlbHMvbmVt
+    b3Ryb24tbGlnaHRuaW5nLTNwNS0zMGItYTNiIiwicm9sZSI6ImFzc2lzdGFudCIsInN0b3BfZGV0
+    YWlscyI6bnVsbCwic3RvcF9yZWFzb24iOiJlbmRfdHVybiIsInN0b3Bfc2VxdWVuY2UiOm51bGws
+    InR5cGUiOiJtZXNzYWdlIiwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxLCJvdXRwdXRfdG9rZW5z
+    IjozNTAsImNhY2hlX2NyZWF0aW9uX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfcmVhZF9pbnB1dF90
+    b2tlbnMiOjUzLCJjYWNoZV9jcmVhdGlvbiI6bnVsbCwic2VydmljZV90aWVyIjpudWxsLCJpbmZl
+    cmVuY2VfZ2VvIjpudWxsfX0=
+  headers:
+    connection: keep-alive
+    content-length: '2069'
+    content-type: application/json
+    x-request-id: ff85fdd7-213d-45d4-a7ed-5d74ff96e42a
+  status_code: 200
+timestamp: '2026-11-04T02:56:07.133374+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages
