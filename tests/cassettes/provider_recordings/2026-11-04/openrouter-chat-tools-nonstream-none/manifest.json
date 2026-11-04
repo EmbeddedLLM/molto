@@ -1,0 +1,71 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-04T03:10:16.646087+00:00",
+  "revision": "7fa343b31177a77662ed281e5f336ec034ece165",
+  "working_tree_dirty": true,
+  "python": "3.12.9",
+  "source_hashes": {
+    "driver_sha256": "67f4c07b0730a542ac01f8218c83c5e0a876af460cb4e1008771006c9ef016a5",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96"
+  },
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "provider": "openrouter",
+  "upstream_protocol": "chat/completions",
+  "upstream_url": "https://openrouter.ai/api/v1/chat/completions",
+  "requested_model": "nvidia/nemotron-3.5-lightning:free",
+  "authentication": "Bearer credential from OPENROUTER_API_KEY; value excluded",
+  "scenario": "tools",
+  "stream": false,
+  "max_tokens": 1024,
+  "extra_body": {
+    "provider": {
+      "max_price": {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0
+      },
+      "allow_fallbacks": false
+    },
+    "reasoning": {
+      "effort": "none"
+    }
+  },
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; original SSE and role metadata retained and checked independently",
+  "history_policy": "native-exclude-unset",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-04-01a1a489-31c8-7e91-8bbb-306e7538d952.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "tool_calls",
+      "files": [
+        "2026-11-04-01a1a489-347f-78a0-b99a-19a9b5aed615.yaml"
+      ]
+    },
+    {
+      "turn": 2,
+      "status": "complete",
+      "returned_model": "nvidia/nemotron-3.5-lightning:free",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a489-36f6-7c03-bbb6-6d254cbadcd8.yaml"
+      ]
+    }
+  ],
+  "status": "complete"
+}

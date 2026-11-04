@@ -1,0 +1,102 @@
+filename: 2026-11-04-01a1a487-e8d9-7ab3-b041-983e9ef84cd7
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    - content: Blue lantern.
+      reasoning: null
+      refusal: null
+      role: assistant
+    - content:
+      - text: Repeat the phrase
+        type: text
+      - text: ' exactly, preserving its spaces.'
+        type: text
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '554'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/chat/completions
+  query_params: {}
+request_id: 01a1a487-e8d9-7ab3-b041-983e9ef84cd7
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      message:
+        content: Blue lantern.
+        reasoning: null
+        refusal: null
+        role: assistant
+      native_finish_reason: stop
+    created: 1793761732
+    id: gen-1793761732-dBl8mUwDIbCI7hCGHnSV
+    model: nvidia/nemotron-3.5-lightning:free
+    object: chat.completion
+    provider: Nvidia
+    service_tier: null
+    system_fingerprint: null
+    usage:
+      completion_tokens: 4
+      completion_tokens_details:
+        audio_tokens: 0
+        image_tokens: 0
+        reasoning_tokens: 0
+      cost: 0
+      cost_details:
+        upstream_inference_completions_cost: 0
+        upstream_inference_cost: 0
+        upstream_inference_prompt_cost: 0
+      is_byok: false
+      prompt_tokens: 54
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+        video_tokens: 0
+      total_tokens: 58
+  body_bytes: !!binary |
+    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE3MzItZEJsOG1Vd0RJYkNJN2hDR0huU1YiLCJv
+    YmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVhdGVkIjoxNzkzNzYxNzMyLCJtb2RlbCI6Im52
+    aWRpYS9uZW1vdHJvbi0zLjUtbGlnaHRuaW5nOmZyZWUiLCJwcm92aWRlciI6Ik52aWRpYSIsInN5
+    c3RlbV9maW5nZXJwcmludCI6bnVsbCwic2VydmljZV90aWVyIjpudWxsLCJjaG9pY2VzIjpbeyJp
+    bmRleCI6MCwibG9ncHJvYnMiOm51bGwsImZpbmlzaF9yZWFzb24iOiJzdG9wIiwibmF0aXZlX2Zp
+    bmlzaF9yZWFzb24iOiJzdG9wIiwibWVzc2FnZSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVu
+    dCI6IkJsdWUgbGFudGVybi4iLCJyZWZ1c2FsIjpudWxsLCJyZWFzb25pbmciOm51bGx9fV0sInVz
+    YWdlIjp7InByb21wdF90b2tlbnMiOjU0LCJjb21wbGV0aW9uX3Rva2VucyI6NCwidG90YWxfdG9r
+    ZW5zIjo1OCwiY29zdCI6MCwiaXNfYnlvayI6ZmFsc2UsInByb21wdF90b2tlbnNfZGV0YWlscyI6
+    eyJjYWNoZWRfdG9rZW5zIjowLCJjYWNoZV93cml0ZV90b2tlbnMiOjAsImF1ZGlvX3Rva2VucyI6
+    MCwidmlkZW9fdG9rZW5zIjowfSwiY29zdF9kZXRhaWxzIjp7InVwc3RyZWFtX2luZmVyZW5jZV9j
+    b3N0IjowLCJ1cHN0cmVhbV9pbmZlcmVuY2VfcHJvbXB0X2Nvc3QiOjAsInVwc3RyZWFtX2luZmVy
+    ZW5jZV9jb21wbGV0aW9uc19jb3N0IjowfSwiY29tcGxldGlvbl90b2tlbnNfZGV0YWlscyI6eyJy
+    ZWFzb25pbmdfdG9rZW5zIjowLCJpbWFnZV90b2tlbnMiOjAsImF1ZGlvX3Rva2VucyI6MH19fQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:08:52.825064+00:00'
+upstream_url: https://openrouter.ai/api/v1/chat/completions

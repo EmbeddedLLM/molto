@@ -1,0 +1,92 @@
+filename: 2026-11-04-01a1a487-e60a-7e51-87aa-96c50701c2b6
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '346'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/chat/completions
+  query_params: {}
+request_id: 01a1a487-e60a-7e51-87aa-96c50701c2b6
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      message:
+        content: Blue lantern.
+        reasoning: null
+        refusal: null
+        role: assistant
+      native_finish_reason: stop
+    created: 1793761732
+    id: gen-1793761732-wGwa5MMMUpFLoNvPYcp7
+    model: nvidia/nemotron-3.5-lightning:free
+    object: chat.completion
+    provider: Nvidia
+    service_tier: null
+    system_fingerprint: null
+    usage:
+      completion_tokens: 4
+      completion_tokens_details:
+        audio_tokens: 0
+        image_tokens: 0
+        reasoning_tokens: 0
+      cost: 0
+      cost_details:
+        upstream_inference_completions_cost: 0
+        upstream_inference_cost: 0
+        upstream_inference_prompt_cost: 0
+      is_byok: false
+      prompt_tokens: 28
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+        video_tokens: 0
+      total_tokens: 32
+  body_bytes: !!binary |
+    eyJpZCI6Imdlbi0xNzkzNzYxNzMyLXdHd2E1TU1NVXBGTG9OdlBZY3A3Iiwib2JqZWN0IjoiY2hh
+    dC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzc2MTczMiwibW9kZWwiOiJudmlkaWEvbmVtb3Ry
+    b24tMy41LWxpZ2h0bmluZzpmcmVlIiwicHJvdmlkZXIiOiJOdmlkaWEiLCJzeXN0ZW1fZmluZ2Vy
+    cHJpbnQiOm51bGwsInNlcnZpY2VfdGllciI6bnVsbCwiY2hvaWNlcyI6W3siaW5kZXgiOjAsImxv
+    Z3Byb2JzIjpudWxsLCJmaW5pc2hfcmVhc29uIjoic3RvcCIsIm5hdGl2ZV9maW5pc2hfcmVhc29u
+    Ijoic3RvcCIsIm1lc3NhZ2UiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiJCbHVlIGxh
+    bnRlcm4uIiwicmVmdXNhbCI6bnVsbCwicmVhc29uaW5nIjpudWxsfX1dLCJ1c2FnZSI6eyJwcm9t
+    cHRfdG9rZW5zIjoyOCwiY29tcGxldGlvbl90b2tlbnMiOjQsInRvdGFsX3Rva2VucyI6MzIsImNv
+    c3QiOjAsImlzX2J5b2siOmZhbHNlLCJwcm9tcHRfdG9rZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rv
+    a2VucyI6MCwiY2FjaGVfd3JpdGVfdG9rZW5zIjowLCJhdWRpb190b2tlbnMiOjAsInZpZGVvX3Rv
+    a2VucyI6MH0sImNvc3RfZGV0YWlscyI6eyJ1cHN0cmVhbV9pbmZlcmVuY2VfY29zdCI6MCwidXBz
+    dHJlYW1faW5mZXJlbmNlX3Byb21wdF9jb3N0IjowLCJ1cHN0cmVhbV9pbmZlcmVuY2VfY29tcGxl
+    dGlvbnNfY29zdCI6MH0sImNvbXBsZXRpb25fdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rv
+    a2VucyI6MCwiaW1hZ2VfdG9rZW5zIjowLCJhdWRpb190b2tlbnMiOjB9fX0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:08:52.106946+00:00'
+upstream_url: https://openrouter.ai/api/v1/chat/completions
