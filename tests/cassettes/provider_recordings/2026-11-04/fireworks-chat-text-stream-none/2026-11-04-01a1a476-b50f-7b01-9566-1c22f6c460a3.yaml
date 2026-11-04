@@ -1,0 +1,67 @@
+filename: 2026-11-04-01a1a476-b50f-7b01-9566-1c22f6c460a3
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    - annotations: null
+      audio: null
+      content: blue lantern
+      function_call: null
+      refusal: null
+      role: assistant
+      tool_calls: null
+    - content:
+      - text: Repeat the phrase
+        type: text
+      - text: ' exactly, preserving its spaces.'
+        type: text
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '575'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a476-b50f-7b01-9566-1c22f6c460a3
+response:
+  body:
+    error:
+      code: invalid_request_error
+      message: '3 request validation errors: Extra inputs are not permitted, field:
+        ''messages[1].annotations'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].audio'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].function_call'', value: None'
+      object: error
+      type: invalid_request_error
+  body_bytes: !!binary |
+    eyJlcnJvciI6eyJvYmplY3QiOiJlcnJvciIsInR5cGUiOiJpbnZhbGlkX3JlcXVlc3RfZXJyb3Ii
+    LCJjb2RlIjoiaW52YWxpZF9yZXF1ZXN0X2Vycm9yIiwibWVzc2FnZSI6IjMgcmVxdWVzdCB2YWxp
+    ZGF0aW9uIGVycm9yczogRXh0cmEgaW5wdXRzIGFyZSBub3QgcGVybWl0dGVkLCBmaWVsZDogJ21l
+    c3NhZ2VzWzFdLmFubm90YXRpb25zJywgdmFsdWU6IE5vbmU7IEV4dHJhIGlucHV0cyBhcmUgbm90
+    IHBlcm1pdHRlZCwgZmllbGQ6ICdtZXNzYWdlc1sxXS5hdWRpbycsIHZhbHVlOiBOb25lOyBFeHRy
+    YSBpbnB1dHMgYXJlIG5vdCBwZXJtaXR0ZWQsIGZpZWxkOiAnbWVzc2FnZXNbMV0uZnVuY3Rpb25f
+    Y2FsbCcsIHZhbHVlOiBOb25lIn19
+  headers:
+    connection: keep-alive
+    content-length: '363'
+    content-type: application/json
+    x-request-id: chatcmpl-9bcdac58f1064ac2863254c89636354a
+  status_code: 400
+timestamp: '2026-11-04T02:50:05.455710+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

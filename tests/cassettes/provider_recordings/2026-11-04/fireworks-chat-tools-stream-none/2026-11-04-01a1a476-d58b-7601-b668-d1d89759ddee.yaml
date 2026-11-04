@@ -1,0 +1,86 @@
+filename: 2026-11-04-01a1a476-d58b-7601-b668-d1d89759ddee
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - annotations: null
+      audio: null
+      content: null
+      function_call: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-a10937ef2a4e6713
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-a10937ef2a4e6713
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '919'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a476-d58b-7601-b668-d1d89759ddee
+response:
+  body:
+    error:
+      code: invalid_request_error
+      message: '3 request validation errors: Extra inputs are not permitted, field:
+        ''messages[1].annotations'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].audio'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].function_call'', value: None'
+      object: error
+      type: invalid_request_error
+  body_bytes: !!binary |
+    eyJlcnJvciI6eyJvYmplY3QiOiJlcnJvciIsInR5cGUiOiJpbnZhbGlkX3JlcXVlc3RfZXJyb3Ii
+    LCJjb2RlIjoiaW52YWxpZF9yZXF1ZXN0X2Vycm9yIiwibWVzc2FnZSI6IjMgcmVxdWVzdCB2YWxp
+    ZGF0aW9uIGVycm9yczogRXh0cmEgaW5wdXRzIGFyZSBub3QgcGVybWl0dGVkLCBmaWVsZDogJ21l
+    c3NhZ2VzWzFdLmFubm90YXRpb25zJywgdmFsdWU6IE5vbmU7IEV4dHJhIGlucHV0cyBhcmUgbm90
+    IHBlcm1pdHRlZCwgZmllbGQ6ICdtZXNzYWdlc1sxXS5hdWRpbycsIHZhbHVlOiBOb25lOyBFeHRy
+    YSBpbnB1dHMgYXJlIG5vdCBwZXJtaXR0ZWQsIGZpZWxkOiAnbWVzc2FnZXNbMV0uZnVuY3Rpb25f
+    Y2FsbCcsIHZhbHVlOiBOb25lIn19
+  headers:
+    connection: keep-alive
+    content-length: '363'
+    content-type: application/json
+    x-request-id: chatcmpl-bb98cb6c8c2a459dad162373408efab8
+  status_code: 400
+timestamp: '2026-11-04T02:50:13.771204+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

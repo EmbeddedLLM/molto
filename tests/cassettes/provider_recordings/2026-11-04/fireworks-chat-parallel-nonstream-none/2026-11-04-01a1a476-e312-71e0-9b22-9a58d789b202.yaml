@@ -1,0 +1,109 @@
+filename: 2026-11-04-01a1a476-e312-71e0-9b22-9a58d789b202
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    - content: ''
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-83ad685df9df967e
+        name: null
+        type: function
+      - function:
+          arguments: '{"a": 7, "b": 4}'
+          name: add
+        id: chatcmpl-tool-8055a4c73fa7b773
+        name: null
+        type: function
+      tools: null
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-83ad685df9df967e
+    - content: '11'
+      role: tool
+      tool_call_id: chatcmpl-tool-8055a4c73fa7b773
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning_effort: none
+    stream: false
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1010'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a476-e312-71e0-9b22-9a58d789b202
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: 'Here are the results:
+
+          1. 2 + 3 = **5**
+
+          2. 7 + 4 = **11**'
+        role: assistant
+        tools: null
+    created: 1793760617
+    id: chatcmpl-d57a3b3daa60485d88a219d606baaca2
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 29
+      completion_tokens_details:
+        reasoning_tokens: 0
+      output_tokens_details:
+        reasoning_tokens: 0
+      prompt_tokens: 126
+      prompt_tokens_details:
+        cached_tokens: 0
+      total_tokens: 155
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLWQ1N2EzYjNkYWE2MDQ4NWQ4OGEyMTlkNjA2YmFhY2EyIiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzc2MDYxNywibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    SGVyZSBhcmUgdGhlIHJlc3VsdHM6XG4xLiAyICsgMyA9ICoqNSoqXG4yLiA3ICsgNCA9ICoqMTEq
+    KiIsInRvb2xzIjpudWxsfSwiZmluaXNoX3JlYXNvbiI6InN0b3AifV0sInVzYWdlIjp7InByb21w
+    dF90b2tlbnMiOjEyNiwidG90YWxfdG9rZW5zIjoxNTUsImNvbXBsZXRpb25fdG9rZW5zIjoyOSwi
+    cHJvbXB0X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjB9LCJjb21wbGV0aW9uX3Rv
+    a2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zX2RldGFp
+    bHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH19fQ==
+  headers:
+    connection: keep-alive
+    content-length: '541'
+    content-type: application/json
+    x-request-id: chatcmpl-d57a3b3daa60485d88a219d606baaca2
+  status_code: 200
+timestamp: '2026-11-04T02:50:17.234256+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

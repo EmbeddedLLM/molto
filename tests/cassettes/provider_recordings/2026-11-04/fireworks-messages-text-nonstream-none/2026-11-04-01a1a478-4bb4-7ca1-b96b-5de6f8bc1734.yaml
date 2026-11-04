@@ -1,0 +1,73 @@
+filename: 2026-11-04-01a1a478-4bb4-7ca1-b96b-5de6f8bc1734
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: text
+      - text: Reply briefly.
+        type: text
+      role: user
+    - content:
+      - text: blue lantern
+        type: text
+      role: assistant
+    - content:
+      - text: Repeat the phrase
+        type: text
+      - text: ' exactly, preserving its spaces.'
+        type: text
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    stream: false
+    thinking:
+      type: disabled
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '480'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /inference/v1/messages
+  query_params: {}
+request_id: 01a1a478-4bb4-7ca1-b96b-5de6f8bc1734
+response:
+  body:
+    content:
+    - text: blue lantern
+      type: text
+    id: msg_2ab3e7bbe2cc2417c41c541c
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation: null
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 27
+      inference_geo: null
+      input_tokens: 26
+      output_tokens: 3
+      service_tier: null
+  body_bytes: !!binary |
+    eyJjb250ZW50IjpbeyJ0eXBlIjoidGV4dCIsInRleHQiOiJibHVlIGxhbnRlcm4ifV0sImlkIjoi
+    bXNnXzJhYjNlN2JiZTJjYzI0MTdjNDFjNTQxYyIsIm1vZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtz
+    L21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMwYi1hM2IiLCJyb2xlIjoiYXNzaXN0YW50
+    Iiwic3RvcF9kZXRhaWxzIjpudWxsLCJzdG9wX3JlYXNvbiI6ImVuZF90dXJuIiwic3RvcF9zZXF1
+    ZW5jZSI6bnVsbCwidHlwZSI6Im1lc3NhZ2UiLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjI2LCJv
+    dXRwdXRfdG9rZW5zIjozLCJjYWNoZV9jcmVhdGlvbl9pbnB1dF90b2tlbnMiOjAsImNhY2hlX3Jl
+    YWRfaW5wdXRfdG9rZW5zIjoyNywiY2FjaGVfY3JlYXRpb24iOm51bGwsInNlcnZpY2VfdGllciI6
+    bnVsbCwiaW5mZXJlbmNlX2dlbyI6bnVsbH19
+  headers:
+    connection: keep-alive
+    content-length: '426'
+    content-type: application/json
+    x-request-id: 57f8e8bc-f3a8-428e-a133-6d351981453b
+  status_code: 200
+timestamp: '2026-11-04T02:51:49.556124+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/messages

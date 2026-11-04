@@ -1,0 +1,99 @@
+filename: 2026-11-04-01a1a478-4321-7d03-9d0a-cde0abf78b4e
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '309'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a478-4321-7d03-9d0a-cde0abf78b4e
+response:
+  body:
+    background: null
+    created_at: 1793760707
+    error: null
+    id: resp_0cd27472747544c2b3fc4da53de85a04
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: blue lantern
+        type: output_text
+      id: msg_2983636b54054819927fe8546d5b1264
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    previous_response_id: null
+    reasoning:
+      effort: none
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice: auto
+    tools: []
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 28
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 3
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 31
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMGNkMjc0NzI3NDc1NDRjMmIzZmM0ZGE1M2RlODVhMDQiLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3MDcsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoibXNnXzI5ODM2MzZiNTQwNTQ4MTk5MjdmZTg1NDZkNWIx
+    MjY0IiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlw
+    ZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6ImJsdWUgbGFudGVybiIsImFubm90YXRpb25zIjpbXX1d
+    LCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJ1c2Fn
+    ZSI6eyJpbnB1dF90b2tlbnMiOjI4LCJvdXRwdXRfdG9rZW5zIjozLCJ0b3RhbF90b2tlbnMiOjMx
+    LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowfSwib3V0cHV0X3Rva2Vu
+    c19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9fSwiZXJyb3IiOm51bGwsImluY29tcGxl
+    dGVfZGV0YWlscyI6bnVsbCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6
+    MjA0OCwibWF4X3Rvb2xfY2FsbHMiOm51bGwsInBhcmFsbGVsX3Rvb2xfY2FsbHMiOnRydWUsInJl
+    YXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInN0b3JlIjpmYWxzZSwidGVtcGVyYXR1cmUiOjEu
+    MCwidGV4dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifX0sInRvb2xfY2hvaWNlIjoiYXV0byIs
+    InRvb2xzIjpbXSwidG9wX3AiOjAuOTUsInRvcF9sb2dwcm9icyI6bnVsbCwidHJ1bmNhdGlvbiI6
+    ImRpc2FibGVkIiwidXNlciI6bnVsbCwiYmFja2dyb3VuZCI6bnVsbCwibWV0YWRhdGEiOnt9fQ==
+  headers:
+    connection: keep-alive
+    content-length: '910'
+    content-type: application/json
+    x-request-id: 9f2af716-06a0-4714-857e-7e476d9016ae
+  status_code: 200
+timestamp: '2026-11-04T02:51:47.361992+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

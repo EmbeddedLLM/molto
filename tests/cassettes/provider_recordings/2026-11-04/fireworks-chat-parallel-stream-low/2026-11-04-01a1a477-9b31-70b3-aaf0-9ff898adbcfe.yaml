@@ -1,0 +1,100 @@
+filename: 2026-11-04-01a1a477-9b31-70b3-aaf0-9ff898adbcfe
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    - annotations: null
+      audio: null
+      content: null
+      function_call: null
+      reasoning_content: 'We need to call add twice in parallel: first 2 and 3, then
+        7 and 4. Provide both results. So we need to call the function add twice.
+        Should we invoke them in parallel? In this interface, we can call multiple
+        functions. We''ll produce two calls. Then after getting results, output both
+        results.
+
+
+        Let''s call add with a=2,b=3 and a=7,b=4.'
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-84fa9d8d63879f56
+        type: function
+      - function:
+          arguments: '{"a": 7, "b": 4}'
+          name: add
+        id: chatcmpl-tool-bd9480125a357801
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-84fa9d8d63879f56
+    - content: '11'
+      role: tool
+      tool_call_id: chatcmpl-tool-bd9480125a357801
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning_effort: low
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1440'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a477-9b31-70b3-aaf0-9ff898adbcfe
+response:
+  body:
+    error:
+      code: invalid_request_error
+      message: '3 request validation errors: Extra inputs are not permitted, field:
+        ''messages[1].annotations'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].audio'', value: None; Extra inputs are not permitted,
+        field: ''messages[1].function_call'', value: None'
+      object: error
+      type: invalid_request_error
+  body_bytes: !!binary |
+    eyJlcnJvciI6eyJvYmplY3QiOiJlcnJvciIsInR5cGUiOiJpbnZhbGlkX3JlcXVlc3RfZXJyb3Ii
+    LCJjb2RlIjoiaW52YWxpZF9yZXF1ZXN0X2Vycm9yIiwibWVzc2FnZSI6IjMgcmVxdWVzdCB2YWxp
+    ZGF0aW9uIGVycm9yczogRXh0cmEgaW5wdXRzIGFyZSBub3QgcGVybWl0dGVkLCBmaWVsZDogJ21l
+    c3NhZ2VzWzFdLmFubm90YXRpb25zJywgdmFsdWU6IE5vbmU7IEV4dHJhIGlucHV0cyBhcmUgbm90
+    IHBlcm1pdHRlZCwgZmllbGQ6ICdtZXNzYWdlc1sxXS5hdWRpbycsIHZhbHVlOiBOb25lOyBFeHRy
+    YSBpbnB1dHMgYXJlIG5vdCBwZXJtaXR0ZWQsIGZpZWxkOiAnbWVzc2FnZXNbMV0uZnVuY3Rpb25f
+    Y2FsbCcsIHZhbHVlOiBOb25lIn19
+  headers:
+    connection: keep-alive
+    content-length: '363'
+    content-type: application/json
+    x-request-id: chatcmpl-a09bd19822b4480389083ffed3400825
+  status_code: 400
+timestamp: '2026-11-04T02:51:04.369800+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

@@ -1,0 +1,113 @@
+filename: 2026-11-04-01a1a477-472f-7430-98ca-24fefd13231c
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content: ''
+      reasoning_content: 'We need to compute: first add 2 and 3 = 5. Then add that
+        result (5) and 4 = 9. Then give final answer. Use tool add twice. We''ll call
+        add with a=2,b=3 then call add with a=result,b=4.'
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-972ca5f6f53967bf
+        name: null
+        type: function
+      tools: null
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-972ca5f6f53967bf
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: low
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1040'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1a477-472f-7430-98ca-24fefd13231c
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: ''
+        reasoning_content: We got result 5. Now add 5 and 4.
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a": 5, "b": 4}'
+            name: add
+          id: chatcmpl-tool-be5597ea888e2e33
+          index: 0
+          name: null
+          type: function
+        tools: null
+    created: 1793760643
+    id: chatcmpl-04054f9b0e91435c9136f69611bcf294
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 46
+      completion_tokens_details:
+        reasoning_tokens: 14
+      output_tokens_details:
+        reasoning_tokens: 14
+      prompt_tokens: 438
+      prompt_tokens_details:
+        cached_tokens: 324
+      total_tokens: 484
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLTA0MDU0ZjliMGU5MTQzNWM5MTM2ZjY5NjExYmNmMjk0Iiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzc2MDY0MywibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    IiwicmVhc29uaW5nX2NvbnRlbnQiOiJXZSBnb3QgcmVzdWx0IDUuIE5vdyBhZGQgNSBhbmQgNC4i
+    LCJ0b29sX2NhbGxzIjpbeyJpbmRleCI6MCwiaWQiOiJjaGF0Y21wbC10b29sLWJlNTU5N2VhODg4
+    ZTJlMzMiLCJ0eXBlIjoiZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJuYW1lIjoiYWRkIiwiYXJndW1l
+    bnRzIjoie1wiYVwiOiA1LCBcImJcIjogNH0ifSwibmFtZSI6bnVsbH1dLCJ0b29scyI6bnVsbH0s
+    ImZpbmlzaF9yZWFzb24iOiJ0b29sX2NhbGxzIn1dLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5zIjo0
+    MzgsInRvdGFsX3Rva2VucyI6NDg0LCJjb21wbGV0aW9uX3Rva2VucyI6NDYsInByb21wdF90b2tl
+    bnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjozMjR9LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRh
+    aWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjE0fSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJl
+    YXNvbmluZ190b2tlbnMiOjE0fX19
+  headers:
+    connection: keep-alive
+    content-length: '705'
+    content-type: application/json
+    x-request-id: chatcmpl-04054f9b0e91435c9136f69611bcf294
+  status_code: 200
+timestamp: '2026-11-04T02:50:42.863293+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

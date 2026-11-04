@@ -1,0 +1,58 @@
+{
+  "provenance": "recorded",
+  "captured_at": "2026-11-04T02:50:04.026880+00:00",
+  "revision": "d7cdb5f456deea2588489ce330b4521c1c1bd009",
+  "working_tree_dirty": false,
+  "python": "3.12.9",
+  "source_hashes": {
+    "driver_sha256": "a5167dbfe0343f098c734225c2e8ae9289bd66afd17825e34d9073a5cc76ae2d",
+    "recorder_sha256": "c8b358a47b042ca7fe742c0ec84ef23f4355a7abf57afb3051d84970f3aa2c96"
+  },
+  "versions": {
+    "openai": "2.53.0",
+    "anthropic": "0.121.0",
+    "httpx": "0.28.1"
+  },
+  "provider": "fireworks",
+  "upstream_protocol": "chat/completions",
+  "upstream_url": "https://api.fireworks.ai/inference/v1/chat/completions",
+  "requested_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+  "authentication": "Bearer credential from FIREWORKS_API_KEY; value excluded",
+  "scenario": "text",
+  "stream": true,
+  "max_tokens": 2048,
+  "extra_body": {
+    "reasoning_effort": "none"
+  },
+  "sdk_retries": 0,
+  "proxy_retries": 0,
+  "accumulation_policy": "OpenAI SDK accumulation with repeated identical role snapshots omitted on copies; original SSE and role metadata retained and checked independently",
+  "turns": [
+    {
+      "turn": 0,
+      "status": "complete",
+      "returned_model": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "finish_reason": "stop",
+      "files": [
+        "2026-11-04-01a1a476-b0fd-7190-95e4-a3f4758b86b6.yaml"
+      ]
+    },
+    {
+      "turn": 1,
+      "status": "incomplete",
+      "files": [
+        "2026-11-04-01a1a476-b50f-7b01-9566-1c22f6c460a3.yaml"
+      ]
+    }
+  ],
+  "status": "incomplete",
+  "failure": {
+    "type": "BadRequestError",
+    "traceback": [
+      "  File \"/home/akk/jiahuei/molto/scripts/record_provider_conversation.py\", line 245, in record\n    result = await client.chat.completions.create(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py\", line 2907, in create\n    return await self._post(\n           ^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/_base_client.py\", line 1992, in post\n    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+      "  File \"/home/akk/jiahuei/molto/.venv/lib/python3.12/site-packages/openai/_base_client.py\", line 1777, in request\n    raise self._make_status_error_from_response(err.response) from None\n"
+    ]
+  }
+}
