@@ -40,7 +40,7 @@ def test_default_provider_is_separate_from_endpoint_selection() -> None:
 @pytest.mark.parametrize(
     ("provider", "base_url"),
     [
-        ("openai", "https://vllm.example"),
+        ("anthropic", "https://vllm.example"),
         ("vllm", "https://api.anthropic.com"),
     ],
 )
@@ -49,6 +49,7 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
     provider: str,
     base_url: str,
 ) -> None:
+    """Ensures a supported provider selects capabilities independently of the destination."""
     captured: dict[str, object] = {}
 
     def stub_events(

@@ -1091,20 +1091,11 @@ class OpenAIChatCompletionsAdapter(
             return [UserInput(content=[TextInput(content=content)])]
         if role == "assistant":
             items: list[Thinking | TextOutput | ToolCall] = []
-            reasoning = message.get("reasoning")
             reasoning_content = message.get("reasoning_content")
-            if reasoning and reasoning_content:
-                raise UnsupportedInput("Chat Completions cannot translate both reasoning aliases.")
-            selected_reasoning = (
-                reasoning if reasoning or reasoning_content is None else reasoning_content
-            )
-            if selected_reasoning is not None:
-                reasoning_parts = (
-                    selected_reasoning
-                    if isinstance(selected_reasoning, list)
-                    else [selected_reasoning]
-                )
-                items.extend(self._classify_thinking(part) for part in reasoning_parts)
+            if reasoning_content is not None:
+                if not isinstance(reasoning_content, str):
+                    raise UnsupportedInput("Chat Completions reasoning_content must be a string.")
+                items.append(self._classify_thinking(reasoning_content))
             items.extend(
                 TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
                 for part in text_parts

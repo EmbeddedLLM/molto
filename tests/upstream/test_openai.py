@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from json import dumps
 
 import httpx
@@ -3825,3 +3826,205 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, APIStatusError)
+
+
+def _provider_chunk(delta, finish_reason=None):
+    return {
+        "id": "chatcmpl_synthetic",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "synthetic",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+
+
+def _provider_stream(*chunks):
+    return httpx.Response(
+        200,
+        text="".join(f"data: {dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n",
+        headers={"content-type": "text/event-stream"},
+    )
+
+
+@pytest.mark.parametrize("following", [{"content": "\n\n"}, {"reasoning_content": " think "}])
+async def test_tool_lifecycle_closes_before_following_content(following):
+    """Ensures actual nonempty content finishes the preceding call before starting a new part."""
+    first = {
+        "index": 0,
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": "{"},
+    }
+    chunks = [
+        _provider_chunk({"tool_calls": [first]}),
+        _provider_chunk(
+            {
+                "content": "",
+                "reasoning_content": "",
+                "tool_calls": [{"index": 0, "function": {"arguments": "}"}}],
+            }
+        ),
+        _provider_chunk(following),
+        _provider_chunk({}, "tool_calls"),
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        events = [
+            event
+            async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+        ]
+    starts = [event for event in events if isinstance(event, PartStartEvent)]
+    ends = [event for event in events if isinstance(event, PartEndEvent)]
+    assert [event.index for event in starts] == [0, 1]
+    assert [event.index for event in ends] == [0, 1]
+    assert ends[0].part == ToolCall(tool_call_id="call_1", tool_name="lookup", args="{}")
+    assert events.index(ends[0]) < events.index(starts[1])
+    assert ends[1].part == (
+        TextOutput(content="\n\n")
+        if "content" in following
+        else Thinking(content=" think ", summary="")
+    )
+
+
+@pytest.mark.parametrize(
+    "following",
+    [
+        {"content": "text"},
+        {"reasoning_content": "think"},
+        {
+            "tool_calls": [
+                {"index": 1, "id": "call_2", "function": {"name": "second", "arguments": "{}"}}
+            ]
+        },
+    ],
+)
+async def test_closed_tool_call_cannot_resume(following):
+    """Ensures intervening text, reasoning, or another call makes later fragments fail explicitly."""
+    chunks = [
+        _provider_chunk(
+            {
+                "tool_calls": [
+                    {"index": 0, "id": "call_1", "function": {"name": "first", "arguments": "{"}}
+                ]
+            }
+        ),
+        _provider_chunk(following),
+        _provider_chunk({"tool_calls": [{"index": 0, "function": {"arguments": "}"}}]}),
+        _provider_chunk({}, "stop"),
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        with pytest.raises(ValueError, match="contiguous"):
+            [
+                event
+                async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+            ]
+
+
+@pytest.mark.parametrize("placement", ["message", "part", "call"])
+def test_translated_history_rejects_google_state(placement):
+    """Ensures opaque native continuation state is rejected instead of dropped in translation."""
+    message = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "hello"}],
+        "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}
+        ],
+    }
+    extension = {"google": {"thought_signature": "opaque"}}
+    target = (
+        message
+        if placement == "message"
+        else message["content"][0]
+        if placement == "part"
+        else message["tool_calls"][0]
+    )
+    target["extra_content"] = extension
+    original = deepcopy(message)
+    request = OpenAIChatCompletionsCreateRequest(model="synthetic", messages=[message])
+    with pytest.raises(UnsupportedInput, match="extra_content"):
+        OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(request)
+    assert message == original
+
+
+@pytest.mark.parametrize("placement", ["message", "call"])
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_translated_output_rejects_google_state_and_closes(placement, coordinator, stream):
+    """Ensures unsupported output state fails explicitly and releases the upstream stream."""
+    delta = {
+        "tool_calls": [
+            {"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+        ]
+    }
+    target = delta if placement == "message" else delta["tool_calls"][0]
+    target["extra_content"] = {"google": {"thought_signature": "opaque"}}
+    responses = []
+
+    def handler(request):
+        response = _provider_stream(_provider_chunk(delta), _provider_chunk({}, "tool_calls"))
+        responses.append(response)
+        return response
+
+    body = {"model": "synthetic", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = "Hello"
+    else:
+        body.update(messages=[{"role": "user", "content": "Hello"}], max_tokens=32)
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as client:
+        with pytest.raises(ValueError, match="extra_content"):
+            result = await getattr(client, coordinator)(
+                body=body, endpoint="chat/completions", provider="gemini", api_key="test"
+            )
+            if stream:
+                async with result:
+                    [event async for event in result]
+        assert responses[0].is_closed
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        Thinking(content="", summary="summary"),
+        Thinking(content="", summary="", signature="opaque"),
+    ],
+)
+def test_chat_projection_rejects_nonportable_reasoning(part):
+    """Ensures Chat history never converts summaries or signatures into unsigned raw text."""
+    request = NormalizedRequest(model="synthetic", input=[AssistantInput(content=[part])])
+    with pytest.raises(UnsupportedInput, match="cannot represent"):
+        OpenAIChatCompletionsClient._request_body(request)
+
+
+async def test_generic_chat_missing_index_fails_instead_of_losing_call():
+    """Ensures unsupported missing indices cannot produce a successful empty translated response."""
+    chunk = _provider_chunk(
+        {
+            "tool_calls": [
+                {"index": None, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+            ]
+        }
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: _provider_stream(chunk, _provider_chunk({}, "tool_calls"))
+        )
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        with pytest.raises(ValueError, match="require an index"):
+            [
+                event
+                async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+            ]

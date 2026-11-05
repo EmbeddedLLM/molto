@@ -13,7 +13,6 @@ from molto.providers import (
     PROVIDER_KEY_NAMES,
     Endpoint,
     Provider,
-    ProviderCapabilities,
 )
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
@@ -182,26 +181,14 @@ class Molto:
         # endpoint cannot surface as an unrelated translation error.
         if endpoint not in DEFAULT_PROVIDER_BY_ENDPOINT:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        if provider == "gemini" and endpoint != "chat/completions":
-            raise ValueError("Gemini supports only the Chat Completions upstream.")
         if provider is not None and provider not in PROVIDER_CAPABILITIES:
             raise ValueError(f"Unsupported provider: {provider!r}.")
-        return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
-
-    @staticmethod
-    def _resolve_provider_options(
-        provider: Provider, endpoint: Endpoint, base_url: str | None
-    ) -> tuple[str | None, ProviderCapabilities]:
-        if provider == "togetherai" and endpoint != "chat/completions" and not base_url:
+        resolved_provider = provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
+        if (resolved_provider, endpoint) not in CLIENTS:
             raise ValueError(
-                "Together AI requires an explicit base_url for an alternative upstream endpoint."
+                f"Unsupported upstream endpoint {endpoint!r} for provider {resolved_provider!r}."
             )
-        if provider == "bedrock" and not base_url:
-            raise ValueError("Bedrock requires an explicit regional base_url and model/profile.")
-        capabilities = CLIENTS[provider, endpoint].resolve_capabilities(
-            PROVIDER_CAPABILITIES[provider]
-        )
-        return base_url, capabilities
+        return resolved_provider
 
     async def responses(
         self,
@@ -232,11 +219,10 @@ class Molto:
         request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        base_url, capabilities = self._resolve_provider_options(
-            resolved_provider, endpoint, base_url
-        )
+        client_type = CLIENTS[resolved_provider, endpoint]
+        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
         upstream_headers = _upstream_headers(extra_headers)
-        upstream = CLIENTS[resolved_provider, endpoint](
+        upstream = client_type(
             self._http_client,
             api_key=resolved_api_key,
             base_url=base_url,
@@ -283,11 +269,10 @@ class Molto:
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        base_url, capabilities = self._resolve_provider_options(
-            resolved_provider, endpoint, base_url
-        )
+        client_type = CLIENTS[resolved_provider, endpoint]
+        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
         upstream_headers = _upstream_headers(extra_headers)
-        upstream = CLIENTS[resolved_provider, endpoint](
+        upstream = client_type(
             self._http_client,
             api_key=resolved_api_key,
             base_url=base_url,
@@ -333,11 +318,10 @@ class Molto:
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        base_url, capabilities = self._resolve_provider_options(
-            resolved_provider, endpoint, base_url
-        )
+        client_type = CLIENTS[resolved_provider, endpoint]
+        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
         upstream_headers = _upstream_headers(extra_headers)
-        upstream = CLIENTS[resolved_provider, endpoint](
+        upstream = client_type(
             self._http_client,
             api_key=resolved_api_key,
             base_url=base_url,

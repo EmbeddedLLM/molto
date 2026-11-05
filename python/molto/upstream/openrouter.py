@@ -1,27 +1,14 @@
-"""OpenRouter transports with protocol-specific reasoning interpretation."""
+"""OpenRouter Responses transport and explicit reasoning interpretation."""
 
 from dataclasses import replace
 from typing import Any
 
 from molto.providers import ProviderCapabilities
 from molto.types.normalized import Thinking
-from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import (
-    OpenAIChatCompletionsClient,
     OpenAIResponsesClient,
     _reasoning_part,
 )
-
-
-class OpenRouterChatCompletionsClient(OpenAIChatCompletionsClient):
-    DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-    REQUIRED_API_KEY = "OPENROUTER_API_KEY"
-
-
-class OpenRouterMessagesClient(AnthropicMessagesClient):
-    DEFAULT_BASE_URL = "https://openrouter.ai/api"
-    REQUIRED_API_KEY = "OPENROUTER_API_KEY"
-    BEARER_AUTH = True
 
 
 class OpenRouterResponsesClient(OpenAIResponsesClient):

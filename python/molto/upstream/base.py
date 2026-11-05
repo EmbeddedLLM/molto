@@ -23,7 +23,6 @@ class BaseClient[
 ](ABC):
     DEFAULT_BASE_URL: str
     REQUIRED_API_KEY: str | None = None
-    BEARER_AUTH = False
     REQUIRES_BASE_URL = False
 
     @classmethod
@@ -40,8 +39,6 @@ class BaseClient[
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-        required_api_key: str | None = None,
-        bearer_auth: bool | None = None,
     ) -> None:
         if self.REQUIRES_BASE_URL and not base_url:
             raise ValueError(f"{type(self).__name__} requires an explicit base_url.")
@@ -51,8 +48,6 @@ class BaseClient[
         self._capabilities = self.resolve_capabilities(capabilities)
         self._extra_body = extra_body
         self._extra_headers = extra_headers
-        self._required_api_key = required_api_key or self.REQUIRED_API_KEY
-        self._bearer_auth = self.BEARER_AUTH if bearer_auth is None else bearer_auth
         self.response_headers = Headers()
 
     def _capture_response_headers(self, headers: Headers) -> None:
@@ -60,10 +55,8 @@ class BaseClient[
         self.response_headers.update(headers)
 
     def _make_sdk_client(self) -> AsyncOpenAI:
-        if self._required_api_key and not self._api_key:
-            raise OpenAIError(
-                f"Missing credentials. Set {self._required_api_key} or pass api_key."
-            )
+        if self.REQUIRED_API_KEY and not self._api_key:
+            raise OpenAIError(f"Missing credentials. Set {self.REQUIRED_API_KEY} or pass api_key.")
         return AsyncOpenAI(
             api_key=self._api_key,
             base_url=self._base_url or self.DEFAULT_BASE_URL,

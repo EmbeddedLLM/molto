@@ -111,8 +111,6 @@ class ChatCompletionRefusalPartParam(ChatCompletionContentPartRefusalParam):
 class ChatCompletionFunctionToolCallParam(ChatCompletionMessageFunctionToolCallParam):
     """A function call retaining provider continuation fields."""
 
-    # Fireworks emits a null outer name; the required function.name owns identity.
-    name: NotRequired[None]
     extra_content: NotRequired[GoogleExtraContent]
 
 
@@ -128,12 +126,9 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
-    reasoning: NotRequired[str | list[str]]
-    # Fireworks returns this empty output placeholder and accepts it in history.
-    tools: NotRequired[None]
     extra_content: NotRequired[GoogleExtraContent]
     tool_calls: NotRequired[
-        list[ChatCompletionFunctionToolCallParam | ChatCompletionMessageCustomToolCallParam] | None
+        list[ChatCompletionFunctionToolCallParam | ChatCompletionMessageCustomToolCallParam]
     ]
     content: NotRequired[
         str | list[ChatCompletionTextPartParam | ChatCompletionRefusalPartParam] | None

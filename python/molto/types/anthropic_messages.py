@@ -19,7 +19,7 @@ from anthropic.types import (
     ToolChoiceParam,
     ToolUnionParam,
 )
-from pydantic import Field, SerializationInfo, TypeAdapter, field_serializer
+from pydantic import Field, TypeAdapter
 from typing_extensions import NotRequired, Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
@@ -41,7 +41,6 @@ AnthropicContentBlockParam: TypeAlias = Union[
     *_RETAINED_CONTENT_BLOCKS,  # pyright: ignore[reportInvalidTypeForm]
     ContentBlock,
 ]
-_CONTENT_ADAPTER = TypeAdapter(str | list[AnthropicContentBlockParam])
 
 
 class AnthropicMessageParam(ExcludeNoneModel):
@@ -55,21 +54,6 @@ class AnthropicMessageParam(ExcludeNoneModel):
         Literal["user", "assistant", "system"],
         Field(description="The role that produced the conversation turn."),
     ]
-
-    @field_serializer("content")
-    def serialize_content(self, content, info: SerializationInfo):
-        # Explicit block nulls (such as citations and tool callers) are native
-        # history values; unset optional request parameters still stay omitted.
-        return _CONTENT_ADAPTER.dump_python(
-            content,
-            mode=info.mode,
-            include=info.include,
-            exclude=info.exclude,
-            by_alias=info.by_alias,
-            exclude_unset=info.exclude_unset,
-            exclude_defaults=info.exclude_defaults,
-            exclude_none=False,
-        )
 
 
 class AnthropicMessagesCreateRequest(ExcludeNoneModel):

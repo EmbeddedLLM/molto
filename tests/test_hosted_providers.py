@@ -5,28 +5,20 @@ from pathlib import Path
 
 import httpx
 import pytest
-from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import SecretStr
 
 from molto import Molto
 from molto.configs import ENV_CONFIG
-from molto.providers import PROVIDER_KEY_NAMES
+from molto.providers import PROVIDER_CAPABILITIES, PROVIDER_KEY_NAMES
+from molto.upstream.registry import CLIENTS
 from molto.utils.io import dumps_sse, json_loads, read_yaml
 
 DESTINATIONS = [
     ("fireworks", "responses", "https://api.fireworks.ai/inference/v1", "/responses"),
-    (
-        "fireworks",
-        "chat/completions",
-        "https://api.fireworks.ai/inference/v1",
-        "/chat/completions",
-    ),
-    ("fireworks", "messages", "https://api.fireworks.ai/inference", "/v1/messages"),
     ("openrouter", "responses", "https://openrouter.ai/api/v1", "/responses"),
-    ("openrouter", "chat/completions", "https://openrouter.ai/api/v1", "/chat/completions"),
-    ("openrouter", "messages", "https://openrouter.ai/api", "/v1/messages"),
+    ("togetherai", "responses", "https://api.together.ai/v1", "/responses"),
     (
         "gemini",
         "chat/completions",
@@ -39,26 +31,13 @@ DESTINATIONS = [
         "https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1",
         "/responses",
     ),
-    (
-        "bedrock",
-        "chat/completions",
-        "https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1",
-        "/chat/completions",
-    ),
-    (
-        "bedrock",
-        "messages",
-        "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic",
-        "/v1/messages",
-    ),
 ]
 
 
 def cassette(protocol, stream):
-    provider = "anthropic" if protocol == "messages" else "openai"
     mode = "stream" if stream else "non_stream"
     path = Path(__file__).parent / "cassettes/matched/simple_text"
-    return read_yaml(path / f"{provider}-{protocol.replace('/', '_')}-{mode}-00.yaml")
+    return read_yaml(path / f"openai-{protocol.replace('/', '_')}-{mode}-00.yaml")
 
 
 def response(recording):
@@ -81,12 +60,6 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
         ENV_CONFIG, PROVIDER_KEY_NAMES[provider].lower(), SecretStr("configured-key")
     )
     monkeypatch.setenv("OPENAI_API_KEY", "unrelated")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "unrelated")
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "unrelated")
-    monkeypatch.setenv(
-        "ANTHROPIC_CUSTOM_HEADERS",
-        "authorization: env-lower\nAuthorization: env-title\nAUTHORIZATION: env-upper\nx-api-key: env-lower\nX-Api-Key: env-title\nX-API-KEY: env-upper\nx-custom: retained",
-    )
     monkeypatch.setenv("OPENAI_ORG_ID", "unrelated")
     monkeypatch.setenv("OPENAI_PROJECT_ID", "unrelated")
     base = "https://custom.example/prefix" if override else base
@@ -101,18 +74,10 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
         assert str(request.url) == base + path
         assert request.method == "POST"
         assert json_loads(request.content) == body
-        assert request.headers.get("authorization") == (
-            f"Bearer {key}"
-            if endpoint != "messages" or provider in {"bedrock", "openrouter"}
-            else None
-        )
-        assert request.headers.get("x-api-key") == (
-            key if endpoint == "messages" and provider not in {"bedrock", "openrouter"} else None
-        )
+        assert request.headers["authorization"] == f"Bearer {key}"
+        assert "x-api-key" not in request.headers
         assert "openai-organization" not in request.headers
         assert "openai-project" not in request.headers
-        if endpoint == "messages":
-            assert request.headers["x-custom"] == "retained"
         return response(recording)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as transport:
@@ -132,14 +97,10 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(lambda _: response(recording))
     ) as transport:
-        if endpoint == "messages":
-            sdk = AsyncAnthropic(api_key="sdk-key", http_client=transport)
-            expected = await sdk.messages.create(**body)
-        else:
-            sdk = AsyncOpenAI(api_key="sdk-key", http_client=transport)
-            expected = await (
-                sdk.responses.create if endpoint == "responses" else sdk.chat.completions.create
-            )(**body)
+        sdk = AsyncOpenAI(api_key="sdk-key", http_client=transport)
+        expected = await (
+            sdk.responses.create if endpoint == "responses" else sdk.chat.completions.create
+        )(**body)
         if stream:
             async with expected:
                 expected = [event.model_dump() async for event in expected]
@@ -185,6 +146,48 @@ async def test_missing_provider_credentials_never_use_other_accounts(
             )
     assert type(error.value).__name__ == "AuthenticationError"
     assert str(error.value.request.url) == base + path
+
+
+@pytest.mark.parametrize(("provider", "endpoint", "base", "path"), DESTINATIONS)
+async def test_direct_hosted_client_defaults_and_missing_credentials(
+    provider, endpoint, base, path, monkeypatch
+):
+    """Ensures direct clients own their URL and reject unrelated SDK credentials without the facade."""
+    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
+    async with httpx.AsyncClient() as transport:
+        kwargs = {"capabilities": PROVIDER_CAPABILITIES[provider]}
+        if provider == "bedrock":
+            with pytest.raises(ValueError, match="explicit"):
+                CLIENTS[provider, endpoint](transport, **kwargs)
+            kwargs["base_url"] = base
+        client = CLIENTS[provider, endpoint](transport, **kwargs)
+        with pytest.raises(OpenAIError, match=PROVIDER_KEY_NAMES[provider]):
+            client._make_sdk_client()
+        selected = CLIENTS[provider, endpoint](transport, api_key="selected-key", **kwargs)
+        sdk = selected._make_sdk_client()
+        assert str(sdk.base_url).rstrip("/") == base
+        assert sdk.default_headers["Authorization"] == "Bearer selected-key"
+
+
+@pytest.mark.parametrize(("provider", "supported", "base", "path"), DESTINATIONS)
+async def test_hosted_providers_reject_unselected_protocols(provider, supported, base, path):
+    """Ensures a custom URL cannot silently enable an unsupported provider protocol."""
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: pytest.fail("Unsupported provider protocol reached HTTP")
+            )
+        )
+    ) as client:
+        for endpoint in {"responses", "chat/completions", "messages"} - {supported}:
+            with pytest.raises(ValueError):
+                await client.responses(
+                    {"model": "example", "input": "Hi"},
+                    provider=provider,
+                    endpoint=endpoint,
+                    api_key="selected-key",
+                    base_url=base,
+                )
 
 
 def tool_chunk(calls, finish=None):

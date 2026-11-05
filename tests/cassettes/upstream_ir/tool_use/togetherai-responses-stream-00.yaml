@@ -1,0 +1,130 @@
+filename: 2026-11-05-01a1a9ca-8f09-7a30-a977-77693e8c3274
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: minimal
+    store: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '591'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9ca-8f09-7a30-a977-77693e8c3274
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: efb6bf28-aws_as1
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_01a1a9ca-90d7-7421-8836-3be1c2fd1314","object":"response","created_at":1793849987,"completed_at":null,"background":false,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[],"parallel_tool_calls":false,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","name":"read_file","description":"Read
+    a file by its path.","parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_01a1a9ca-90d7-7421-8836-3be1c2fd1314","object":"response","created_at":1793849987,"completed_at":null,"background":false,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[],"parallel_tool_calls":false,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","name":"read_file","description":"Read
+    a file by its path.","parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"fc_01a1a9ca90e4743198b7c811b5cdc615","type":"function_call","call_id":"call_01a1a9ca90e4743198b7c803","name":"read_file","arguments":"","status":"in_progress"}}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":3,"output_index":0,"item_id":"fc_01a1a9ca90e4743198b7c811b5cdc615","delta":"{"}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":4,"output_index":0,"item_id":"fc_01a1a9ca90e4743198b7c811b5cdc615","delta":"\"path\":\"index.txt\"}"}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","sequence_number":5,"output_index":0,"item_id":"fc_01a1a9ca90e4743198b7c811b5cdc615","arguments":"{\"path\":\"index.txt\"}"}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":6,"output_index":0,"item":{"id":"fc_01a1a9ca90e4743198b7c811b5cdc615","type":"function_call","call_id":"call_01a1a9ca90e4743198b7c803","name":"read_file","arguments":"{\"path\":\"index.txt\"}","status":"completed"}}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":7,"response":{"id":"resp_01a1a9ca-90d7-7421-8836-3be1c2fd1314","object":"response","created_at":1793849987,"completed_at":1793849987,"background":false,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[{"id":"fc_01a1a9ca90e4743198b7c811b5cdc615","type":"function_call","call_id":"call_01a1a9ca90e4743198b7c803","name":"read_file","arguments":"{\"path\":\"index.txt\"}","status":"completed"}],"parallel_tool_calls":false,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"type":"function","name":"read_file","description":"Read
+    a file by its path.","parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":182,"output_tokens":12,"total_tokens":194,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens_details":{"reasoning_tokens":0}},"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: response.completed
+timestamp: '2026-11-05T03:39:46.825069+00:00'
+upstream_url: https://api.together.ai/v1/responses

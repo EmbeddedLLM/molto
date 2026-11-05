@@ -1,0 +1,165 @@
+filename: 2026-11-05-01a1a9cb-4d12-7ff3-bf9a-b7a28d308e3d
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_01a1a9cb0df07a72b0092b2f
+      id: fc_call_01a1a9cb0df07a72b0092b2f
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_01a1a9cb0df07a72b0092b2f
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '905'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9cb-4d12-7ff3-bf9a-b7a28d308e3d
+response:
+  body:
+    background: false
+    completed_at: 1793850037
+    created_at: 1793850037
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9cb-5571-7541-962e-9147370622cb
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: The file `index.txt` contains the path `garden.txt`. Let me read that
+          file now.
+        type: output_text
+      id: msg_0f26025d-aws_as1-01a1a9cb-5572-7e32-8fd7-61aeed733e54
+      role: assistant
+      status: completed
+      type: message
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_01a1a9cb561876b2be7c103a
+      id: fc_call_01a1a9cb561876b2be7c103a
+      name: read_file
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 203
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 192
+      output_tokens: 34
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 237
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMDFhMWE5Y2ItNTU3MS03NTQxLTk2MmUtOTE0NzM3MDYyMmNiIiwib2JqZWN0
+    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzODUwMDM3LCJjb21wbGV0ZWRfYXQiOjE3OTM4
+    NTAwMzcsImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
+    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
+    dXRfdG9rZW5zIjoxMDI0LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
+    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJtZXNzYWdlIiwiaWQiOiJtc2dfMGYyNjAyNWQtYXdz
+    X2FzMS0wMWExYTljYi01NTcyLTdlMzItOGZkNy02MWFlZWQ3MzNlNTQiLCJyb2xlIjoiYXNzaXN0
+    YW50IiwiY29udGVudCI6W3sidHlwZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6IlRoZSBmaWxlIGBp
+    bmRleC50eHRgIGNvbnRhaW5zIHRoZSBwYXRoIGBnYXJkZW4udHh0YC4gTGV0IG1lIHJlYWQgdGhh
+    dCBmaWxlIG5vdy4iLCJhbm5vdGF0aW9ucyI6W119XSwic3RhdHVzIjoiY29tcGxldGVkIn0seyJ0
+    eXBlIjoiZnVuY3Rpb25fY2FsbCIsImlkIjoiZmNfY2FsbF8wMWExYTljYjU2MTg3NmIyYmU3YzEw
+    M2EiLCJjYWxsX2lkIjoiY2FsbF8wMWExYTljYjU2MTg3NmIyYmU3YzEwM2EiLCJuYW1lIjoicmVh
+    ZF9maWxlIiwiYXJndW1lbnRzIjoie1wicGF0aFwiOlwiZ2FyZGVuLnR4dFwifSIsInN0YXR1cyI6
+    ImNvbXBsZXRlZCJ9XSwicGFyYWxsZWxfdG9vbF9jYWxscyI6ZmFsc2UsInByZXZpb3VzX3Jlc3Bv
+    bnNlX2lkIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9tcHRfY2FjaGVfcmV0ZW50
+    aW9uIjpudWxsLCJyZWFzb25pbmciOnsiZWZmb3J0IjoibWluaW1hbCIsInN1bW1hcnkiOm51bGx9
+    LCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0Iiwic3RvcmUiOmZhbHNlLCJ0ZW1wZXJhdHVyZSI6MS4w
+    LCJ0ZXh0Ijp7ImZvcm1hdCI6eyJ0eXBlIjoidGV4dCJ9LCJ2ZXJib3NpdHkiOiJtZWRpdW0ifSwi
+    dG9vbF9jaG9pY2UiOiJhdXRvIiwidG9vbHMiOlt7InR5cGUiOiJmdW5jdGlvbiIsIm5hbWUiOiJy
+    ZWFkX2ZpbGUiLCJkZXNjcmlwdGlvbiI6IlJlYWQgYSBmaWxlIGJ5IGl0cyBwYXRoLiIsInBhcmFt
+    ZXRlcnMiOnsiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7InBhdGgi
+    OnsidHlwZSI6InN0cmluZyJ9fSwicmVxdWlyZWQiOlsicGF0aCJdLCJ0eXBlIjoib2JqZWN0In0s
+    InN0cmljdCI6ZmFsc2V9XSwidG9wX2xvZ3Byb2JzIjowLCJ0b3BfcCI6MS4wLCJ0cnVuY2F0aW9u
+    IjoiZGlzYWJsZWQiLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjIwMywib3V0cHV0X3Rva2VucyI6
+    MzQsInRvdGFsX3Rva2VucyI6MjM3LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9r
+    ZW5zIjoxOTIsImNhY2hlX3dyaXRlX3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnNfZGV0YWlscyI6
+    eyJyZWFzb25pbmdfdG9rZW5zIjowfX0sInVzZXIiOm51bGwsInNhZmV0eV9pZGVudGlmaWVyIjpu
+    dWxsLCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJwcmVzZW5jZV9wZW5hbHR5IjowLjAsIm1ldGFk
+    YXRhIjp7fX0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 0f26025d-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:40:35.474314+00:00'
+upstream_url: https://api.together.ai/v1/responses

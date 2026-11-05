@@ -3,10 +3,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 from dataclasses import dataclass
-from os import environ
 from typing import Any, NoReturn
 
-from anthropic import APIStatusError, AsyncAnthropic, AsyncStream, omit
+from anthropic import APIStatusError, AsyncAnthropic, AsyncStream
 from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import BadRequestError as AnthropicBadRequestError
 from anthropic import NotFoundError as AnthropicNotFoundError
@@ -314,33 +313,10 @@ class AnthropicMessagesClient(
     DEFAULT_BASE_URL = "https://api.anthropic.com"
 
     def _make_anthropic_client(self) -> AsyncAnthropic:
-        if self._required_api_key and not self._api_key:
-            raise TypeError(
-                '"Could not resolve authentication method. '
-                f"Set {self._required_api_key} or pass api_key."
-            )
-        default_headers = None
-        if self._required_api_key:
-            # The SDK merges ANTHROPIC_CUSTOM_HEADERS case-sensitively after
-            # authentication. Omit every supplied spelling before installing
-            # the selected hosted provider's credential and auth scheme.
-            default_headers = {
-                line.partition(":")[0].strip(): omit
-                for line in environ.get("ANTHROPIC_CUSTOM_HEADERS", "").splitlines()
-                if line.partition(":")[0].strip().lower() in {"authorization", "x-api-key"}
-            }
-            default_headers.update(
-                {
-                    "Authorization": f"Bearer {self._api_key}" if self._bearer_auth else omit,
-                    "X-Api-Key": omit if self._bearer_auth else self._api_key,
-                }
-            )
         return AsyncAnthropic(
-            api_key=None if self._bearer_auth else self._api_key,
-            auth_token=self._api_key if self._bearer_auth else None,
+            api_key=self._api_key,
             base_url=self._base_url or self.DEFAULT_BASE_URL,
             http_client=self._http_client,
-            default_headers=default_headers,
         )
 
     async def native_events(

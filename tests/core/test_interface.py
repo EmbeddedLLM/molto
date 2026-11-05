@@ -1177,7 +1177,7 @@ async def test_reasoning_only_history(
         upstream,
         additions[downstream],
         additions[upstream],
-        provider="openai" if signed else "vllm",
+        provider=DEFAULT_PROVIDER_BY_ENDPOINT[upstream] if signed else "vllm",
     )
 
 
