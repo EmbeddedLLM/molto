@@ -1,0 +1,24 @@
+timestamp: '2026-11-03T17:02:25.619176+00:00'
+request:
+  method: POST
+  url: https://api.voyageai.com/v1/embeddings
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+  body:
+    model: voyage-3.5-lite
+    input: Where do penguins live?
+    input_type: query
+    truncation: false
+    output_dimension: 256
+    output_dtype: float
+response:
+  status_code: 401
+  headers:
+    content-type: application/json
+  body:
+    detail: Provided API key is invalid.
+  body_bytes: !!binary |
+    eyJkZXRhaWwiOiJQcm92aWRlZCBBUEkga2V5IGlzIGludmFsaWQuIn0=

@@ -1,0 +1,35 @@
+timestamp: '2026-11-03T17:02:19.506506+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input: Molto preserves vector identity.
+    model: text-embedding-3-small
+    dimensions: 8
+    encoding_format: base64
+response:
+  status_code: 200
+  headers:
+    content-type: application/json
+    openai-version: '2020-10-01'
+    x-request-id: req_3a99327e26374b75a143f952037a8e32
+  body_bytes: !!binary |
+    eyJvYmplY3QiOiJsaXN0IiwiZGF0YSI6W3sib2JqZWN0IjoiZW1iZWRkaW5nIiwiZW1iZWRkaW5n
+    IjoiQUtBeVB3RGdVVDRBSUJVOUFHQ0RQZ0RnY2I0QVlITStBT0RrUFFBQUJ6OD0iLCJpbmRleCI6
+    MH1dLCJtb2RlbCI6InRleHQtZW1iZWRkaW5nLTMtc21hbGwiLCJ1c2FnZSI6eyJwcm9tcHRfdG9r
+    ZW5zIjo3LCJ0b3RhbF90b2tlbnMiOjd9fQ==
+  body:
+    object: list
+    data:
+    - object: embedding
+      embedding: AKAyPwDgUT4AIBU9AGCDPgDgcb4AYHM+AODkPQAABz8=
+      index: 0
+    model: text-embedding-3-small
+    usage:
+      prompt_tokens: 7
+      total_tokens: 7

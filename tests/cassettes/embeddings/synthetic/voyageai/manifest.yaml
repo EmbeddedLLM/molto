@@ -1,0 +1,22 @@
+provenance: Deliberately synthetic Voyage native schema cases. No response was produced
+  by Molto or a live provider. Success recording unavailable because direct API key
+  returned HTTP401.
+schema_reference: https://docs.voyageai.com/reference/embeddings-api
+schema_review_date: '2026-11-03'
+model: voyage-3.5-lite
+dimensions: 256
+vectors: Repeated [0.25, -0.5] and [0.75, 1.0] 128 times; base64 is little-endian
+  float32; reversed data indices deliberately test correspondence.
+fixtures:
+- file: default-float.yaml
+  sha256: b1dde5565856577fb6f456b3dfbbcb7e5ec705e65fe88a7f898109d782c8570a
+- file: default-base64.yaml
+  sha256: 21dc61bfcec04b4f68cf8a228d33b31f3064ecfa26ddab5b464d760527a95d99
+- file: query-float.yaml
+  sha256: 352aa85154c6774c6dc3715ca087bb8a14a6b8df89d64e4ba76ffffee350b335
+- file: query-base64.yaml
+  sha256: 57b14df7798054ad59e48a3cb561b20dbba8ed0dcc18dce8e2ed20b98542c70c
+- file: document-float.yaml
+  sha256: f94e5baef06a09876882b1febba96498814ce7cf7bc7199670e44bc031a8d5cf
+- file: document-base64.yaml
+  sha256: d5c38ad5670e13fc324086e94488b232906f4373e5a4a4670324c3113c84dfbb

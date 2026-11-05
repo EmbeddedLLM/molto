@@ -1,0 +1,31 @@
+timestamp: '2026-11-03T17:02:25.933590+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input: A small public recording.
+    model: molto-missing-embedding-model
+    encoding_format: float
+response:
+  status_code: 404
+  headers:
+    content-type: application/json; charset=utf-8
+    x-request-id: req_d965126e9e8942e49bdfeb68360de335
+  body_bytes: !!binary |
+    ewogICAgImVycm9yIjogewogICAgICAgICJtZXNzYWdlIjogIlRoZSBtb2RlbCBgbW9sdG8tbWlz
+    c2luZy1lbWJlZGRpbmctbW9kZWxgIGRvZXMgbm90IGV4aXN0IG9yIHlvdSBkbyBub3QgaGF2ZSBh
+    Y2Nlc3MgdG8gaXQuIiwKICAgICAgICAidHlwZSI6ICJpbnZhbGlkX3JlcXVlc3RfZXJyb3IiLAog
+    ICAgICAgICJwYXJhbSI6IG51bGwsCiAgICAgICAgImNvZGUiOiAibW9kZWxfbm90X2ZvdW5kIgog
+    ICAgfQp9Cg==
+  body:
+    error:
+      message: The model `molto-missing-embedding-model` does not exist or you do
+        not have access to it.
+      type: invalid_request_error
+      param: null
+      code: model_not_found

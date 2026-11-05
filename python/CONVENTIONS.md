@@ -36,7 +36,7 @@ Keep upstream clients specific to one supported wire protocol; never switch or o
 
 Create a fresh `BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` subclass instance for each translated request, specifying its concrete native request, event, and response types. Call its public `normalize_request()` before `project_events()` or `project_response()` so it can retain the validated downstream model as `native_request`. Implement protocol-specific translation in `_normalize_request()`, `_project_events()`, and `_project_response()`: `_project_events()` consumes normalized events and yields downstream-native events, while `_project_response()` consumes that projected native event stream and returns the downstream-native response. Translate known IR failures into downstream-native exceptions in `_handle_error()`. Re-raise errors without a native equivalent. Do not override the public lifecycle methods or bypass their state and error handling. Same-protocol passthrough composes `project_native_events()` or `project_native_response()` so native failures receive the same downstream-native error projection.
 
-Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT, NativeResponseT]`, specify its concrete native types, and implement its native paths, normalized path, and error translation:
+Every conversational upstream client must subclass `BaseClient[NativeRequestT, NativeEventT, NativeResponseT]`, specify its concrete native types, and implement its native paths, normalized path, and error translation:
 
 - `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()`;
 - `native_response()` accepts the validated upstream-native request, returns a non-streaming SDK response, and delegates failures to `_handle_error()`;
@@ -44,6 +44,8 @@ Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT, Na
 - `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
 The public `events()` wrapper owns error interception; do not override it. Clients do not retain adapter request state. Pass normalized requests explicitly and keep downstream-native request handling in the adapter.
+
+Embedding clients inherit `BaseHTTPClient`, sharing transport and client ownership without artificial event methods. Keep vectors and embedding metadata in the separate embedding types. Native OpenAI embeddings return the SDK result directly; translated native-provider responses pass through the embedding response adapter. Preserve the SDK's omitted-encoding behavior and keep native task options distinct. Unknown token usage is `None`, not zero or billed units. See the [embedding contract](../docs/provider-embeddings.md).
 
 ## Error translation
 

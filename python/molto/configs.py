@@ -24,11 +24,21 @@ class EnvConfig(BaseSettings):
     molto_log_level_stderr: str = "INFO"
     # External services
     anthropic_api_key: SecretStr = ""
+    cohere_api_key: SecretStr = ""
     deepseek_api_key: SecretStr = ""
     gemini_api_key: SecretStr = ""
     openai_api_key: SecretStr = ""
     openrouter_api_key: SecretStr = ""
     together_ai_api_key: SecretStr = ""
+    voyage_api_key: SecretStr = ""
+
+    @property
+    def cohere_api_key_plain(self) -> str:
+        return self.cohere_api_key.get_secret_value()
+
+    @property
+    def voyage_api_key_plain(self) -> str:
+        return self.voyage_api_key.get_secret_value()
 
     @property
     def anthropic_api_key_plain(self) -> str:

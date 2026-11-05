@@ -1,0 +1,44 @@
+timestamp: '2026-11-03T17:02:25.017855+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input:
+    - - 9906
+      - 1917
+    - - 791
+      - 407
+    model: text-embedding-3-small
+    dimensions: 8
+    encoding_format: base64
+response:
+  status_code: 200
+  headers:
+    content-type: application/json
+    openai-version: '2020-10-01'
+    x-request-id: req_513cfa49904440a9bbcaa8012a68302e
+  body_bytes: !!binary |
+    eyJvYmplY3QiOiJsaXN0IiwiZGF0YSI6W3sib2JqZWN0IjoiZW1iZWRkaW5nIiwiZW1iZWRkaW5n
+    IjoiQU9DbHZBREE3cjRBWUV3K0FNQ1lQZ0RnM0w0QW9JQytBT0NNdmdEQUVqOD0iLCJpbmRleCI6
+    MH0seyJvYmplY3QiOiJlbWJlZGRpbmciLCJlbWJlZGRpbmciOiJBR0FDUHdCZ1JUNEF3QXEvQU1C
+    RVBnQ0FYcjRBNElBK0FJQTNQZ0RBOVQ0PSIsImluZGV4IjoxfV0sIm1vZGVsIjoidGV4dC1lbWJl
+    ZGRpbmctMy1zbWFsbCIsInVzYWdlIjp7InByb21wdF90b2tlbnMiOjQsInRvdGFsX3Rva2VucyI6
+    NH19
+  body:
+    object: list
+    data:
+    - object: embedding
+      embedding: AOClvADA7r4AYEw+AMCYPgDg3L4AoIC+AOCMvgDAEj8=
+      index: 0
+    - object: embedding
+      embedding: AGACPwBgRT4AwAq/AMBEPgCAXr4A4IA+AIA3PgDA9T4=
+      index: 1
+    model: text-embedding-3-small
+    usage:
+      prompt_tokens: 4
+      total_tokens: 4
