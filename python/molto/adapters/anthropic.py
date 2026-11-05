@@ -6,8 +6,10 @@ compatibility mappings.
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import AsyncIterator
-from typing import Any, NoReturn
+from contextlib import aclosing
+from typing import Any, Literal, NoReturn, TypeAlias
 
 from anthropic import APIError as AnthropicAPIError
 from anthropic import APIStatusError as AnthropicAPIStatusError
@@ -17,6 +19,7 @@ from httpx import Response
 from pydantic_core import from_json
 
 from molto.adapters.base import BaseAdapter
+from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
     AnthropicMessagesResponse,
@@ -31,6 +34,7 @@ from molto.types.exceptions import (
 from molto.types.normalized import (
     AssistantInput,
     CacheBreakpoint,
+    CitationDelta,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -45,6 +49,9 @@ from molto.types.normalized import (
     ReasoningEffort,
     ResponseEndEvent,
     ResponseStartEvent,
+    SearchCall,
+    SearchLocation,
+    SearchResult,
     StreamOptions,
     SystemPrompt,
     TerminationReason,
@@ -57,8 +64,20 @@ from molto.types.normalized import (
     ToolCallDelta,
     ToolReturn,
     UserInput,
+    WebCitation,
+    WebSearchSource,
+    WebSearchTool,
+    WebSearchToolChoice,
 )
 from molto.utils.io import json_dumps
+from molto.utils.web_search import (
+    citation_from_messages,
+    messages_text_blocks,
+    search_call_from_messages,
+    search_calls_to_messages,
+    search_result_from_messages,
+    search_result_to_messages,
+)
 
 _STOP_REASONS: dict[TerminationReason, str] = {
     "max_output_tokens": "max_tokens",
@@ -68,7 +87,10 @@ _STOP_REASONS: dict[TerminationReason, str] = {
     "stop": "end_turn",
     "stop_sequence": "stop_sequence",
     "tool_call": "tool_use",
+    "unknown": "end_turn",
 }
+
+CitationPolicy: TypeAlias = Literal["auto", "buffer", "drop"]
 
 _EXTENDED_THINKING_EFFORTS: tuple[tuple[int, ReasoningEffort], ...] = (
     (1024, "minimal"),
@@ -116,30 +138,89 @@ def _reasoning_effort_from_budget(budget_tokens: int) -> ReasoningEffort:
     )
 
 
-def _normalize_tool(tool: dict[str, Any]) -> FunctionTool:
-    if tool.get("type") not in {None, "custom"}:
-        raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
+def _validate_search_source(source: dict[str, Any]) -> None:
+    """Reject unsupported source fields in Messages request history."""
     unsupported_fields = {
-        field
-        for field in (
-            "allowed_callers",
-            "cache_control",
-            "defer_loading",
-            "eager_input_streaming",
-            "input_examples",
-        )
-        if tool.get(field) not in (None, False, [])
+        key for key in source if key not in WebSearchSource.model_fields and key != "type"
     }
     if unsupported_fields:
         raise UnsupportedInput(
-            f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
+            f"Unsupported Anthropic search-result source fields: {sorted(unsupported_fields)}."
         )
-    return FunctionTool(
-        name=tool["name"],
-        description=tool.get("description"),
-        parameters=tool["input_schema"],
-        strict=tool.get("strict", False),
-    )
+
+
+def _citations(citations: list[dict[str, Any]] | None, text: str) -> list[WebCitation]:
+    result = []
+    for citation in citations or []:
+        citation = dict(citation)
+        if citation["type"] != "web_search_result_location":
+            raise UnsupportedInput(f"Unsupported Anthropic citation: {citation['type']}.")
+        result.append(citation_from_messages(citation, text=text))
+    return result
+
+
+def _citations_are_possible(request: NormalizedRequest) -> bool:
+    """Report whether normalized tools or history signal possible URL citations."""
+    if any(isinstance(tool, WebSearchTool) for tool in request.tools or []):
+        return True
+    for item in request.input or []:
+        parts = item.content if isinstance(item, AssistantInput) else [item]
+        for part in parts:
+            if isinstance(part, (SearchCall, SearchResult)):
+                return True
+            if isinstance(part, TextOutput) and part.citations:
+                return True
+    return False
+
+
+async def _ordered_parts(
+    events: AsyncIterator[ModelResponseStreamEvent],
+    *,
+    buffer_text: bool,
+) -> AsyncIterator[ModelResponseStreamEvent]:
+    """Stream parts in start order, yielding only the end for snapshot-based parts."""
+    # Responses may stream "Alpha. Beta." before citing only "Beta.". Messages
+    # needs separate uncited/cited blocks; an emitted block cannot be split later.
+    # Search actions and queries can also arrive late: the final snapshot tells
+    # us to expand a query batch into searches or omit browsing.
+    # If part A expands into two blocks, part B must follow both, so later parts
+    # wait to preserve order and receive the correct consecutive block indices.
+    # The adapter resolves text buffering from the policy and normalized request;
+    # upstream transport extensions never select that behavior.
+    pending: dict[int, deque[ModelResponseStreamEvent]] = {}
+    snapshots: set[int] = set()
+    async for event in events:
+        if not isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent)):
+            if isinstance(event, ResponseEndEvent) and (snapshots or any(pending.values())):
+                raise ValueError("Messages projection ended before its parts completed.")
+            yield event
+            continue
+        if isinstance(event, PartStartEvent):
+            pending[event.index] = deque()
+            part = event.part
+            if isinstance(part, (SearchCall, SearchResult)) or (
+                isinstance(part, TextOutput) and buffer_text
+            ):
+                snapshots.add(event.index)
+        if isinstance(event, PartEndEvent):
+            snapshots.discard(event.index)
+        # Completed snapshots contain all citations and search metadata; retaining
+        # their intermediate events would only duplicate upstream accumulation.
+        if event.index not in snapshots:
+            pending[event.index].append(event)
+        while pending:
+            index = next(iter(pending))
+            chunks = pending[index]
+            if not chunks:
+                break
+            current = chunks.popleft()
+            if isinstance(current, PartEndEvent):
+                del pending[index]
+            yield current
+    # Preserve partial ordinary streams when all received chunks were emitted;
+    # only unfinished snapshots or blocked chunks would otherwise be lost.
+    if snapshots or any(pending.values()):
+        raise ValueError("Messages projection ended before its parts completed.")
 
 
 class AnthropicMessagesAdapter(
@@ -150,6 +231,68 @@ class AnthropicMessagesAdapter(
     ]
 ):
     """Translate the downstream Anthropic Messages protocol to and from normalized IR."""
+
+    def __init__(
+        self,
+        capabilities: ProviderCapabilities,
+        *,
+        citation_policy: CitationPolicy = "drop",
+    ) -> None:
+        super().__init__(capabilities)
+        if citation_policy not in {"auto", "buffer", "drop"}:
+            raise ValueError(f"Unsupported citation policy: {citation_policy!r}.")
+        self._citation_policy = citation_policy
+
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
+        """Translate a Messages tool declaration into its normalized schema."""
+        if tool.get("type") == "web_search_20250305":
+            unsupported = set(tool) - {
+                "type",
+                "name",
+                "allowed_domains",
+                "blocked_domains",
+                "user_location",
+                "max_uses",
+                "allowed_callers",
+            }
+            if unsupported or tool.get("allowed_callers") not in (None, [], ["direct"]):
+                raise UnsupportedInput(
+                    f"Unsupported Anthropic search tool fields: {sorted(unsupported or {'allowed_callers'})}."
+                )
+            location = tool.get("user_location")
+            return WebSearchTool(
+                allowed_domains=tool.get("allowed_domains"),
+                blocked_domains=tool.get("blocked_domains"),
+                user_location=SearchLocation(
+                    **{key: value for key, value in location.items() if key != "type"}
+                )
+                if location is not None
+                else None,
+            )
+        if tool.get("type") not in {None, "custom"}:
+            raise UnsupportedInput(f"Unsupported Anthropic tool type: {tool.get('type')!r}.")
+        unsupported_fields = {
+            field
+            for field in (
+                "allowed_callers",
+                "cache_control",
+                "defer_loading",
+                "eager_input_streaming",
+                "input_examples",
+            )
+            if tool.get(field) not in (None, False, [])
+        }
+        if unsupported_fields:
+            raise UnsupportedInput(
+                f"Unsupported Anthropic custom tool fields: {sorted(unsupported_fields)}."
+            )
+        return FunctionTool(
+            name=tool["name"],
+            description=tool.get("description"),
+            parameters=tool["input_schema"],
+            strict=tool.get("strict", False),
+        )
 
     async def _project_response(
         self,
@@ -200,7 +343,7 @@ class AnthropicMessagesAdapter(
                         )
                     content_block.signature = event.delta.signature
                 elif event.delta.type == "input_json_delta":
-                    if content_block.type != "tool_use":
+                    if content_block.type not in {"tool_use", "server_tool_use"}:
                         raise ValueError(
                             "Received an Anthropic tool-input delta for a non-tool block."
                         )
@@ -224,7 +367,7 @@ class AnthropicMessagesAdapter(
                         tool_input = from_json(raw_input, allow_partial=True)
                         if not isinstance(tool_input, dict):
                             raise ValueError("Anthropic tool input must be a JSON object.")
-                        if content_block.type != "tool_use":
+                        if content_block.type not in {"tool_use", "server_tool_use"}:
                             raise ValueError("Received Anthropic tool input for a non-tool block.")
                         content_block.input = tool_input
                 open_blocks.remove(event.index)
@@ -319,8 +462,8 @@ class AnthropicMessagesAdapter(
 
     def _normalize_assistant_blocks(
         self, content_blocks: list[dict[str, Any]]
-    ) -> list[Thinking | TextOutput | ToolCall]:
-        items: list[Thinking | TextOutput | ToolCall] = []
+    ) -> list[Thinking | TextOutput | ToolCall | SearchCall | SearchResult]:
+        items: list[Thinking | TextOutput | ToolCall | SearchCall | SearchResult] = []
         for block in content_blocks:
             block_type = block.get("type")
             if block_type == "thinking":
@@ -331,8 +474,30 @@ class AnthropicMessagesAdapter(
                 items.append(part)
             elif block_type == "text":
                 items.append(
-                    TextOutput(content=block["text"], cache_breakpoint=_cache_breakpoint(block))
+                    TextOutput(
+                        content=block["text"],
+                        cache_breakpoint=_cache_breakpoint(block),
+                        citations=_citations(block.get("citations"), block["text"]),
+                    )
                 )
+            elif block_type == "server_tool_use" and block["name"] == "web_search":
+                _reject_cache_breakpoint(block)
+                caller = block.get("caller")
+                if caller is not None and dict(caller).get("type") != "direct":
+                    raise UnsupportedInput(
+                        "Only directly invoked Anthropic hosted searches can be translated."
+                    )
+                items.append(search_call_from_messages(block))
+            elif block_type == "web_search_tool_result":
+                _reject_cache_breakpoint(block)
+                content = block["content"]
+                if isinstance(content, list):
+                    content = [dict(source) for source in content]
+                    for source in content:
+                        _validate_search_source(source)
+                else:
+                    content = dict(content)
+                items.append(search_result_from_messages({**block, "content": content}))
             elif block_type == "tool_use":
                 _reject_cache_breakpoint(block)
                 caller = block.get("caller")
@@ -410,7 +575,14 @@ class AnthropicMessagesAdapter(
                 ttl=request.cache_control.get("ttl"),
             )
         if request.tools is not None:
-            data["tools"] = [_normalize_tool(tool) for tool in request.tools]
+            data["tools"] = [self._translate_tool(tool) for tool in request.tools]
+            searches = [
+                tool for tool in request.tools if tool.get("type") == "web_search_20250305"
+            ]
+            if len(searches) > 1:
+                raise UnsupportedInput("Only one hosted web search tool can be translated.")
+            if searches and "max_uses" in searches[0]:
+                data["max_tool_calls"] = searches[0]["max_uses"]
         if request.tool_choice is not None:
             choice_type = request.tool_choice["type"]
             if choice_type == "auto":
@@ -422,7 +594,17 @@ class AnthropicMessagesAdapter(
             elif choice_type == "any":
                 data["tool_choice"] = "required"
             elif choice_type == "tool":
-                data["tool_choice"] = FunctionToolChoice(name=request.tool_choice["name"])
+                name = request.tool_choice["name"]
+                tools = data.get("tools", [])
+                if name == "web_search" and any(isinstance(tool, WebSearchTool) for tool in tools):
+                    if any(isinstance(tool, FunctionTool) and tool.name == name for tool in tools):
+                        raise UnsupportedInput(
+                            "Anthropic named web_search selection is ambiguous when a client "
+                            "function has the same name as hosted search. Rename the client function."
+                        )
+                    data["tool_choice"] = WebSearchToolChoice()
+                else:
+                    data["tool_choice"] = FunctionToolChoice(name=name)
             else:
                 raise UnsupportedInput(f"Unsupported Anthropic tool choice: {choice_type!r}.")
             if "disable_parallel_tool_use" in request.tool_choice:
@@ -470,218 +652,279 @@ class AnthropicMessagesAdapter(
         def event(data: dict[str, Any]) -> AnthropicMessagesStreamEvent:
             return AnthropicMessagesStreamEventAdapter.validate_python(data)
 
+        indices: dict[int, int] = {}
+        next_index = 0
+        omitted_calls: set[str] = set()
         thinking_parts: set[int] = set()
         thinking_signatures: dict[int, str] = {}
 
-        async for normalized_event in events:
-            if isinstance(normalized_event, ResponseStartEvent):
-                yield event(
-                    {
-                        "type": "message_start",
-                        "message": {
-                            "id": normalized_event.id,
-                            "type": "message",
-                            "role": "assistant",
-                            "content": [],
-                            "model": normalized_event.model,
-                            "stop_reason": None,
-                            "stop_sequence": None,
-                            "usage": {
-                                "input_tokens": 0,
-                                "cache_creation_input_tokens": 0,
-                                "cache_read_input_tokens": 0,
-                                "output_tokens": 0,
-                                "service_tier": "standard",
-                            },
-                        },
-                    }
-                )
-            elif isinstance(normalized_event, PartStartEvent):
-                # A part start may already carry an initial snapshot; preserve it
-                # in the block instead of waiting for deltas that may not exist.
-                if isinstance(normalized_event.part, Thinking):
-                    part = normalized_event.part
-                    if self._capabilities.thinking == "raw":
-                        if part.summary or part.signature:
-                            raise ValueError(
-                                "A raw Anthropic thinking block cannot contain a summary "
-                                "or signature."
-                            )
-                        thinking = part.content
-                    else:
-                        if part.content:
-                            raise ValueError(
-                                "An Anthropic summary block cannot contain raw reasoning."
-                            )
-                        thinking = part.summary
-                        if part.signature:
-                            thinking_signatures[normalized_event.index] = part.signature
-                    thinking_parts.add(normalized_event.index)
-                    content_block = {
-                        "type": "thinking",
-                        "thinking": thinking,
-                        "signature": part.signature or "",
-                    }
-                elif isinstance(normalized_event.part, TextOutput):
-                    content_block = {"type": "text", "text": normalized_event.part.content}
-                elif isinstance(normalized_event.part, ToolCall):
-                    content_block = {
-                        "type": "tool_use",
-                        "id": normalized_event.part.tool_call_id,
-                        "name": normalized_event.part.tool_name,
-                        "input": {},
-                        "caller": {"type": "direct"},
-                    }
-                else:
-                    raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
-                yield event(
-                    {
-                        "type": "content_block_start",
-                        "index": normalized_event.index,
-                        "content_block": content_block,
-                    }
-                )
-                if isinstance(normalized_event.part, ToolCall) and normalized_event.part.args:
+        buffer_text = self._citation_policy == "buffer" or (
+            self._citation_policy == "auto" and _citations_are_possible(request)
+        )
+        async with aclosing(_ordered_parts(events, buffer_text=buffer_text)) as ordered_events:
+            async for normalized_event in ordered_events:
+                if isinstance(normalized_event, ResponseStartEvent):
                     yield event(
                         {
-                            "type": "content_block_delta",
-                            "index": normalized_event.index,
-                            "delta": {
-                                "type": "input_json_delta",
-                                "partial_json": normalized_event.part.args,
+                            "type": "message_start",
+                            "message": {
+                                "id": normalized_event.id,
+                                "type": "message",
+                                "role": "assistant",
+                                "content": [],
+                                "model": normalized_event.model,
+                                "stop_reason": None,
+                                "stop_sequence": None,
+                                "usage": {
+                                    "input_tokens": 0,
+                                    "cache_creation_input_tokens": 0,
+                                    "cache_read_input_tokens": 0,
+                                    "output_tokens": 0,
+                                    "service_tier": "standard",
+                                },
                             },
                         }
                     )
-            elif isinstance(normalized_event, PartDeltaEvent):
-                if isinstance(normalized_event.delta, ThinkingDelta):
-                    delta = normalized_event.delta
-                    if normalized_event.index not in thinking_parts:
-                        raise ValueError("Received a thinking delta before its block started.")
-                    if self._capabilities.thinking == "raw":
-                        if delta.summary_delta or delta.signature_delta:
-                            raise ValueError(
-                                "A raw Anthropic thinking block cannot contain a summary "
-                                "or signature."
-                            )
-                        reasoning_delta = delta.content_delta
+                elif isinstance(normalized_event, PartStartEvent):
+                    index = indices[normalized_event.index] = next_index
+                    next_index += 1
+                    # A part start may already carry an initial snapshot; preserve it
+                    # in the block instead of waiting for deltas that may not exist.
+                    if isinstance(normalized_event.part, Thinking):
+                        part = normalized_event.part
+                        if self._capabilities.thinking == "raw":
+                            if part.summary or part.signature:
+                                raise ValueError(
+                                    "A raw Anthropic thinking block cannot contain a summary "
+                                    "or signature."
+                                )
+                            thinking = part.content
+                        else:
+                            if part.content:
+                                raise ValueError(
+                                    "An Anthropic summary block cannot contain raw reasoning."
+                                )
+                            thinking = part.summary
+                            if part.signature:
+                                thinking_signatures[index] = part.signature
+                        thinking_parts.add(index)
+                        content_block = {
+                            "type": "thinking",
+                            "thinking": thinking,
+                            "signature": part.signature or "",
+                        }
+                    elif isinstance(normalized_event.part, TextOutput):
+                        content_block = {"type": "text", "text": normalized_event.part.content}
+                    elif isinstance(normalized_event.part, ToolCall):
+                        content_block = {
+                            "type": "tool_use",
+                            "id": normalized_event.part.tool_call_id,
+                            "name": normalized_event.part.tool_name,
+                            "input": {},
+                            "caller": {"type": "direct"},
+                        }
                     else:
-                        if delta.content_delta:
-                            raise ValueError(
-                                "An Anthropic summary block cannot contain raw reasoning."
-                            )
-                        reasoning_delta = delta.summary_delta
-                    if reasoning_delta:
-                        yield event(
-                            {
-                                "type": "content_block_delta",
-                                "index": normalized_event.index,
-                                "delta": {
-                                    "type": "thinking_delta",
-                                    "thinking": reasoning_delta,
-                                },
-                            }
-                        )
-                    if delta.signature_delta:
-                        thinking_signatures[normalized_event.index] = delta.signature_delta
-                        yield event(
-                            {
-                                "type": "content_block_delta",
-                                "index": normalized_event.index,
-                                "delta": {
-                                    "type": "signature_delta",
-                                    "signature": delta.signature_delta,
-                                },
-                            }
-                        )
-                elif isinstance(normalized_event.delta, TextDelta):
+                        raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                     yield event(
                         {
-                            "type": "content_block_delta",
-                            "index": normalized_event.index,
-                            "delta": {
-                                "type": "text_delta",
-                                "text": normalized_event.delta.content_delta,
-                            },
+                            "type": "content_block_start",
+                            "index": index,
+                            "content_block": content_block,
                         }
                     )
-                elif isinstance(normalized_event.delta, ToolCallDelta):
-                    if (
-                        normalized_event.delta.tool_name_delta is not None
-                        or normalized_event.delta.tool_call_id is not None
-                    ):
-                        raise ValueError(
-                            "Anthropic cannot update a tool name or tool call ID after "
-                            "the content block starts."
-                        )
-                    args_delta = normalized_event.delta.args_delta
-                    if args_delta is not None:
+                    if isinstance(normalized_event.part, ToolCall) and normalized_event.part.args:
                         yield event(
                             {
                                 "type": "content_block_delta",
-                                "index": normalized_event.index,
+                                "index": index,
                                 "delta": {
                                     "type": "input_json_delta",
-                                    "partial_json": args_delta,
+                                    "partial_json": normalized_event.part.args,
                                 },
                             }
                         )
-                else:
-                    raise ValueError(f"Unsupported output delta: {type(normalized_event.delta)}")
-            elif isinstance(normalized_event, PartEndEvent):
-                if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
-                    raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
-                if isinstance(normalized_event.part, Thinking):
-                    part = normalized_event.part
-                    if normalized_event.index not in thinking_parts:
-                        raise ValueError("Received a thinking end before its block started.")
-                    if self._capabilities.thinking == "raw":
-                        if part.summary or part.signature:
+                elif isinstance(normalized_event, PartDeltaEvent):
+                    index = indices[normalized_event.index]
+                    if isinstance(normalized_event.delta, CitationDelta):
+                        continue
+                    if isinstance(normalized_event.delta, ThinkingDelta):
+                        delta = normalized_event.delta
+                        if index not in thinking_parts:
+                            raise ValueError("Received a thinking delta before its block started.")
+                        if self._capabilities.thinking == "raw":
+                            if delta.summary_delta or delta.signature_delta:
+                                raise ValueError(
+                                    "A raw Anthropic thinking block cannot contain a summary "
+                                    "or signature."
+                                )
+                            reasoning_delta = delta.content_delta
+                        else:
+                            if delta.content_delta:
+                                raise ValueError(
+                                    "An Anthropic summary block cannot contain raw reasoning."
+                                )
+                            reasoning_delta = delta.summary_delta
+                        if reasoning_delta:
+                            yield event(
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "thinking_delta",
+                                        "thinking": reasoning_delta,
+                                    },
+                                }
+                            )
+                        if delta.signature_delta:
+                            thinking_signatures[index] = delta.signature_delta
+                            yield event(
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "signature_delta",
+                                        "signature": delta.signature_delta,
+                                    },
+                                }
+                            )
+                    elif isinstance(normalized_event.delta, TextDelta):
+                        yield event(
+                            {
+                                "type": "content_block_delta",
+                                "index": index,
+                                "delta": {
+                                    "type": "text_delta",
+                                    "text": normalized_event.delta.content_delta,
+                                },
+                            }
+                        )
+                    elif isinstance(normalized_event.delta, ToolCallDelta):
+                        if (
+                            normalized_event.delta.tool_name_delta is not None
+                            or normalized_event.delta.tool_call_id is not None
+                        ):
                             raise ValueError(
-                                "A raw Anthropic thinking block cannot contain a summary "
-                                "or signature."
+                                "Anthropic cannot update a tool name or tool call ID after "
+                                "the content block starts."
+                            )
+                        args_delta = normalized_event.delta.args_delta
+                        if args_delta is not None:
+                            yield event(
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "input_json_delta",
+                                        "partial_json": args_delta,
+                                    },
+                                }
                             )
                     else:
-                        if part.content:
-                            raise ValueError(
-                                "An Anthropic summary block cannot contain raw reasoning."
+                        raise ValueError(
+                            f"Unsupported output delta: {type(normalized_event.delta)}"
+                        )
+                elif isinstance(normalized_event, PartEndEvent):
+                    if normalized_event.index not in indices:
+                        part = normalized_event.part
+                        if isinstance(part, TextOutput):
+                            blocks = messages_text_blocks(part)
+                        elif isinstance(part, SearchCall):
+                            if part.action != "search":
+                                omitted_calls.add(part.id)
+                                continue
+                            blocks = search_calls_to_messages(part)
+                        elif isinstance(part, SearchResult):
+                            if part.tool_call_id in omitted_calls or (
+                                part.sources is None and part.error is None
+                            ):
+                                continue
+                            blocks = [search_result_to_messages(part)]
+                        else:
+                            raise ValueError(f"Unsupported output part: {type(part)}")
+                        for block in blocks:
+                            yield event(
+                                {
+                                    "type": "content_block_start",
+                                    "index": next_index,
+                                    "content_block": {**block, "text": ""}
+                                    if block["type"] == "text"
+                                    else block,
+                                }
                             )
-                        if not part.signature:
-                            raise ValueError(
-                                "An Anthropic reasoning summary requires a signature."
-                            )
-                        if thinking_signatures.get(normalized_event.index) != part.signature:
-                            raise ValueError(
-                                "An Anthropic reasoning signature must be streamed before "
-                                "the block ends."
-                            )
-                yield event({"type": "content_block_stop", "index": normalized_event.index})
-            elif isinstance(normalized_event, ResponseEndEvent):
-                stop_reason = _STOP_REASONS.get(normalized_event.termination_reason, "end_turn")
-                usage = normalized_event.usage
-                raw_usage: dict[str, Any] = {"output_tokens": 0}
-                if usage is not None:
-                    cache_creation = usage.input_tokens_details.cache_write_tokens
-                    cache_read = usage.input_tokens_details.cached_tokens
-                    raw_usage = {
-                        "input_tokens": usage.input_tokens - cache_creation - cache_read,
-                        "cache_creation_input_tokens": cache_creation,
-                        "cache_read_input_tokens": cache_read,
-                        "output_tokens": usage.output_tokens,
-                        "output_tokens_details": {
-                            "thinking_tokens": usage.output_tokens_details.reasoning_tokens
-                        },
-                    }
-                yield event(
-                    {
-                        "type": "message_delta",
-                        "delta": {
-                            "stop_reason": stop_reason,
-                            "stop_sequence": normalized_event.stop_sequence,
-                        },
-                        "usage": raw_usage,
-                    }
-                )
-                yield event({"type": "message_stop"})
+                            # SDK text iterators consume deltas, not block-start text.
+                            if block["type"] == "text":
+                                yield event(
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": next_index,
+                                        "delta": {"type": "text_delta", "text": block["text"]},
+                                    }
+                                )
+                            yield event({"type": "content_block_stop", "index": next_index})
+                            next_index += 1
+                        continue
+                    index = indices[normalized_event.index]
+                    if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
+                        raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
+                    if isinstance(normalized_event.part, Thinking):
+                        part = normalized_event.part
+                        if index not in thinking_parts:
+                            raise ValueError("Received a thinking end before its block started.")
+                        if self._capabilities.thinking == "raw":
+                            if part.summary or part.signature:
+                                raise ValueError(
+                                    "A raw Anthropic thinking block cannot contain a summary "
+                                    "or signature."
+                                )
+                        else:
+                            if part.content:
+                                raise ValueError(
+                                    "An Anthropic summary block cannot contain raw reasoning."
+                                )
+                            if not part.signature:
+                                raise ValueError(
+                                    "An Anthropic reasoning summary requires a signature."
+                                )
+                            if thinking_signatures.get(index) != part.signature:
+                                raise ValueError(
+                                    "An Anthropic reasoning signature must be streamed before "
+                                    "the block ends."
+                                )
+                    yield event({"type": "content_block_stop", "index": index})
+                elif isinstance(normalized_event, ResponseEndEvent):
+                    stop_reason = _STOP_REASONS.get(
+                        normalized_event.termination_reason, "end_turn"
+                    )
+                    usage = normalized_event.usage
+                    raw_usage: dict[str, Any] = {"output_tokens": 0}
+                    if usage is not None:
+                        cache_creation = usage.input_tokens_details.cache_write_tokens
+                        cache_read = usage.input_tokens_details.cached_tokens
+                        raw_usage = {
+                            "input_tokens": usage.input_tokens - cache_creation - cache_read,
+                            "cache_creation_input_tokens": cache_creation,
+                            "cache_read_input_tokens": cache_read,
+                            "output_tokens": usage.output_tokens,
+                            "output_tokens_details": {
+                                "thinking_tokens": usage.output_tokens_details.reasoning_tokens
+                            },
+                        }
+                        if usage.web_search_requests is not None:
+                            raw_usage["server_tool_use"] = {
+                                "web_search_requests": usage.web_search_requests,
+                                "web_fetch_requests": 0,
+                            }
+                    yield event(
+                        {
+                            "type": "message_delta",
+                            "delta": {
+                                "stop_reason": stop_reason,
+                                "stop_sequence": normalized_event.stop_sequence,
+                            },
+                            "usage": raw_usage,
+                        }
+                    )
+                    yield event({"type": "message_stop"})
 
     def _handle_error(self, error: Exception) -> NoReturn:
         cause = error.__cause__

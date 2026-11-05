@@ -145,6 +145,22 @@ def test_native_conversation_needs_no_matched_counterpart(tmp_path: Path) -> Non
     assert conversations[0].turns == (0, 1, 2)
 
 
+def test_single_turn_search_conversations_support_both_response_modes(tmp_path: Path) -> None:
+    """Ensures hosted-search fixtures join discovery without requiring a second turn."""
+    root = tmp_path / "matched"
+    for mode in ("stream", "non_stream"):
+        for prefix in ("openai-responses", "openai-chat_completions", "anthropic-messages"):
+            _recordings(root, "web_search", f"{prefix}-{mode}", (0,))
+
+    conversations = public_conversations(root)
+
+    assert len(conversations) == 6
+    assert {(c.endpoint, c.mode) for c in conversations} == set(
+        product(PROTOCOLS, ("stream", "non_stream"))
+    )
+    assert all(c.scenario == "web_search" and c.turns == (0,) for c in conversations)
+
+
 @pytest.mark.parametrize(
     "filename",
     [

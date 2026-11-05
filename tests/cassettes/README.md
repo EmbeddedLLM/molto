@@ -47,6 +47,15 @@ These requests were recorded outside pytest through `scripts/recorder_proxy.py`,
 
 Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
 
+### Anthropic hosted-search recordings
+
+These unmodified Anthropic `claude-sonnet-4-6` recordings provide independent provider evidence:
+
+- `anthropic/web_search/*-00.yaml`: streamed search inputs, citations, and search usage.
+- `anthropic/web_search/*-01.yaml`: successful continuation of the same search with original source and citation state restored.
+
+`tests/core/test_anthropic_web_search.py` verifies SDK parity and exact history replay in both response modes. See the [provider metadata contract](../../docs/web-search.md#preserving-anthropic-search-history).
+
 ## Error cassettes
 
 The cassettes under `errors/{scenario}/` preserve the native request and error response for each participating protocol:
@@ -98,7 +107,7 @@ These edits make translation errors observable without requiring unrelated provi
 
 Request expectations are compared independently of Molto's translator. For encrypted Messages-to-Responses requests, the comparison allows only the documented missing output-item IDs/phase, `include=["reasoning.encrypted_content"]`, `store=false`, and SSE padding option `stream_options.include_obfuscation=false`. It treats omitted reasoning `content` as an empty list and an implicit message `type` as `message`. Scalar assistant text is equivalent to one completed `output_text` part with empty annotations and log probabilities; it cannot stand in for multiple parts or messages. Output-only reasoning `status` is removed from the expected history, and reconstructed input must omit it. Call IDs, opaque state, input/part order, token limits, and cache settings remain compared.
 
-Responses stream checks validate each output index and item ID before generated IDs are removed from cross-protocol comparisons. Every item update must occur between that item's start and completion. Completed and incomplete terminal responses must contain the completed items in output-index order. Translated terminal reasoning retains the `done` encrypted snapshot; native Responses may expose its separate terminal snapshot and remains covered by SDK parity.
+Responses stream checks validate each output index and item ID before generated IDs are removed from cross-protocol comparisons. Every item update must occur between that item's start and completion. Completed and incomplete terminal responses must contain the completed items in output-index order. Translated terminal reasoning and search sources retain their `done` snapshots; native Responses may expose separate terminal snapshots for these fields and remains covered by exact SDK parity. Search identities, statuses, and queries remain compared across snapshots.
 
 Non-streaming comparisons retain ordered supported output items and part boundaries, all reasoning items and opaque snapshots, terminal state, and semantic token usage. The incomplete-stream helper tests use an SDK-parsed recording to check `incomplete_details`, partial output, and final usage. The fresh streaming recording supplies the SDK-required cache-write count, allowing the incomplete-result comparison and its five negative cases to reach their assertions. A separate regression verifies that the helper rejects a missing count without inventing a value. Negative checks cover altered requests, item identities, output order, incomplete reasons, and usage. These checks do not add incomplete-route coverage beyond the routes described above or establish arbitrary interleaved-item support.
 
@@ -148,6 +157,7 @@ The `matched/{scenario}/` directories currently exercise these scenarios. One sc
 | `prompt_cache_implicit` | Two requests with automatic caching of a user prefix. |
 | `prompt_cache_explicit` | Two requests with an explicit breakpoint on a system prefix and a changing user suffix. |
 | `error-invalid_request_error` | A native invalid-request error scenario (`error-invalid_request_error`) used to exercise native error passthrough on the relevant route. |
+| `web_search` | Search and URL attribution between Responses and Messages, native Chat parity, and rejection of signed reasoning on translated Chat routes in both modes; covered by `tests/core/test_web_search.py`. |
 
 The `reasoning_raw` scenario is named with `vllm-*` filenames and its test derives `provider="vllm"` from that filename prefix, selecting the raw reasoning profile across all three protocols. A base URL never selects either behavior.
 
@@ -160,6 +170,20 @@ The two Chat companions in `matched/tool_call_image_result_parallel/` derive fro
 Focused public request tests check Responses and Messages callers using Chat upstream with images in the first, last, or both parallel results. They compare complete expected requests, including linked call IDs, result order, and image order. These tests reuse SDK-parsed text responses to check output parity; they do not establish live acceptance or replace full Chat image-result conversation replay.
 
 Additional mocked request checks cover `required`/Messages `any` tool selection with parallel calls enabled and disabled, and nonempty Responses top-level `instructions` translated ahead of existing instructions. Replayed responses in these checks do not establish provider acceptance of the modified requests.
+
+### Hosted search
+
+The Responses recordings are unchanged canonical source data. The matched Messages fixtures project source URLs and citation ranges with the documented empty-title and `"N/A"` placeholders; these fixtures do not establish valid Anthropic continuation state. The Responses and Messages streaming fixtures retain opaque reasoning state, so their translation to Chat must raise `ValueError` rather than erase that state. Both streaming and non-streaming translated calls consume these upstream streams. The Chat streaming fixture remains a native SDK parity reference, not a faithful projection of the signed-reasoning streams. The non-streaming Responses recording contains no reasoning and remains representable by the Chat response matcher. Chat translation is also covered separately with unsigned raw reasoning. Native parity still compares each fixture's complete parsed SDK representation.
+
+For independent provider evidence, see [Anthropic hosted-search recordings](#anthropic-hosted-search-recordings).
+
+Both Messages cassette matchers reject request history containing multi-query searches, matching runtime translation. A pooled source result cannot complete each expanded server call in replayed history. Response output still expands query batches into separate calls with one pooled result linked to the first call.
+
+The Responses stream exposes 13 sources at item completion and a fourteenth URL in the terminal snapshot. Messages stream matching uses the item-completion snapshot, as does incremental translation. Its reasoning signature likewise follows the item-completion snapshot rather than a later terminal ciphertext. Translated comparisons reduce only those unavailable differences and separately assert text/citation association, sources, placeholders, linkage, usage, and lifecycle. Do not erase these fields globally to force equality.
+
+The SDK parses an actionless search item at `response.output_item.added`; strict model reconstruction would require the action that only appears at item completion. Retain the real event and use SDK-parsed native parity. Existing recordings have ASCII citations and successful searches. In-memory Unicode, failed/paused-search, browsing, query-cardinality, and history/error variants are synthetic regression cases, not new provider observations or edited recordings.
+
+Responses recordings can explicitly report zero searches even outside hosted-search scenarios, while the matched Messages fixture omits search usage. Translated Messages parity takes this count from the canonical Responses terminal snapshot when token usage is reported. It compares the projected count, including zero, without rewriting the counterpart fixture or dropping search usage from comparisons.
 
 ### Prompt caching
 
@@ -180,6 +204,8 @@ The detailed contracts are documented in:
 - the [Anthropic Messages opaque thinking policy](../../docs/protocols/anthropic-messages.md#opaque-thinking-state), including the encrypted-reasoning lifecycle policy.
 
 Use `scripts/match_openai_cassette_events.py` and `scripts/match_anthropic_cassette_events.py` to align streaming SSE fixtures. Use `scripts/match_openai_cassette_responses.py` and `scripts/match_anthropic_cassette_responses.py` to align non-streaming JSON response fixtures. Start from approved recordings, keep the original recordings committed before editing, review every transformed diff, and ensure each result still validates as native wire data for its protocol.
+
+The non-streaming Messages matcher maps cache writes using the matched request's automatic and block cache controls. Null controls are absent, and an omitted control lifetime defaults to `5m`. With mixed lifetimes, an existing observed breakdown is retained when its sum matches the canonical write total; a different positive total is rejected because Responses supplies no lifetime split. Zero writes clear both lifetime counts.
 
 Relevant test entry points and canonicalization helpers:
 

@@ -1,0 +1,248 @@
+filename: 2026-10-27-01a17c57-365c-7412-a0df-d9dcc4303337
+request:
+  body:
+    max_tokens: 1024
+    messages:
+    - content:
+      - text: Search the web for the release date of Python 3.13.0. Cite the official
+          Python release page and answer in one sentence.
+        type: text
+      role: user
+    - content:
+      - id: srvtoolu_015k9TZNsoYQhQJoxLkbTVmD
+        input:
+          query: Python 3.13.0 release date official
+        name: web_search
+        type: server_tool_use
+      - content:
+        - encrypted_content: EsEICioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDPpeO6tHrG+j3eMYgxoMO3lCipLK6KPbkl+pIjAl/JjbzNUgNSK54IWd1+X5AX/ApNNrqX+42qvd43kE+uhnt6LIBhhPTnVLQ+F+I+MqxAdJI53gPjxjdHv1EJH7i3uFYI1SHhuDYF5n6YVJIsyQgCMwfWhex2jSoqDD5x2YywBccgDcoEwiYScRa8l0U4mgn6z0N03VpvGzI55BpPOWZhxPtmrs4xiHDFacw6v1iWc9LXxg+RkP86k5K+TgfOarnkVdMu4MNKxcT2at0Eoo4glDn6j+wvfp5iF6Ozv5PdQ6G6BYkaxag5PC6d9YiSC1Kpcbc2DmxYZPqD4SYT8FQrsrUgHwCZdrnFPEcHKaMUCLe8eQHnsHqVEwxWbK3ki9BiZ8nL2WArxEhrOI0NChVFhwTjhwCTKrUEFlf2XnUP0CXTpIsAyP/1CnJoCrtvNCs/c2R/mANWAtR/3SAEM1lqiV4t2Z+jvkv3mrk3cEFyDVW31RPJ//5REUPGlwxjjIvWyITPej7khtPnUi1Ws+hW8JKyIbEJDPMAEf96ckhTvVGfSJIG06WQBVUnrl2rwHqe8K7wEpjzQdehJn0hb1UmkQHMCxKtA25uNIpL56vaj4iTYc+uQ5/vmE9cr+4TejrkWp0ierOsdrWhNZik4WWaZgzbThJUpUg0qVWsuky7QUp0paJAYxAvC03YwNPpaEtt1nUW4WwkIC8WlVEAMr1HNPry6PPd1q8w5JtpYY7VaGv2wqW9LIDj1a3Rm/0bmhsWB1jHq1afJ0dgX9gq36CTE5o7EmFpcPpTFG+gdYsHdNgnBwjZ6AGKU7rEQ8FaOYpMipzeMU52r8LzCY5mrpBeGlo8kl45H8iERwgTV7VofhtdIWR/GxUCk5MqVxn8CrUSta7bpXGR6yojWZ+QumOMRtrPkDuErIhNg73xShJHscjix4mzE5OzreVDjOxp+8taSKZ0PzS3uVQHMd4AHz6N2fq9vssyIXoknoDs0w1zewbw3DDM3DF9Y+XF9bjZIA3si1tn59E77f6uJMhPXPSEgERmBGbKL9Bqe6VDIQRRuWcg/z1/vSuQTG8RWwVYVdM6FcWFSlDZxOsLOH+zhEh0rloTywPnE4KAMVGbzkkNnA0VxY0Ddw3hZCfZdToY5rfAmGm/5D880zxS4kf/7Dtx4ab4gwkyQdvYzJi7yIm12ZpTFSk6PPV8sasxsuUqRRgrMWGKYuta8J8ExeL2xMtcOEKKIHMDqG8xkYXzRiTmKHzJazEZnRQUkj7u40Qov4xt9J9bSu/tKsbM0voeo7QIPvCd5hUyaErNsvhgSbx8LPhOpb0mu1bZw3gjq9CRAtKW9H8rwZP0326x2nKgHGxfIQVNM0mqq1Fg4vxTovYKmJw7dnGAM=
+          page_age: 931 days ago
+          title: Python Release Python 3.13.0a6
+          type: web_search_result
+          url: https://www.python.org/downloads/release/python-3130a6/
+        - encrypted_content: EtkICioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDGylHrK8vl4pdmT+ihoM+hbFFsDbDX8QmY9PIjA6kOMMPAK5gQr8ev6O4VUG6giJmw5jouokHeQHjdRKjuTHKDmuCr8baL9fWED6TFAq3Adl7HtUBgxdGOD3ZvCskLueAjWB7Nfn1FSnJjC4dxmGg3VUUZ3IiziGbaiJioUAtGC0msbiedDJkabJ92dRTrrHTTbAa2nH20JbZny/rgkUrX40HVbx1yv/56aCx6KofTv7s9PP8ErRL6wrVTY9CYkoKKto23X3lX1JjlUbwePMzTdoGwaymAI5IvfAf5v6CWLrkciBjIlLzJYBKmAgFz8AP4YFZwwIPyNzOrcGHwvnsDJ48fzdA7UEN+QwMl1zk7575ew3WncEWAkODs5SNvnqDic2SQtUZcqczoQyOeNCtZbah9XnkAcNdmojCfWVoC/ReuyGXzxRlxVxTQHY2xnqNIzt1K2ck5HpAUBIIXiMAGT5FmWIcQ1gkA3842vZEzKbGEc0QDVzuWiBjKWPSkse7sj0NnqvJsOvUd488xnQbH82AnPQrs8jD1Ik80VZLFPU1qTq32ujQmbpUeZTpMcIZhYuGD3O6/tH/sL1gF5qttM+es3IqKvN6cn9mymcJxnLSHMiOmmKpZQw2V9u5wSZXuBnJBPQ2Oiv/Srd8akyeSYe17Ve2fpeu2HlS80f5tbz6KaSdzoh17malrsNkr8NlfsDvzeRFM4p9rLmaj4EKOvulwfRNeP8HM7v0OydFF0jidWoM8jCCR2J3Upun7DulUI5safKNTRpuE0N0Eai9kp6CZw3tw0tXlMPB3BbGlhQU+puDHHuQhDyZ6xqrTaOcG4dk0FfIzzJJcLz4Glub5WOPnfahN8XcuUCIoJWqy72rNpYL96abrtyZCgsj7XJeE55MSbV6ThRYd7x1ZHj6Q8yW6eFyQj/cCdtTYvE6bqq3cJwFx+njOEpOVOgKQNZA1LMD0hvZRXN2+fMJ5d9l2j5klm5pYOTba8mM3GM7WhQBdjgkj551FP6GaQ9FvGJWJ2njzE0E5Um2ziCEpPg36bufiG7uiUFJ1yPTxfZfIrnOHuy8NAdFkG6qZCRcOEJScTNTBNLuRP/Lpp0GJ7akcBxnAsuBj5bxQ6D9IHmK0kWg8MZKAridgSx1p5qOOlsn3bO5HOmH/0n/xjHlfDixqVQYD0nCgqii2AevwhZsdEJfm5zYDVMPpH8hvpSthqHHuAGmU2sXKxjWox4cauR3WmPexjgAPGVXGX/OVKaqEVNObjphUTvBoUlyc3Bnu8WmeOL5aF2BGFz38eY5C6r5I/h6HrLJKacZd9NNnoDB7Ffxc5WrK/cOk4NRvIhGTcIBt94D0VSdX+WhBVwIMo1q++gQp1FpA7yJdviY9YW6hO/1A/ey74uTYhcJ4RHc8hRFonQhBGk1JtLSXRVGAM=
+          page_age: 329 days ago
+          title: Python documentation by version
+          type: web_search_result
+          url: https://www.python.org/doc/versions/
+        - encrypted_content: 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
+          page_age: 750 days ago
+          title: Python Release Python 3.13.0
+          type: web_search_result
+          url: https://www.python.org/downloads/release/python-3130/
+        - encrypted_content: EsQFCioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDEYRWBY0+AjbvwrzEBoMtpqN75ufx9UJUkEGIjDNpihPxZZH2uV6UW3IdWt9vtzru0lAzLYaxPNJZf4BvuAfHZguU3R5n0mWYW6T0PIqxwTGIEYvAA8SdCGMzlZhp/du0TxhxrTrlFLwZ+ylLFNMig2NbKf3bW8z6ve4jLpkpsMP5j2K1l8JFIyZki4jrXeH9HJG9++AvF07pZhT4pT1Y8+YFfXdNJLpcna8eKOP+NseCKOe9Ki4zTua8WsK2qres4RnoACjzq7jmePYxqZHYlRLUSQPuaYmVarlWoh5d1gf9P/HVJWGxUxdFMVauXwV1vWWGPJ//y0q0dSkd3fiDFZRMoSNLLIZbHuMG8vdD7Sq9uBtf22nlyvwy9i/Uj87NYMzqipvnioKseVutwCgr3BJdMbiA0nzD3BlT7cIWh1Kj1Q86oISrUDSCjOg+3nz/DyR5LX1r0XeZeyvRsxanN6OeESYhJMAdgSIFwftHOMh6wTO07/mCZsIJkQUM9j0SSQkTEirRmcjuweIT8iVDsGbhjhDbdMsQIvX3FFNj26Jd8EYEgZ5PudQBc7X+Ih9w8WR6T8glRCarK9bc/fG78cd6vYlKskL3lH/gch/9mnQa2vLM0wOEO/TmNu749c+rs31QLD4kGI4JcqbsKKTSlBCXaZB8vQqjyKuq6SwetnG6YeC8fQ+GIuKwIW5u9cWZrznRasMqxuT/8n4v66x0V8h9uDNEHp+E2N7Qm4orQ+Ws0AVIHiqqjsZPYSNKBBg3zUR8ukPLdNnDsKLkggLXu7Y5CjHEsL3QRWSDwHrP4LhyODrV9csd8pXFENo90z8FNwW57FpMbn6tQeG/5ZXooXoIE5pxKq6UPoSMUDBW64xOizFTmGfGAM=
+          page_age: 203 days ago
+          title: Python Release Python 3.13.13
+          type: web_search_result
+          url: https://www.python.org/downloads/release/python-31313/
+        - encrypted_content: EqAKCioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDEaUa7NlWV3rP3Y+nhoMJ52jhU4jKc7U2bUoIjCTBa9+zc89XU4aCSj5uVn2F8Dc+7AdmH7lPUWAtvgRpAYSwakcgjhASYAP57AvgZcqownH2tqdFqQQILwlAhWBdP+bauQnExccJVUDiuQza/+o55dAh2d1zdTi+faH3CXMa5UOfugmH/XmsYJYnWlFJCUGWSMsbYNISsj5dfiSmpY+T5kv+VkNFDFS/zKL6z0G+5fqxxL0WqhK4QY0RohCsI2rzqsEDbzDqOcVbjNvtM5PGFSSc6/ZY3gPdKBijVrORwD55F71vAIBWwKEo1B6mK/1D/BQOlC6JuRXklssw3vQYJljT26h/lFq6p390Ai9OwHHtXpUPRTMIjbQNetwMK0crrWvSaBdB+zivrCucv9u98MWPLST6FIh0eXVvuRWELhyZ0jSL/zcnpxaTYXjJnbU25FXQt24mQdSwXwGCDQiL05jdB5jpfRGnO7DAq+LM4/BEOmItOSAcyrmFeMoQtx0tzC5/nXo6JvEjIKnCyrREXHDaONVAl723dHY0KYaIJi3n0GmD6IHCfLZIJNWmAL6hTgmzbQLoXsCQyLcZJOa6LntXpD2SYCIVBnSbbpcQCHePfgVdoqwHptlqZ8bWoSsz2bAY+q/joKZTIli61NOEL3pGJ3jJKkiqjJf0NJvnCOZJWoXcwCNzdTA4x5IjTdt6FW4RBmnxeQEnoEIt8ltVu9AGtEFgRMoyIzWTubE47xZQTdmamEy8AXaAJghYZKKmVa1y0AlxbLZzofXJ0UqXAT+1jrOZ+9Xfqf1mEnKjvplkj6ESR4nDBBDzN5iDgFfg4oOgcdcXvdyLV4gVcc9YysAyZqniXNx9KA0pUZB+40A1Y25PrZS8PRmYxm004Ww1Jx7aGtu9YIMltNeHJDHxKTvsLGLndgHVVv2cBcd4JwlXSHMWN3Pxpff28C8tVgoHkGO2Myq2SqFvM2lMu+gURIKTsv02dvTQ2WSGD7X5iDaBsgCe2LzBP5aAAvVFn0e28/ODEOC6U8lgtc9qFTrck2t+CkREXRx6VH0aGBr9+5O7B8ZOqO4iznomuqkRWed3MGXNd1bl8jhPWOqZBM9yWFA5tznH+5N1MBlMJMZXt3wR+2zYdY7jZaXvKlbNhza56IRNPGiVvGDW7BZftV6Ld4LZKCL8ZlpkJW/cdrUnb4qQhERnUEzzHIOe88zcTJQ2Coh4Vq+7BCyuMmhZ1Ewj+Rgse9BCvJJi+InSi7UabE5DojmjD08lRQZuvLMBUoq5rRYIeg52+Wdg4ez4eFtGh/pWjyJNLWQzumKmmdZCAlztEOjP4yZO777J8X8uR2CI3NDoTg5+dY1o51Lf3tJY7s4U3TwBm/5yK89KqZqNLe/zs5nVGWeAjUfwYBwHnBeflS8tTp+euv9ebfpraSTQMNP/Ux8gTFayE1QYRnQaYtw5IbQNGnKFLKl6F7Hu/9z++tKgJ2uj8zTpse23kMzwlPewgNMhuOcSFwUObMh4+KGhVVc1fGhBvrJMMjccfYRxhaqpYP5SJjSsQJSVhdmfOJfmxrBMSIbzjzUp0P6v7qrFcnC2JpGF31jFyLdom/BZKMc9VRz2uAzh6QCuMCBzpZfdDvoNnfVxF4gb+iCiMkYphoXNGmE1PP1YGbzFElqnbGQ4cRTaWgrZWq+VCX3HgmR+BgD
+          page_age: 5 days ago
+          title: Download Python
+          type: web_search_result
+          url: https://www.python.org/downloads/
+        - encrypted_content: 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
+          page_age: 535 days ago
+          title: All About Python 3.13.0 - Analytics Vidhya
+          type: web_search_result
+          url: https://www.analyticsvidhya.com/blog/2024/10/python-3-13-0/
+        - encrypted_content: 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
+          page_age: 383 days ago
+          title: Python Source Releases for Source release
+          type: web_search_result
+          url: https://www.python.org/downloads/source/
+        - encrypted_content: EpYLCioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDOccL9HW15GK4yLjMRoMzBfItB0iPWJe0+PEIjA+M0D3lxng8Na/ya5jHv5GFs8PNsWl2ICypPp4il2PGexWIey6dlBz153vqgnCsZEqmQppeCuSU12PkyuBenQJJJeeRQa7oHkTP5Sk3z99O5pFGEvp3JP94SICVQzPqZXeBLAgJxbUL4mExyfAyk3la8ZsdGI2vPNlgH706lCvxGyeIiJBUZMlx1A1LEuUmYnzUZqOPJu9EaQjheAbmGztgxgYTgfTXJEv+T1VcFanGnnBtb2kYzak1umecj5ErzEBi2skmxrIAKB0/leP6KIy4c8t245U7pe+dzpd8G7QtM/bndsc5MjGx/pQS928WemkcAclLnBv/oJvv9KQ5O8Y6pBk99jrGEX1L9r+uJo2oJCde4XgY7vzrXP98nwM7d8iUldpk3os+4OWw3uj62JUXFutvkJMFN7un/L1d0YigreUAnLiiz4O6pV7PwpRju/gjmJxNmgvKsJHh8L+xvR1UFBAshIVmNv1eTE+kLJf2FfGW7gLQ/TJSqmchyhiZgTd6RCN07knBKsHCDgpKdKuOChAglkJmW/D6lZj/dKOH7ve4wFayqVEw+rf/Xk0LbOFMRuckr26Nn2KtICyAhWPcvfk9NvZgGjx9iv71LEiQd3wSl0HdE4xf7vTVimt933z1ZofEVz7ePodjRt4+/ZUpMsU+azUpgpdKRVHbiUo1uzPnJrrnPxDTc2yKuqeVp2pnSD19yuruipi7NolPH9jXRrh6mk7ypIqVzykQkhDDwhNcNmBNDlHJ6hb5am8fh9FgC7Eni56CqdhVDRvm/kQOIA9GbU863gesYDrBFD74wLvB254x9B2K/ovFru2WCWwI/z3uL7bI0PHbb0BLIwMhEafB/LTtX7OUHlx4rdjwgzaTh93m93zLJ28DOkjtsikpQWBUtaNifNBBzqhKV1VBP9xqI0UqUPsLAMRNwJ0G9KjBVdT9O4irusyXG9H9WlfFeax9mm2OYp+R0oKCOw//EecnJJZflxnWTkIcbyxz+s8FBlN2afqAVmSvtqBXSB6jpm0zJlf6H9u8HD2e+TFWy03JcXz929RAWzonqUQnUjmjCYhcpvNiigNGXh1nyK6kCwj7SK/w0o89NWun4zX7Akqd9j8HFq/DR+De7wDciCIWul/0JmvEHfoa3Ac9E8pdGN1mBjXGsqzuH7CPYTM3jlTnyAz5KiLp3Gul20WiglTqbDEXkVTv7gf6bUl53h+u+AdUtB8JsjRCaPNTcrpF50b6MVTkwHOGUBaej4qxEMx9MP99WPNipXZWyqQ8USeP5h7djkA7oeZdSQsGBZalAQ/GVg3uQ1eXdRYjFMhHsBtPbQJRmdPoLaAqXOLQ2wSyK7q2/hHjAoS3nGBdjviSoOnXCtXxeGbJRrIwbDcY+TSRG+Q9lpugFvjZOT+QsrDtdSqzeNmSbnDezGbotJHlEkpPabtpKlxqL7r+e4jDdjJs6EejfmJzG3tQCDIJOhcG4fjMJbftTAxkv3+qyI3isiTCqzCRbX4DtR4bIbjxRVz9l7izMttC19N6pI5NhG9j7czuTgo2e0LhpKUjrgUbjvM0DiojNPH3QTncJOyOSJRo47IbCj4sqipIwgx7+azVwwYC4/f2Frx5nPejsmZVZERe3nfEfsuRNLwKOyxk98Y3ufPsNHvIs0LVn561t8Fl0B3ohe4KDp09AKoz7JqhO0YHnBLtOF17QEFCzEAl79DnQjhYuoXZlNr0uQqHZPeYw3NgcCfVFbY4WNV0wLSk2iRfWxKaJ2Dq8WytPmuXs+/hTMDqtEArk/BUt4yjyINq6plpRpq/YW+kRwYAw==
+          page_age: 750 days ago
+          title: Python 3.13.0 Is Released
+          type: web_search_result
+          url: https://news.ycombinator.com/item?id=41766035
+        - encrypted_content: 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
+          page_age: 1250 days ago
+          title: PEP 719
+          type: web_search_result
+          url: https://peps.python.org/pep-0719/
+        - encrypted_content: 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
+          title: History of Python
+          type: web_search_result
+          url: https://en.wikipedia.org/wiki/History_of_Python
+        tool_use_id: srvtoolu_015k9TZNsoYQhQJoxLkbTVmD
+        type: web_search_tool_result
+      - citations:
+        - cited_text: '**Release date:** Oct. 7, 2024
+
+
+            # This is the stable release of Python 3.13.0
+
+            Python 3.13.0 is the newest major release of the Python programming lang...'
+          encrypted_index: Eo8BCioIFRgCIiQxNTNjMTQxMy0zYjJiLTQ1OGMtODhjMy0wNmIwODk0NzRkMjQSDODSzW2LDsIpXgRhExoM7w/iKUgcHp/uPV1vIjBXBlji0xmPfXO6V0IgqSR2Hbst24z8hlMz47AjfpEkMHsyppSlA2HvhFbUFtPrdykqE31jILdTzlC5md0OUny6kTgyePsYBA==
+          title: Python Release Python 3.13.0
+          type: web_search_result_location
+          url: https://www.python.org/downloads/release/python-3130/
+        text: Python 3.13.0 was officially released on **October 7, 2024**, as confirmed
+          by the official Python release page at python.org/downloads/release/python-3130/.
+        type: text
+      role: assistant
+    - content:
+      - text: Using the previous result, state the release date again in one sentence
+          without searching.
+        type: text
+      role: user
+    model: claude-sonnet-4-6
+    stream: true
+    tool_choice:
+      type: none
+    tools:
+    - max_uses: 1
+      name: web_search
+      type: web_search_20250305
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '23941'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a17c57-365c-7412-a0df-d9dcc4303337
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"claude-sonnet-4-6","id":"msg_011CgSNpbX6PJr5cFVaLvJYw","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":9535,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}           }
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Based"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    on the previously"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    retrieved information, Python"}           }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    3.13.0 "}    }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"was
+    released"}          }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    on **"}               }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"October
+    7, 2024"}        }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"**."}         }
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0               }
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":9535,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":30}
+    }
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"    }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-10-27T07:50:52.764914+00:00'

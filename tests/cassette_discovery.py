@@ -31,6 +31,7 @@ SCENARIO_PROTOCOLS = dict.fromkeys(
         "prompt_cache_implicit",
         "prompt_cache_explicit",
         "error-invalid_request_error",
+        "web_search",
     ),
     PROTOCOLS,
 )
@@ -221,7 +222,8 @@ def public_conversations(root: Path) -> tuple[Conversation, ...]:
         if (
             root.name == "matched"
             and conversation.mode == "non_stream"
-            and scenario not in {"simple_text", "sampling_tests", "reasoning_encrypted"}
+            and scenario
+            not in {"simple_text", "sampling_tests", "reasoning_encrypted", "web_search"}
         ):
             raise ValueError(
                 f"Unsupported matched response mode in {conversation.id}; add scenario assertions"
@@ -231,6 +233,7 @@ def public_conversations(root: Path) -> tuple[Conversation, ...]:
                 "tool_call": 3,
                 "tool_call_with_reasoning_encrypted": 3,
                 "error-invalid_request_error": 1,
+                "web_search": 1,
             }.get(scenario, 2)
             if len(conversation.cassettes) < minimum_turns:
                 raise ValueError(

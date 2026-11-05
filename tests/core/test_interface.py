@@ -478,6 +478,22 @@ def _completed_responses_body(cassette_path: Path) -> dict[str, Any]:
     raise AssertionError("Responses cassette has no terminal response event.")
 
 
+def _expect_responses_search_usage(events: list[dict[str, Any]], upstream_path: Path) -> None:
+    """Use source-reported search counts even when the matched Messages fixture omits them."""
+    response = _completed_responses_body(upstream_path)
+    search_usage = (response.get("tool_usage") or {}).get("web_search") or {}
+    count = search_usage.get("num_requests") if response.get("usage") is not None else None
+    for event in events:
+        if event["type"] == "message_delta":
+            if count is None:
+                event["usage"].pop("server_tool_use", None)
+            else:
+                event["usage"]["server_tool_use"] = {
+                    "web_search_requests": count,
+                    "web_fetch_requests": 0,
+                }
+
+
 def _assert_responses_stream_invariants(sse_events: list[str], *, native: bool = False) -> None:
     events = [load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
@@ -527,6 +543,18 @@ def _assert_responses_stream_invariants(sse_events: list[str], *, native: bool =
                     # Native Responses may expose a third opaque snapshot. A
                     # translated terminal item must reuse its done snapshot.
                     done = {**done, "encrypted_content": item["encrypted_content"]}
+                if (
+                    native
+                    and item["type"] == "web_search_call"
+                    and item["action"]["type"] == "search"
+                    and "sources" in item["action"]
+                ):
+                    # Native search may report more sources in its terminal
+                    # snapshot. Translated output retains the done snapshot.
+                    done = {
+                        **done,
+                        "action": {**done["action"], "sources": item["action"]["sources"]},
+                    }
                 assert item == done, f"Terminal output differs from completed item {index}"
     assert events[-1]["type"] in {"response.completed", "response.incomplete"}, (
         "Missing terminal response"
@@ -633,6 +661,31 @@ def test_responses_terminal_encrypted_snapshot_policy() -> None:
     _assert_responses_stream_invariants(records, native=True)
     with pytest.raises(AssertionError, match="Terminal output differs"):
         _assert_responses_stream_invariants(records)
+
+
+@pytest.mark.parametrize("field", ["id", "status", "query"])
+def test_responses_terminal_search_snapshot_policy(field: str) -> None:
+    """Ensures only native search sources may change while identity and action stay strict."""
+    path = _matched_cassette_path("web_search", "responses", "stream-00.yaml")
+    events = [load_sse(record) for record in _sse_records(_read_cassette(path), "responses")]
+    output = events[-1]["response"]["output"]
+    for event in events:
+        if event["type"] == "response.output_item.done" and event["item"]["type"] == "reasoning":
+            # Isolate the search-source difference from the independent
+            # terminal reasoning snapshot in this recording.
+            output[event["output_index"]] = deepcopy(event["item"])
+    records = [dumps_sse(event) for event in events]
+    _assert_responses_stream_invariants(records, native=True)
+    with pytest.raises(AssertionError, match="Terminal output differs"):
+        _assert_responses_stream_invariants(records)
+
+    search = next(item for item in output if item["type"] == "web_search_call")
+    if field == "query":
+        search["action"]["query"] = "changed query"
+    else:
+        search[field] = "changed"
+    with pytest.raises(AssertionError, match="Terminal output differs"):
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events], native=True)
 
 
 async def test_extra_inputs():
@@ -1487,7 +1540,7 @@ async def _assert_stream_events(
     ) as http_client:
         client = Molto(http_client=http_client)
         history = None
-        for downstream_path, _ in cassette_path_pairs:
+        for downstream_path, upstream_path in cassette_path_pairs:
             cassette = _read_cassette(downstream_path)
             request_body = (
                 _continued_request(
@@ -1602,6 +1655,8 @@ async def _assert_stream_events(
                     expected_events = [
                         reconstructable_anthropic_event(sse) for sse in expected_sse_events
                     ]
+                    if upstream == "responses":
+                        _expect_responses_search_usage(expected_events, upstream_path)
                     assert actual_events == expected_events
             else:
                 raise ValueError(f"Unsupported downstream protocol: {downstream}")
@@ -2502,6 +2557,8 @@ async def _assert_request_parity(
     else:
         actual = [reconstructable_anthropic_event(sse) for sse in actual_sse]
         expected = [reconstructable_anthropic_event(sse) for sse in expected_sse]
+        if upstream == "responses":
+            _expect_responses_search_usage(expected, upstream_path)
     assert actual == expected
 
 
