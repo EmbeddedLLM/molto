@@ -1,6 +1,12 @@
+from pathlib import Path
+
 from pydantic import BaseModel
 
-from molto.utils.io import dumps_sse, load_sse
+from molto.utils.io import dump_yaml, dumps_sse, load_sse, read_json, read_yaml
+
+# U+201D encodes to UTF-8 bytes E2 80 9D; 0x9D is undefined in cp1252, so this
+# text crashes any read that falls back to the Windows default encoding.
+NON_ASCII_TEXT = "\u201cquoted\u201d \u2014 it\u2019s"
 
 
 class ExampleEvent(BaseModel):
@@ -43,3 +49,29 @@ def test_sse_round_trip():
     }
 
     assert load_sse(dumps_sse(event, event["type"])) == event
+
+
+def test_read_yaml_decodes_utf8_independently_of_platform_encoding(tmp_path: Path):
+    """Ensures cassette reads use UTF-8, not the platform default (cp1252 on Windows)."""
+    path = tmp_path / "cassette.yaml"
+    path.write_bytes(f"text: {NON_ASCII_TEXT}\n".encode())
+
+    assert read_yaml(str(path)) == {"text": NON_ASCII_TEXT}
+
+
+def test_read_json_decodes_utf8_independently_of_platform_encoding(tmp_path: Path):
+    """Ensures JSON reads use UTF-8, not the platform default (cp1252 on Windows)."""
+    path = tmp_path / "data.json"
+    path.write_bytes(f'{{"text": "{NON_ASCII_TEXT}"}}'.encode())
+
+    assert read_json(str(path)) == {"text": NON_ASCII_TEXT}
+
+
+def test_dump_yaml_writes_utf8_independently_of_platform_encoding(tmp_path: Path):
+    """Ensures written cassettes are UTF-8 bytes, so matcher scripts do not re-encode them."""
+    path = tmp_path / "cassette.yaml"
+
+    dump_yaml({"text": NON_ASCII_TEXT}, str(path))
+
+    # Strict UTF-8 decoding is the check; newlines are normalized by .gitattributes.
+    assert path.read_text(encoding="utf-8") == f"text: {NON_ASCII_TEXT}\n"

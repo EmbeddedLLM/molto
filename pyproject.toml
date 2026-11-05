@@ -90,6 +90,7 @@ dependencies = [
     "pydantic-extra-types~=2.11.1",
     "pydantic-settings~=2.13.1",
     "pydantic[email,timezone]>=2.12.5",
+    "PyYAML~=6.0.3",
     "uuid-utils~=0.14.1",
 ]
 dynamic = ["version"]

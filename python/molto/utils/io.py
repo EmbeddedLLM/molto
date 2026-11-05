@@ -71,7 +71,7 @@ def read_json(path: str) -> JSONOutput:
     Returns:
         data (JSONOutput): The data.
     """
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return orjson.loads(f.read())
 
 
@@ -108,7 +108,7 @@ def read_yaml(path: str) -> JSONOutput:
     Returns:
         data (JSONOutput): The data.
     """
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -131,7 +131,8 @@ def dump_yaml(
     Returns:
         path (str): Path to the file.
     """
-    with open(path, "w") as f:
+    # PyYAML ignores `encoding` for text streams, so the file itself must use it.
+    with open(path, "w", encoding=encoding) as f:
         yaml.dump(data, f, allow_unicode=allow_unicode, encoding=encoding, **kwargs)
     return path
 
