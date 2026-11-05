@@ -229,6 +229,8 @@ The client preserves the response ID, model, and supported block order. Each emi
 
 `thinking_delta` does not say whether its text is raw reasoning or a summary. Molto classifies it using the explicit provider capability profile: Anthropic and OpenAI profiles use summaries, while vLLM uses raw reasoning. The endpoint or base URL does not select this behavior.
 
+When OpenRouter Responses is the upstream, its explicit raw/summary events already determine the normalized representation. Messages output preserves that distinction, including signatures for summaries. This exception applies to output projection only: incoming unsigned Messages thinking still follows the configured summary-input contract and rejects, so this route does not yet support a full raw-thinking Messages round trip.
+
 A thinking block that starts with text or a signature begins immediately so the observed snapshot cannot be lost. A completely empty thinking start is deferred until a non-empty thinking or signature delta establishes content. If the block stays empty, Molto omits it and assigns dense normalized indexes to the remaining blocks. Native `ping` events are ignored on this semantic path.
 
 Only the six handled raw events are inspected here; any other `RawMessageStreamEvent` variant is silently ignored rather than rejected. This matches the fact that `ping` is transport-only, but it diverges from `python/CONVENTIONS.md`'s "reject unsupported event types explicitly" rule and from the Responses client, which raises for unknown stream events. The silent-ignore is a documented current behavior, not a deliberate contract to rely on.

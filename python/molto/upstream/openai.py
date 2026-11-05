@@ -160,8 +160,6 @@ def _function_call_part(item: Any) -> ToolCall:
 
 def _reasoning_part(item: Any) -> Thinking:
     """Project a Responses reasoning item snapshot into a normalized part."""
-    if getattr(item, "format", None) is not None:
-        raise ValueError("Responses reasoning format cannot be translated.")
     return Thinking(
         content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
         summary="".join(part.text for part in item.summary if part.type == "summary_text"),
@@ -185,10 +183,8 @@ def _validate_responses_reasoning_capability(
         raise ValueError("Summarized Responses reasoning cannot contain raw text.")
 
 
-def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+def _started_output_item(item: Any) -> TextOutput | ToolCall:
     """Project a just-added Responses output item into its initial normalized part."""
-    if item.type == "reasoning":
-        return _reasoning_part(item)
     if item.type == "message":
         return TextOutput(content="", id=item.id)
     if item.type == "function_call":
@@ -197,10 +193,8 @@ def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     raise ValueError(f"Unsupported Responses output item: {item.type}")
 
 
-def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+def _completed_output_item(item: Any) -> TextOutput | ToolCall:
     """Project a completed Responses output item into its normalized part."""
-    if item.type == "reasoning":
-        return _validate_completed_responses_reasoning(_reasoning_part(item))
     if item.type == "message":
         return TextOutput(
             content="".join(part.text for part in item.content if part.type == "output_text"),
@@ -282,6 +276,14 @@ class OpenAIResponsesClient(
     """OpenAI Responses transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
+    def _reasoning_part(self, item: Any) -> Thinking:
+        if getattr(item, "format", None) is not None:
+            raise ValueError("Responses reasoning format cannot be translated.")
+        return _reasoning_part(item)
+
+    def _validate_reasoning(self, part: Thinking) -> None:
+        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
 
     async def native_events(
         self, request: OpenAIResponsesCreateRequest
@@ -532,6 +534,21 @@ class OpenAIResponsesClient(
         # Source output indices map to dense normalized indices so an omitted
         # reasoning item cannot leave a gap for downstream projections.
         part_indices: dict[int, int] = {}
+        reasoning_representations: dict[int, str] = {}
+
+        def validate_reasoning(source_index: int, part: Thinking) -> None:
+            self._validate_reasoning(part)
+            if self._capabilities.responses_reasoning != "wire":
+                return
+            representation = (
+                "raw" if part.content else "summary" if part.summary or part.signature else None
+            )
+            if representation is not None:
+                previous = reasoning_representations.setdefault(source_index, representation)
+                if previous != representation:
+                    raise ValueError(
+                        "A Responses reasoning item cannot mix raw text with a summary or signature."
+                    )
 
         def start_part(
             source_index: int, part: Thinking | TextOutput | ToolCall
@@ -557,9 +574,13 @@ class OpenAIResponsesClient(
                         service_tier=metadata.service_tier,
                     )
                 elif event_type == "response.output_item.added":
-                    part = _started_output_item(event.item)
+                    part = (
+                        self._reasoning_part(event.item)
+                        if event.item.type == "reasoning"
+                        else _started_output_item(event.item)
+                    )
                     if isinstance(part, Thinking):
-                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
+                        validate_reasoning(event.output_index, part)
                     if (
                         isinstance(part, Thinking)
                         and not part.content
@@ -570,8 +591,9 @@ class OpenAIResponsesClient(
                     else:
                         yield start_part(event.output_index, part)
                 elif event_type == "response.reasoning_text.delta":
-                    if self._capabilities.thinking != "raw" and event.delta:
-                        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
+                    validate_reasoning(
+                        event.output_index, Thinking(content=event.delta, summary="")
+                    )
                     # An empty delta must not materialize a deferred reasoning part.
                     if not event.delta and event.output_index in pending_reasoning:
                         continue
@@ -582,8 +604,9 @@ class OpenAIResponsesClient(
                         delta=ThinkingDelta(content_delta=event.delta),
                     )
                 elif event_type == "response.reasoning_summary_text.delta":
-                    if self._capabilities.thinking != "summary" and event.delta:
-                        raise ValueError("Raw Responses reasoning cannot contain a summary.")
+                    validate_reasoning(
+                        event.output_index, Thinking(content="", summary=event.delta)
+                    )
                     # An empty delta must not materialize a deferred reasoning part.
                     if not event.delta and event.output_index in pending_reasoning:
                         continue
@@ -598,10 +621,9 @@ class OpenAIResponsesClient(
                     # lifecycle echoes and must not materialize a deferred part.
                     added_part = event.part
                     if added_part.type == "reasoning_text" and added_part.text:
-                        if self._capabilities.thinking != "raw":
-                            raise ValueError(
-                                "Summarized Responses reasoning cannot contain raw text."
-                            )
+                        validate_reasoning(
+                            event.output_index, Thinking(content=added_part.text, summary="")
+                        )
                         if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                             yield start_part(event.output_index, start)
                         yield PartDeltaEvent(
@@ -616,8 +638,9 @@ class OpenAIResponsesClient(
                 elif event_type == "response.reasoning_summary_part.added":
                     added_part = event.part
                     if added_part.type == "summary_text" and added_part.text:
-                        if self._capabilities.thinking != "summary":
-                            raise ValueError("Raw Responses reasoning cannot contain a summary.")
+                        validate_reasoning(
+                            event.output_index, Thinking(content="", summary=added_part.text)
+                        )
                         if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                             yield start_part(event.output_index, start)
                         yield PartDeltaEvent(
@@ -636,9 +659,13 @@ class OpenAIResponsesClient(
                     )
                 elif event_type == "response.output_item.done":
                     start = pending_reasoning.pop(event.output_index, None)
-                    part = _completed_output_item(event.item)
+                    part = (
+                        _validate_completed_responses_reasoning(self._reasoning_part(event.item))
+                        if event.item.type == "reasoning"
+                        else _completed_output_item(event.item)
+                    )
                     if isinstance(part, Thinking):
-                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
+                        validate_reasoning(event.output_index, part)
                         # Deferred items always start empty, so the part is omitted
                         # when it also completes without content or state.
                         if (

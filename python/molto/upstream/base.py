@@ -22,6 +22,14 @@ class BaseClient[
     NativeResponseT: BaseModel,
 ](ABC):
     DEFAULT_BASE_URL: str
+    REQUIRED_API_KEY: str | None = None
+    BEARER_AUTH = False
+    REQUIRES_BASE_URL = False
+
+    @classmethod
+    def resolve_capabilities(cls, capabilities: ProviderCapabilities) -> ProviderCapabilities:
+        """Apply protocol-specific provider policy to the shared provider profile."""
+        return capabilities
 
     def __init__(
         self,
@@ -33,16 +41,18 @@ class BaseClient[
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
         required_api_key: str | None = None,
-        bearer_auth: bool = False,
+        bearer_auth: bool | None = None,
     ) -> None:
+        if self.REQUIRES_BASE_URL and not base_url:
+            raise ValueError(f"{type(self).__name__} requires an explicit base_url.")
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url
-        self._capabilities = capabilities
+        self._capabilities = self.resolve_capabilities(capabilities)
         self._extra_body = extra_body
         self._extra_headers = extra_headers
-        self._required_api_key = required_api_key
-        self._bearer_auth = bearer_auth
+        self._required_api_key = required_api_key or self.REQUIRED_API_KEY
+        self._bearer_auth = self.BEARER_AUTH if bearer_auth is None else bearer_auth
         self.response_headers = Headers()
 
     def _capture_response_headers(self, headers: Headers) -> None:

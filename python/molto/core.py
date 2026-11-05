@@ -1,5 +1,4 @@
 from collections.abc import AsyncIterator, Mapping
-from dataclasses import replace
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
@@ -10,7 +9,6 @@ from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesA
 from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_PROVIDER_BY_ENDPOINT,
-    PROVIDER_BASE_URLS,
     PROVIDER_CAPABILITIES,
     PROVIDER_KEY_NAMES,
     Endpoint,
@@ -32,17 +30,9 @@ from molto.types.openai_responses import (
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
 )
-from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.gemini import GeminiChatCompletionsClient
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
-from molto.upstream.together import TogetherAIChatCompletionsClient
+from molto.upstream.registry import CLIENTS
 
 VLLM_DUMMY_API_KEY = "EMPTY"
-
-_CHAT_CLIENTS = {
-    "togetherai": TogetherAIChatCompletionsClient,
-    "gemini": GeminiChatCompletionsClient,
-}
 
 _CREDENTIAL_HEADERS = frozenset(
     {
@@ -208,10 +198,10 @@ class Molto:
             )
         if provider == "bedrock" and not base_url:
             raise ValueError("Bedrock requires an explicit regional base_url and model/profile.")
-        capabilities = PROVIDER_CAPABILITIES[provider]
-        if provider == "fireworks" and endpoint == "chat/completions":
-            capabilities = replace(capabilities, thinking="raw")
-        return base_url or PROVIDER_BASE_URLS.get(provider, {}).get(endpoint), capabilities
+        capabilities = CLIENTS[provider, endpoint].resolve_capabilities(
+            PROVIDER_CAPABILITIES[provider]
+        )
+        return base_url, capabilities
 
     async def responses(
         self,
@@ -246,18 +236,16 @@ class Molto:
             resolved_provider, endpoint, base_url
         )
         upstream_headers = _upstream_headers(extra_headers)
+        upstream = CLIENTS[resolved_provider, endpoint](
+            self._http_client,
+            api_key=resolved_api_key,
+            base_url=base_url,
+            capabilities=capabilities,
+            extra_body=extra_body,
+            extra_headers=upstream_headers,
+        )
 
         if endpoint == "responses":
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = OpenAIResponsesAdapter(capabilities)
             if request.stream is True:
                 return await _prefetch_stream(
@@ -268,30 +256,6 @@ class Molto:
 
         adapter = OpenAIResponsesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "chat/completions":
-            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "messages":
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,
@@ -323,17 +287,15 @@ class Molto:
             resolved_provider, endpoint, base_url
         )
         upstream_headers = _upstream_headers(extra_headers)
+        upstream = CLIENTS[resolved_provider, endpoint](
+            self._http_client,
+            api_key=resolved_api_key,
+            base_url=base_url,
+            capabilities=capabilities,
+            extra_body=extra_body,
+            extra_headers=upstream_headers,
+        )
         if endpoint == "chat/completions":
-            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
             if request.stream is True:
                 return await _prefetch_stream(
@@ -344,30 +306,6 @@ class Molto:
 
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "responses":
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "messages":
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,
@@ -399,17 +337,15 @@ class Molto:
             resolved_provider, endpoint, base_url
         )
         upstream_headers = _upstream_headers(extra_headers)
+        upstream = CLIENTS[resolved_provider, endpoint](
+            self._http_client,
+            api_key=resolved_api_key,
+            base_url=base_url,
+            capabilities=capabilities,
+            extra_body=extra_body,
+            extra_headers=upstream_headers,
+        )
         if endpoint == "messages":
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = AnthropicMessagesAdapter(capabilities)
             if request.stream is True:
                 return await _prefetch_stream(
@@ -420,30 +356,6 @@ class Molto:
 
         adapter = AnthropicMessagesAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "responses":
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "chat/completions":
-            upstream = _CHAT_CLIENTS.get(resolved_provider, OpenAIChatCompletionsClient)(
-                self._http_client,
-                api_key=resolved_api_key,
-                required_api_key=PROVIDER_KEY_NAMES.get(resolved_provider),
-                bearer_auth=resolved_provider in ("bedrock", "openrouter"),
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,

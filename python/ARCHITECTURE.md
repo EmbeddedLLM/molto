@@ -32,6 +32,8 @@ Any desired provider-specific endpoint default, forced switch, or override belon
 
 This defines ownership of any future routing policy; it does not introduce automatic endpoint switching. The current explicit-provider behavior described above remains unchanged.
 
+Every accepted `(provider, endpoint)` route has an explicit class in `upstream/registry.py`, including thin subclasses where the shared implementation is sufficient. `Molto` selects that class once per request. Provider classes own their default destination, required credential name, authentication scheme, and protocol-specific capability adjustments; the coordinator still resolves configured credentials and explicit overrides. Together's alternative protocols and Bedrock require an explicit destination. The existing cross-vendor configurations remain available through explicitly named compatibility clients; class registration does not certify a hosted endpoint.
+
 ## Architectural goal
 
 The long-term goal from `PLAN.md` remains valid: Molto should be a drop-in protocol and SDK compatibility layer without implementing a translator for every provider pair.
@@ -66,7 +68,7 @@ Downstream X protocol
 Downstream X events
 ```
 
-Each downstream protocol should require one adapter and each upstream protocol should require one client. Composition then grows approximately as N + M implementations instead of N x M pairwise translators.
+Each downstream protocol has one adapter, and each upstream protocol has a shared client implementation with provider-specific subclasses. The subclasses inherit transport and normalization unless a provider difference requires an override. Translation still composes adapters and clients instead of adding pairwise translators.
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
@@ -107,9 +109,9 @@ The layers have distinct ownership:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
-| `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
+| `providers.py` | Provider names, default protocol-to-provider selection, credential configuration names, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
-| `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
+| `upstream/` | Explicit provider/protocol client registry, destination/authentication defaults, upstream request construction, provider SDK stream integration, compatibility validation, and upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
@@ -499,3 +501,5 @@ To add another downstream protocol, add an adapter that normalizes its request a
 Together's Chat subclass selects its documented `reasoning` dialect and recognizes provider-specific semantic errors. Gemini's Chat subclass repairs missing tool indices only with unambiguous identity; the generic normalizer rejects missing indices rather than silently discarding calls. Native history schemas have narrow Google attachment and OpenRouter reasoning-format extensions. Cross-protocol paths reject populated opaque state they cannot preserve.
 
 The native recording driver never invokes Molto translation. Reviewed original exchanges, historical matched fixtures, and synthetic probes have separate provenance; a supported serializer is not evidence of live model compatibility.
+
+`OpenRouterResponsesClient` resolves `responses_reasoning="wire"` without changing the provider's interpretation of ambiguous Chat or Messages reasoning. Its Responses events explicitly identify raw text or summaries, so the client accepts either valid representation, keeps each item's representation consistent across its lifecycle, and requires signatures for completed summaries. The observed `format="unknown"` is accepted on raw output; named formats and signed/summary items carrying a format remain unsupported. Native passthrough preserves all original fields. Downstream Chat accepts unsigned raw reasoning only; Messages can project either representation. Incoming unsigned Messages thinking still follows the existing summary-input contract and rejects, so this output support does not claim a complete Messages reasoning round trip.

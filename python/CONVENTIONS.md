@@ -28,7 +28,9 @@ Keep these three concepts separate:
 - `provider` identifies the serving implementation and selects its capability profile; and
 - `base_url` selects only the HTTP destination.
 
-Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
+Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep shared provider profiles in `PROVIDER_CAPABILITIES`; resolve protocol-specific adjustments through the selected client's `resolve_capabilities()` and pass that resolved profile explicitly to adapters and clients.
+
+Register an explicit class for every accepted provider/protocol combination, including thin subclasses for consistent selection and testing. Keep destination and authentication defaults on the provider client, while `Molto` resolves configured credentials and request overrides. Inherit common protocol behavior and override only the provider differences. A class for a custom compatibility route does not establish that the provider hosts that protocol.
 
 Keep upstream clients specific to one supported wire protocol; never switch or override endpoints inside a client. Any desired endpoint override belongs in `Molto`, before client selection and the native-versus-translated route decision. See [endpoint selection ownership](ARCHITECTURE.md#endpoint-selection-belongs-to-the-coordinator).
 

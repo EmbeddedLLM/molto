@@ -404,16 +404,6 @@ async def replay_translated_first_turn(group, downstream, stream):
         for item in reference.output
     ):
         rejection = "A Responses reasoning summary requires a signature."
-    if (
-        upstream == "responses"
-        and manifest["provider"] == "openrouter"
-        and any(
-            item.type == "reasoning"
-            and any(part.type == "reasoning_text" and part.text for part in item.content or [])
-            for item in reference.output
-        )
-    ):
-        rejection = "Summarized Responses reasoning cannot contain raw text."
     transport = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     with pytest.raises(ValueError, match=rejection) if rejection else nullcontext():
         async with Molto(http_client=transport) as molto:

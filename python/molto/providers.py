@@ -11,6 +11,9 @@ ReasoningRepresentation: TypeAlias = Literal["raw", "summary"]
 @dataclass(frozen=True)
 class ProviderCapabilities:
     thinking: ReasoningRepresentation
+    # Only the resolved Responses client can opt into explicit wire labels;
+    # ambiguous Chat/Messages input still uses `thinking`.
+    responses_reasoning: Literal["profile", "wire"] = "profile"
 
 
 PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
@@ -22,20 +25,6 @@ PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
     "openrouter": ProviderCapabilities(thinking="summary"),
     "togetherai": ProviderCapabilities(thinking="raw"),
     "vllm": ProviderCapabilities(thinking="raw"),
-}
-
-# These destinations select transport only; they do not certify model support.
-PROVIDER_BASE_URLS: dict[str, dict[Endpoint, str]] = {
-    "fireworks": {
-        "responses": "https://api.fireworks.ai/inference/v1",
-        "chat/completions": "https://api.fireworks.ai/inference/v1",
-        "messages": "https://api.fireworks.ai/inference",
-    },
-    "openrouter": {
-        "responses": "https://openrouter.ai/api/v1",
-        "chat/completions": "https://openrouter.ai/api/v1",
-        "messages": "https://openrouter.ai/api",
-    },
 }
 
 PROVIDER_KEY_NAMES = {

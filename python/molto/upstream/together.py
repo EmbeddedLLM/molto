@@ -2,21 +2,17 @@
 
 from typing import NoReturn
 
-from openai import APIStatusError, AsyncOpenAI, BadRequestError, OpenAIError
+from openai import APIStatusError, BadRequestError
 
 from molto.types.exceptions import ContextLengthExceededError, ModelNotFoundError
-from molto.upstream.openai import OpenAIChatCompletionsClient
+from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 
 class TogetherAIChatCompletionsClient(OpenAIChatCompletionsClient):
     DEFAULT_BASE_URL = "https://api.together.ai/v1"
     REASONING_FIELD = "reasoning"
-
-    def _make_sdk_client(self) -> AsyncOpenAI:
-        # The OpenAI SDK otherwise falls back to its own environment credentials.
-        if not self._api_key:
-            raise OpenAIError("Missing credentials. Set TOGETHER_AI_API_KEY or pass api_key.")
-        return super()._make_sdk_client()
+    REQUIRED_API_KEY = "TOGETHER_AI_API_KEY"
 
     def _handle_error(self, error: Exception) -> NoReturn:
         if isinstance(error, BadRequestError) and (
@@ -30,3 +26,17 @@ class TogetherAIChatCompletionsClient(OpenAIChatCompletionsClient):
                 error.message, response=error.response, body=error.body
             ) from error
         super()._handle_error(error)
+
+
+class TogetherAIResponsesClient(OpenAIResponsesClient):
+    """Explicit custom Responses destination; no hosted Together endpoint is assumed."""
+
+    REQUIRED_API_KEY = "TOGETHER_AI_API_KEY"
+    REQUIRES_BASE_URL = True
+
+
+class TogetherAIMessagesClient(AnthropicMessagesClient):
+    """Explicit custom Messages destination; no hosted Together endpoint is assumed."""
+
+    REQUIRED_API_KEY = "TOGETHER_AI_API_KEY"
+    REQUIRES_BASE_URL = True

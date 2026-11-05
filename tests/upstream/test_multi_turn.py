@@ -1,8 +1,12 @@
+import json
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from pathlib import Path
 
 import httpx
 import pytest
+from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.normalized import (
@@ -27,18 +31,26 @@ from molto.types.normalized import (
     ToolReturn,
     UserInput,
 )
-from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.openai import OpenAIResponsesClient
+from molto.upstream.registry import CLIENTS as PROVIDER_CLIENTS
 from molto.utils.io import json_loads, read_yaml
+from tests.core.test_recorded_provider_conversations import collect
+from tests.core.test_together_conversations import _semantics
 
-CLIENTS = [OpenAIResponsesClient, OpenAIChatCompletionsClient, AnthropicMessagesClient]
-REASONING_CLIENTS = [OpenAIResponsesClient, AnthropicMessagesClient]
-CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "upstream_ir"
+# Reusing canonical recordings exercises each declared class's protocol contract;
+# these combinations are offline tests, not evidence that those models run there.
 CLIENT_SETTINGS = {
-    OpenAIResponsesClient: ("openai", "responses"),
-    OpenAIChatCompletionsClient: ("openai", "chat_completions"),
-    AnthropicMessagesClient: ("anthropic", "messages"),
+    client: (provider, endpoint.replace("/", "_"))
+    for (provider, endpoint), client in PROVIDER_CLIENTS.items()
 }
+CLIENTS = list(CLIENT_SETTINGS)
+REASONING_CLIENTS = [
+    client
+    for client, (provider, endpoint) in CLIENT_SETTINGS.items()
+    if endpoint != "chat_completions"
+    and client.resolve_capabilities(PROVIDER_CAPABILITIES[provider]).thinking == "summary"
+]
+CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "upstream_ir"
 
 
 @asynccontextmanager
@@ -46,8 +58,9 @@ async def _replay_client(
     client_type, scenario: str, turns: int, *, requests: list[httpx.Request] | None = None
 ):
     provider, endpoint = CLIENT_SETTINGS[client_type]
+    source_provider = "anthropic" if endpoint == "messages" else "openai"
     cassettes = [
-        read_yaml(CASSETTE_DIR / scenario / f"{provider}-{endpoint}-stream-{turn:02}.yaml")
+        read_yaml(CASSETTE_DIR / scenario / f"{source_provider}-{endpoint}-stream-{turn:02}.yaml")
         for turn in range(turns)
     ]
     consumed = 0
@@ -75,10 +88,14 @@ async def _replay_client(
         client = client_type(
             http_client,
             api_key="test-key",
-            capabilities=PROVIDER_CAPABILITIES[provider],
+            capabilities=client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider]),
+            base_url="https://api.anthropic.com"
+            if endpoint == "messages"
+            else "https://api.openai.com/v1",
             extra_body=(
                 {"include": ["reasoning.encrypted_content"], "store": False}
-                if client_type is OpenAIResponsesClient and scenario == "tool_use_reasoning"
+                if issubclass(client_type, OpenAIResponsesClient)
+                and scenario == "tool_use_reasoning"
                 else None
             ),
         )
@@ -86,14 +103,23 @@ async def _replay_client(
     assert consumed == turns, "Not all conversation turns were replayed"
 
 
-def _assert_ir(events: list[ModelResponseStreamEvent]) -> list[TextOutput | ToolCall | Thinking]:
+def _assert_ir(
+    events: list[ModelResponseStreamEvent],
+    *,
+    tool_name="read_file",
+    source_timestamps=None,
+    raw_reasoning=False,
+) -> list[TextOutput | ToolCall | Thinking]:
     """Check lifecycle balance and reconstruct each completed part from its deltas."""
     start, end = events[0], events[-1]
     assert isinstance(start, ResponseStartEvent)
     assert isinstance(end, ResponseEndEvent)
     assert start.id == end.id and start.id
     assert start.model == end.model and start.model
-    assert start.created_at == end.created_at
+    if source_timestamps is None:
+        assert start.created_at == end.created_at
+    else:
+        assert (start.created_at, end.created_at) == source_timestamps
     assert end.stop_sequence is None
     usage = end.usage
     assert usage is not None
@@ -126,8 +152,12 @@ def _assert_ir(events: list[ModelResponseStreamEvent]) -> list[TextOutput | Tool
             else:
                 assert isinstance(delta, ThinkingDelta)
                 assert isinstance(active, Thinking)
-                assert not delta.content_delta
-                active.summary += delta.summary_delta or ""
+                if raw_reasoning:
+                    assert not delta.summary_delta and not delta.signature_delta
+                    active.content += delta.content_delta or ""
+                else:
+                    assert not delta.content_delta
+                    active.summary += delta.summary_delta or ""
                 if delta.signature_delta is not None:
                     # Opaque state is a replacement snapshot, never a text fragment.
                     active.signature = delta.signature_delta
@@ -137,14 +167,22 @@ def _assert_ir(events: list[ModelResponseStreamEvent]) -> list[TextOutput | Tool
                 assert active.content.strip()
             elif isinstance(active, ToolCall):
                 assert active.tool_call_id
-                assert active.tool_name == "read_file"
+                assert active.tool_name == tool_name
                 args = json_loads(active.args)
-                assert isinstance(args, dict) and set(args) == {"path"}
-                assert isinstance(args["path"], str) and args["path"]
+                assert isinstance(args, dict)
+                if tool_name == "read_file":
+                    assert set(args) == {"path"}
+                    assert isinstance(args["path"], str) and args["path"]
+                else:
+                    assert set(args) == {"a", "b"}
+                    assert all(type(value) is int for value in args.values())
             else:
                 assert isinstance(active, Thinking)
-                assert active.content == ""
-                assert active.signature
+                if raw_reasoning:
+                    assert active.content and not active.summary and not active.signature
+                else:
+                    assert active.content == ""
+                    assert active.signature
             parts.append(event.part)
             active = None
     assert active is None
@@ -221,15 +259,19 @@ async def test_multi_turn_text_and_image_chat(client_type) -> None:
             assert request.input == expected_input
 
             body = json_loads(requests[-1].content)
-            messages = body["input"] if client_type is OpenAIResponsesClient else body["messages"]
+            messages = (
+                body["input"]
+                if issubclass(client_type, OpenAIResponsesClient)
+                else body["messages"]
+            )
             assert [message["role"] for message in messages] == [
                 "user" if isinstance(item, UserInput) else "assistant" for item in expected_input
             ]
             text_type, image_type = {
-                OpenAIResponsesClient: ("input_text", "input_image"),
-                OpenAIChatCompletionsClient: ("text", "image_url"),
-                AnthropicMessagesClient: ("text", "image"),
-            }[client_type]
+                "responses": ("input_text", "input_image"),
+                "chat_completions": ("text", "image_url"),
+                "messages": ("text", "image"),
+            }[CLIENT_SETTINGS[client_type][1]]
             for message in messages:
                 if message["role"] == "user":
                     assert [part["type"] for part in message["content"]] == [
@@ -284,7 +326,11 @@ async def test_multi_turn_consecutive_user_text_inputs(client_type) -> None:
             assert request.input == expected_input
 
             body = json_loads(requests[-1].content)
-            messages = body["input"] if client_type is OpenAIResponsesClient else body["messages"]
+            messages = (
+                body["input"]
+                if issubclass(client_type, OpenAIResponsesClient)
+                else body["messages"]
+            )
             assert [message["role"] for message in messages] == [
                 "user" if isinstance(item, UserInput) else "assistant" for item in expected_input
             ]
@@ -386,3 +432,298 @@ async def test_multi_turn_tool_use(client_type) -> None:
 async def test_multi_turn_tool_use_with_reasoning(client_type) -> None:
     """Ensures reasoning summaries and opaque state survive a complete tool conversation."""
     await _assert_tool_conversation(client_type, reasoning=True)
+
+
+RECORDED_ROOT = Path(__file__).parents[1] / "cassettes/provider_recordings/2026-11-04"
+RECORDED_GROUPS = [
+    "fireworks-chat-text-stream-none-history",
+    "fireworks-chat-tools-stream-none-history",
+    "fireworks-responses-text-stream-none",
+    "fireworks-responses-tools-stream-none",
+    "fireworks-messages-text-stream-none",
+    "fireworks-messages-tools-stream-none",
+    "openrouter-chat-text-stream-none",
+    "openrouter-responses-text-stream-none",
+    "openrouter-responses-tools-stream-low",
+    "openrouter-messages-text-stream-none",
+    "openrouter-messages-tools-stream-none",
+]
+
+
+def _caller_inputs(messages):
+    """Read only recorded caller input; assistant history must come from actual emitted IR."""
+    result = []
+    for message in messages:
+        if message.get("type") == "function_call_output":
+            result.append(
+                ToolReturn(
+                    tool_call_id=message["call_id"], content=[TextInput(content=message["output"])]
+                )
+            )
+        elif message.get("role") == "tool":
+            result.append(
+                ToolReturn(
+                    tool_call_id=message["tool_call_id"],
+                    content=[TextInput(content=message["content"])],
+                )
+            )
+        else:
+            assert message["role"] == "user"
+            content = message["content"]
+            if isinstance(content, str):
+                content = [{"type": "text", "text": content}]
+            if all(part["type"] == "tool_result" for part in content):
+                result.extend(
+                    ToolReturn(
+                        tool_call_id=part["tool_use_id"],
+                        content=[TextInput(content=part["content"])],
+                    )
+                    for part in content
+                )
+            else:
+                assert all(part["type"] in {"text", "input_text"} for part in content)
+                result.append(
+                    UserInput(content=[TextInput(content=part["text"]) for part in content])
+                )
+    return result
+
+
+def _expected_normalized_wire(recorded, protocol):
+    """Derive expected wire copies from native evidence using only known representation changes."""
+    body = deepcopy(recorded)
+    history = body["input" if protocol == "responses" else "messages"]
+    for message in history:
+        if message.get("role") in {"user", "tool"} and isinstance(message["content"], str):
+            message["content"] = [
+                {
+                    "type": "input_text" if protocol == "responses" else "text",
+                    "text": message["content"],
+                }
+            ]
+        if message.get("role") == "assistant":
+            if protocol == "chat/completions":
+                for field in ("refusal", "tool_calls", "tools", "reasoning", "reasoning_content"):
+                    if field in message and message[field] is None:
+                        del message[field]
+                if message.get("tool_calls"):
+                    if message.get("content") is None:
+                        message.pop("content", None)
+                    for call in message["tool_calls"]:
+                        if call.get("name") is None:
+                            call.pop("name", None)
+            elif protocol == "responses":
+                # Normalized text parts do not carry their enclosing source message ID.
+                message.pop("id", None)
+                assert message.get("phase") is None
+                message.pop("phase", None)
+                for part in message["content"]:
+                    part.setdefault("annotations", [])
+                    part.setdefault("logprobs", [])
+            else:
+                for part in message["content"]:
+                    if part.get("citations") in (None, []):
+                        part.pop("citations", None)
+                    if part.get("caller") in (None, {"type": "direct"}):
+                        part.pop("caller", None)
+        if message.get("type") == "reasoning":
+            assert message.pop("format", None) == "unknown"
+            assert message.pop("status") == "completed"
+        if message.get("type") == "function_call_output":
+            message["output"] = [{"type": "input_text", "text": message["output"]}]
+        if protocol == "messages" and message.get("role") == "user":
+            for part in message["content"]:
+                if part["type"] == "tool_result" and isinstance(part["content"], str):
+                    part["content"] = [{"type": "text", "text": part["content"]}]
+    if protocol == "chat/completions":
+        body["max_completion_tokens"] = body.pop("max_tokens")
+    if protocol != "messages":
+        for tool in body.get("tools", []):
+            (tool["function"] if protocol == "chat/completions" else tool).setdefault(
+                "strict", False
+            )
+    return body
+
+
+@pytest.mark.parametrize("group_name", RECORDED_GROUPS)
+async def test_recorded_provider_normalized_multi_turn(group_name):
+    """Ensures actual provider IR continues text/tool turns with exact independently expected wire bodies."""
+    group = RECORDED_ROOT / group_name
+    manifest = json.loads((group / "manifest.json").read_text())
+    protocol = manifest["upstream_protocol"]
+    provider = manifest["provider"]
+    client_type = PROVIDER_CLIENTS[(provider, protocol)]
+    recordings = [read_yaml(group / turn["files"][0]) for turn in manifest["turns"]]
+    history_key = "input" if protocol == "responses" else "messages"
+    first_body = recordings[0]["request"]["body"]
+    request = NormalizedRequest(
+        model=first_body["model"],
+        stream=True,
+        max_output_tokens=manifest["max_tokens"],
+        input=_caller_inputs(first_body[history_key]),
+    )
+    if first_body.get("tools"):
+        tool = first_body["tools"][0]
+        tool = tool["function"] if protocol == "chat/completions" else tool
+        request.tools = [
+            FunctionTool(
+                name=tool["name"],
+                description=tool["description"],
+                parameters=tool["input_schema" if protocol == "messages" else "parameters"],
+            )
+        ]
+    calls = 0
+    for turn, recording in enumerate(recordings):
+        recorded = recording["request"]["body"]
+        expected = _expected_normalized_wire(recorded, protocol)
+        response = recording["response"]
+        assert response["status_code"] == 200
+
+        def handle(http_request, expected=expected, response=response):
+            nonlocal calls
+            calls += 1
+            assert str(http_request.url) == manifest["upstream_url"]
+            assert json_loads(http_request.content) == expected
+            return httpx.Response(
+                200, text="".join(response["sse"]), headers={"content-type": "text/event-stream"}
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _, response=response: httpx.Response(
+                    200,
+                    text="".join(response["sse"]),
+                    headers={"content-type": "text/event-stream"},
+                )
+            )
+        ) as transport:
+            sdk = (
+                AsyncAnthropic(api_key="test", http_client=transport)
+                if protocol == "messages"
+                else AsyncOpenAI(api_key="test", http_client=transport)
+            )
+            create = (
+                sdk.messages.create
+                if protocol == "messages"
+                else sdk.responses.create
+                if protocol == "responses"
+                else sdk.chat.completions.create
+            )
+            sdk_body = {
+                key: value
+                for key, value in recorded.items()
+                if key not in (manifest.get("extra_body") or {})
+            }
+            reference, source_events = await collect(
+                await create(**sdk_body, extra_body=manifest.get("extra_body")), True, protocol
+            )
+        controls = {
+            key: recorded[key]
+            for key in (
+                "reasoning",
+                "reasoning_effort",
+                "thinking",
+                "tool_choice",
+                "parallel_tool_calls",
+                "store",
+            )
+            if key in recorded
+        }
+        controls.update(manifest.get("extra_body") or {})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
+            client = client_type(
+                transport,
+                api_key="test",
+                capabilities=client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider]),
+                extra_body=controls,
+            )
+            before = request.model_copy(deep=True)
+            events = [event async for event in client.events(request)]
+            assert request == before
+        timestamps = (
+            (int(source_events[0]["response"]["created_at"]), int(reference.created_at))
+            if protocol == "responses"
+            else None
+        )
+        parts = _assert_ir(
+            events,
+            tool_name="add",
+            source_timestamps=timestamps,
+            raw_reasoning=manifest.get("reasoning_setting") == "low",
+        )
+        source_id, model, text, tool_calls, reasoning, usage = _semantics(reference, protocol)
+        assert (events[0].id, events[0].model) == (source_id, model)
+        assert "".join(part.content for part in parts if isinstance(part, TextOutput)) == text
+        assert [
+            (part.tool_call_id, part.tool_name, json_loads(part.args))
+            for part in parts
+            if isinstance(part, ToolCall)
+        ] == tool_calls
+        assert [
+            (part.content, part.summary, part.signature)
+            for part in parts
+            if isinstance(part, Thinking)
+        ] == reasoning
+        assert (
+            events[-1].usage.input_tokens,
+            events[-1].usage.output_tokens,
+            events[-1].usage.total_tokens,
+        ) == usage
+        if turn + 1 < len(recordings):
+            request.input.append(AssistantInput(content=parts))
+            output_items = len(reference.output) if protocol == "responses" else 1
+            suffix = recordings[turn + 1]["request"]["body"][history_key][
+                len(recorded[history_key]) + output_items :
+            ]
+            assert suffix
+            request.input.extend(_caller_inputs(suffix))
+    assert calls == len(recordings)
+
+
+async def test_recorded_together_alternate_reasoning_rejects_normalized_output():
+    """Ensures Together's current alternate reasoning dialect rejects rather than losing SDK-visible text."""
+    group = RECORDED_ROOT.parent / "2026-11-03/together-text-stream"
+    manifest = json.loads((group / "manifest.json").read_text())
+    recording = read_yaml(group / manifest["turns"][0]["files"][0])
+    body = recording["request"]["body"]
+    expected = _expected_normalized_wire(body, "chat/completions")
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        assert json_loads(request.content) == (body if calls == 1 else expected)
+        return httpx.Response(
+            200,
+            text="".join(recording["response"]["sse"]),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
+        sdk = AsyncOpenAI(api_key="test", http_client=transport)
+        sdk_body = {
+            key: value
+            for key, value in body.items()
+            if key not in (manifest.get("extra_body") or {})
+        }
+        reference, _ = await collect(
+            await sdk.chat.completions.create(**sdk_body, extra_body=manifest["extra_body"]), True
+        )
+        assert reference.choices[0].message.reasoning_content
+        client_type = PROVIDER_CLIENTS[("togetherai", "chat/completions")]
+        client = client_type(
+            transport,
+            api_key="test",
+            capabilities=client_type.resolve_capabilities(PROVIDER_CAPABILITIES["togetherai"]),
+            extra_body=manifest["extra_body"],
+        )
+        request = NormalizedRequest(
+            model=body["model"],
+            stream=True,
+            max_output_tokens=manifest["max_tokens"],
+            input=_caller_inputs(body["messages"]),
+        )
+        with pytest.raises(
+            ValueError, match="reasoning field 'reasoning_content'.*'reasoning' dialect"
+        ):
+            _ = [event async for event in client.events(request)]
+    assert calls == 2 and transport.is_closed

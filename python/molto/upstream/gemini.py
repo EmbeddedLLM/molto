@@ -21,6 +21,7 @@ def _register_call(calls: dict[int, str | None], index: int, call_id: str | None
 
 class GeminiChatCompletionsClient(OpenAIChatCompletionsClient):
     DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+    REQUIRED_API_KEY = "GEMINI_API_KEY"
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
