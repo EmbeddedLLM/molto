@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -75,3 +77,31 @@ def test_dump_yaml_writes_utf8_independently_of_platform_encoding(tmp_path: Path
 
     # Strict UTF-8 decoding is the check; newlines are normalized by .gitattributes.
     assert path.read_text(encoding="utf-8") == f"text: {NON_ASCII_TEXT}\n"
+
+
+def test_import_and_json_helpers_work_without_pyyaml(tmp_path: Path):
+    """Ensures `import molto` and the JSON helpers do not require PyYAML, a test-only dependency."""
+    path = tmp_path / "data.json"
+    path.write_bytes(b'{"text": "ok"}')
+    # A fresh interpreter, because this one has already imported yaml.
+    code = "\n".join(
+        [
+            "import sys; sys.modules['yaml'] = None",
+            "import molto",
+            "from molto.utils.io import json_dumps, read_json",
+            f"assert read_json({str(path)!r}) == {{'text': 'ok'}}",
+            """assert json_dumps({'a': 1}) == '{"a":1}'""",
+        ]
+    )
+
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_yaml_round_trip(tmp_path: Path):
+    """Ensures `dump_yaml` output reads back unchanged through `read_yaml`."""
+    path = tmp_path / "cassette.yaml"
+    data = {"request": {"body": {"text": NON_ASCII_TEXT}}, "items": [1, 2]}
+
+    dump_yaml(data, str(path))
+
+    assert read_yaml(str(path)) == data

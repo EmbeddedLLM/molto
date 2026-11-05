@@ -2,7 +2,6 @@ import pickle
 from typing import Any
 
 import orjson
-import yaml
 from httpx import AsyncClient, HTTPStatusError, Response
 from pydantic import BaseModel
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
@@ -108,6 +107,8 @@ def read_yaml(path: str) -> JSONOutput:
     Returns:
         data (JSONOutput): The data.
     """
+    import yaml  # Test-only dependency, so not imported at module scope.
+
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -131,6 +132,8 @@ def dump_yaml(
     Returns:
         path (str): Path to the file.
     """
+    import yaml
+
     # PyYAML ignores `encoding` for text streams, so the file itself must use it.
     with open(path, "w", encoding=encoding) as f:
         yaml.dump(data, f, allow_unicode=allow_unicode, encoding=encoding, **kwargs)
