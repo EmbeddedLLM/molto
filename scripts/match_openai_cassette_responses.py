@@ -6,6 +6,10 @@ request and JSON response fields in a Chat Completions cassette while preserving
 its native wire format and transport metadata. Unsigned raw Responses reasoning
 maps to Chat Completions `reasoning_content`; reasoning summaries and encrypted
 continuation state are not representable in Chat Completions.
+
+Hosted-search fixtures cover Chat downstream only. Hosted calls and structured
+URL citations are omitted while actual answer text and inline links are retained.
+Signed or encrypted reasoning is rejected, including on hosted-search turns.
 """
 
 from __future__ import annotations
@@ -15,6 +19,11 @@ from pathlib import Path
 from typing import Any
 
 from molto.utils.io import dump_yaml, read_yaml
+
+if __package__:
+    from .match_openai_cassette_events import _match_search_request
+else:
+    from match_openai_cassette_events import _match_search_request
 
 
 def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +97,8 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type == "web_search_call":
+            continue
         if item_type == "reasoning":
             messages.append(
                 {
@@ -221,6 +232,8 @@ def _require_non_streaming(cassette: dict[str, Any]) -> None:
 
 def _response_output(
     response: dict[str, Any],
+    *,
+    has_search: bool = False,
 ) -> tuple[str | None, str | None, list[dict[str, Any]]]:
     output = response.get("output")
     if not isinstance(output, list):
@@ -234,6 +247,8 @@ def _response_output(
         if not isinstance(item, dict):
             raise ValueError("Responses output items must be objects.")
         item_type = item.get("type")
+        if item_type == "web_search_call":
+            continue
         if item_type == "reasoning":
             if reasoning_content is not None:
                 raise ValueError(
@@ -271,7 +286,10 @@ def _response_output(
             part_text = part.get("text")
             if not isinstance(part_text, str):
                 raise ValueError("Responses output text must contain a string text field.")
-            if part.get("annotations") not in (None, []):
+            if any(
+                not has_search or annotation.get("type") != "url_citation"
+                for annotation in part.get("annotations") or []
+            ):
                 raise ValueError("Annotated Responses output cannot map to Chat Completions.")
             if part.get("logprobs") not in (None, []):
                 raise ValueError("Responses output logprobs cannot map to Chat Completions.")
@@ -288,8 +306,10 @@ def _finish_reason(response: dict[str, Any], *, has_tool_calls: bool) -> str:
         raise ValueError("Responses response status must be completed or incomplete.")
 
     incomplete_details = response.get("incomplete_details")
+    if incomplete_details is None:
+        return "stop"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("Incomplete Responses responses must contain incomplete_details.")
+        raise ValueError("Incomplete Responses incomplete_details must be an object or null.")
     return {
         "content_filter": "content_filter",
         "max_output_tokens": "length",
@@ -320,10 +340,15 @@ def match_chat_completions_response(
     chat_request = _request_body(chat_cassette)
     responses_request = _request_body(responses_cassette)
     chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
+    has_search = _match_search_request(chat_cassette, responses_cassette)
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
 
     chat_response = _response_body(chat_cassette)
     response = _response_body(responses_cassette)
+    has_search = has_search or any(
+        isinstance(item, dict) and item.get("type") == "web_search_call"
+        for item in response.get("output", [])
+    )
     choices = chat_response.get("choices")
     if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
         raise ValueError("Chat Completions response must contain exactly one choice.")
@@ -342,11 +367,13 @@ def match_chat_completions_response(
     if not isinstance(created_at, int) or isinstance(created_at, bool):
         raise ValueError("Responses response created_at must be an integer.")
 
-    reasoning_content, content, tool_calls = _response_output(response)
+    reasoning_content, content, tool_calls = _response_output(response, has_search=has_search)
     message["role"] = "assistant"
     message["content"] = content
     message.pop("reasoning_content", None)
     message.pop("tool_calls", None)
+    if has_search:
+        message.pop("annotations", None)
     if reasoning_content is not None:
         message["reasoning_content"] = reasoning_content
     if tool_calls:
@@ -365,8 +392,8 @@ def match_chat_completions_response(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare a Chat Completions cassette for exact non-streaming "
-            "Chat-Completions-to-Responses parity. The Chat Completions cassette is "
+            "Prepare a Chat Completions cassette for non-streaming protocol parity "
+            "against canonical Responses. The Chat Completions cassette is "
             "updated in place unless --output is provided."
         )
     )

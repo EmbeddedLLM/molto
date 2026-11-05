@@ -110,7 +110,7 @@ The layers have distinct ownership:
 | `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
 | `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
-| `types/normalized.py` | Provider-neutral request content, response parts, deltas, lifecycle metadata, and usage | Transport or SDK lifecycle objects |
+| `types/normalized.py` | Provider-neutral schemas and validation for request content, response parts, deltas, lifecycle metadata, and usage | Protocol conversions, transport, or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
 Adapters and upstream clients do not depend on each other. Protocol-specific coordinator methods on `Molto` compose them.
@@ -148,7 +148,9 @@ Each implemented coordinator performs the following work:
 5. Select the upstream path from `endpoint`.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
 
-Every coordinator also accepts request-scoped `extra_body` and `extra_headers` transport options. They bypass downstream request normalization and are applied by the selected provider SDK after upstream request projection. Before forwarding extra headers, the facade removes client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers; the provider SDK then constructs its own authentication and transport headers. This preserves Molto's credential boundary while allowing application-specific headers and provider body extensions.
+Every coordinator also accepts request-scoped `extra_body` and `extra_headers` as opaque request extensions sent to the upstream. The selected provider SDK merges them into the final upstream request only after Molto has built it. Molto must never consult these extensions when choosing a route, normalizing input, constructing or translating a request, or projecting output. They must not influence any other Molto logic except the header filtering at the credential boundary described below. Translation guarantees are defined over the normalized request; callers who supply `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for those extensions.
+
+The sole exception is that the facade filters `extra_headers` once at the credential boundary, removing credential and account-selector headers, hop-by-hop headers, ingress transport headers, and any header named in `Connection` before forwarding. The provider SDK then constructs its own authentication and transport headers. This filtering does not make extra headers inputs to translation or request construction.
 
 The returned `MoltoStream` exposes a copy of the successful upstream response headers as `response_headers`. Coordinator prefetching opens the SDK stream and captures those headers before returning, including on translated routes. Molto retains all response headers; an HTTP server using Molto remains responsible for filtering connection-specific and framing headers before constructing its downstream response.
 
@@ -270,7 +272,7 @@ ChatCompletionChunk SDK stream
 - output-token limits, parallel-tool-call setting, reasoning effort, temperature, and `top_p`;
 - prompt-cache intent: an affinity key, breakpoint mode, cache lifetime, retention policy, and positional markers on supported content parts.
 
-Assistant conversation history uses one strict `AssistantInput` per source message, containing ordered `Thinking`, `TextOutput`, and `ToolCall` parts and an optional Responses message ID. Standalone Responses reasoning and function-call items remain top-level `Thinking` and `ToolCall` values. `TextOutput` is an assistant part, not a top-level request item. This retains both the enclosing message boundary and its ordered content. `AssistantInput.id` supplies the history message ID; IDs on nested `TextOutput` parts are retained output metadata and are not used when projecting history.
+Assistant conversation history uses one strict `AssistantInput` per source message, containing ordered `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` parts and an optional Responses message ID. Standalone Responses reasoning and function-call items remain top-level `Thinking` and `ToolCall` values. Hosted search calls and linked results can likewise be top-level history parts. `TextOutput` is an assistant part, not a top-level request item. This retains both the enclosing message boundary and its ordered content. `AssistantInput.id` supplies the history message ID; IDs on nested `TextOutput` parts are retained output metadata and are not used when projecting history.
 
 Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary. Assistant text parts follow the same rule: multiple text parts remain in one message, and adjacent assistant messages remain separate. Messages can retain any supported assistant part order. Within one explicit assistant message, Chat accepts runs of reasoning, text, and tool-call parts in that order, with any run optional. Adjacent reasoning parts concatenate in order with a newline separator; text parts retain their array boundaries and markers, and tool calls retain distinct array entries and IDs. Chat rejects reasoning after text or calls and text after calls rather than splitting or reordering the message. This grouping never merges separate explicit assistant messages. Responses has standalone reasoning and call items, so projecting a mixed assistant message emits contiguous text runs as messages interleaved with those items.
 
@@ -282,7 +284,7 @@ User images follow the same ordered-part rule: a normalized `ImageUrlInput` hold
 
 Responses `phase` is intentionally not normalized or synthesized. Native passthrough preserves a provider-supplied phase, but a translated stream or reconstructed assistant-history item omits it because the normalized text/reasoning sequence does not establish whether an assistant message was commentary or a final answer.
 
-Normalized request models are strict. `NormalizedRequest` and every request-only model nested beneath it reject unknown fields. The output models inherit from `ExtraModel` and retain unknown provider fields in `extra_fields` as an escape hatch. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models remain lenient when handling output but reject extras when validated as conversation input.
+Normalized request models are strict. `NormalizedRequest` and every request-only model nested beneath it reject unknown fields. The output models inherit from `ExtraModel` and retain unknown provider fields in `extra_fields` as an escape hatch. The dual-use `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` models remain lenient when handling output but reject extras when validated as conversation input.
 
 The IR must not become a lowest-common-denominator provider API. Concepts with clear cross-provider meaning belong in normalized fields. A downstream adapter must map every populated native input field into that representation, apply it while projecting downstream output, or reject it before it is lost. An upstream client must likewise map every populated normalized field into its target protocol or reject it explicitly, with the documented omission exceptions and [cache-lifetime approximations](../docs/README.md#prompt-caching). Genuinely provider-specific output remains in `extra_fields` until a portable semantic model exists.
 
@@ -324,7 +326,7 @@ For the text, reasoning, and function-tool paths:
 - `PartStartEvent` establishes a `Thinking`, `TextOutput`, or `ToolCall` snapshot at a stable output index; native protocols normally start empty, but an initial function-argument fragment is preserved when present;
 - each source reasoning, text, or function-argument chunk becomes one matching `PartDeltaEvent`;
 - `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
-- `ResponseEndEvent` carries terminal metadata, a provider-neutral termination reason, an optional matched stop sequence, and normalized usage.
+- `ResponseEndEvent` carries terminal metadata, a required provider-neutral `TerminationReason` literal, an optional matched stop sequence, and normalized usage. The literal includes `unknown` for an incomplete response whose cause is unavailable.
 
 A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends, and surviving parts are reindexed so normalized indices stay dense. Recorded providers never produce such parts.
 
@@ -336,7 +338,25 @@ The normalized representation preserves the distinction that ambiguous wire prot
 
 Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
 
-Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched. The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, and context-window exhaustion. When the target protocol cannot represent a normalized reason, its adapter deliberately coerces it to normal completion (`end_turn`, `stop`, or `response.completed`) so the translated stream remains consumable.
+Service-tier labels are retained as upstream metadata, but target protocols do not share one vocabulary. Translated Anthropic Messages responses therefore use the target default `standard`, while translated Responses and Chat Completions responses use `default`. Native passthrough remains untouched.
+
+The normalized termination reason maps shared semantics explicitly: normal completion, output limits, stop sequences, tool calls, content filtering, pauses, refusals, context-window exhaustion, and unknown incomplete causes. Responses `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, becomes `unknown`; explicit reasons remain unchanged. Unknown maps to Responses incomplete with null details, Messages `end_turn`, or Chat `stop`. A genuine Messages-source pause remains `pause` and maps to Messages `pause_turn`, Responses incomplete with null details, or Chat `length`; the latter is a documented approximation for unfinished generation. A reason-less Responses incomplete cannot identify a hosted-search pause, so Messages and Chat callers lose that continuation hint. Other reasons without a target representation retain their documented normal-completion coercions.
+
+## Hosted search and citations
+
+`WebSearchTool` and `WebSearchToolChoice` distinguish hosted execution from client functions. Normalized models define schemas and provider-neutral validation only. Adapters normalize native search declarations and validate request-history fields; upstream clients project search declarations and choices into native requests. Both layers use the plain conversion functions in `utils/web_search.py` for shared citation, source, and search-history mappings, while retaining ownership of request assembly, selection, call/result linking, and stream lifecycle.
+
+`SearchCall` and `SearchResult` use the existing part lifecycle and link by call identity. They are assistant history/output parts. An unfinished call may have no result, and a search error does not determine overall termination. Responses folds a call and result into one item; Messages emits separate server-tool blocks.
+
+Chat projection rejects reasoning signatures and encrypted reasoning based on output data, including signature-only parts. Search declarations and transport overrides do not change that rule; turns without reasoning or with unsigned raw reasoning remain representable.
+
+`TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. Citation buffering belongs to the Messages adapter, exposed by the `Molto.messages()` argument `citation_policy`, which accepts `"buffer"`, `"auto"`, or `"drop"`. With Responses upstream, the default `"drop"` streams text and discards attribution; `"buffer"` waits for every text part's completed snapshot, including uncited text, before splitting it at citation boundaries. `"auto"` buffers when the normalized request declares hosted search or carries search calls, search results, or text with citations in its history; otherwise text streams and unexpected citations are dropped. The coordinator selects `"drop"` for Chat upstream regardless of the requested policy, preserving immediate text streaming and chunk boundaries because Chat normalization discards annotations. The policy never changes request construction or native passthrough. The Responses normalizer and Messages projector buffer unresolved search parts in start order, allowing ordinary parts to stream when they reach the front. No upstream client predicts citation buffering, and opaque extensions cannot influence it. The `"auto"` policy inspects only the normalized request; callers supplying search context only through `extra_body` must explicitly select `"buffer"` for attribution. Projection assigns output indices because parts can expand or disappear.
+
+The [hosted-search contract](../docs/web-search.md) defines supported routes, reductions, failures, usage, and continuation.
+
+The Responses downstream boundary optionally emits typed `extra_content.anthropic` on search sources and URL citations, retaining opaque source content and citation state already held in the IR. The coordinator enables this only for the Anthropic Messages route and rejects metadata-bearing Responses history on other routes. Local history schemas validate the extension eagerly and the adapter restores its existing IR fields. Shared Responses conversion helpers default to standard fields so OpenAI upstream projection does not receive the extension. No conversation store or additional normalized state container is involved.
+
+`ProviderCapabilities.requires_search_history_state` is enabled only for Anthropic. During translated Messages request construction, the client rejects missing, empty, or `"N/A"` encrypted source content and citation indices before transport. Other opaque strings remain unchanged; this does not validate ciphertext or its issuer. The requirement applies independently of new tool declarations and does not affect native passthrough, compatible-provider profiles, or empty, unknown, and failed search results without source content.
 
 ## Response collection
 
@@ -387,16 +407,19 @@ Chat Completions cannot provide a Responses output-item ID or exact Responses co
 
 ## Usage mapping
 
-The Chat client normalizes token usage and the Responses adapter projects it as:
+Clients normalize usage and adapters project supported fields explicitly:
 
-| Normalized usage                          | Chat Completions source                      | Responses output    |
-| ----------------------------------------- | -------------------------------------------- | ------------------- |
-| `input_tokens`                            | `prompt_tokens`                              | `input_tokens`      |
-| `input_tokens_details.cached_tokens`      | `prompt_tokens_details.cached_tokens`        | same semantic field |
-| `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens`   | same semantic field |
-| `output_tokens`                           | `completion_tokens`                          | `output_tokens`     |
-| `output_tokens_details.reasoning_tokens`  | `completion_tokens_details.reasoning_tokens` | same semantic field |
-| `total_tokens`                            | `total_tokens`                               | `total_tokens`      |
+| Normalized usage | Responses | Chat Completions | Messages |
+| --- | --- | --- | --- |
+| `input_tokens` | `input_tokens` | `prompt_tokens` | uncached + cache creation + cache read |
+| `input_tokens_details.cached_tokens` | `input_tokens_details.cached_tokens` | `prompt_tokens_details.cached_tokens` | `cache_read_input_tokens` |
+| `input_tokens_details.cache_write_tokens` | `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens` | `cache_creation_input_tokens` |
+| `output_tokens` | `output_tokens` | `completion_tokens` | `output_tokens` |
+| `output_tokens_details.reasoning_tokens` | `output_tokens_details.reasoning_tokens` | `completion_tokens_details.reasoning_tokens` | `output_tokens_details.thinking_tokens` |
+| `total_tokens` | `total_tokens` | `total_tokens` | sum of normalized input and output |
+| `web_search_requests` | source: response-level `tool_usage.web_search.num_requests`; not projected | not reported or projected | `usage.server_tool_use.web_search_requests` |
+
+Search counts require reported token usage and use `None` for unknown; an explicit zero remains zero. Repeated provider counts replace earlier snapshots rather than accumulating. Messages projection supplies `web_fetch_requests: 0` for this search-only scope. No search count travels through event or usage extras.
 
 Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` directly would expose its internal `extra_fields` container at the public boundary.
 
@@ -477,9 +500,9 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Hosted and server tools, failed-result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Native routes preserve hosted web search. Basic hosted search translation is supported through Responses and Messages upstreams, with text-only projection for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning raises an error; translated Chat upstreams reject normalized search declarations and history, while opaque `extra_body.web_search_options` is forwarded and returned annotations are dropped. Other hosted tools, failed client-function result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
-Function definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
+Function and hosted-search definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
 Full boundary fidelity is a future-work target, not a current guarantee. Beyond the implemented assistant-history container, reaching it would require: (1) an instruction item that retains its original role, content-part grouping, and sequence position; (2) generated-output containers that retain native message and content indexes; (3) an explicit policy for native features that a target protocol cannot represent; and (4) a model- or renderer-level capability profile distinct from the endpoint schema. The current translated representation approximates these, so cross-protocol boundaries are documented in the [comparison guide](../docs/protocols/comparison.md).
 
