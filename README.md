@@ -92,7 +92,7 @@ Unknown errors pass through unchanged. See the [shared error contract](docs/erro
 
 ## Test coverage
 
-CI runs the offline replay suite on Python 3.12, 3.13, and 3.14 and posts a coverage comment for each version on pull requests. Each comment includes test results and coverage details for changed files, and is updated on subsequent runs. Comment posting is best-effort because fork pull requests may have read-only tokens; a posting failure does not hide test failures.
+CI runs the offline replay suite on multiple Python versions and posts a coverage comment for each version on pull requests. Each comment includes test results and coverage details for changed files, and is updated on subsequent runs. Comment posting is best-effort because fork pull requests may have read-only tokens; a posting failure does not hide test failures.
 
 After installing `.[test]`, generate the same reports locally with:
 
