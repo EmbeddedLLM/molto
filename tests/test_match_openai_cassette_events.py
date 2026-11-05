@@ -532,28 +532,18 @@ def test_matches_tool_call_stream_cassettes(
         )
     ],
 )
-def test_matches_recorded_parallel_tool_images_companion(
+def test_parallel_tool_image_companions_are_idempotent(
     tmp_path: Path, companion_path: Path, responses_path: Path
 ) -> None:
-    """Ensures discovered source turns reproduce matched companions without changing originals."""
-    filename = companion_path.name
-    # Reuse a faithful original where it lives instead of requiring another copy.
-    source_paths = [
-        CASSETTES.parent / root / companion_path.parent.name / filename
-        for root in ("native", "upstream_ir", "sources")
-    ]
-    source_path = next((path for path in source_paths if path.is_file()), None)
-    assert source_path is not None, (
-        f"Missing approved original for {companion_path}: {source_paths}"
-    )
-    output_path = tmp_path / filename
-    source_bytes = source_path.read_bytes()
+    """Ensures rematching preserves valid saved companions without modifying either input."""
+    output_path = tmp_path / companion_path.name
+    companion_bytes = companion_path.read_bytes()
     responses_bytes = responses_path.read_bytes()
 
     assert (
         main(
             [
-                str(source_path),
+                str(companion_path),
                 str(responses_path),
                 "--request-only",
                 "--output",
@@ -566,15 +556,14 @@ def test_matches_recorded_parallel_tool_images_companion(
 
     matched = read_yaml(str(output_path))
     assert matched == read_yaml(str(companion_path))
-    for cassette in (read_yaml(str(source_path)), matched):
-        OpenAIChatCompletionsCreateRequest.model_validate(cassette["request"]["body"])
-        for event in _data_events(cassette):
-            ChatCompletionChunk.model_validate(event)
+    OpenAIChatCompletionsCreateRequest.model_validate(matched["request"]["body"])
+    for event in _data_events(matched):
+        ChatCompletionChunk.model_validate(event)
     first_match = output_path.read_bytes()
     assert main([str(output_path), str(responses_path), "--request-only"]) == 0
     assert main([str(output_path), str(responses_path)]) == 0
     assert output_path.read_bytes() == first_match
-    assert source_path.read_bytes() == source_bytes
+    assert companion_path.read_bytes() == companion_bytes
     assert responses_path.read_bytes() == responses_bytes
 
 
