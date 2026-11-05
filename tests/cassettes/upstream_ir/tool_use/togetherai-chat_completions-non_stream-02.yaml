@@ -1,0 +1,103 @@
+filename: 2026-11-05-01a1ac2f-f7a1-79c0-b86f-e6b63706fd6e
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - reasoning_content: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_01a1ac2ff5767011ac9a00e7
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_01a1ac2ff5767011ac9a00e7
+    - reasoning_content: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"garden.txt"}'
+          name: read_file
+        id: call_01a1ac2ff7357f11a7334c0b
+        type: function
+    - content: Water the tomatoes every morning and harvest ripe fruit.
+      role: tool
+      tool_call_id: call_01a1ac2ff7357f11a7334c0b
+    model: Qwen/Qwen3.5-9B
+    parallel_tool_calls: false
+    reasoning:
+      enabled: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1186'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-f7a1-79c0-b86f-e6b63706fd6e
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      matched_stop: 248046
+      message:
+        content: The file describes a routine for watering tomatoes daily and harvesting
+          the ripe ones.
+        reasoning_content: null
+        role: assistant
+    created: 1793890187
+    id: 0dcc2f5e-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 16
+      prompt_tokens: 408
+      prompt_tokens_details:
+        cached_tokens: 320
+      total_tokens: 424
+  body_bytes: !!binary |
+    eyJpZCI6IjBkY2MyZjVlLWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzODkwMTg3LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiVGhlIGZpbGUg
+    ZGVzY3JpYmVzIGEgcm91dGluZSBmb3Igd2F0ZXJpbmcgdG9tYXRvZXMgZGFpbHkgYW5kIGhhcnZl
+    c3RpbmcgdGhlIHJpcGUgb25lcy4iLCJyZWFzb25pbmdfY29udGVudCI6bnVsbH0sImZpbmlzaF9y
+    ZWFzb24iOiJzdG9wIiwibWF0Y2hlZF9zdG9wIjoyNDgwNDZ9XSwidXNhZ2UiOnsicHJvbXB0X3Rv
+    a2VucyI6NDA4LCJjb21wbGV0aW9uX3Rva2VucyI6MTYsInRvdGFsX3Rva2VucyI6NDI0LCJwcm9t
+    cHRfdG9rZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MzIwfX0sInN5c3RlbV9maW5nZXJw
+    cmludCI6ImRlZmF1bHQifQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 0dcc2f5e-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T14:49:47.169721+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

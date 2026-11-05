@@ -1,0 +1,109 @@
+filename: 2026-11-05-01a1ac2f-cbc4-7152-9ed6-7c1db56f3006
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - content: ''
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path": "index.txt"}'
+          name: read_file
+        id: chatcmpl-tool-994c8fb2cc9445e6
+        index: 0
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: chatcmpl-tool-994c8fb2cc9445e6
+    - content: ''
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path": "garden.txt"}'
+          name: read_file
+        id: chatcmpl-tool-aca9f1448e2aa8f3
+        index: 0
+        type: function
+    - content: Water the tomatoes every morning and harvest ripe fruit.
+      role: tool
+      tool_call_id: chatcmpl-tool-aca9f1448e2aa8f3
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1225'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-cbc4-7152-9ed6-7c1db56f3006
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: 'The garden.txt file contains a single sentence: "Water the tomatoes
+          every morning and harvest ripe fruit."'
+        role: assistant
+        tools: null
+    created: 1793890176
+    id: chatcmpl-7d77f28829ee48e3807c661d7118c793
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 21
+      completion_tokens_details:
+        reasoning_tokens: 0
+      output_tokens_details:
+        reasoning_tokens: 0
+      prompt_tokens: 403
+      prompt_tokens_details:
+        cached_tokens: 349
+      total_tokens: 424
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLTdkNzdmMjg4MjllZTQ4ZTM4MDdjNjYxZDcxMThjNzkzIiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzg5MDE3NiwibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    VGhlIGdhcmRlbi50eHQgZmlsZSBjb250YWlucyBhIHNpbmdsZSBzZW50ZW5jZTogXCJXYXRlciB0
+    aGUgdG9tYXRvZXMgZXZlcnkgbW9ybmluZyBhbmQgaGFydmVzdCByaXBlIGZydWl0LlwiIiwidG9v
+    bHMiOm51bGx9LCJmaW5pc2hfcmVhc29uIjoic3RvcCJ9XSwidXNhZ2UiOnsicHJvbXB0X3Rva2Vu
+    cyI6NDAzLCJ0b3RhbF90b2tlbnMiOjQyNCwiY29tcGxldGlvbl90b2tlbnMiOjIxLCJwcm9tcHRf
+    dG9rZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MzQ5fSwiY29tcGxldGlvbl90b2tlbnNf
+    ZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowfSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7
+    InJlYXNvbmluZ190b2tlbnMiOjB9fX0=
+  headers:
+    connection: keep-alive
+    content-length: '593'
+    content-type: application/json
+    x-request-id: chatcmpl-7d77f28829ee48e3807c661d7118c793
+  status_code: 200
+timestamp: '2026-11-05T14:49:35.940052+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

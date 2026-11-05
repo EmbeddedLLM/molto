@@ -20,6 +20,19 @@ DESTINATIONS = [
     ("openrouter", "responses", "https://openrouter.ai/api/v1", "/responses"),
     ("togetherai", "responses", "https://api.together.ai/v1", "/responses"),
     (
+        "fireworks",
+        "chat/completions",
+        "https://api.fireworks.ai/inference/v1",
+        "/chat/completions",
+    ),
+    ("togetherai", "chat/completions", "https://api.together.ai/v1", "/chat/completions"),
+    (
+        "bedrock",
+        "chat/completions",
+        "https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1",
+        "/chat/completions",
+    ),
+    (
         "gemini",
         "chat/completions",
         "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -241,7 +254,9 @@ async def test_hosted_providers_reject_unselected_protocols(provider, supported,
             )
         )
     ) as client:
-        for endpoint in {"responses", "chat/completions", "messages"} - {supported}:
+        for endpoint in {"responses", "chat/completions", "messages"}:
+            if (provider, endpoint) in CLIENTS:
+                continue
             with pytest.raises(ValueError):
                 await client.responses(
                     {"model": "example", "input": "Hi"},

@@ -1,0 +1,137 @@
+filename: 2026-11-05-01a1ac2f-9ee6-74f1-aee6-c590343d1a2c
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - annotations: null
+      audio: null
+      content: ''
+      function_call: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_4ec5112ac9b6527986ce6d4ff0540948
+        index: 0
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_4ec5112ac9b6527986ce6d4ff0540948
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '991'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-9ee6-74f1-aee6-c590343d1a2c
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: bce97c20-f9cc-490b-9cf2-7719448067e1
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"","role":"assistant","refusal":null},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdef"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"","name":"read_file"},"id":"call_e9430643fb64556f86892032ed2c5b41","index":0,"type":"function"}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghi"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\""},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"path"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghij"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"\":\""},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"garden"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqr"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":".txt"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrs"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"\"}"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJ"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":"tool_calls","index":0}],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdef"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[],"created":1793890164,"id":"chatcmpl-akcsduzgsyziliskwy5c4w6kh6a5bf5ah27fqu753amgcxzyyoha","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","usage":{"completion_tokens":19,"completion_tokens_details":{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":186,"prompt_tokens_details":{"audio_tokens":0,"cache_write_tokens":0,"cached_tokens":0},"total_tokens":205},"system_fingerprint":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T14:49:24.454344+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

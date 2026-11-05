@@ -1,0 +1,73 @@
+filename: 2026-11-05-01a1ac2f-950b-7090-8d60-7cc02c851248
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: global.openai.gpt-5.6-luna
+    reasoning_effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '210'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-950b-7090-8d60-7cc02c851248
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        annotations: []
+        content: SproutBot.
+        refusal: null
+        role: assistant
+    created: 1793890162
+    id: chatcmpl-pwrs6d7jniyc45kywext3nyggitwyt3fzi6lkyvuxrtygf6aq7ma
+    model: global.openai.gpt-5.6-luna
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: null
+    usage:
+      completion_tokens: 8
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 14
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+      total_tokens: 22
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImFubm90YXRpb25zIjpbXSwiY29udGVudCI6IlNwcm91dEJvdC4iLCJyZWZ1c2FsIjpudWxsLCJy
+    b2xlIjoiYXNzaXN0YW50In19XSwiY3JlYXRlZCI6MTc5Mzg5MDE2MiwiaWQiOiJjaGF0Y21wbC1w
+    d3JzNmQ3am5peWM0NWt5d2V4dDNueWdnaXR3eXQzZnppNmxreXZ1eHJ0eWdmNmFxN21hIiwibW9k
+    ZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYtbHVuYSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlv
+    biIsInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJ1c2FnZSI6eyJjb21wbGV0aW9uX3Rva2VucyI6
+    OCwiY29tcGxldGlvbl90b2tlbnNfZGV0YWlscyI6eyJhY2NlcHRlZF9wcmVkaWN0aW9uX3Rva2Vu
+    cyI6MCwiYXVkaW9fdG9rZW5zIjowLCJyZWFzb25pbmdfdG9rZW5zIjowLCJyZWplY3RlZF9wcmVk
+    aWN0aW9uX3Rva2VucyI6MH0sInByb21wdF90b2tlbnMiOjE0LCJwcm9tcHRfdG9rZW5zX2RldGFp
+    bHMiOnsiYXVkaW9fdG9rZW5zIjowLCJjYWNoZV93cml0ZV90b2tlbnMiOjAsImNhY2hlZF90b2tl
+    bnMiOjB9LCJ0b3RhbF90b2tlbnMiOjIyfSwic3lzdGVtX2ZpbmdlcnByaW50IjpudWxsfQ==
+  headers:
+    connection: keep-alive
+    content-length: '622'
+    content-type: application/json
+    x-request-id: a961364d-e911-4a1d-9ae6-2b24611c2839
+  status_code: 200
+timestamp: '2026-11-05T14:49:21.931990+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

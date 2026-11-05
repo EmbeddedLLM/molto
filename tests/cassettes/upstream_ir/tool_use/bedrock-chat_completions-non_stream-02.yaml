@@ -1,0 +1,117 @@
+filename: 2026-11-05-01a1ac2f-acc5-7960-b017-e08ca49d6573
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - annotations: []
+      content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_773902313372537881e8bd033b9b4546
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_773902313372537881e8bd033b9b4546
+    - annotations: []
+      content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"garden.txt"}'
+          name: read_file
+        id: call_9a637b01109954889f09e3b8592b7833
+        type: function
+    - content: Water the tomatoes every morning and harvest ripe fruit.
+      role: tool
+      tool_call_id: call_9a637b01109954889f09e3b8592b7833
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1268'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-acc5-7960-b017-e08ca49d6573
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        annotations: []
+        content: Water the tomatoes every morning and harvest the ripe fruit.
+        refusal: null
+        role: assistant
+    created: 1793890168
+    id: chatcmpl-ti7or4xjtkpf33cj3q75edk6kw6aiimdjywop6pdzs3ydtk52sca
+    model: global.openai.gpt-5.6-luna
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: null
+    usage:
+      completion_tokens: 15
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 219
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+      total_tokens: 234
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImFubm90YXRpb25zIjpbXSwiY29udGVudCI6IldhdGVyIHRoZSB0b21hdG9lcyBldmVyeSBtb3Ju
+    aW5nIGFuZCBoYXJ2ZXN0IHRoZSByaXBlIGZydWl0LiIsInJlZnVzYWwiOm51bGwsInJvbGUiOiJh
+    c3Npc3RhbnQifX1dLCJjcmVhdGVkIjoxNzkzODkwMTY4LCJpZCI6ImNoYXRjbXBsLXRpN29yNHhq
+    dGtwZjMzY2ozcTc1ZWRrNmt3NmFpaW1kanl3b3A2cGR6czN5ZHRrNTJzY2EiLCJtb2RlbCI6Imds
+    b2JhbC5vcGVuYWkuZ3B0LTUuNi1sdW5hIiwib2JqZWN0IjoiY2hhdC5jb21wbGV0aW9uIiwic2Vy
+    dmljZV90aWVyIjoiZGVmYXVsdCIsInVzYWdlIjp7ImNvbXBsZXRpb25fdG9rZW5zIjoxNSwiY29t
+    cGxldGlvbl90b2tlbnNfZGV0YWlscyI6eyJhY2NlcHRlZF9wcmVkaWN0aW9uX3Rva2VucyI6MCwi
+    YXVkaW9fdG9rZW5zIjowLCJyZWFzb25pbmdfdG9rZW5zIjowLCJyZWplY3RlZF9wcmVkaWN0aW9u
+    X3Rva2VucyI6MH0sInByb21wdF90b2tlbnMiOjIxOSwicHJvbXB0X3Rva2Vuc19kZXRhaWxzIjp7
+    ImF1ZGlvX3Rva2VucyI6MCwiY2FjaGVfd3JpdGVfdG9rZW5zIjowLCJjYWNoZWRfdG9rZW5zIjow
+    fSwidG90YWxfdG9rZW5zIjoyMzR9LCJzeXN0ZW1fZmluZ2VycHJpbnQiOm51bGx9
+  headers:
+    connection: keep-alive
+    content-length: '675'
+    content-type: application/json
+    x-request-id: 9887ee99-142b-4832-9e8f-8996c25779b8
+  status_code: 200
+timestamp: '2026-11-05T14:49:28.005757+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

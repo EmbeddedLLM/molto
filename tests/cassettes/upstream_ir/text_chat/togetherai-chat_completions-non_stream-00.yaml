@@ -1,0 +1,155 @@
+filename: 2026-11-05-01a1ac2e-eed8-71e3-ac1d-6c85448d51d2
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: Qwen/Qwen3.5-9B
+    reasoning:
+      enabled: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '204'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2e-eed8-71e3-ac1d-6c85448d51d2
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      matched_stop: 248046
+      message:
+        content: 'Here are a few name suggestions for a robot gardener, categorized
+          by the "vibe" they project:
+
+
+          ### Nature-Inspired & Whimsical
+
+          *These names blend gardening terminology with soft, organic sounds.*
+
+          *   **Chloris** (Greek goddess of flowers)
+
+          *   **Verdant**
+
+          *   **Bloom**
+
+          *   **Petra** (Latin for rock/stones, but sounds like "spore")
+
+          *   **Seedling**
+
+          *   **Fern & Rust**
+
+          *   **Petunia Bot**
+
+
+          ### Tech-Savvy & Functional
+
+          *These sound like practical tools designed for efficiency and precision.*
+
+          *   **AgriBot 3000**
+
+          *   **ProGroom**
+
+          *   **GreenLogic**
+
+          *   **SoilSync**
+
+          *   **Hortus AI**
+
+          *   **RootSeeker**
+
+          *   **CropGuard**
+
+
+          ### Friendly & Personable
+
+          *Names that make the machine seem like a helpful neighbor or a pet.*
+
+          *   **Genny**
+
+          *   **Bud**
+
+          *   **Pluck**
+
+          *   **Otto the Oaktress**
+
+          *   **Sprouty**
+
+          *   **Thumb** (as in "my little oatmeal thumb")
+
+          *   **Willow**
+
+
+          ### My Top Recommendation
+
+          **"Simeris"**
+
+          It sounds elegant and futuristic (like a code name), but it closely mimics
+          the sound of "simmering" soil or the gentle sound of rain falling on leaves.
+          It implies a machine that understands the delicate balance of a garden.
+
+
+          **Which style fits your robot best?** Do you want it to feel more like a
+          high-tech engineering marvel or a charming garden companion?'
+        reasoning_content: null
+        role: assistant
+    created: 1793890119
+    id: 39aa6c1c-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 373
+      prompt_tokens: 22
+      prompt_tokens_details:
+        cached_tokens: 0
+      total_tokens: 395
+  body_bytes: !!binary |
+    eyJpZCI6IjM5YWE2YzFjLWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzODkwMTE5LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiSGVyZSBhcmUg
+    YSBmZXcgbmFtZSBzdWdnZXN0aW9ucyBmb3IgYSByb2JvdCBnYXJkZW5lciwgY2F0ZWdvcml6ZWQg
+    YnkgdGhlIFwidmliZVwiIHRoZXkgcHJvamVjdDpcblxuIyMjIE5hdHVyZS1JbnNwaXJlZCAmIFdo
+    aW1zaWNhbFxuKlRoZXNlIG5hbWVzIGJsZW5kIGdhcmRlbmluZyB0ZXJtaW5vbG9neSB3aXRoIHNv
+    ZnQsIG9yZ2FuaWMgc291bmRzLipcbiogICAqKkNobG9yaXMqKiAoR3JlZWsgZ29kZGVzcyBvZiBm
+    bG93ZXJzKVxuKiAgICoqVmVyZGFudCoqXG4qICAgKipCbG9vbSoqXG4qICAgKipQZXRyYSoqIChM
+    YXRpbiBmb3Igcm9jay9zdG9uZXMsIGJ1dCBzb3VuZHMgbGlrZSBcInNwb3JlXCIpXG4qICAgKipT
+    ZWVkbGluZyoqXG4qICAgKipGZXJuICYgUnVzdCoqXG4qICAgKipQZXR1bmlhIEJvdCoqXG5cbiMj
+    IyBUZWNoLVNhdnZ5ICYgRnVuY3Rpb25hbFxuKlRoZXNlIHNvdW5kIGxpa2UgcHJhY3RpY2FsIHRv
+    b2xzIGRlc2lnbmVkIGZvciBlZmZpY2llbmN5IGFuZCBwcmVjaXNpb24uKlxuKiAgICoqQWdyaUJv
+    dCAzMDAwKipcbiogICAqKlByb0dyb29tKipcbiogICAqKkdyZWVuTG9naWMqKlxuKiAgICoqU29p
+    bFN5bmMqKlxuKiAgICoqSG9ydHVzIEFJKipcbiogICAqKlJvb3RTZWVrZXIqKlxuKiAgICoqQ3Jv
+    cEd1YXJkKipcblxuIyMjIEZyaWVuZGx5ICYgUGVyc29uYWJsZVxuKk5hbWVzIHRoYXQgbWFrZSB0
+    aGUgbWFjaGluZSBzZWVtIGxpa2UgYSBoZWxwZnVsIG5laWdoYm9yIG9yIGEgcGV0LipcbiogICAq
+    Kkdlbm55KipcbiogICAqKkJ1ZCoqXG4qICAgKipQbHVjayoqXG4qICAgKipPdHRvIHRoZSBPYWt0
+    cmVzcyoqXG4qICAgKipTcHJvdXR5KipcbiogICAqKlRodW1iKiogKGFzIGluIFwibXkgbGl0dGxl
+    IG9hdG1lYWwgdGh1bWJcIilcbiogICAqKldpbGxvdyoqXG5cbiMjIyBNeSBUb3AgUmVjb21tZW5k
+    YXRpb25cbioqXCJTaW1lcmlzXCIqKlxuSXQgc291bmRzIGVsZWdhbnQgYW5kIGZ1dHVyaXN0aWMg
+    KGxpa2UgYSBjb2RlIG5hbWUpLCBidXQgaXQgY2xvc2VseSBtaW1pY3MgdGhlIHNvdW5kIG9mIFwi
+    c2ltbWVyaW5nXCIgc29pbCBvciB0aGUgZ2VudGxlIHNvdW5kIG9mIHJhaW4gZmFsbGluZyBvbiBs
+    ZWF2ZXMuIEl0IGltcGxpZXMgYSBtYWNoaW5lIHRoYXQgdW5kZXJzdGFuZHMgdGhlIGRlbGljYXRl
+    IGJhbGFuY2Ugb2YgYSBnYXJkZW4uXG5cbioqV2hpY2ggc3R5bGUgZml0cyB5b3VyIHJvYm90IGJl
+    c3Q/KiogRG8geW91IHdhbnQgaXQgdG8gZmVlbCBtb3JlIGxpa2UgYSBoaWdoLXRlY2ggZW5naW5l
+    ZXJpbmcgbWFydmVsIG9yIGEgY2hhcm1pbmcgZ2FyZGVuIGNvbXBhbmlvbj8iLCJyZWFzb25pbmdf
+    Y29udGVudCI6bnVsbH0sImZpbmlzaF9yZWFzb24iOiJzdG9wIiwibWF0Y2hlZF9zdG9wIjoyNDgw
+    NDZ9XSwidXNhZ2UiOnsicHJvbXB0X3Rva2VucyI6MjIsImNvbXBsZXRpb25fdG9rZW5zIjozNzMs
+    InRvdGFsX3Rva2VucyI6Mzk1LCJwcm9tcHRfdG9rZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2Vu
+    cyI6MH19LCJzeXN0ZW1fZmluZ2VycHJpbnQiOiJkZWZhdWx0In0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 39aa6c1c-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T14:48:39.384697+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions
