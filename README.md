@@ -90,6 +90,17 @@ except openai.APIStatusError as error:
 
 Unknown errors pass through unchanged. See the [shared error contract](docs/errors.md) for HTTP mappings, Responses failures during streaming, and the deliberate synthetic `401` for missing SDK credentials.
 
+## Test coverage
+
+CI runs the offline replay suite on Python 3.12, 3.13, and 3.14 and posts a coverage comment for each version on pull requests. Each comment includes test results and coverage details for changed files, and is updated on subsequent runs. Comment posting is best-effort because fork pull requests may have read-only tokens; a posting failure does not hide test failures.
+
+After installing `.[test]`, generate the same reports locally with:
+
+```bash
+python -m pytest --cov=python/molto --cov-report=term-missing \
+  --cov-report=xml:coverage.xml --junitxml=junit/pytest.xml
+```
+
 ## OpenAI schema monitoring
 
 The [OpenAI OpenAPI compatibility workflow](.github/workflows/weekly-provider-tests.yml) runs weekly on Tuesdays at 09:00 UTC from the default branch. It compares a pinned OpenAPI snapshot against upstream `main` for Chat Completions and Responses. It needs no API credentials and makes no model requests.
