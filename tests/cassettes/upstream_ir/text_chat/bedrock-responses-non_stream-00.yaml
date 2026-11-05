@@ -1,0 +1,119 @@
+filename: 2026-11-05-01a1aab8-e781-7160-af4d-e3fc69a81518
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '228'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-e781-7160-af4d-e3fc69a81518
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1793865607
+    created_at: 1793865607
+    error: null
+    frequency_penalty: 0.0
+    id: resp_oqoih6h2g47bnceyx5wf72ho4o4gg5vxkjz3kl5kqlsm4tw6tqba
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: global.openai.gpt-5.6-luna
+    moderation: null
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: Rooty McSprout.
+        type: output_text
+      id: msg_009f98f3cf515552a462b5ce542f59f0
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: all_turns
+      effort: none
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 14
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 10
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 24
+    user: null
+  body_bytes: !!binary |
+    eyJiYWNrZ3JvdW5kIjpmYWxzZSwiYmlsbGluZyI6eyJwYXllciI6ImRldmVsb3BlciJ9LCJjb21w
+    bGV0ZWRfYXQiOjE3OTM4NjU2MDcsImNyZWF0ZWRfYXQiOjE3OTM4NjU2MDcsImVycm9yIjpudWxs
+    LCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJpZCI6InJlc3Bfb3FvaWg2aDJnNDdibmNleXg1d2Y3
+    MmhvNG80Z2c1dnhranoza2w1a3Fsc200dHc2dHFiYSIsImluY29tcGxldGVfZGV0YWlscyI6bnVs
+    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwibWF4X3Rvb2xf
+    Y2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYt
+    bHVuYSIsIm9iamVjdCI6InJlc3BvbnNlIiwib3V0cHV0IjpbeyJjb250ZW50IjpbeyJhbm5vdGF0
+    aW9ucyI6W10sImxvZ3Byb2JzIjpbXSwidGV4dCI6IlJvb3R5IE1jU3Byb3V0LiIsInR5cGUiOiJv
+    dXRwdXRfdGV4dCJ9XSwiaWQiOiJtc2dfMDA5Zjk4ZjNjZjUxNTU1MmE0NjJiNWNlNTQyZjU5ZjAi
+    LCJwaGFzZSI6ImZpbmFsX2Fuc3dlciIsInJvbGUiOiJhc3Npc3RhbnQiLCJzdGF0dXMiOiJjb21w
+    bGV0ZWQiLCJ0eXBlIjoibWVzc2FnZSJ9XSwicGFyYWxsZWxfdG9vbF9jYWxscyI6dHJ1ZSwicHJl
+    c2VuY2VfcGVuYWx0eSI6MC4wLCJwcmV2aW91c19yZXNwb25zZV9pZCI6bnVsbCwicHJvbXB0X2Nh
+    Y2hlX2tleSI6bnVsbCwicHJvbXB0X2NhY2hlX3JldGVudGlvbiI6ImluX21lbW9yeSIsInJlYXNv
+    bmluZyI6eyJzdW1tYXJ5IjpudWxsLCJlZmZvcnQiOiJub25lIiwiY29udGV4dCI6ImFsbF90dXJu
+    cyJ9LCJzYWZldHlfaWRlbnRpZmllciI6bnVsbCwic2VydmljZV90aWVyIjoiZGVmYXVsdCIsInN0
+    YXR1cyI6ImNvbXBsZXRlZCIsInN0b3JlIjpmYWxzZSwidGVtcGVyYXR1cmUiOjEuMCwidGV4dCI6
+    eyJmb3JtYXQiOnsidHlwZSI6InRleHQifSwidmVyYm9zaXR5IjoibWVkaXVtIn0sInRvb2xfY2hv
+    aWNlIjoiYXV0byIsInRvb2xzIjpbXSwidG9wX2xvZ3Byb2JzIjowLCJ0b3BfcCI6MC45OCwidHJ1
+    bmNhdGlvbiI6ImRpc2FibGVkIiwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNCwiaW5wdXRfdG9r
+    ZW5zX2RldGFpbHMiOnsiY2FjaGVfd3JpdGVfdG9rZW5zIjowLCJjYWNoZWRfdG9rZW5zIjowfSwi
+    b3V0cHV0X3Rva2VucyI6MTAsIm91dHB1dF90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9r
+    ZW5zIjowfSwidG90YWxfdG9rZW5zIjoyNH0sInVzZXIiOm51bGwsIm1vZGVyYXRpb24iOm51bGx9
+  headers:
+    connection: keep-alive
+    content-length: '1254'
+    content-type: application/json
+    x-request-id: 7b94bef1-e188-4ecd-8938-8dcdf4126d76
+  status_code: 200
+timestamp: '2026-11-05T08:00:07.041590+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

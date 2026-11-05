@@ -1,7 +1,8 @@
 import sys
+from typing import Annotated
 
 from loguru import logger
-from pydantic import SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_HS256_SECRET_BYTES = 32
@@ -24,7 +25,10 @@ class EnvConfig(BaseSettings):
     molto_log_level_stderr: str = "INFO"
     # External services
     anthropic_api_key: SecretStr = ""
-    aws_bearer_token_bedrock: SecretStr = ""
+    aws_bearer_token_bedrock: Annotated[
+        SecretStr,
+        Field(validation_alias=AliasChoices("aws_bearer_token_bedrock", "BEDROCK_API_KEY")),
+    ] = ""
     deepseek_api_key: SecretStr = ""
     fireworks_api_key: SecretStr = ""
     gemini_api_key: SecretStr = ""

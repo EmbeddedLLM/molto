@@ -1,0 +1,148 @@
+filename: 2026-11-05-01a1aab8-faea-7501-b4ab-05661ca5e241
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '600'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-faea-7501-b4ab-05661ca5e241
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1793865612
+    created_at: 1793865612
+    error: null
+    frequency_penalty: 0.0
+    id: resp_o2lhgi3icp3gi2d6bbsjj2orjfs6v6nyx3djaiynvdqjoaw2atva
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: global.openai.gpt-5.6-luna
+    moderation: null
+    object: response
+    output:
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_d8cbc14ba1615d1cb00ff5ae0440a064
+      id: fc_97193d754f4b5bb5b859e17c66e15fd6
+      name: read_file
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: all_turns
+      effort: none
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      output_schema: null
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 149
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 19
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 168
+    user: null
+  body_bytes: !!binary |
+    eyJiYWNrZ3JvdW5kIjpmYWxzZSwiYmlsbGluZyI6eyJwYXllciI6ImRldmVsb3BlciJ9LCJjb21w
+    bGV0ZWRfYXQiOjE3OTM4NjU2MTIsImNyZWF0ZWRfYXQiOjE3OTM4NjU2MTIsImVycm9yIjpudWxs
+    LCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJpZCI6InJlc3BfbzJsaGdpM2ljcDNnaTJkNmJic2pq
+    Mm9yamZzNnY2bnl4M2RqYWl5bnZkcWpvYXcyYXR2YSIsImluY29tcGxldGVfZGV0YWlscyI6bnVs
+    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwibWF4X3Rvb2xf
+    Y2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYt
+    bHVuYSIsIm9iamVjdCI6InJlc3BvbnNlIiwib3V0cHV0IjpbeyJhcmd1bWVudHMiOiJ7XCJwYXRo
+    XCI6XCJpbmRleC50eHRcIn0iLCJjYWxsX2lkIjoiY2FsbF9kOGNiYzE0YmExNjE1ZDFjYjAwZmY1
+    YWUwNDQwYTA2NCIsImlkIjoiZmNfOTcxOTNkNzU0ZjRiNWJiNWI4NTllMTdjNjZlMTVmZDYiLCJu
+    YW1lIjoicmVhZF9maWxlIiwic3RhdHVzIjoiY29tcGxldGVkIiwidHlwZSI6ImZ1bmN0aW9uX2Nh
+    bGwifV0sInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZhbHNlLCJwcmVzZW5jZV9wZW5hbHR5IjowLjAs
+    InByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9t
+    cHRfY2FjaGVfcmV0ZW50aW9uIjoiaW5fbWVtb3J5IiwicmVhc29uaW5nIjp7InN1bW1hcnkiOm51
+    bGwsImVmZm9ydCI6Im5vbmUiLCJjb250ZXh0IjoiYWxsX3R1cm5zIn0sInNhZmV0eV9pZGVudGlm
+    aWVyIjpudWxsLCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0Iiwic3RhdHVzIjoiY29tcGxldGVkIiwi
+    c3RvcmUiOmZhbHNlLCJ0ZW1wZXJhdHVyZSI6MS4wLCJ0ZXh0Ijp7ImZvcm1hdCI6eyJ0eXBlIjoi
+    dGV4dCJ9LCJ2ZXJib3NpdHkiOiJtZWRpdW0ifSwidG9vbF9jaG9pY2UiOiJhdXRvIiwidG9vbHMi
+    Olt7ImRlc2NyaXB0aW9uIjoiUmVhZCBhIGZpbGUgYnkgaXRzIHBhdGguIiwibmFtZSI6InJlYWRf
+    ZmlsZSIsIm91dHB1dF9zY2hlbWEiOm51bGwsInBhcmFtZXRlcnMiOnsiYWRkaXRpb25hbFByb3Bl
+    cnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7InBhdGgiOnsidHlwZSI6InN0cmluZyJ9fSwicmVx
+    dWlyZWQiOlsicGF0aCJdLCJ0eXBlIjoib2JqZWN0In0sInN0cmljdCI6ZmFsc2UsInR5cGUiOiJm
+    dW5jdGlvbiJ9XSwidG9wX2xvZ3Byb2JzIjowLCJ0b3BfcCI6MC45OCwidHJ1bmNhdGlvbiI6ImRp
+    c2FibGVkIiwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNDksImlucHV0X3Rva2Vuc19kZXRhaWxz
+    Ijp7ImNhY2hlX3dyaXRlX3Rva2VucyI6MCwiY2FjaGVkX3Rva2VucyI6MH0sIm91dHB1dF90b2tl
+    bnMiOjE5LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH0sInRv
+    dGFsX3Rva2VucyI6MTY4fSwidXNlciI6bnVsbCwibW9kZXJhdGlvbiI6bnVsbH0=
+  headers:
+    connection: keep-alive
+    content-length: '1472'
+    content-type: application/json
+    x-request-id: dec5833a-e5b5-4de1-93b9-b424342298ed
+  status_code: 200
+timestamp: '2026-11-05T08:00:12.010751+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

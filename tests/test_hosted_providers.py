@@ -10,7 +10,7 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import SecretStr
 
 from molto import Molto
-from molto.configs import ENV_CONFIG
+from molto.configs import ENV_CONFIG, EnvConfig
 from molto.providers import PROVIDER_CAPABILITIES, PROVIDER_KEY_NAMES
 from molto.upstream.registry import CLIENTS
 from molto.utils.io import dumps_sse, json_loads, read_yaml
@@ -32,6 +32,68 @@ DESTINATIONS = [
         "/responses",
     ),
 ]
+
+
+@pytest.mark.parametrize("source", ["environment", "dotenv"])
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["AWS_BEARER_TOKEN_BEDROCK"],
+        ["BEDROCK_API_KEY"],
+        ["AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_API_KEY"],
+    ],
+)
+def test_bedrock_credential_alias_preserves_secret_and_name_precedence(
+    source, names, monkeypatch, tmp_path
+):
+    """Ensures both names load one secret field, preferring the AWS name within each source."""
+    for name in ("AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    values = {name: f"synthetic-{index}" for index, name in enumerate(names)}
+    env_file = None
+    if source == "environment":
+        for name, value in values.items():
+            monkeypatch.setenv(name, value)
+    else:
+        env_file = tmp_path / ".env"
+        env_file.write_text("\n".join(f"{name}={value}" for name, value in values.items()))
+    config = EnvConfig(_env_file=env_file)
+    credential = config.aws_bearer_token_bedrock
+    assert isinstance(credential, SecretStr)
+    assert credential.get_secret_value() == "synthetic-0"
+    assert str(credential) == "**********"
+    assert config.model_dump()["aws_bearer_token_bedrock"] is credential
+
+
+@pytest.mark.parametrize("field", ["aws_bearer_token_bedrock", "BEDROCK_API_KEY"])
+def test_bedrock_constructor_credential_overrides_environment(field, monkeypatch):
+    """Ensures explicit settings construction keeps precedence over either environment name."""
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "synthetic-aws")
+    monkeypatch.setenv("BEDROCK_API_KEY", "synthetic-alias")
+    config = EnvConfig(_env_file=None, **{field: "synthetic-explicit"})
+    assert config.aws_bearer_token_bedrock.get_secret_value() == "synthetic-explicit"
+
+
+@pytest.mark.parametrize(
+    ("environment_name", "dotenv_name", "expected"),
+    [
+        ("AWS_BEARER_TOKEN_BEDROCK", "AWS_BEARER_TOKEN_BEDROCK", "synthetic-environment"),
+        ("BEDROCK_API_KEY", "BEDROCK_API_KEY", "synthetic-environment"),
+        ("AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_API_KEY", "synthetic-environment"),
+        ("BEDROCK_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "synthetic-file"),
+    ],
+)
+def test_bedrock_alias_and_source_precedence(
+    environment_name, dotenv_name, expected, monkeypatch, tmp_path
+):
+    """Ensures the AWS name takes priority while same-name environment values override dotenv."""
+    for name in ("AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(environment_name, "synthetic-environment")
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{dotenv_name}=synthetic-file\n")
+    config = EnvConfig(_env_file=env_file)
+    assert config.aws_bearer_token_bedrock.get_secret_value() == expected
 
 
 def cassette(protocol, stream):

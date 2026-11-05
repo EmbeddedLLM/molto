@@ -33,6 +33,7 @@ from molto.types.normalized import (
     UserInput,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.bedrock import BedrockResponsesClient
 from molto.upstream.fireworks import FireworksResponsesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.upstream.openrouter import OpenRouterResponsesClient
@@ -43,6 +44,7 @@ CLIENTS = {
     OpenAIResponsesClient: ("openai", "responses"),
     OpenAIChatCompletionsClient: ("openai", "chat_completions"),
     AnthropicMessagesClient: ("anthropic", "messages"),
+    BedrockResponsesClient: ("bedrock", "responses"),
     FireworksResponsesClient: ("fireworks", "responses"),
     OpenRouterResponsesClient: ("openrouter", "responses"),
     TogetherAIResponsesClient: ("togetherai", "responses"),
@@ -490,13 +492,14 @@ async def test_provider_native_responses_conversation(provider, scenario, mode):
     history = deepcopy(cassettes[0]["request"]["body"]["input"])
     for turn, cassette in enumerate(cassettes):
         recorded = cassette["request"]["body"]
+        base_url = cassette["upstream_url"].removesuffix("/responses")
         assert history == recorded["input"]
         body, extras = _sdk_body({**recorded, "input": history})
         calls = []
 
         def handle(request, cassette=cassette, recorded=recorded, calls=calls):
             calls.append(request)
-            assert request.url.path == cassette["request"]["path"]
+            assert str(request.url) == cassette["upstream_url"]
             assert request.headers["authorization"] == "Bearer test-key"
             assert json_loads(request.content) == recorded
             return _recorded_response(cassette)
@@ -504,7 +507,7 @@ async def test_provider_native_responses_conversation(provider, scenario, mode):
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
             sdk = AsyncOpenAI(
                 api_key="test-key",
-                base_url=PROVIDER_RESPONSES_CLIENTS[provider].DEFAULT_BASE_URL,
+                base_url=base_url,
                 http_client=transport,
                 max_retries=0,
             )
@@ -516,7 +519,11 @@ async def test_provider_native_responses_conversation(provider, scenario, mode):
         ) as molto:
             actual, actual_events = await _collect_responses(
                 await molto.responses(
-                    body, provider=provider, api_key="test-key", extra_body=extras
+                    body,
+                    provider=provider,
+                    api_key="test-key",
+                    base_url=base_url,
+                    extra_body=extras,
                 ),
                 stream,
             )
@@ -578,7 +585,9 @@ def _expected_responses_wire(recorded):
         if item.get("role") == "assistant":
             # IR text parts do not carry their enclosing source message's ID.
             item.pop("id", None)
-            assert item.get("phase") is None
+            # Reconstructed Responses history intentionally omits native phase;
+            # the SDK parity path above still preserves the provider's value.
+            assert item.get("phase") in (None, "commentary", "final_answer")
             item.pop("phase", None)
             for part in item["content"]:
                 part.setdefault("annotations", [])
@@ -615,13 +624,16 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
         ]
     for turn, cassette in enumerate(cassettes):
         recorded = cassette["request"]["body"]
+        base_url = cassette["upstream_url"].removesuffix("/responses")
         body, extras = _sdk_body(recorded)
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(
                 lambda _, cassette=cassette: _recorded_response(cassette)
             )
         ) as transport:
-            sdk = AsyncOpenAI(api_key="test-key", http_client=transport, max_retries=0)
+            sdk = AsyncOpenAI(
+                api_key="test-key", base_url=base_url, http_client=transport, max_retries=0
+            )
             reference, source_events = await _collect_responses(
                 await sdk.responses.create(**body, extra_body=extras), True
             )
@@ -630,7 +642,7 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
 
         def handle(http_request, expected=expected, cassette=cassette, calls=calls):
             calls.append(http_request)
-            assert http_request.url.path == cassette["request"]["path"]
+            assert str(http_request.url) == cassette["upstream_url"]
             assert json_loads(http_request.content) == expected
             return _recorded_response(cassette)
 
@@ -657,6 +669,7 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
                 transport,
                 api_key="test-key",
                 capabilities=client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider]),
+                base_url=base_url,
                 extra_body=controls,
             )
             before = request.model_copy(deep=True)
@@ -732,11 +745,14 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
     """Ensures public projections preserve raw reasoning or reject unsigned summaries from actual Responses evidence."""
     cassette = _provider_turns(provider, "tool_use_reasoning", "stream")[0]
     recorded = cassette["request"]["body"]
+    base_url = cassette["upstream_url"].removesuffix("/responses")
     sdk_body, extras = _sdk_body(recorded)
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(lambda _: _recorded_response(cassette))
     ) as transport:
-        sdk = AsyncOpenAI(api_key="test-key", http_client=transport, max_retries=0)
+        sdk = AsyncOpenAI(
+            api_key="test-key", base_url=base_url, http_client=transport, max_retries=0
+        )
         reference, _ = await _collect_responses(
             await sdk.responses.create(**sdk_body, extra_body=extras), True
         )
@@ -781,7 +797,7 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
 
     def handle(request):
         calls.append(request)
-        assert request.url.path == cassette["request"]["path"]
+        assert str(request.url) == cassette["upstream_url"]
         assert json_loads(request.content) == expected
         return _recorded_response(cassette)
 
@@ -800,6 +816,7 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
                     body,
                     provider=provider,
                     endpoint="responses",
+                    base_url=base_url,
                     api_key="test-key",
                     extra_body=controls,
                 )
@@ -809,7 +826,12 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
             assert len(calls) == 1
             return
         result = await getattr(molto, downstream)(
-            body, provider=provider, endpoint="responses", api_key="test-key", extra_body=controls
+            body,
+            provider=provider,
+            endpoint="responses",
+            base_url=base_url,
+            api_key="test-key",
+            extra_body=controls,
         )
         if stream:
             actual = None
