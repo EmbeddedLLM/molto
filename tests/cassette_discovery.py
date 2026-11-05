@@ -20,6 +20,7 @@ ENCRYPTED_SCENARIOS = (
 SCENARIO_PROTOCOLS = dict.fromkeys(
     (
         "simple_text",
+        "sampling_tests",
         "reasoning_raw",
         "input_image_base64",
         "input_image_remote_url",
@@ -220,7 +221,7 @@ def public_conversations(root: Path) -> tuple[Conversation, ...]:
         if (
             root.name == "matched"
             and conversation.mode == "non_stream"
-            and scenario not in {"simple_text", "reasoning_encrypted"}
+            and scenario not in {"simple_text", "sampling_tests", "reasoning_encrypted"}
         ):
             raise ValueError(
                 f"Unsupported matched response mode in {conversation.id}; add scenario assertions"

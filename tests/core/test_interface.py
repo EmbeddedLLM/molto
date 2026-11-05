@@ -150,7 +150,13 @@ NATIVE_SDK_CONVERSATIONS = (
         conversation
         for conversation in MATCHED_CONVERSATIONS
         if conversation.scenario
-        in {"simple_text", "tool_call", "tool_call_image_result_parallel", *PROMPT_CACHE_SCENARIOS}
+        in {
+            "simple_text",
+            "sampling_tests",
+            "tool_call",
+            "tool_call_image_result_parallel",
+            *PROMPT_CACHE_SCENARIOS,
+        }
         or conversation.mode == "non_stream"
     ),
     *NATIVE_CONVERSATIONS,
@@ -2401,12 +2407,20 @@ async def _assert_request_parity(
     expected_additions: dict[str, Any],
     *,
     provider: Provider | None = None,
+    stream: bool = True,
 ) -> None:
-    """Assert the outgoing request and parity with parsed downstream SDK events."""
-    downstream_path = _simple_text_cassette(downstream)
-    upstream_path = _simple_text_cassette(upstream)
-    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+    """Assert the outgoing request and parity with independently parsed SDK output."""
+    mode = "stream" if stream or downstream != upstream else "non_stream"
+    downstream_path = _matched_cassette_path("simple_text", downstream, f"{mode}-00.yaml")
+    upstream_path = _matched_cassette_path("simple_text", upstream, f"{mode}-00.yaml")
+    body = (
+        deepcopy(_read_cassette(downstream_path)["request"]["body"])
+        | additions
+        | {"stream": stream}
+    )
     expected_body = deepcopy(_read_cassette(upstream_path)["request"]["body"]) | expected_additions
+    if downstream == upstream:
+        expected_body["stream"] = stream
 
     async with _get_http_client(
         [upstream_path],
@@ -2414,13 +2428,24 @@ async def _assert_request_parity(
         translated=downstream != upstream,
         expected_body=expected_body,
     ) as http_client:
-        stream = await _coordinator(Molto(http_client=http_client), downstream)(
+        result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body,
             endpoint=upstream,
             provider=provider or _provider_from_cassette_path(upstream_path),
             api_key="test-api-key",
         )
-        events = [event async for event in stream]
+        if stream:
+            events = [event async for event in result]
+
+    if not stream:
+        _assert_matched_response(
+            result,
+            downstream,
+            _completed_responses_body(
+                _matched_cassette_path("simple_text", "responses", f"{mode}-00.yaml")
+            ),
+        )
+        return
 
     # Reuse the recorded response without rewriting fixtures: these tests exercise
     # request projection and stream fidelity, not the provider's acceptance of the modified input.
@@ -2478,6 +2503,33 @@ async def _assert_request_parity(
         actual = [reconstructable_anthropic_event(sse) for sse in actual_sse]
         expected = [reconstructable_anthropic_event(sse) for sse in expected_sse]
     assert actual == expected
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+@pytest.mark.parametrize(
+    "controls",
+    [
+        {"temperature": 0.45},
+        {"top_p": 0.55},
+        {"temperature": 0.0},
+        {"top_p": 0.0},
+        {},
+        {"temperature": None, "top_p": None},
+    ],
+    ids=["temperature", "top_p", "zero_temperature", "zero_top_p", "omitted", "explicit_none"],
+)
+async def test_sampling_controls_preserve_public_request_and_sdk_output(
+    downstream: Protocol, upstream: Protocol, stream: bool, controls: dict[str, float | None]
+) -> None:
+    """Ensures sampling values and omissions survive every route and downstream response mode."""
+    await _assert_request_parity(
+        downstream,
+        upstream,
+        controls,
+        {key: value for key, value in controls.items() if value is not None},
+        stream=stream,
+    )
 
 
 async def _assert_prompt_cache_rejected(

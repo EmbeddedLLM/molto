@@ -1,0 +1,65 @@
+filename: 2026-11-04-01a1a54a-d6bd-7542-ab14-f3f7ececf03d
+request:
+  body:
+    max_completion_tokens: 128
+    messages:
+    - content:
+      - text: Reply with one short sentence about the ocean.
+        type: text
+      role: user
+    - content: The ocean covers over 70% of the Earth's surface and is vital for life.
+      role: assistant
+    - content:
+      - text: Reply with one short sentence about a forest.
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+    top_p: 0.55
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '397'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1a54a-d6bd-7542-ab14-f3f7ececf03d
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      message:
+        annotations: []
+        content: A forest is a dense collection of trees that provides habitat for
+          countless species.
+        refusal: null
+        role: assistant
+    created: 1793774508
+    id: chatcmpl-EgOyqZXfukrRSSnKIF2AacXmKUryN
+    model: gpt-4.1-mini-2025-04-14
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: fp_6d6e47cc7e
+    usage:
+      completion_tokens: 15
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 50
+      prompt_tokens_details:
+        audio_tokens: 0
+        cached_tokens: 0
+      total_tokens: 65
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T06:41:47.709625+00:00'
