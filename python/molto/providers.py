@@ -14,10 +14,11 @@ class ProviderCapabilities:
     # Only the resolved Responses client can opt into explicit wire labels;
     # ambiguous Chat/Messages input still uses `thinking`.
     responses_reasoning: Literal["profile", "wire"] = "profile"
+    requires_search_history_state: bool = False
 
 
 PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
-    "anthropic": ProviderCapabilities(thinking="summary"),
+    "anthropic": ProviderCapabilities(thinking="summary", requires_search_history_state=True),
     "bedrock": ProviderCapabilities(thinking="summary"),
     "fireworks": ProviderCapabilities(thinking="summary"),
     "openai": ProviderCapabilities(thinking="summary"),

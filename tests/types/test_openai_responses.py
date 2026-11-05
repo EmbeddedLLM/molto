@@ -1,10 +1,14 @@
 import inspect
+from copy import deepcopy
 from typing import get_args
 
 import pytest
 from openai.resources.responses.responses import AsyncResponses
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response import Response
+from openai.types.responses.response_function_web_search_param import (
+    ResponseFunctionWebSearchParam,
+)
 from openai.types.responses.response_input_param import Message as SDKResponseInputMessageParam
 from openai.types.responses.response_input_param import ResponseInputItemParam
 from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
@@ -19,6 +23,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
     ResponseEasyInputMessageParam,
+    ResponseFunctionWebSearchHistoryParam,
     ResponseInputMessageParam,
     ResponseOutputMessageOptionalIDParam,
     ResponseReasoningItemOptionalIDParam,
@@ -57,6 +62,7 @@ def test_request_fields_match_responses_create_body_parameters():
 
 
 def test_request_input_replaces_only_sdk_history_types():
+    """Ensures local history extensions retain every other native SDK input variant."""
     sdk_items = set(get_args(ResponseInputItemParam))
     molto_items = set(get_args(OpenAIResponsesInputItemParam))
 
@@ -65,12 +71,142 @@ def test_request_input_replaces_only_sdk_history_types():
         SDKResponseInputMessageParam,
         ResponseReasoningItemParam,
         ResponseOutputMessageParam,
+        ResponseFunctionWebSearchParam,
     } | {
         ResponseEasyInputMessageParam,
         ResponseInputMessageParam,
         ResponseReasoningItemOptionalIDParam,
         ResponseOutputMessageOptionalIDParam,
+        ResponseFunctionWebSearchHistoryParam,
     }
+
+
+def _search_history():
+    return [
+        {
+            "type": "web_search_call",
+            "id": "srvtoolu_search",
+            "status": "completed",
+            "action": {
+                "type": "search",
+                "query": "example",
+                "sources": [{"type": "url", "url": "https://example.com"}],
+            },
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "An example.",
+                    "annotations": [
+                        {
+                            "type": "url_citation",
+                            "url": "https://example.com",
+                            "title": "Example",
+                            "start_index": 0,
+                            "end_index": 11,
+                        }
+                    ],
+                }
+            ],
+        },
+    ]
+
+
+@pytest.mark.parametrize("metadata_location", ["none", "source", "citation", "both"])
+def test_search_history_metadata_survives_repeated_serialization(metadata_location):
+    """Ensures source and citation state survives JSON history replay without consumed iterators."""
+    history = _search_history()
+    if metadata_location in {"source", "both"}:
+        history[0]["action"]["sources"][0]["extra_content"] = {
+            "anthropic": {
+                "encrypted_content": "opaque-source",
+                "title": "Original source title",
+                "page_age": "2026-10-01",
+            }
+        }
+    if metadata_location in {"citation", "both"}:
+        history[1]["content"][0]["annotations"][0]["extra_content"] = {
+            "anthropic": {"encrypted_index": "opaque-index", "cited_text": "Original excerpt"}
+        }
+
+    request = OpenAIResponsesCreateRequest(input=history, model="claude-sonnet-4-6")
+
+    assert request.has_anthropic_search_metadata() is (metadata_location != "none")
+    assert request.model_dump()["input"] == history
+    assert request.model_dump()["input"] == history
+    restored = OpenAIResponsesCreateRequest.model_validate_json(request.model_dump_json())
+    assert restored.model_dump()["input"] == history
+    assert restored.has_anthropic_search_metadata() is (metadata_location != "none")
+
+
+@pytest.mark.parametrize(
+    ("location", "metadata"),
+    [
+        ("source", {}),
+        ("source", {"anthropic": {}}),
+        ("source", {"anthropic": {"encrypted_content": 1}}),
+        ("source", {"anthropic": {"encrypted_content": "opaque", "unknown": True}}),
+        ("source", {"openai": {"encrypted_content": "opaque"}}),
+        ("source", {"anthropic": {"encrypted_content": "opaque"}, "unknown": {}}),
+        ("citation", {}),
+        ("citation", {"anthropic": {"encrypted_index": "opaque"}}),
+        ("citation", {"anthropic": {"cited_text": "Excerpt"}}),
+        ("citation", {"anthropic": {"encrypted_index": [], "cited_text": "Excerpt"}}),
+        (
+            "citation",
+            {"anthropic": {"encrypted_index": "opaque", "cited_text": "Excerpt", "extra": 1}},
+        ),
+    ],
+)
+def test_search_history_rejects_invalid_extra_content(location, metadata):
+    """Ensures malformed or unknown search-state fields fail during request validation."""
+    history = _search_history()
+    target = (
+        history[0]["action"]["sources"][0]
+        if location == "source"
+        else history[1]["content"][0]["annotations"][0]
+    )
+    target["extra_content"] = metadata
+
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(input=history, model="claude-sonnet-4-6")
+
+
+def test_search_extension_preserves_other_sdk_actions_and_annotations():
+    """Ensures search metadata support preserves native browsing and non-URL annotations."""
+    history = _search_history()
+    for action in (
+        {"type": "open_page", "url": "https://example.com"},
+        {"type": "find_in_page", "url": "https://example.com", "pattern": "example"},
+    ):
+        call = deepcopy(history[0])
+        call["action"] = action
+        history.insert(0, call)
+    history[-1]["content"][0]["annotations"].extend(
+        [
+            {"type": "file_citation", "file_id": "file_1", "filename": "a.txt", "index": 0},
+            {"type": "file_path", "file_id": "file_1", "index": 0},
+            {
+                "type": "container_file_citation",
+                "container_id": "container_1",
+                "file_id": "file_1",
+                "filename": "a.txt",
+                "start_index": 0,
+                "end_index": 11,
+            },
+        ]
+    )
+    history[-1]["content"].append({"type": "refusal", "refusal": "Unable to answer."})
+
+    request = OpenAIResponsesCreateRequest(input=history, model="gpt-4o-mini")
+
+    assert not request.has_anthropic_search_metadata()
+    assert request.model_dump()["input"] == history
+    assert request.model_dump()["input"] == history
 
 
 @pytest.mark.parametrize(

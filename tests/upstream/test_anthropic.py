@@ -837,7 +837,7 @@ def test_client_projects_prompt_cache_as_automatic_cache_control():
 
 
 def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
-    """Ensures Messages retains adjacent containers, empty text, markers, and block ordering."""
+    """Ensures Messages retains adjacent containers, text, markers, and block ordering."""
     request = NormalizedRequest(
         model="compatible-model",
         max_output_tokens=2048,
@@ -845,7 +845,7 @@ def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
             AssistantInput(content=[]),
             AssistantInput(
                 content=[
-                    TextOutput(content=""),
+                    TextOutput(content="Before thinking"),
                     Thinking(content="Thought", summary=""),
                     TextOutput(content="Cached", cache_breakpoint=CacheBreakpoint()),
                     ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
@@ -861,7 +861,7 @@ def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
         {
             "role": "assistant",
             "content": [
-                {"type": "text", "text": ""},
+                {"type": "text", "text": "Before thinking"},
                 {"type": "thinking", "thinking": "Thought"},
                 {"type": "text", "text": "Cached", "cache_control": {"type": "ephemeral"}},
                 {"type": "tool_use", "id": "call_1", "name": "lookup", "input": {}},

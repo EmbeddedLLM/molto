@@ -1690,3 +1690,361 @@ def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
     assert read_yaml(str(output_path)) == expected
     assert read_yaml(str(input_path)) == unmatched
     assert responses_path.read_bytes() == original_responses
+
+
+def _search_stream_cassettes() -> tuple[dict, dict]:
+    directory = MATCHED_CASSETTES / "web_search"
+    return (
+        read_yaml(str(directory / "anthropic-messages-stream-00.yaml")),
+        read_yaml(str(directory / "openai-responses-stream-00.yaml")),
+    )
+
+
+def _without_search_sources(responses: dict) -> None:
+    for index, line in enumerate(responses["response"]["sse"]):
+        if not line.startswith("data:"):
+            continue
+        event = json_loads(line[5:])
+        items = [event.get("item", {})] + event.get("response", {}).get("output", [])
+        for item in items:
+            if item.get("type") == "web_search_call" and item.get("action"):
+                item["action"].pop("sources", None)
+        responses["response"]["sse"][index] = (
+            f"data: {json_dumps(event)}" + line[len(line.rstrip("\r\n")) :]
+        )
+
+
+def test_search_stream_missing_sources_is_not_empty_result() -> None:
+    """Ensures incomplete recording evidence cannot become an invented empty search result."""
+    messages, responses = _search_stream_cassettes()
+    _without_search_sources(responses)
+    original = deepcopy((messages, responses))
+    with pytest.raises(ValueError, match="include=.*web_search_call.action.sources"):
+        match_messages_events(messages, responses)
+    assert (messages, responses) == original
+
+
+def test_search_stream_builds_balanced_sdk_valid_blocks() -> None:
+    """Ensures late hosted actions and citations produce linked, ordered native Messages events."""
+    messages, responses = _search_stream_cassettes()
+    source = next(
+        e["response"] for e in _data_events(responses) if e["type"] == "response.completed"
+    )
+    # The terminal snapshot adds a source after the streamed search result is complete.
+    search = next(
+        e["item"]
+        for e in _data_events(responses)
+        if e["type"] == "response.output_item.done" and e["item"]["type"] == "web_search_call"
+    )
+    part = next(item for item in source["output"] if item["type"] == "message")["content"][0]
+    headers = deepcopy(messages["response"]["headers"])
+    match_messages_events(messages, responses)
+    assert messages["request"]["body"]["tool_choice"] == {"type": "tool", "name": "web_search"}
+    events = _data_events(messages)
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    from anthropic._streaming import SSEDecoder
+
+    wire_events = list(
+        SSEDecoder().iter_bytes(iter(["".join(messages["response"]["sse"]).encode()]))
+    )
+    assert [event.json() for event in wire_events] == events
+    starts = [e for e in events if e["type"] == "content_block_start"]
+    stops = [e["index"] for e in events if e["type"] == "content_block_stop"]
+    assert [e["index"] for e in starts] == stops == list(range(len(starts)))
+    assert [e["content_block"]["type"] for e in starts[:3]] == [
+        "thinking",
+        "server_tool_use",
+        "web_search_tool_result",
+    ]
+    assert all(e["content_block"]["type"] == "text" for e in starts[3:])
+    assert starts[2]["content_block"]["tool_use_id"] == starts[1]["content_block"]["id"]
+    results = starts[2]["content_block"]["content"]
+    assert [result["url"] for result in results] == [
+        result["url"] for result in search["action"]["sources"]
+    ]
+    assert all(result["encrypted_content"] == "N/A" for result in results)
+    citations = [
+        e["delta"]["citation"]
+        for e in events
+        if e.get("delta", {}).get("type") == "citations_delta"
+    ]
+    assert [citation["url"] for citation in citations] == [
+        citation["url"] for citation in part["annotations"]
+    ]
+    assert all(citation["encrypted_index"] == "N/A" for citation in citations)
+    text = "".join(
+        e["delta"]["text"] for e in events if e.get("delta", {}).get("type") == "text_delta"
+    )
+    assert text == part["text"]
+    assert [citation["cited_text"] for citation in citations] == [
+        text[citation["start_index"] : citation["end_index"]] for citation in part["annotations"]
+    ]
+    start_message = next(e["message"] for e in events if e["type"] == "message_start")
+    assert start_message["id"] == source["id"]
+    assert start_message["model"] == source["model"]
+    terminal = next(e for e in events if e["type"] == "message_delta")
+    assert terminal["delta"]["stop_reason"] == "end_turn"
+    assert terminal["usage"]["server_tool_use"] == {
+        "web_search_requests": 1,
+        "web_fetch_requests": 0,
+    }
+    assert messages["response"]["headers"] == headers
+    matched = deepcopy(messages)
+    match_messages_events(messages, responses)
+    assert messages == matched
+
+
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_batch_stream(queries: list[str]) -> None:
+    """Ensures output query batches emit balanced SDK-valid blocks with one pooled result."""
+    messages, responses = _search_stream_cassettes()
+    for index, line in enumerate(responses["response"]["sse"]):
+        if not line.startswith("data:"):
+            continue
+        event = json_loads(line[5:])
+        items = [event.get("item", {})] + event.get("response", {}).get("output", [])
+        for item in items:
+            if item.get("type") == "web_search_call" and item.get("action"):
+                item["action"]["queries"] = queries
+        responses["response"]["sse"][index] = (
+            f"data: {json_dumps(event)}" + line[len(line.rstrip("\r\n")) :]
+        )
+    search = next(
+        event["item"]
+        for event in _data_events(responses)
+        if event["type"] == "response.output_item.done"
+        and event["item"]["type"] == "web_search_call"
+    )
+    match_messages_events(messages, responses)
+
+    events = _data_events(messages)
+    for event in events:
+        if event["type"] != "ping":
+            MESSAGE_EVENT_ADAPTER.validate_python(event)
+    starts = [event for event in events if event["type"] == "content_block_start"]
+    stops = [event["index"] for event in events if event["type"] == "content_block_stop"]
+    assert [event["index"] for event in starts] == stops == list(range(len(starts)))
+    calls = [event for event in starts if event["content_block"]["type"] == "server_tool_use"]
+    assert len(calls) == len(queries)
+    assert calls[0]["content_block"]["id"] == search["id"]
+    assert len({event["content_block"]["id"] for event in calls}) == len(queries)
+    for call, query in zip(calls, queries, strict=True):
+        arguments = "".join(
+            event["delta"]["partial_json"]
+            for event in events
+            if event["type"] == "content_block_delta" and event["index"] == call["index"]
+        )
+        assert json_loads(arguments) == {"query": query}
+    results = [
+        event["content_block"]
+        for event in starts
+        if event["content_block"]["type"] == "web_search_tool_result"
+    ]
+    assert len(results) == 1
+    assert results[0]["tool_use_id"] == search["id"]
+    assert [result["url"] for result in results[0]["content"]] == [
+        source["url"] for source in search["action"]["sources"]
+    ]
+    matched = deepcopy(messages)
+    match_messages_events(messages, responses)
+    assert messages == matched
+
+
+@pytest.mark.parametrize("queries", [["a", "b"], ["a", "a"], ["", "b"]])
+def test_search_history_rejects_query_batches(queries: list[str]) -> None:
+    """Ensures request matching rejects pooled query history without changing either cassette."""
+    messages, responses = _search_stream_cassettes()
+    search = deepcopy(
+        next(
+            event["item"]
+            for event in _data_events(responses)
+            if event["type"] == "response.output_item.done"
+            and event["item"]["type"] == "web_search_call"
+        )
+    )
+    search["action"]["queries"] = queries
+    responses["request"]["body"]["input"] = [
+        search,
+        {"role": "user", "content": "Continue."},
+    ]
+    originals = deepcopy((messages, responses))
+
+    with pytest.raises(ValueError, match="cannot preserve multi-query search history"):
+        match_messages_events(messages, responses)
+
+    assert (messages, responses) == originals
+
+
+def test_search_request_only_does_not_require_result_sources(tmp_path: Path) -> None:
+    """Ensures request matching is available without pretending missing result data exists."""
+    messages, responses = _search_stream_cassettes()
+    _without_search_sources(responses)
+    message_path, response_path = tmp_path / "messages.yaml", tmp_path / "responses.yaml"
+    dump_yaml(messages, str(message_path))
+    dump_yaml(responses, str(response_path))
+    assert main([str(message_path), str(response_path), "--request-only"]) == 0
+    matched = read_yaml(str(message_path))
+    assert matched["response"] == messages["response"]
+    assert matched["request"]["body"]["tools"] == [
+        {"type": "web_search_20250305", "name": "web_search"}
+    ]
+
+
+def test_search_preserves_mixed_reasoning_and_function_delta_boundaries() -> None:
+    """Ensures hosted activity does not collapse unrelated reasoning or client-tool deltas."""
+    responses = read_yaml(
+        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / "openai-responses-stream-00.yaml")
+    )
+    messages = read_yaml(
+        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / "anthropic-messages-stream-00.yaml")
+    )
+    events = _data_events(responses)
+    terminal = next(e["response"] for e in events if e["type"] == "response.completed")
+    search = {
+        "type": "web_search_call",
+        "id": "search_after_function",
+        "status": "completed",
+        "action": {"type": "search", "query": "weather", "sources": []},
+    }
+    index = len(terminal["output"])
+    terminal["output"].append(search)
+    events.insert(-1, {"type": "response.output_item.done", "output_index": index, "item": search})
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+    responses["request"]["body"]["tools"].append({"type": "web_search"})
+    match_messages_events(messages, responses)
+    matched = _data_events(messages)
+    for source_type, target_type, field in [
+        ("response.reasoning_summary_text.delta", "thinking_delta", "thinking"),
+        ("response.function_call_arguments.delta", "input_json_delta", "partial_json"),
+    ]:
+        expected = [e["delta"] for e in events if e["type"] == source_type]
+        actual = [
+            e["delta"][field] for e in matched if e.get("delta", {}).get("type") == target_type
+        ]
+        if target_type == "input_json_delta":
+            actual = actual[:-1]  # The final JSON delta is the separately owned search invocation.
+        assert actual == expected
+    source_done = next(
+        e["item"]["encrypted_content"]
+        for e in events
+        if e["type"] == "response.output_item.done" and e["item"]["type"] == "reasoning"
+    )
+    assert (
+        next(
+            e["delta"]["signature"]
+            for e in matched
+            if e.get("delta", {}).get("type") == "signature_delta"
+        )
+        == source_done
+    )
+
+
+@pytest.mark.parametrize("matcher", ["stream", "non_stream"])
+def test_search_restricted_selection_and_collision(matcher: str) -> None:
+    """Ensures mixed function tools retain mandatory hosted selection or reject a name collision."""
+    from scripts.match_anthropic_cassette_events import _matched_request_body as stream_request
+    from scripts.match_anthropic_cassette_responses import (
+        _matched_request_body as nonstream_request,
+    )
+
+    messages, responses = _search_stream_cassettes()
+    request = responses["request"]["body"]
+    request["tools"].append(
+        {"type": "function", "name": "weather", "parameters": {"type": "object"}}
+    )
+    match_request = stream_request if matcher == "stream" else nonstream_request
+    assert match_request(messages["request"]["body"], request)["tool_choice"] == {"type": "any"}
+    request["tool_choice"] = {
+        "type": "allowed_tools",
+        "mode": "required",
+        "tools": [{"type": "web_search"}],
+    }
+    matched = match_request(messages["request"]["body"], request)
+    assert matched["tool_choice"] == {"type": "tool", "name": "web_search"}
+    assert matched["tools"][1]["name"] == "weather"
+    request["tools"][1]["name"] = "web_search"
+    with pytest.raises(ValueError, match="function named web_search"):
+        match_request(messages["request"]["body"], request)
+
+
+@pytest.mark.parametrize("keep_tool", [True, False])
+def test_search_stream_without_search_clears_recorded_activity(keep_tool: bool) -> None:
+    """Ensures an answer without search never inherits the target recording's hosted calls."""
+    messages, responses = _search_stream_cassettes()
+    events = _data_events(responses)
+    terminal = next(e["response"] for e in events if e["type"] == "response.completed")
+    search_index = next(
+        index for index, item in enumerate(terminal["output"]) if item["type"] == "web_search_call"
+    )
+    terminal["output"] = [item for item in terminal["output"] if item["type"] != "web_search_call"]
+    terminal.pop("tool_usage", None)
+    retained = []
+    for event in events:
+        if event.get("output_index") == search_index or event["type"].startswith(
+            "response.web_search_call."
+        ):
+            continue
+        if event.get("output_index", -1) > search_index:
+            event["output_index"] -= 1
+        retained.append(event)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in retained]
+    if not keep_tool:
+        responses["request"]["body"].pop("tools")
+    match_messages_events(messages, responses)
+    result = _data_events(messages)
+    blocks = [e["content_block"] for e in result if e["type"] == "content_block_start"]
+    assert blocks[0]["type"] == "thinking"
+    assert len(blocks) > 1
+    assert all(block["type"] == "text" for block in blocks[1:])
+    assert not next(e for e in result if e["type"] == "message_delta")["usage"].get(
+        "server_tool_use"
+    )
+
+
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_stream_maps_to_end_turn(
+    has_search: bool, incomplete_fields: dict
+) -> None:
+    """Ensures missing reasons coerce to end_turn independently of hosted search activity."""
+    if has_search:
+        messages, responses = _search_stream_cassettes()
+    else:
+        messages = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+        responses = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].pop("incomplete_details", None)
+    terminal["response"].update(status="incomplete", **incomplete_fields)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_messages_events(messages, responses)
+
+    message_delta = next(
+        event for event in _data_events(messages) if event["type"] == "message_delta"
+    )
+    assert message_delta["delta"]["stop_reason"] == "end_turn"
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_stream_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    messages = _messages_cassette(thinking_deltas=None, text_deltas=["answer"])
+    responses = _responses_cassette(reasoning_deltas=None, text_deltas=["answer"])
+    events = _data_events(responses)
+    events[-1]["type"] = "response.incomplete"
+    events[-1]["response"].update(status="incomplete", incomplete_details=incomplete_details)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_messages_events(messages, responses)

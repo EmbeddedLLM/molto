@@ -15,8 +15,9 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 
 
 def test_provider_capabilities_are_explicit_and_immutable() -> None:
+    """Ensures provider-specific requirements are explicit and cannot be mutated."""
     assert PROVIDER_CAPABILITIES == {
-        "anthropic": ProviderCapabilities(thinking="summary"),
+        "anthropic": ProviderCapabilities(thinking="summary", requires_search_history_state=True),
         "bedrock": ProviderCapabilities(thinking="summary"),
         "fireworks": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),

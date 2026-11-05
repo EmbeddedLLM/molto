@@ -334,6 +334,22 @@ def _completed_responses_body(cassette_path: Path) -> dict[str, Any]:
     raise AssertionError("Responses cassette has no terminal response event.")
 
 
+def _expect_responses_search_usage(events: list[dict[str, Any]], upstream_path: Path) -> None:
+    """Use source-reported search counts even when the matched Messages fixture omits them."""
+    response = _completed_responses_body(upstream_path)
+    search_usage = (response.get("tool_usage") or {}).get("web_search") or {}
+    count = search_usage.get("num_requests") if response.get("usage") is not None else None
+    for event in events:
+        if event["type"] == "message_delta":
+            if count is None:
+                event["usage"].pop("server_tool_use", None)
+            else:
+                event["usage"]["server_tool_use"] = {
+                    "web_search_requests": count,
+                    "web_fetch_requests": 0,
+                }
+
+
 def _responses_output_text(response: dict[str, Any]) -> str:
     return "".join(
         part["text"]
@@ -961,7 +977,7 @@ async def _assert_stream_events(
         translated=downstream != upstream,
     ) as http_client:
         client = Molto(http_client=http_client)
-        for downstream_path, _ in cassette_path_pairs:
+        for downstream_path, upstream_path in cassette_path_pairs:
             cassette = _read_cassette(downstream_path)
             coordinator = {
                 "responses": client.responses,
@@ -1064,6 +1080,8 @@ async def _assert_stream_events(
                     expected_events = [
                         reconstructable_anthropic_event(sse) for sse in expected_sse_events
                     ]
+                    if upstream == "responses":
+                        _expect_responses_search_usage(expected_events, upstream_path)
                     assert actual_events == expected_events
             else:
                 raise ValueError(f"Unsupported downstream protocol: {downstream}")
@@ -1637,6 +1655,8 @@ async def _assert_request_parity(
     else:
         actual = [reconstructable_anthropic_event(sse) for sse in actual_sse]
         expected = [reconstructable_anthropic_event(sse) for sse in expected_sse]
+        if upstream == "responses":
+            _expect_responses_search_usage(expected, upstream_path)
     assert actual == expected
 
 

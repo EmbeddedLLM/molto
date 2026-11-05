@@ -247,6 +247,69 @@ class ToolReturn(StrictModel):
     ] = "tool-return"
 
 
+class WebCitation(StrictModel):
+    """URL attribution to a range of Unicode code points in one text part."""
+
+    url: Annotated[str, Field(description="The attributed source URL.")]
+    title: Annotated[str | None, Field(description="The observed source title.")] = None
+    start_index: Annotated[int, Field(description="Inclusive offset within the text part.")]
+    end_index: Annotated[int, Field(description="Exclusive offset within the text part.")]
+    cited_text: Annotated[
+        str | None, Field(description="The original source excerpt, when supplied.")
+    ] = None
+    encrypted_index: Annotated[
+        str | None, Field(description="Opaque citation state retained for history.")
+    ] = None
+
+
+class WebSearchSource(StrictModel):
+    """An observed search result, retaining available opaque history context."""
+
+    url: Annotated[str, Field(description="The retrieved source URL.")]
+    title: Annotated[str | None, Field(description="The observed source title.")] = None
+    page_age: Annotated[str | None, Field(description="The observed source age.")] = None
+    encrypted_content: Annotated[
+        str | None, Field(description="Opaque retrieved context retained for history.")
+    ] = None
+
+
+class SearchCall(ExtraModel):
+    """A provider-executed operation, distinct from a client function call."""
+
+    id: Annotated[str, Field(description="The hosted operation identifier.")]
+    action: Annotated[
+        Literal["search", "open_page", "find_in_page"],
+        Field(description="The observed hosted operation."),
+    ] = "search"
+    query: Annotated[str | None, Field(description="The observed singular search query.")] = None
+    queries: Annotated[
+        list[str] | None, Field(description="The observed list of search queries.")
+    ] = None
+    url: Annotated[str | None, Field(description="The target of a browsing operation.")] = None
+    pattern: Annotated[str | None, Field(description="The text sought within a page.")] = None
+    status: Annotated[
+        Literal["in_progress", "searching", "completed", "failed"],
+        Field(description="The observed execution status of the hosted operation."),
+    ] = "in_progress"
+    content_type: Annotated[
+        Literal["search-call"], Field(description="Content type identifier.")
+    ] = "search-call"
+
+
+class SearchResult(ExtraModel):
+    """The result of a hosted search, linked to its provider-executed call."""
+
+    tool_call_id: Annotated[str, Field(description="The corresponding hosted call identifier.")]
+    sources: Annotated[
+        list[WebSearchSource] | None,
+        Field(description="Observed results; null means unavailable, not an empty result list."),
+    ] = None
+    error: Annotated[str | None, Field(description="The observed search error, if any.")] = None
+    content_type: Annotated[
+        Literal["search-result"], Field(description="Content type identifier.")
+    ] = "search-result"
+
+
 class TextOutput(ExtraModel):
     """A plain text response from a model, including one used as conversation history."""
 
@@ -262,6 +325,9 @@ class TextOutput(ExtraModel):
         str | None,
         Field(description="An optional identifier of the text part."),
     ] = None
+    citations: Annotated[
+        list[WebCitation], Field(description="URL attributions local to this text part.")
+    ] = []
     content_type: Annotated[
         Literal["text-output"],
         Field(description="Content type identifier as a discriminator."),
@@ -327,7 +393,7 @@ class Thinking(ExtraModel):
 
 
 OutputItem = Annotated[
-    Thinking | TextOutput | ToolCall,
+    Thinking | TextOutput | ToolCall | SearchCall | SearchResult,
     # | ToolSearchCallPart
     # | LoadCapabilityCallPart
     # | NativeToolSearchCallPart
@@ -369,10 +435,18 @@ _ToolCallInput = Annotated[
     ToolCall,
     BeforeValidator(_reject_input_extras(ToolCall)),
 ]
+_SearchCallInput = Annotated[
+    SearchCall,
+    BeforeValidator(_reject_input_extras(SearchCall)),
+]
+_SearchResultInput = Annotated[
+    SearchResult,
+    BeforeValidator(_reject_input_extras(SearchResult)),
+]
 
 
 AssistantContent = Annotated[
-    _ThinkingInput | _TextOutputInput | _ToolCallInput,
+    _ThinkingInput | _TextOutputInput | _ToolCallInput | _SearchCallInput | _SearchResultInput,
     Discriminator("content_type"),
 ]
 
@@ -395,7 +469,14 @@ class AssistantInput(StrictModel):
 
 
 InputItem = Annotated[
-    SystemPrompt | UserInput | AssistantInput | _ThinkingInput | _ToolCallInput | ToolReturn,
+    SystemPrompt
+    | UserInput
+    | AssistantInput
+    | _ThinkingInput
+    | _ToolCallInput
+    | _SearchCallInput
+    | _SearchResultInput
+    | ToolReturn,
     # | ToolSearchReturnPart
     # | LoadCapabilityReturnPart
     # | ToolAvailabilityDeltaPart
@@ -457,7 +538,50 @@ class FunctionToolChoice(StrictModel):
     ] = "function"
 
 
-ToolChoice: TypeAlias = Literal["none", "auto", "required"] | FunctionToolChoice
+class SearchLocation(StrictModel):
+    """Approximate location used to tailor a hosted search."""
+
+    city: Annotated[str | None, Field(description="The user's approximate city.")] = None
+    country: Annotated[str | None, Field(description="The user's approximate country.")] = None
+    region: Annotated[str | None, Field(description="The user's approximate region.")] = None
+    timezone: Annotated[str | None, Field(description="The user's timezone.")] = None
+
+
+class WebSearchTool(StrictModel):
+    """Basic provider-hosted search configuration."""
+
+    allowed_domains: Annotated[
+        list[str] | None, Field(description="Restrict search to these domains.")
+    ] = None
+    blocked_domains: Annotated[
+        list[str] | None, Field(description="Exclude these domains from search.")
+    ] = None
+    search_context_size: Annotated[
+        Literal["low", "medium", "high"] | None,
+        Field(
+            description="Explicit search context budget; omission retains the provider default."
+        ),
+    ] = None
+    user_location: Annotated[
+        SearchLocation | None, Field(description="Approximate search location.")
+    ] = None
+    type: Annotated[Literal["web_search"], Field(description="Tool type identifier.")] = (
+        "web_search"
+    )
+
+
+class WebSearchToolChoice(StrictModel):
+    """Require hosted search specifically, independently of client function names."""
+
+    type: Annotated[Literal["web_search"], Field(description="Required hosted tool.")] = (
+        "web_search"
+    )
+
+
+Tool = Annotated[FunctionTool | WebSearchTool, Discriminator("type")]
+ToolChoice: TypeAlias = (
+    Literal["none", "auto", "required"] | FunctionToolChoice | WebSearchToolChoice
+)
 
 
 class StreamOptions(StrictModel):
@@ -562,7 +686,7 @@ class NormalizedRequest(StrictModel):
         Field(description="How the model should select tools."),
     ] = None
     tools: Annotated[
-        list[FunctionTool] | None,
+        list[Tool] | None,
         Field(description="Tools available to the model."),
     ] = None
     top_p: Annotated[
@@ -595,6 +719,15 @@ class TextDelta(ExtraModel):
         Literal["text-delta"],
         Field(description="Part delta type identifier, used as a discriminator."),
     ] = "text-delta"
+
+
+class CitationDelta(ExtraModel):
+    """An attribution added to the associated text part."""
+
+    citation: Annotated[WebCitation, Field(description="The completed citation association.")]
+    delta_type: Annotated[
+        Literal["citation-delta"], Field(description="Part delta type identifier.")
+    ] = "citation-delta"
 
 
 class ThinkingDelta(ExtraModel):
@@ -648,7 +781,7 @@ class ToolCallDelta(ExtraModel):
 
 
 DeltaItem = Annotated[
-    TextDelta | ThinkingDelta | ToolCallDelta,
+    TextDelta | ThinkingDelta | ToolCallDelta | CitationDelta,
     Discriminator("delta_type"),
 ]
 
@@ -692,6 +825,10 @@ class Usage(ExtraModel):
         ZeroIfNoneInt,
         Field(description="The total number of tokens used."),
     ]
+    web_search_requests: Annotated[
+        int | None,
+        Field(description="The reported number of web search requests, or None when unknown."),
+    ] = None
 
 
 class ResponseStartEvent(ExtraModel):
@@ -728,6 +865,7 @@ TerminationReason: TypeAlias = Literal[
     "stop",
     "stop_sequence",
     "tool_call",
+    "unknown",
 ]
 
 
@@ -752,7 +890,9 @@ class ResponseEndEvent(ExtraModel):
     ] = None
     termination_reason: Annotated[
         TerminationReason,
-        Field(description="The provider-neutral reason that generation terminated."),
+        Field(
+            description="The provider-neutral reason generation terminated, or 'unknown' if unavailable."
+        ),
     ]
     stop_sequence: Annotated[
         str | None,

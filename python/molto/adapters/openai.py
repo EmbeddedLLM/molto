@@ -21,7 +21,7 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel
 
 from molto.adapters.base import BaseAdapter
-from molto.providers import ReasoningRepresentation
+from molto.providers import ProviderCapabilities, ReasoningRepresentation
 from molto.types.exceptions import (
     APIException,
     AuthenticationError,
@@ -30,6 +30,7 @@ from molto.types.exceptions import (
 from molto.types.normalized import (
     AssistantInput,
     CacheBreakpoint,
+    CitationDelta,
     FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
@@ -43,6 +44,9 @@ from molto.types.normalized import (
     Reasoning,
     ResponseEndEvent,
     ResponseStartEvent,
+    SearchCall,
+    SearchLocation,
+    SearchResult,
     SystemPrompt,
     TerminationReason,
     TextDelta,
@@ -55,6 +59,9 @@ from molto.types.normalized import (
     ToolChoice,
     ToolReturn,
     UserInput,
+    WebCitation,
+    WebSearchTool,
+    WebSearchToolChoice,
 )
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
@@ -67,13 +74,24 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
+from molto.utils.web_search import (
+    citation_from_responses,
+    citation_to_responses,
+    search_call_from_responses,
+    search_call_to_responses,
+    search_call_to_responses_action,
+    search_result_from_responses,
+    search_source_to_responses,
+)
 
 _CHAT_FINISH_REASONS: dict[TerminationReason, str] = {
     "content_filter": "content_filter",
     "max_output_tokens": "length",
+    "pause": "length",
     "stop": "stop",
     "stop_sequence": "stop",
     "tool_call": "tool_calls",
+    "unknown": "stop",
 }
 
 
@@ -137,6 +155,7 @@ _RESPONSES_TRANSLATABLE_FIELDS = frozenset(
 _CHAT_TRANSLATABLE_FIELDS = frozenset(
     {
         "messages",
+        "web_search_options",
         "model",
         "max_completion_tokens",
         "max_tokens",
@@ -165,45 +184,17 @@ def _function_tool(function: dict[str, Any]) -> FunctionTool:
     )
 
 
-def _responses_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
-    if tools is None:
-        return None
-    normalized: list[FunctionTool] = []
-    for tool in tools:
-        tool = dict(tool)
-        if tool.get("type") != "function":
-            raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
-        if tool.get("allowed_callers") not in (None, ["direct"]):
-            raise UnsupportedInput(
-                "Only directly callable Responses function tools are supported."
-            )
-        if tool.get("defer_loading"):
-            raise UnsupportedInput("Deferred Responses function tools are not supported.")
-        if tool.get("output_schema") is not None:
-            raise UnsupportedInput("Responses function output schemas are not supported.")
-        normalized.append(_function_tool(tool))
-    return normalized
-
-
 def _responses_tool_choice(choice: Any) -> ToolChoice | None:
     if choice is None or isinstance(choice, str):
         return choice
     choice = dict(choice)
+    if choice.get("type") == "allowed_tools":
+        if choice.get("mode") == "required" and choice.get("tools") == [{"type": "web_search"}]:
+            return WebSearchToolChoice()
+        raise UnsupportedInput("Only required hosted web search allowed_tools can be translated.")
     if choice.get("type") != "function":
         raise UnsupportedInput(f"Unsupported Responses tool choice: {choice.get('type')}")
     return FunctionToolChoice(name=choice["name"])
-
-
-def _chat_tools(tools: list[Any] | None) -> list[FunctionTool] | None:
-    if tools is None:
-        return None
-    normalized: list[FunctionTool] = []
-    for tool in tools:
-        tool = dict(tool)
-        if tool.get("type") != "function":
-            raise UnsupportedInput(f"Unsupported Chat Completions tool type: {tool.get('type')}")
-        normalized.append(_function_tool(dict(tool["function"])))
-    return normalized
 
 
 def _chat_tool_choice(choice: Any) -> ToolChoice | None:
@@ -330,6 +321,14 @@ def _reasoning_part_completed(
     ]
 
 
+def _responses_citations(annotations: list[dict[str, Any]]) -> list[WebCitation]:
+    if any(annotation.get("type") != "url_citation" for annotation in annotations):
+        raise UnsupportedInput(
+            "Only web URL citations can be translated in Responses assistant history."
+        )
+    return [citation_from_responses(annotation) for annotation in annotations]
+
+
 def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
     if part.summary and not part.signature:
         raise UnsupportedInput("A Responses reasoning summary requires a signature.")
@@ -344,6 +343,49 @@ class OpenAIResponsesAdapter(
     ]
 ):
     """Translate the downstream OpenAI Responses protocol to and from normalized IR."""
+
+    def __init__(
+        self,
+        capabilities: ProviderCapabilities,
+        *,
+        preserve_anthropic_search_metadata: bool = False,
+    ) -> None:
+        super().__init__(capabilities)
+        self._preserve_anthropic_search_metadata = preserve_anthropic_search_metadata
+
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool | WebSearchTool:
+        """Translate one Responses tool declaration into normalized semantics."""
+        if tool.get("type") == "web_search":
+            unsupported = set(tool) - {"type", "filters", "user_location", "search_context_size"}
+            if unsupported:
+                raise UnsupportedInput(
+                    f"Unsupported Responses web search options: {sorted(unsupported)}"
+                )
+            filters = tool.get("filters") or {}
+            if set(filters) - {"allowed_domains"}:
+                raise UnsupportedInput("Unsupported Responses web search filters.")
+            location = tool.get("user_location")
+            return WebSearchTool(
+                allowed_domains=filters.get("allowed_domains"),
+                search_context_size=tool.get("search_context_size"),
+                user_location=SearchLocation.model_validate(
+                    {key: value for key, value in location.items() if key != "type"}
+                )
+                if location
+                else None,
+            )
+        if tool.get("type") != "function":
+            raise UnsupportedInput(f"Unsupported Responses tool type: {tool.get('type')}")
+        if tool.get("allowed_callers") not in (None, ["direct"]):
+            raise UnsupportedInput(
+                "Only directly callable Responses function tools are supported."
+            )
+        if tool.get("defer_loading"):
+            raise UnsupportedInput("Deferred Responses function tools are not supported.")
+        if tool.get("output_schema") is not None:
+            raise UnsupportedInput("Responses function output schemas are not supported.")
+        return _function_tool(tool)
 
     async def _project_response(
         self,
@@ -363,6 +405,12 @@ class OpenAIResponsesAdapter(
         message: dict[str, Any],
     ) -> Input:
         message_type = message.get("type", "message")
+        if message_type == "web_search_call":
+            call = search_call_from_responses(message)
+            parts = [call]
+            if call.action == "search" and call.status in {"completed", "failed"}:
+                parts.append(search_result_from_responses(message))
+            return parts
         if message_type == "reasoning":
             if message.get("format") is not None:
                 raise UnsupportedInput("Responses reasoning format cannot be translated.")
@@ -497,8 +545,14 @@ class OpenAIResponsesAdapter(
                 AssistantInput(
                     id=message.get("id"),
                     content=[
-                        TextOutput(content=part.content, cache_breakpoint=part.cache_breakpoint)
-                        for part in text_parts
+                        TextOutput(
+                            content=part.content,
+                            cache_breakpoint=part.cache_breakpoint,
+                            citations=_responses_citations(content[index].get("annotations") or [])
+                            if isinstance(content, list)
+                            else [],
+                        )
+                        for index, part in enumerate(text_parts)
                     ],
                 )
             ]
@@ -510,7 +564,10 @@ class OpenAIResponsesAdapter(
             _RESPONSES_TRANSLATABLE_FIELDS,
             protocol="Responses",
         )
-        unsupported_includes = set(request.include or []) - {"reasoning.encrypted_content"}
+        unsupported_includes = set(request.include or []) - {
+            "reasoning.encrypted_content",
+            "web_search_call.action.sources",
+        }
         if unsupported_includes:
             raise UnsupportedInput(
                 "Unsupported Responses include values for cross-protocol translation: "
@@ -557,7 +614,9 @@ class OpenAIResponsesAdapter(
                 stream_options=request.stream_options,
                 temperature=request.temperature,
                 tool_choice=_responses_tool_choice(request.tool_choice),
-                tools=_responses_tools(request.tools),
+                tools=[self._translate_tool(dict(tool)) for tool in request.tools]
+                if request.tools is not None
+                else None,
                 top_p=request.top_p,
             )
         )
@@ -572,6 +631,9 @@ class OpenAIResponsesAdapter(
         item_ids: dict[int, str] = {}
         reasoning_text_started: set[int] = set()
         output_items: dict[int, dict[str, Any]] = {}
+        output_indices: dict[int, int] = {}
+        search_calls: dict[str, tuple[int, dict[str, Any]]] = {}
+        annotation_counts: dict[int, int] = {}
 
         def event(data: dict[str, Any]) -> BaseModel:
             nonlocal sequence_number
@@ -644,7 +706,37 @@ class OpenAIResponsesAdapter(
 
             elif isinstance(normalized_event, PartStartEvent):
                 part = normalized_event.part
-                output_index = normalized_event.index
+                if isinstance(part, SearchResult):
+                    continue
+                output_index = len(output_indices)
+                output_indices[normalized_event.index] = output_index
+                if isinstance(part, SearchCall):
+                    item = {**search_call_to_responses(part), "status": "in_progress"}
+                    item_ids[output_index] = part.id
+                    search_calls[part.id] = (output_index, item)
+                    yield event(
+                        {
+                            "type": "response.output_item.added",
+                            "item": item,
+                            "output_index": output_index,
+                        }
+                    )
+                    yield event(
+                        {
+                            "type": "response.web_search_call.in_progress",
+                            "item_id": part.id,
+                            "output_index": output_index,
+                        }
+                    )
+                    if part.status != "in_progress":
+                        yield event(
+                            {
+                                "type": "response.web_search_call.searching",
+                                "item_id": part.id,
+                                "output_index": output_index,
+                            }
+                        )
+                    continue
                 if isinstance(part, Thinking):
                     if self._capabilities.thinking == "raw":
                         if part.summary or part.signature:
@@ -722,11 +814,31 @@ class OpenAIResponsesAdapter(
                     )
 
             elif isinstance(normalized_event, PartDeltaEvent):
+                output_index = output_indices.get(normalized_event.index)
+                if output_index is None:
+                    raise ValueError("Received a delta before its output item started.")
+                if isinstance(normalized_event.delta, CitationDelta):
+                    count = annotation_counts.get(output_index, 0)
+                    yield event(
+                        {
+                            "type": "response.output_text.annotation.added",
+                            "item_id": item_ids[output_index],
+                            "output_index": output_index,
+                            "content_index": 0,
+                            "annotation_index": count,
+                            "annotation": citation_to_responses(
+                                normalized_event.delta.citation,
+                                include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                            ),
+                        }
+                    )
+                    annotation_counts[output_index] = count + 1
+                    continue
                 if not isinstance(
                     normalized_event.delta, (TextDelta, ThinkingDelta, ToolCallDelta)
                 ):
                     raise ValueError(f"Unsupported output delta: {type(normalized_event.delta)}")
-                item_id = item_ids.get(normalized_event.index)
+                item_id = item_ids.get(output_index)
                 if item_id is None:
                     raise ValueError("Received a delta before its output item started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
@@ -750,13 +862,13 @@ class OpenAIResponsesAdapter(
                         # delta is preserved through the completed item's
                         # encrypted_content instead.
                         continue
-                    if normalized_event.index not in reasoning_text_started:
-                        reasoning_text_started.add(normalized_event.index)
+                    if output_index not in reasoning_text_started:
+                        reasoning_text_started.add(output_index)
                         yield event(
                             _reasoning_part_added(
                                 representation,
                                 item_id=item_id,
-                                output_index=normalized_event.index,
+                                output_index=output_index,
                             )
                         )
                     yield event(
@@ -768,7 +880,7 @@ class OpenAIResponsesAdapter(
                             ),
                             "delta": text_delta,
                             "item_id": item_id,
-                            "output_index": normalized_event.index,
+                            "output_index": output_index,
                             "content_index" if representation == "raw" else "summary_index": 0,
                         }
                     )
@@ -779,7 +891,7 @@ class OpenAIResponsesAdapter(
                             "content_index": 0,
                             "delta": normalized_event.delta.content_delta,
                             "item_id": item_id,
-                            "output_index": normalized_event.index,
+                            "output_index": output_index,
                             "logprobs": [],
                         }
                     )
@@ -800,18 +912,67 @@ class OpenAIResponsesAdapter(
                             "type": "response.function_call_arguments.delta",
                             "delta": args_delta,
                             "item_id": item_id,
-                            "output_index": normalized_event.index,
+                            "output_index": output_index,
                         }
                     )
 
             elif isinstance(normalized_event, PartEndEvent):
                 part = normalized_event.part
+                if isinstance(part, SearchResult):
+                    if part.tool_call_id not in search_calls:
+                        raise ValueError(f"Search result {part.tool_call_id!r} has no invocation.")
+                    output_index, initial = search_calls.pop(part.tool_call_id)
+                    item = {
+                        **initial,
+                        "action": dict(initial["action"]),
+                        "status": "failed" if part.error is not None else "completed",
+                    }
+                    if part.sources is not None:
+                        item["action"]["sources"] = [
+                            search_source_to_responses(
+                                source,
+                                include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                            )
+                            for source in part.sources
+                        ]
+                    if part.error is None:
+                        yield event(
+                            {
+                                "type": "response.web_search_call.completed",
+                                "item_id": item["id"],
+                                "output_index": output_index,
+                            }
+                        )
+                    output_items[output_index] = item
+                    yield event(
+                        {
+                            "type": "response.output_item.done",
+                            "item": item,
+                            "output_index": output_index,
+                        }
+                    )
+                    continue
+                if isinstance(part, SearchCall):
+                    output_index, initial = search_calls[part.id]
+                    initial["action"] = search_call_to_responses_action(part)
+                    if part.action != "search":
+                        item = {**initial, "status": part.status}
+                        output_items[output_index] = item
+                        search_calls.pop(part.id)
+                        yield event(
+                            {
+                                "type": "response.output_item.done",
+                                "item": item,
+                                "output_index": output_index,
+                            }
+                        )
+                    continue
                 if not isinstance(part, (TextOutput, Thinking, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(part)}")
-                item_id = item_ids.get(normalized_event.index)
+                output_index = output_indices[normalized_event.index]
+                item_id = item_ids.get(output_index)
                 if item_id is None:
                     raise ValueError("Received a part end before its output item started.")
-                output_index = normalized_event.index
                 part_events: list[dict[str, Any]] = []
                 completed_item: dict[str, Any]
 
@@ -868,9 +1029,29 @@ class OpenAIResponsesAdapter(
                         ]
 
                 elif isinstance(part, TextOutput):
+                    annotations = [
+                        citation_to_responses(
+                            citation,
+                            include_anthropic_metadata=self._preserve_anthropic_search_metadata,
+                        )
+                        for citation in part.citations
+                    ]
+                    for annotation_index in range(
+                        annotation_counts.get(output_index, 0), len(annotations)
+                    ):
+                        yield event(
+                            {
+                                "type": "response.output_text.annotation.added",
+                                "item_id": item_id,
+                                "output_index": output_index,
+                                "content_index": 0,
+                                "annotation_index": annotation_index,
+                                "annotation": annotations[annotation_index],
+                            }
+                        )
                     completed_part = {
                         "type": "output_text",
-                        "annotations": [],
+                        "annotations": annotations,
                         "logprobs": [],
                         "text": part.content,
                     }
@@ -935,7 +1116,22 @@ class OpenAIResponsesAdapter(
                 if response_start is None:
                     raise ValueError("Received a response end before its response start.")
                 termination_reason = normalized_event.termination_reason
-                if termination_reason in {"content_filter", "max_output_tokens"}:
+                for output_index, item in search_calls.values():
+                    output_items[output_index] = item
+                    yield event(
+                        {
+                            "type": "response.output_item.done",
+                            "item": item,
+                            "output_index": output_index,
+                        }
+                    )
+                search_calls.clear()
+                if termination_reason in {
+                    "content_filter",
+                    "max_output_tokens",
+                    "pause",
+                    "unknown",
+                }:
                     event_type = "response.incomplete"
                     status = "incomplete"
                 else:
@@ -947,7 +1143,11 @@ class OpenAIResponsesAdapter(
                     output=[output_items[index] for index in sorted(output_items)],
                 )
                 if status == "incomplete":
-                    final_response["incomplete_details"] = {"reason": termination_reason}
+                    final_response["incomplete_details"] = (
+                        None
+                        if termination_reason in {"pause", "unknown"}
+                        else {"reason": termination_reason}
+                    )
                 yield event(
                     {
                         "type": event_type,
@@ -979,6 +1179,13 @@ class OpenAIChatCompletionsAdapter(
     ]
 ):
     """Translate Chat Completions requests and normalized response events."""
+
+    @staticmethod
+    def _translate_tool(tool: dict[str, Any]) -> FunctionTool:
+        """Translate one Chat Completions tool declaration into normalized semantics."""
+        if tool.get("type") != "function":
+            raise UnsupportedInput(f"Unsupported Chat Completions tool type: {tool.get('type')}")
+        return _function_tool(dict(tool["function"]))
 
     async def _project_response(
         self,
@@ -1159,9 +1366,25 @@ class OpenAIChatCompletionsAdapter(
         if prompt_cache is not None:
             data["prompt_cache"] = prompt_cache
         if request.tools is not None:
-            data["tools"] = _chat_tools(request.tools)
+            data["tools"] = [self._translate_tool(dict(tool)) for tool in request.tools]
         if request.tool_choice is not None:
             data["tool_choice"] = _chat_tool_choice(request.tool_choice)
+        if request.web_search_options is not None:
+            if request.tool_choice not in (None, "required"):
+                raise UnsupportedInput(
+                    "Chat web_search_options requires hosted search and conflicts with tool_choice."
+                )
+            location = request.web_search_options.get("user_location")
+            data["tools"] = [
+                *(data.get("tools") or []),
+                WebSearchTool(
+                    search_context_size=request.web_search_options.get("search_context_size"),
+                    user_location=SearchLocation.model_validate(location["approximate"])
+                    if location
+                    else None,
+                ),
+            ]
+            data["tool_choice"] = WebSearchToolChoice()
         if request.reasoning_effort is not None:
             # Chat does not say whether its reasoning field is raw or summarized.
             # Request a detailed Responses summary; the provider profile classifies
@@ -1229,6 +1452,8 @@ class OpenAIChatCompletionsAdapter(
                 response_start = normalized_event
 
             elif isinstance(normalized_event, PartStartEvent):
+                if isinstance(normalized_event.part, (SearchCall, SearchResult)):
+                    continue
                 if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 if response_start is None:
@@ -1297,6 +1522,8 @@ class OpenAIChatCompletionsAdapter(
                     )
 
             elif isinstance(normalized_event, PartDeltaEvent):
+                if isinstance(normalized_event.delta, CitationDelta):
+                    continue
                 if response_start is None:
                     raise ValueError("Received a delta before its response started.")
                 if isinstance(normalized_event.delta, ThinkingDelta):
@@ -1317,6 +1544,12 @@ class OpenAIChatCompletionsAdapter(
                         reasoning_delta = thinking_delta.summary_delta
                     if reasoning_delta is None:
                         continue
+                    if not initial_chunk_sent:
+                        yield delta_chunk(
+                            response_start,
+                            {"role": "assistant", "content": None, "reasoning_content": ""},
+                        )
+                        initial_chunk_sent = True
                     delta = {"reasoning_content": reasoning_delta}
                 elif isinstance(normalized_event.delta, TextDelta):
                     delta = {"content": normalized_event.delta.content_delta}
@@ -1345,6 +1578,8 @@ class OpenAIChatCompletionsAdapter(
                 yield delta_chunk(response_start, delta)
 
             elif isinstance(normalized_event, PartEndEvent):
+                if isinstance(normalized_event.part, (SearchCall, SearchResult)):
+                    continue
                 if not isinstance(normalized_event.part, (Thinking, TextOutput, ToolCall)):
                     raise ValueError(f"Unsupported output part: {type(normalized_event.part)}")
                 if isinstance(normalized_event.part, Thinking):

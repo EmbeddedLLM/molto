@@ -1,0 +1,141 @@
+filename: 2026-09-24-01a0d1b5-d0ef-7352-9572-adce5484bb32
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: 'Use hosted web search to find the official release date of Python 3.13.0.
+          Make exactly one search call with this single query string: site:python.org
+          Python 3.13.0 release date. Do not batch multiple queries or run additional
+          searches. Use web-page search results with source URLs. Use the returned
+          search snippets; do not open pages or use find-in-page actions. Answer in
+          one short sentence and attach at least one native URL citation to the official
+          python.org source supporting the date. You must search even if you already
+          know the answer.'
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    stream: false
+    tool_choice:
+      name: web_search
+      type: tool
+    tools:
+    - name: web_search
+      type: web_search_20250305
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '756'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0d1b5-d0ef-7352-9572-adce5484bb32
+response:
+  body:
+    container: null
+    content:
+    - id: ws_051fb1f64410d261006ab4a96a205087d0b501875722e8dd74
+      input:
+        query: site:python.org Python 3.13.0 release date
+      name: web_search
+      type: server_tool_use
+    - content:
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/downloads/release/python-3130/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://blog.python.org/2024/10/python-3130-final-released.html
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://test.python.org/downloads/release/python-3130/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://blog.python.org/2024/10/python-3130-release-candidate-3-released/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://blog.python.org/2024/08/python-3130-release-candidate-1-released/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/downloads/release/python-3130rc1/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/downloads/release/python-3130rc3/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://peps.python.org/pep-0719/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/doc/versions/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/downloads/release/python-3131/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://discuss.python.org/t/python-3-13-0-final-has-been-released/66972
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://blog.python.org/2024/01/python-3130-alpha-3-is-now-available/
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/ftp/python/mac/libmac.pdf
+      - encrypted_content: N/A
+        title: ''
+        type: web_search_result
+        url: https://www.python.org/downloads/release/python-3130/?utm_source=openai
+      tool_use_id: ws_051fb1f64410d261006ab4a96a205087d0b501875722e8dd74
+      type: web_search_tool_result
+    - text: 'Python 3.13.0 was officially released on **October 7, 2024**. '
+      type: text
+    - citations:
+      - cited_text: ([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))
+        encrypted_index: N/A
+        title: Python Release Python 3.13.0 | Python.org
+        type: web_search_result_location
+        url: https://www.python.org/downloads/release/python-3130/?utm_source=openai
+      text: ([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))
+      type: text
+    diagnostics: null
+    id: resp_051fb1f64410d261006ab4a969589487d0a6667657ebf56cd1
+    model: gpt-5.6-luna
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 118
+      cache_creation_input_tokens: 118
+      cache_read_input_tokens: 4251
+      inference_geo: global
+      input_tokens: 4164
+      output_tokens: 75
+      output_tokens_details:
+        thinking_tokens: 36
+      server_tool_use:
+        web_fetch_requests: 0
+        web_search_requests: 1
+      service_tier: standard
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-09-24T04:39:08.783644+00:00'

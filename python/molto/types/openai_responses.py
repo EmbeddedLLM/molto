@@ -24,6 +24,13 @@ from openai.types.responses.response_create_params import (
 from openai.types.responses.response_function_call_arguments_done_event import (
     ResponseFunctionCallArgumentsDoneEvent,
 )
+from openai.types.responses.response_function_web_search_param import (
+    ActionFind,
+    ActionOpenPage,
+    ActionSearch,
+    ActionSearchSource,
+    ResponseFunctionWebSearchParam,
+)
 from openai.types.responses.response_includable import ResponseIncludable
 from openai.types.responses.response_input_file_param import ResponseInputFileParam
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
@@ -35,7 +42,11 @@ from openai.types.responses.response_input_text_param import (
 )
 from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
 from openai.types.responses.response_output_refusal_param import ResponseOutputRefusalParam
-from openai.types.responses.response_output_text_param import ResponseOutputTextParam
+from openai.types.responses.response_output_text_param import (
+    Annotation,
+    AnnotationURLCitation,
+    ResponseOutputTextParam,
+)
 from openai.types.responses.response_prompt_param import ResponsePromptParam
 from openai.types.responses.response_reasoning_item_param import (
     Content as ResponseReasoningContentParam,
@@ -50,7 +61,7 @@ from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
 from pydantic import Discriminator, Field, TypeAdapter, model_validator
-from typing_extensions import Required
+from typing_extensions import Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
 
@@ -85,10 +96,63 @@ class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
     ] = None
 
 
+class AnthropicSearchSourceMetadataParam(TypedDict, total=False):
+    """Original Messages search-result state needed for Anthropic continuation."""
+
+    encrypted_content: Required[str]
+    title: str | None
+    page_age: str | None
+
+
+class ResponseSearchSourceExtraContentParam(TypedDict):
+    anthropic: AnthropicSearchSourceMetadataParam
+
+
+class ResponseWebSearchSourceParam(ActionSearchSource, total=False):
+    extra_content: ResponseSearchSourceExtraContentParam
+
+
+class ResponseWebSearchActionSearchParam(ActionSearch, total=False):
+    sources: list[ResponseWebSearchSourceParam]
+
+
+class ResponseFunctionWebSearchHistoryParam(ResponseFunctionWebSearchParam):
+    """Search history carrying original provider state alongside native URL sources."""
+
+    action: Required[ResponseWebSearchActionSearchParam | ActionOpenPage | ActionFind]
+
+
+class AnthropicCitationMetadataParam(TypedDict):
+    """Original Messages citation state needed for Anthropic continuation."""
+
+    encrypted_index: str
+    cited_text: str
+
+
+class ResponseCitationExtraContentParam(TypedDict):
+    anthropic: AnthropicCitationMetadataParam
+
+
+class ResponseURLCitationParam(AnnotationURLCitation, total=False):
+    extra_content: ResponseCitationExtraContentParam
+
+
+_RETAINED_SDK_ANNOTATIONS = tuple(
+    annotation for annotation in get_args(Annotation) if annotation is not AnnotationURLCitation
+)
+ResponseAnnotationParam: TypeAlias = Union[
+    ResponseURLCitationParam,
+    *_RETAINED_SDK_ANNOTATIONS,  # pyright: ignore[reportInvalidTypeForm]
+]
+
+
 class ResponseOutputTextCacheBreakpointParam(ResponseOutputTextParam, total=False):
-    """The live API accepts output-text markers omitted by the pinned SDK schema."""
+    """Output history with cache markers and typed provider citation state."""
 
     prompt_cache_breakpoint: PromptCacheBreakpoint
+    # Eager lists prevent SDK Iterable validation from discarding history entries
+    # while evaluating union branches or consuming a repeated serialization.
+    annotations: Required[list[ResponseAnnotationParam]]
 
 
 class ResponseOutputMessageOptionalIDParam(ExcludeNoneModel):
@@ -145,16 +209,17 @@ class ResponseInputMessageParam(SDKResponseInputMessageParam):
 
 # The SDK input items are retained as-is so native passthrough accepts every
 # variant the SDK models, including `file_id` images and `input_file` parts.
-# Only four items are replaced: the two message wrappers re-point their content
+# Only five items are replaced: the two message wrappers re-point their content
 # lists at the detail-optional image, and compatible providers also omit IDs
 # from reasoning and output-history items. Output history also accepts cache
-# markers supported by the live API. Translatability is enforced by the adapter,
-# not here.
+# markers supported by the live API and Anthropic citation state; search history
+# retains Anthropic source state. Translatability is enforced by the adapter.
 _REPLACED_SDK_INPUT_ITEMS = {
     EasyInputMessageParam,
     SDKResponseInputMessageParam,
     ResponseReasoningItemParam,
     ResponseOutputMessageParam,
+    ResponseFunctionWebSearchParam,
 }
 _RETAINED_SDK_INPUT_ITEMS = tuple(
     item for item in get_args(ResponseInputItemParam) if item not in _REPLACED_SDK_INPUT_ITEMS
@@ -164,6 +229,7 @@ OpenAIResponsesInputItemParam: TypeAlias = Union[
     ResponseOutputMessageOptionalIDParam,
     ResponseEasyInputMessageParam,
     ResponseInputMessageParam,
+    ResponseFunctionWebSearchHistoryParam,
     *_RETAINED_SDK_INPUT_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
@@ -315,6 +381,22 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         str | None,
         Field(description="A stable identifier for the end user."),
     ] = None
+
+    def has_anthropic_search_metadata(self) -> bool:
+        """Report provider-owned search state for upstream route validation."""
+        if not isinstance(self.input, list):
+            return False
+        for item in self.input:
+            if isinstance(item, ResponseOutputMessageOptionalIDParam):
+                for part in item.content:
+                    if part["type"] == "output_text" and any(
+                        "extra_content" in annotation for annotation in part["annotations"]
+                    ):
+                        return True
+            elif isinstance(item, dict) and item.get("type") == "web_search_call":
+                if any("extra_content" in source for source in item["action"].get("sources", [])):
+                    return True
+        return False
 
 
 class OpenAIResponseCompletedEvent(ResponseCompletedEvent):

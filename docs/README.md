@@ -211,12 +211,13 @@ The translated path currently supports:
 - system prompts and supported assistant history;
 - raw reasoning across all three protocols, and reasoning summaries on supported translations between Responses and Messages;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
+- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning is rejected;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
 - prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
 - native protocol passthrough that remains outside the normalized path.
 
-The shared translated path does not currently implement image output, hosted or server tools, citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic error tool results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
+The shared translated path does not currently implement image output, hosted tools other than basic web search, non-web citations, refusals as content blocks, redacted thinking, structured output, multiple candidates, moderation, or log probabilities. Anthropic client-function error results remain representable inside Messages but cannot be translated to OpenAI protocols without losing the error outcome. Fields accepted by a local request wrapper are not supported cross-protocol until an adapter and client implement their mapping, documented omission, or rejection.
 
 Protocol guides distinguish these current implementation gaps from information that the target protocol can never represent faithfully.
 
@@ -297,11 +298,14 @@ Molto first preserves a provider-neutral termination reason, then projects it in
 | `stop_sequence`                 | `stop_sequence` | `stop`           | completed                       |
 | `tool_call`                     | `tool_use`      | `tool_calls`     | completed                       |
 | `model_context_window_exceeded` | same value      | `stop`           | completed                       |
-| `pause`                         | `pause_turn`    | `stop`           | completed                       |
+| `pause`                         | `pause_turn`    | `length`         | incomplete with null details    |
+| `unknown`                       | `end_turn`      | `stop`           | incomplete with null details    |
 | `refusal`                       | `refusal`       | `stop`           | completed                       |
 | `content_filter`                | `end_turn`      | `content_filter` | incomplete: `content_filter`    |
 
 Values shown as normal completion for a target that lacks the source distinction are deliberate coercions. A matched Anthropic stop sequence is retained separately.
+
+A Responses `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, normalizes to `unknown`. Explicit `max_output_tokens` and `content_filter` reasons retain their mappings. A Messages `pause_turn` normalizes to `pause`; search activity alone does not establish a pause.
 
 ### Usage
 
@@ -314,8 +318,11 @@ Usage is mapped by meaning rather than by field spelling:
 | Cache writes | `input_tokens_details.cache_write_tokens` | `prompt_tokens_details.cache_write_tokens` | `cache_creation_input_tokens` |
 | Output tokens | `output_tokens` | `completion_tokens` | `output_tokens` |
 | Reasoning tokens | `output_tokens_details.reasoning_tokens` | `completion_tokens_details.reasoning_tokens` | `output_tokens_details.thinking_tokens` |
+| `web_search_requests` | source: response-level `tool_usage.web_search.num_requests`; omitted on translated output | omitted | `usage.server_tool_use.web_search_requests` |
 
 When projecting Messages, Molto recovers uncached input by subtracting cache reads and writes from normalized total input. Terminal Messages usage is authoritative; start usage is zero when a source protocol cannot provide final counts without buffering. Unsupported provider-specific usage details are not synthesized.
+
+Normalized `Usage.web_search_requests` holds the reported search count when token usage is available. `None` means unknown; an explicit zero remains zero. Repeated snapshots replace earlier counts rather than adding to them. Translated Messages supplies `web_fetch_requests: 0` alongside a known search count. If upstream token usage is absent, no normalized usage or search count is synthesized. See [hosted-search usage](web-search.md#failures-pauses-and-usage) for the accounting limits.
 
 ### Errors
 

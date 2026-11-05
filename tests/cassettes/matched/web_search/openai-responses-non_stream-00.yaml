@@ -1,0 +1,164 @@
+filename: 2026-09-24-01a0d1b5-c231-7f61-a398-d09d50998653
+request:
+  body:
+    include:
+    - web_search_call.action.sources
+    input: 'Use hosted web search to find the official release date of Python 3.13.0.
+      Make exactly one search call with this single query string: site:python.org
+      Python 3.13.0 release date. Do not batch multiple queries or run additional
+      searches. Use web-page search results with source URLs. Use the returned search
+      snippets; do not open pages or use find-in-page actions. Answer in one short
+      sentence and attach at least one native URL citation to the official python.org
+      source supporting the date. You must search even if you already know the answer.'
+    model: gpt-5.6-luna
+    stream: false
+    tool_choice: required
+    tools:
+    - type: web_search
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '695'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a0d1b5-c231-7f61-a398-d09d50998653
+response:
+  body:
+    access_programs: null
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1790224748
+    created_at: 1790224745
+    error: null
+    frequency_penalty: 0.0
+    id: resp_051fb1f64410d261006ab4a969589487d0a6667657ebf56cd1
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-5.6-luna
+    moderation: null
+    object: response
+    output:
+    - action:
+        queries:
+        - site:python.org Python 3.13.0 release date
+        query: site:python.org Python 3.13.0 release date
+        sources:
+        - type: url
+          url: https://www.python.org/downloads/release/python-3130/
+        - type: url
+          url: https://blog.python.org/2024/10/python-3130-final-released.html
+        - type: url
+          url: https://test.python.org/downloads/release/python-3130/
+        - type: url
+          url: https://blog.python.org/2024/10/python-3130-release-candidate-3-released/
+        - type: url
+          url: https://blog.python.org/2024/08/python-3130-release-candidate-1-released/
+        - type: url
+          url: https://www.python.org/downloads/release/python-3130rc1/
+        - type: url
+          url: https://www.python.org/downloads/release/python-3130rc3/
+        - type: url
+          url: https://peps.python.org/pep-0719/
+        - type: url
+          url: https://www.python.org/doc/versions/
+        - type: url
+          url: https://www.python.org/downloads/release/python-3131/
+        - type: url
+          url: https://discuss.python.org/t/python-3-13-0-final-has-been-released/66972
+        - type: url
+          url: https://blog.python.org/2024/01/python-3130-alpha-3-is-now-available/
+        - type: url
+          url: https://www.python.org/ftp/python/mac/libmac.pdf
+        - type: url
+          url: https://www.python.org/downloads/release/python-3130/?utm_source=openai
+        type: search
+      id: ws_051fb1f64410d261006ab4a96a205087d0b501875722e8dd74
+      status: completed
+      type: web_search_call
+    - content:
+      - annotations:
+        - end_index: 149
+          start_index: 62
+          title: Python Release Python 3.13.0 | Python.org
+          type: url_citation
+          url: https://www.python.org/downloads/release/python-3130/?utm_source=openai
+        logprobs: []
+        text: Python 3.13.0 was officially released on **October 7, 2024**. ([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))
+        type: output_text
+      id: msg_051fb1f64410d261006ab4a96b76e087d0befb639dd4dcda78
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: 24h
+    reasoning:
+      context: all_turns
+      effort: medium
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 1
+    tools:
+    - return_token_budget: default
+      search_content_types:
+      - text
+      search_context_size: medium
+      type: web_search
+      user_location:
+        city: null
+        country: US
+        region: null
+        timezone: null
+        type: approximate
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 8533
+      input_tokens_details:
+        cache_write_tokens: 118
+        cached_tokens: 4251
+      output_tokens: 75
+      output_tokens_details:
+        reasoning_tokens: 36
+      total_tokens: 8608
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-09-24T04:39:05.009346+00:00'

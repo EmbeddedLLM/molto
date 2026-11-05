@@ -842,3 +842,188 @@ def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
     assert read_yaml(str(output_path)) == expected
     assert read_yaml(str(input_path)) == unmatched
     assert responses_path.read_bytes() == original_responses
+
+
+def test_rejects_recorded_signed_search_stream_without_mutating_recordings(tmp_path: Path) -> None:
+    """Ensures recorded encrypted search reasoning fails without rewriting source fixtures."""
+    chat_path = CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"
+    responses_path = CASSETTES / "web_search" / "openai-responses-stream-00.yaml"
+    originals = {path: path.read_bytes() for path in (chat_path, responses_path)}
+    output_path = tmp_path / "search.yaml"
+
+    with pytest.raises(ValueError, match="reasoning"):
+        main([str(chat_path), str(responses_path), "--output", str(output_path)])
+
+    assert not output_path.exists()
+    assert originals == {path: path.read_bytes() for path in originals}
+
+
+def _without_reasoning(cassette: dict) -> dict:
+    """Build a synthetic reasoning-free stream to isolate representable search behavior."""
+    events = []
+    for event in _data_events(cassette):
+        if event.get("item", {}).get("type") == "reasoning":
+            continue
+        if event["type"].startswith("response.reasoning"):
+            continue
+        if "response" in event:
+            event["response"]["output"] = [
+                item for item in event["response"].get("output", []) if item["type"] != "reasoning"
+            ]
+        events.append(event)
+    cassette["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+    return cassette
+
+
+@pytest.mark.parametrize(
+    "snapshot", ["response.output_item.added", "response.output_item.done", "response.completed"]
+)
+def test_search_stream_rejects_signature_in_any_snapshot(snapshot: str) -> None:
+    """Ensures a signature cannot disappear through an unsigned later snapshot."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = _without_reasoning(
+        read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    )
+    events = _data_events(responses)
+    reasoning = {"type": "reasoning", "encrypted_content": "opaque", "summary": []}
+    if snapshot == "response.completed":
+        events[-1]["response"]["output"].insert(0, reasoning)
+    else:
+        events.insert(1, {"type": snapshot, "item": reasoning})
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    with pytest.raises(ValueError, match="Encrypted Responses reasoning"):
+        match_chat_completions_events(chat, responses)
+
+
+def test_search_stream_removes_stale_recorded_annotations() -> None:
+    """Ensures annotations on retained role and finish chunks cannot leak downstream."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = _without_reasoning(
+        read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    )
+    for index, entry in enumerate(chat["response"]["sse"]):
+        if not entry.strip().startswith("data:") or entry.strip() == "data: [DONE]":
+            continue
+        event = json_loads(entry.strip().removeprefix("data:").lstrip())
+        for choice in event["choices"]:
+            choice["delta"]["annotations"] = [{"type": "url_citation"}]
+        chat["response"]["sse"][index] = f"data: {json_dumps(event)}\n\n"
+
+    match_chat_completions_events(chat, responses)
+
+    assert all(
+        "annotations" not in choice["delta"]
+        for event in _data_events(chat)
+        for choice in event["choices"]
+    )
+
+
+def test_search_stream_with_no_answer_removes_recorded_text() -> None:
+    """Ensures a failed search without text finishes Chat without inventing an answer."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = _without_reasoning(
+        read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    )
+    events = []
+    for event in _data_events(responses):
+        if event["type"].startswith(("response.output_text.", "response.content_part.")):
+            continue
+        if event.get("item", {}).get("type") == "message":
+            continue
+        if event.get("item", {}).get("type") == "web_search_call":
+            event["item"]["status"] = "failed"
+        if event["type"] == "response.completed":
+            event["response"]["output"] = []
+        events.append(event)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    matched = [ChatCompletionChunk.model_validate(event) for event in _data_events(chat)]
+    assert not any(choice.delta.content for event in matched for choice in event.choices)
+    assert not any(choice.delta.tool_calls for event in matched for choice in event.choices)
+    assert [
+        choice.finish_reason
+        for event in matched
+        for choice in event.choices
+        if choice.finish_reason
+    ] == ["stop"]
+
+
+def test_search_stream_keeps_text_from_multiple_output_parts() -> None:
+    """Ensures pre-search assistant text and cited answer parts retain their source order."""
+    chat = read_yaml(str(CASSETTES / "web_search" / "openai-chat_completions-stream-00.yaml"))
+    responses = _without_reasoning(
+        read_yaml(str(CASSETTES / "web_search" / "openai-responses-stream-00.yaml"))
+    )
+    events = _data_events(responses)
+    expected = "Checking. " + "".join(
+        event["delta"] for event in events if event["type"] == "response.output_text.delta"
+    )
+    events[1:1] = [
+        {
+            "type": "response.output_text.delta",
+            "item_id": "prelude",
+            "content_index": 0,
+            "delta": "Checking. ",
+        },
+        {
+            "type": "response.output_text.done",
+            "item_id": "prelude",
+            "content_index": 0,
+            "text": "Checking. ",
+        },
+    ]
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    assert "".join(_chat_content(event) or "" for event in _data_events(chat)) == expected
+
+
+@pytest.mark.parametrize("has_search", [False, True])
+@pytest.mark.parametrize(
+    "incomplete_fields",
+    [
+        pytest.param({}, id="absent-details"),
+        pytest.param({"incomplete_details": None}, id="null-details"),
+        pytest.param({"incomplete_details": {}}, id="absent-reason"),
+        pytest.param({"incomplete_details": {"reason": None}}, id="null-reason"),
+    ],
+)
+def test_unknown_incomplete_stream_maps_to_stop(has_search: bool, incomplete_fields: dict) -> None:
+    """Ensures missing reasons coerce to stop independently of hosted search activity."""
+    directory = CASSETTES / ("web_search" if has_search else "simple_text")
+    chat = read_yaml(str(directory / "openai-chat_completions-stream-00.yaml"))
+    responses = _without_reasoning(read_yaml(str(directory / "openai-responses-stream-00.yaml")))
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].pop("incomplete_details", None)
+    terminal["response"].update(status="incomplete", **incomplete_fields)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    match_chat_completions_events(chat, responses)
+
+    assert [
+        choice["finish_reason"]
+        for event in _data_events(chat)
+        for choice in event["choices"]
+        if choice.get("finish_reason")
+    ] == ["stop"]
+
+
+@pytest.mark.parametrize("incomplete_details", [[], "invalid"])
+def test_malformed_incomplete_stream_details_still_rejected(incomplete_details: object) -> None:
+    """Ensures accepting unknown reasons does not accept malformed details containers."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+    events = _data_events(responses)
+    terminal = next(event for event in events if event["type"] == "response.completed")
+    terminal["type"] = "response.incomplete"
+    terminal["response"].update(status="incomplete", incomplete_details=incomplete_details)
+    responses["response"]["sse"] = [f"data: {json_dumps(event)}\n\n" for event in events]
+
+    with pytest.raises(ValueError, match="incomplete_details"):
+        match_chat_completions_events(chat, responses)

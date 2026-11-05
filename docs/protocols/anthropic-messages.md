@@ -186,7 +186,7 @@ Translated output never synthesizes `ping`. Translated `tool_use` blocks use the
 
 ### Messages non-streaming response projection
 
-`AnthropicMessagesAdapter.project_response()` consumes the already projected Anthropic SDK event stream. It initializes the response from `message_start`, appends indexed blocks from `content_block_start`, folds text, thinking, and citation deltas into their blocks, replaces a thinking signature from `signature_delta`, and assembles partial JSON into each `tool_use.input`. It validates content-block lifecycle and index order, and requires tool input to be a JSON object. When generation stops within tool arguments, collection preserves the complete JSON values available so far, matching the Anthropic SDK's partial JSON parsing. A final `message_delta` supplies stop information and authoritative usage before `message_stop` confirms that the accumulated SDK `Message` is complete.
+`AnthropicMessagesAdapter.project_response()` consumes the already projected Anthropic SDK event stream. It initializes the response from `message_start`, appends indexed blocks from `content_block_start`, folds text, thinking, and citation deltas into their blocks, replaces a thinking signature from `signature_delta`, and assembles partial JSON into each client or server tool invocation input. It validates content-block lifecycle and index order, and requires tool input to be a JSON object. When generation stops within tool arguments, collection preserves the complete JSON values available so far, matching the Anthropic SDK's partial JSON parsing. A final `message_delta` supplies stop information and authoritative usage before `message_stop` confirms that the accumulated SDK `Message` is complete.
 
 The response projector does not consume normalized events directly. Because it uses the output of `project_events()`, the non-streaming message retains the same projected block order, target-default service tier, content, reasoning, tool calls, stop mapping, and semantic usage as the streaming route.
 
@@ -358,13 +358,21 @@ Recognized errors use the Anthropic SDK namespace and the [shared error contract
 - `ping` is transport-only and is not projected across protocols.
 - Provider-owned signatures are not portable across providers.
 
+## Hosted web search
+
+Declare `{"type":"web_search_20250305","name":"web_search"}` in `tools`. Translation to Responses supports allowed domains, approximate location, and search budgets; explicit blocked domains are rejected.
+
+With Responses upstream, Messages receives server-tool blocks. `Molto.messages(..., citation_policy="buffer")` also preserves URL citations with reduced source metadata by withholding every text part until completion, including uncited parts. `"auto"` buffers only when the normalized request declares hosted search or carries search or citation history; otherwise it streams text without citations. Opaque `extra_body` extensions do not select automatic buffering. The default `"drop"` always streams text without citations. All policies preserve request-history attribution; native Messages passthrough is unaffected. With Chat upstream, the policy is a no-op: text streams immediately with unchanged chunk boundaries. See [Hosted web search](../web-search.md) for mappings, placeholders, and continuation limits.
+
+When Messages is the translated upstream and the provider is Anthropic, missing, empty, or `"N/A"` encrypted search-source or citation state raises `UnsupportedInput` before transport. Preserve the original state through the Responses metadata extension or explicitly choose text-only history. Native Messages continues to forward history for provider validation; other provider profiles retain reduced-history support.
+
 ## Current implementation limitations
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
 A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Reasoning summaries are not currently portable through Chat Completions in either direction because Chat has no signature slot. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
 
-The normalized path does not currently implement image output, citations, refusals as content blocks, redacted thinking, server or hosted tools, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
+The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 
 Model support for mid-conversation system instructions is not locally validated. Without cache markers, translated requests targeting Messages hoist those instructions even when the source protocol could retain their original positions. With any markers present, Molto rejects mid-conversation instructions to preserve cache prefixes. These are current Molto limitations, distinct from Anthropic's inherent same-role merging and prefill semantics.
 
