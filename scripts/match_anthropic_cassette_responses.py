@@ -722,6 +722,8 @@ def match_messages_response(
     message_usage["service_tier"] = "standard"
 
     messages_cassette["request"]["body"] = matched_request
+    # Matched output intentionally replaces the original recorded response bytes.
+    messages_cassette["response"].pop("body_bytes", None)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

@@ -1,0 +1,245 @@
+filename: 2026-11-04-01a1a48b-9df0-7980-a4b9-23bde9b054f7
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - text: 'The user wants: Use add to add 2 and 3. Then use add to add that result
+          and 4. Then give final answer.
+
+
+          We need to call add function twice: first add 2 and 3 => result 5. Then
+          add that result (5) and 4 => 9. Then answer final answer 9.
+
+
+          We need to use the functions tool. So first call functions.add with a=2,
+          b=3. Then call again with a= result, b=4. Then respond.'
+        type: reasoning_text
+      format: unknown
+      id: rs_tmp_jz24fy2z9lc
+      status: completed
+      summary: []
+      type: reasoning
+    - arguments: "{\n  \"a\": 2,\n  \"b\": 3\n}"
+      call_id: call-d2207b2b-33a6-4c81-a9ae-92419f3fb3bf
+      id: fc_tmp_yqc49bd84p
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-d2207b2b-33a6-4c81-a9ae-92419f3fb3bf
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: false
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: low
+    store: false
+    stream: true
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1451'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a48b-9df0-7980-a4b9-23bde9b054f7
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'data: {"type":"response.created","response":{"id":"gen-1793761975-FlNZ7eszgb5sH5V3O69t","object":"response","created_at":1793761975,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":{"type":"function","name":"add"},"parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"gen-1793761975-FlNZ7eszgb5sH5V3O69t","object":"response","created_at":1793761975,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":{"type":"function","name":"add"},"parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_tmp_id1ci0csjjo","type":"reasoning","status":"in_progress","summary":[]},"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"part":{"type":"reasoning_text","text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"We
+    got","sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    result","sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    5","sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":".","sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    Now","sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    add","sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    5","sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    and","sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":"
+    4","sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"delta":".","sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.done","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"text":"We
+    got result 5. Now add 5 and 4.","sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","output_index":0,"item_id":"rs_tmp_id1ci0csjjo","content_index":0,"part":{"type":"reasoning_text","text":"We
+    got result 5. Now add 5 and 4."},"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_tmp_id1ci0csjjo","type":"reasoning","status":"completed","content":[{"type":"reasoning_text","text":"We
+    got result 5. Now add 5 and 4."}],"summary":[],"format":"unknown"},"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","output_index":1,"item":{"id":"fc_tmp_6gspjedt008","type":"function_call","status":"in_progress","call_id":"call-b0e8c803-f561-4c2a-8bef-ea30c661e3c1","name":"add","arguments":""},"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","output_index":1,"item_id":"fc_tmp_6gspjedt008","delta":"{\n  \"a\":
+    5,\n  \"b\": 4\n}","sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","output_index":1,"item_id":"fc_tmp_6gspjedt008","name":"add","arguments":"{\n  \"a\":
+    5,\n  \"b\": 4\n}","sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","output_index":1,"item":{"id":"fc_tmp_6gspjedt008","type":"function_call","status":"completed","call_id":"call-b0e8c803-f561-4c2a-8bef-ea30c661e3c1","name":"add","arguments":"{\n  \"a\":
+    5,\n  \"b\": 4\n}"},"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"gen-1793761975-FlNZ7eszgb5sH5V3O69t","object":"response","created_at":1793761975,"model":"nvidia/nemotron-3.5-lightning:free","status":"completed","completed_at":1793761976,"output":[{"id":"rs_tmp_id1ci0csjjo","type":"reasoning","status":"completed","content":[{"type":"reasoning_text","text":"We
+    got result 5. Now add 5 and 4."}],"summary":[],"format":"unknown"},{"id":"fc_tmp_6gspjedt008","type":"function_call","status":"completed","call_id":"call-b0e8c803-f561-4c2a-8bef-ea30c661e3c1","name":"add","arguments":"{\n  \"a\":
+    5,\n  \"b\": 4\n}"}],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":{"type":"function","name":"add"},"parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":{"input_tokens":483,"input_tokens_details":{"cached_tokens":0},"output_tokens":32,"output_tokens_details":{"reasoning_tokens":14},"total_tokens":515,"cost":0,"is_byok":false,"cost_details":{"upstream_inference_cost":0,"upstream_inference_input_cost":0,"upstream_inference_output_cost":0}}},"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T03:12:55.792634+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

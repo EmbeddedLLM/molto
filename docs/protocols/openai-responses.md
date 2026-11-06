@@ -255,7 +255,7 @@ Responses is explicit where Chat Completions and Messages are ambiguous:
 | `response.reasoning_summary_*`   | Summary in `Thinking.summary`           |
 | `encrypted_content`              | Opaque snapshot in `Thinking.signature` |
 
-Every explicit Responses event must agree with the selected provider capability profile. OpenAI is classified as summarized reasoning and vLLM as raw reasoning. A base URL never chooses this behavior.
+Explicit Responses events must agree with the selected client's reasoning policy. OpenAI is classified as summarized reasoning and vLLM as raw reasoning. OpenRouter's Responses client accepts either wire-labeled representation, preserving the distinction per item rather than assuming every routed model uses summaries. A base URL never chooses this behavior. See the [provider compatibility policy](../provider-compatibility.md#history-and-reasoning) for format restrictions and continuation limits.
 
 A Responses reasoning lifecycle must use exactly one valid representation:
 
@@ -265,7 +265,7 @@ A Responses reasoning lifecycle must use exactly one valid representation:
 
 The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. When Responses is the downstream target, summary providers require a signature for a completed reasoning summary.
 
-Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Only unsigned raw Chat reasoning is currently portable into Responses: a Chat summary cannot supply the signature required at Responses part completion. Responses-to-Chat summary translation also fails because Chat rejects the source signature instead of dropping it. Supported delta boundaries remain observable and are preserved by matched parity coverage.
+Standard Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Generic Chat reasoning supports only unsigned raw text into Responses: a Chat summary cannot supply the signature required at Responses part completion. Responses-to-Chat summary translation also fails because Chat rejects the source signature instead of dropping it. Supported delta boundaries remain observable and are preserved by matched parity coverage. Gemini additionally maps its Google thought signatures to signature-only reasoning items with unchanged `encrypted_content`. These items follow their associated text or function call; echoing the ordered output back to Gemini restores the original attachment.
 
 ### Opaque continuation state
 

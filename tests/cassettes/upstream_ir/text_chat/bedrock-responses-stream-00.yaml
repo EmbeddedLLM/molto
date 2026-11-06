@@ -1,0 +1,122 @@
+filename: 2026-11-05-01a1aab8-ded7-7ba0-8afa-477fd82f04be
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '227'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-ded7-7ba0-8afa-477fd82f04be
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: b6cc9cdd-34ae-428e-9890-0b84c29d0a21
+  sse:
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865605,"error":null,"frequency_penalty":0.0,"id":"resp_dvp5zzcciw2kmnbtey5csxisvsjb7n4oowmpu6sv74sz3vfny2pa","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":0,"type":"response.created"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865605,"error":null,"frequency_penalty":0.0,"id":"resp_dvp5zzcciw2kmnbtey5csxisvsjb7n4oowmpu6sv74sz3vfny2pa","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":1,"type":"response.in_progress"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[],"id":"msg_a4a4e9a05635556180b2632131a5ca20","phase":"final_answer","role":"assistant","status":"in_progress","type":"message"},"output_index":0,"sequence_number":2,"type":"response.output_item.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_a4a4e9a05635556180b2632131a5ca20","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"","type":"output_text"},"sequence_number":3,"type":"response.content_part.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"Spr","item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"obfuscation":"abcdefg","output_index":0,"sequence_number":4,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"out","item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuv","output_index":0,"sequence_number":5,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"-B","item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"obfuscation":"abcdefghijklmnopqr","output_index":0,"sequence_number":6,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"ot","item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345678","output_index":0,"sequence_number":7,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":".","item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"obfuscation":"abcdefg","output_index":0,"sequence_number":8,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_a4a4e9a05635556180b2632131a5ca20","logprobs":[],"output_index":0,"sequence_number":9,"text":"Sprout-Bot.","type":"response.output_text.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_a4a4e9a05635556180b2632131a5ca20","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"Sprout-Bot.","type":"output_text"},"sequence_number":10,"type":"response.content_part.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[{"annotations":[],"logprobs":[],"text":"Sprout-Bot.","type":"output_text"}],"id":"msg_a4a4e9a05635556180b2632131a5ca20","phase":"final_answer","role":"assistant","status":"completed","type":"message"},"output_index":0,"sequence_number":11,"type":"response.output_item.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":1793865605,"created_at":1793865605,"error":null,"frequency_penalty":0.0,"id":"resp_dvp5zzcciw2kmnbtey5csxisvsjb7n4oowmpu6sv74sz3vfny2pa","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[{"content":[{"annotations":[],"logprobs":[],"text":"Sprout-Bot.","type":"output_text"}],"id":"msg_a4a4e9a05635556180b2632131a5ca20","phase":"final_answer","role":"assistant","status":"completed","type":"message"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"default","status":"completed","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":14,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":9,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":23},"user":null,"moderation":null},"sequence_number":12,"type":"response.completed"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T08:00:04.823373+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

@@ -83,6 +83,8 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
+See [hosted provider compatibility](provider-compatibility.md) for provider keys, exact destinations, history constraints, and the recorded/matched/synthetic evidence matrix.
+
 Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
 
 Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.
@@ -232,7 +234,7 @@ Responses events label those representations explicitly and must agree with the 
 
 A Responses reasoning lifecycle must contain raw reasoning without a summary or signature, a summary accompanied by a signature without raw reasoning, or a signature without reasoning text. A Messages thinking lifecycle follows the same pairing rule. A completely empty start may be deferred until its representation is known, and a lifecycle must not switch representations.
 
-Although a provider profile can classify Chat `reasoning_content` as a summary, Chat has no signature field. Current translated routes through Chat therefore support only unsigned raw reasoning. Summary translation through Chat fails at the Responses or Messages signature boundary rather than silently discarding required continuation state.
+Although a provider profile can classify Chat `reasoning_content` as a summary, standard Chat has no signature field. Generic translated Chat routes therefore support only unsigned raw reasoning. Summary translation through Chat fails at the Responses or Messages signature boundary rather than silently discarding required continuation state. The [Gemini client](provider-compatibility.md#provider-differences) additionally translates its Google thought-signature extension into Responses `encrypted_content` or Messages `signature` and restores the original text/tool attachment on continuation.
 
 ### Opaque continuation state
 

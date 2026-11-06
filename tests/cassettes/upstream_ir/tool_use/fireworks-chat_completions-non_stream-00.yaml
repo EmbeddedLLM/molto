@@ -1,0 +1,93 @@
+filename: 2026-11-05-01a1ac2f-c79c-78c0-b1e7-7c1abd0135c3
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '626'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-c79c-78c0-b1e7-7c1abd0135c3
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: ''
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"path": "index.txt"}'
+            name: read_file
+          id: chatcmpl-tool-994c8fb2cc9445e6
+          index: 0
+          name: null
+          type: function
+        tools: null
+    created: 1793890175
+    id: chatcmpl-ed8a5f067641484e98b8ff1658586f71
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 26
+      completion_tokens_details:
+        reasoning_tokens: 0
+      output_tokens_details:
+        reasoning_tokens: 0
+      prompt_tokens: 304
+      prompt_tokens_details:
+        cached_tokens: 303
+      total_tokens: 330
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLWVkOGE1ZjA2NzY0MTQ4NGU5OGI4ZmYxNjU4NTg2ZjcxIiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzg5MDE3NSwibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    IiwidG9vbF9jYWxscyI6W3siaW5kZXgiOjAsImlkIjoiY2hhdGNtcGwtdG9vbC05OTRjOGZiMmNj
+    OTQ0NWU2IiwidHlwZSI6ImZ1bmN0aW9uIiwiZnVuY3Rpb24iOnsibmFtZSI6InJlYWRfZmlsZSIs
+    ImFyZ3VtZW50cyI6IntcInBhdGhcIjogXCJpbmRleC50eHRcIn0ifSwibmFtZSI6bnVsbH1dLCJ0
+    b29scyI6bnVsbH0sImZpbmlzaF9yZWFzb24iOiJ0b29sX2NhbGxzIn1dLCJ1c2FnZSI6eyJwcm9t
+    cHRfdG9rZW5zIjozMDQsInRvdGFsX3Rva2VucyI6MzMwLCJjb21wbGV0aW9uX3Rva2VucyI6MjYs
+    InByb21wdF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjozMDN9LCJjb21wbGV0aW9u
+    X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zX2Rl
+    dGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH19fQ==
+  headers:
+    connection: keep-alive
+    content-length: '658'
+    content-type: application/json
+    x-request-id: chatcmpl-ed8a5f067641484e98b8ff1658586f71
+  status_code: 200
+timestamp: '2026-11-05T14:49:34.876886+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

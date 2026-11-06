@@ -387,6 +387,8 @@ def match_chat_completions_response(
     chat_response["object"] = "chat.completion"
     chat_response["service_tier"] = "default"
     _map_usage(_validated_usage(response), chat_usage)
+    # Matched output intentionally replaces the original recorded response bytes.
+    chat_cassette["response"].pop("body_bytes", None)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

@@ -269,6 +269,17 @@ def test_cli_writes_sorted_output_without_mutating_input(tmp_path: Path) -> None
     assert output_path.read_text().splitlines()[0].startswith("filename:")
 
 
+def test_matching_discards_stale_raw_response_bytes() -> None:
+    """Ensures deliberately matched JSON replaces raw bytes without mutating the canonical recording."""
+    source, canonical = _cassettes()
+    source["response"]["body_bytes"] = b"old recorded response"
+    canonical["response"]["body_bytes"] = b"canonical original bytes"
+    original = deepcopy(canonical)
+    match_messages_response(source, canonical)
+    assert "body_bytes" not in source["response"]
+    assert canonical == original
+
+
 def _search_cassettes() -> tuple[dict, dict]:
     directory = CASSETTES.parent / "web_search"
     return (

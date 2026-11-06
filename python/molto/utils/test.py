@@ -696,6 +696,14 @@ class OpenAICassetteTransport(httpx.AsyncBaseTransport):
                 request=request,
             )
 
+        if "body_bytes" in response:
+            return httpx.Response(
+                status_code,
+                content=response["body_bytes"],
+                headers=headers,
+                request=request,
+            )
+
         body = response.get("body")
         if isinstance(body, str):
             return httpx.Response(

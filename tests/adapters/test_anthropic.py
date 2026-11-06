@@ -60,7 +60,9 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
     return AnthropicMessagesAdapter(capabilities).normalize_request(request)
 
 
-def test_normalization_rejects_unsigned_summary_history() -> None:
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
+def test_normalization_rejects_unsigned_summary_history(responses_reasoning) -> None:
+    """Ensures explicit Responses output policy never reclassifies ambiguous Messages input."""
     request = _request(
         messages=[
             {
@@ -71,7 +73,10 @@ def test_normalization_rejects_unsigned_summary_history() -> None:
     )
 
     with pytest.raises(UnsupportedInput, match="summary requires a signature"):
-        _normalize(request, _CAPABILITIES)
+        _normalize(
+            request,
+            ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning),
+        )
 
 
 @pytest.mark.parametrize(
@@ -524,8 +529,12 @@ async def test_projection_skips_empty_thinking_delta() -> None:
     assert [event.type for event in events] == ["message_start", "content_block_start"]
 
 
-async def test_projection_supports_official_empty_summary_start() -> None:
-    adapter, request = _adapter()
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
+async def test_projection_supports_official_empty_summary_start(responses_reasoning) -> None:
+    """Ensures signed summaries preserve their text and signature under both output policies."""
+    adapter, request = _adapter(
+        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
 
     events = [
         event
@@ -567,8 +576,12 @@ async def test_projection_rejects_reasoning_outside_capability() -> None:
         ]
 
 
-async def test_projection_rejects_unsigned_summary_completion() -> None:
-    adapter, request = _adapter()
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
+async def test_projection_rejects_unsigned_summary_completion(responses_reasoning) -> None:
+    """Ensures wire-labeled reasoning still requires a signature for completed summaries."""
+    adapter, request = _adapter(
+        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
 
     with pytest.raises(ValueError, match="summary requires a signature"):
         [

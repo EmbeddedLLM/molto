@@ -1,0 +1,430 @@
+filename: 2026-11-05-01a1aab8-e336-7a83-ab05-dfe7677e1b97
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        logprobs: []
+        text: Sprout-Bot.
+        type: output_text
+      id: msg_a4a4e9a05635556180b2632131a5ca20
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Explain why that name fits.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '527'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-e336-7a83-ab05-dfe7677e1b97
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: 622603e3-4d9b-4e79-b055-42131ee44565
+  sse:
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865606,"error":null,"frequency_penalty":0.0,"id":"resp_54by57osw7qqxd7ghsrulv7cskfnc2c5vprqkxh7htkbzrjhskva","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":0,"type":"response.created"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865606,"error":null,"frequency_penalty":0.0,"id":"resp_54by57osw7qqxd7ghsrulv7cskfnc2c5vprqkxh7htkbzrjhskva","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":1,"type":"response.in_progress"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[],"id":"msg_1f139e7eea3052f6b14c49d26458fc20","phase":"final_answer","role":"assistant","status":"in_progress","type":"message"},"output_index":0,"sequence_number":2,"type":"response.output_item.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"","type":"output_text"},"sequence_number":3,"type":"response.content_part.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"“","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01","output_index":0,"sequence_number":4,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"Spr","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcd","output_index":0,"sequence_number":5,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"out","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrs","output_index":0,"sequence_number":6,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"-B","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST","output_index":0,"sequence_number":7,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"ot","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGH","output_index":0,"sequence_number":8,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"”","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghij","output_index":0,"sequence_number":9,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" fits","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL","output_index":0,"sequence_number":10,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" because","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234","output_index":0,"sequence_number":11,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" it","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklm","output_index":0,"sequence_number":12,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" combines","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijk","output_index":0,"sequence_number":13,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" **","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY","output_index":0,"sequence_number":14,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"“","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdef","output_index":0,"sequence_number":15,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"spr","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456","output_index":0,"sequence_number":16,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"out","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRS","output_index":0,"sequence_number":17,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":",”","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcde","output_index":0,"sequence_number":18,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"**","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHI","output_index":0,"sequence_number":19,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" symbol","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234","output_index":0,"sequence_number":20,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"izing","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnop","output_index":0,"sequence_number":21,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" plants","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFG","output_index":0,"sequence_number":22,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" and","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrs","output_index":0,"sequence_number":23,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" new","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP","output_index":0,"sequence_number":24,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" growth","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvw","output_index":0,"sequence_number":25,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":",","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX","output_index":0,"sequence_number":26,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" with","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqr","output_index":0,"sequence_number":27,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" **","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST","output_index":0,"sequence_number":28,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"“","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijk","output_index":0,"sequence_number":29,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"bot","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGH","output_index":0,"sequence_number":30,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":",”","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST","output_index":0,"sequence_number":31,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"**","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234","output_index":0,"sequence_number":32,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" a","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01","output_index":0,"sequence_number":33,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" familiar","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdef","output_index":0,"sequence_number":34,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" shorthand","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567","output_index":0,"sequence_number":35,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" for","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyz","output_index":0,"sequence_number":36,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" robot","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvw","output_index":0,"sequence_number":37,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":".","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqr","output_index":0,"sequence_number":38,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" It","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmno","output_index":0,"sequence_number":39,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"’s","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP","output_index":0,"sequence_number":40,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" short","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCD","output_index":0,"sequence_number":41,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":",","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmn","output_index":0,"sequence_number":42,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" friendly","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHI","output_index":0,"sequence_number":43,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":",","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY","output_index":0,"sequence_number":44,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" and","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzA","output_index":0,"sequence_number":45,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" immediately","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmn","output_index":0,"sequence_number":46,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" suggests","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234","output_index":0,"sequence_number":47,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" a","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDE","output_index":0,"sequence_number":48,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" robot","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHI","output_index":0,"sequence_number":49,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" designed","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJK","output_index":0,"sequence_number":50,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" to","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012","output_index":0,"sequence_number":51,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" help","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzAB","output_index":0,"sequence_number":52,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" plants","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopq","output_index":0,"sequence_number":53,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" grow","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghij","output_index":0,"sequence_number":54,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":".","item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN","output_index":0,"sequence_number":55,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","logprobs":[],"output_index":0,"sequence_number":56,"text":"“Sprout-Bot”
+    fits because it combines **“sprout,”** symbolizing plants and new growth, with
+    **“bot,”** a familiar shorthand for robot. It’s short, friendly, and immediately
+    suggests a robot designed to help plants grow.","type":"response.output_text.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_1f139e7eea3052f6b14c49d26458fc20","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"“Sprout-Bot”
+    fits because it combines **“sprout,”** symbolizing plants and new growth, with
+    **“bot,”** a familiar shorthand for robot. It’s short, friendly, and immediately
+    suggests a robot designed to help plants grow.","type":"output_text"},"sequence_number":57,"type":"response.content_part.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[{"annotations":[],"logprobs":[],"text":"“Sprout-Bot”
+    fits because it combines **“sprout,”** symbolizing plants and new growth, with
+    **“bot,”** a familiar shorthand for robot. It’s short, friendly, and immediately
+    suggests a robot designed to help plants grow.","type":"output_text"}],"id":"msg_1f139e7eea3052f6b14c49d26458fc20","phase":"final_answer","role":"assistant","status":"completed","type":"message"},"output_index":0,"sequence_number":58,"type":"response.output_item.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":1793865606,"created_at":1793865606,"error":null,"frequency_penalty":0.0,"id":"resp_54by57osw7qqxd7ghsrulv7cskfnc2c5vprqkxh7htkbzrjhskva","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[{"content":[{"annotations":[],"logprobs":[],"text":"“Sprout-Bot”
+    fits because it combines **“sprout,”** symbolizing plants and new growth, with
+    **“bot,”** a familiar shorthand for robot. It’s short, friendly, and immediately
+    suggests a robot designed to help plants grow.","type":"output_text"}],"id":"msg_1f139e7eea3052f6b14c49d26458fc20","phase":"final_answer","role":"assistant","status":"completed","type":"message"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"default","status":"completed","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":35,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":56,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":91},"user":null,"moderation":null},"sequence_number":59,"type":"response.completed"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T08:00:05.942680+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

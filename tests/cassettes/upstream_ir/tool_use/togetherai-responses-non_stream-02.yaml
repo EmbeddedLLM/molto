@@ -1,0 +1,176 @@
+filename: 2026-11-05-01a1a9cc-b0bd-7eb3-b7b4-be8d805f1873
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_01a1a9cb0df07a72b0092b2f
+      id: fc_call_01a1a9cb0df07a72b0092b2f
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_01a1a9cb0df07a72b0092b2f
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    - content:
+      - annotations: []
+        text: The file `index.txt` contains the path `garden.txt`. Let me read that
+          file now.
+        type: output_text
+      id: msg_0f26025d-aws_as1-01a1a9cb-5572-7e32-8fd7-61aeed733e54
+      role: assistant
+      status: completed
+      type: message
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_01a1a9cb561876b2be7c103a
+      id: fc_call_01a1a9cb561876b2be7c103a
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_01a1a9cb561876b2be7c103a
+      output:
+      - text: Water the tomatoes every morning and harvest ripe fruit.
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1530'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9cc-b0bd-7eb3-b7b4-be8d805f1873
+response:
+  body:
+    background: false
+    completed_at: 1793850127
+    created_at: 1793850126
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9cc-b20b-71f1-88e0-7f8d870bc148
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: '**Summary:** The file provides simple gardening instructions to water
+          the tomatoes every morning and harvest the ripe fruit.'
+        type: output_text
+      id: msg_92cbcebe-aws_as1-01a1a9cc-b20c-7a90-8156-cfa51f6f6c1c
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 252
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 192
+      output_tokens: 22
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 274
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMDFhMWE5Y2MtYjIwYi03MWYxLTg4ZTAtN2Y4ZDg3MGJjMTQ4Iiwib2JqZWN0
+    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzODUwMTI2LCJjb21wbGV0ZWRfYXQiOjE3OTM4
+    NTAxMjcsImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
+    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
+    dXRfdG9rZW5zIjoxMDI0LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
+    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJtZXNzYWdlIiwiaWQiOiJtc2dfOTJjYmNlYmUtYXdz
+    X2FzMS0wMWExYTljYy1iMjBjLTdhOTAtODE1Ni1jZmE1MWY2ZjZjMWMiLCJyb2xlIjoiYXNzaXN0
+    YW50IiwiY29udGVudCI6W3sidHlwZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6IioqU3VtbWFyeToq
+    KiBUaGUgZmlsZSBwcm92aWRlcyBzaW1wbGUgZ2FyZGVuaW5nIGluc3RydWN0aW9ucyB0byB3YXRl
+    ciB0aGUgdG9tYXRvZXMgZXZlcnkgbW9ybmluZyBhbmQgaGFydmVzdCB0aGUgcmlwZSBmcnVpdC4i
+    LCJhbm5vdGF0aW9ucyI6W119XSwic3RhdHVzIjoiY29tcGxldGVkIn1dLCJwYXJhbGxlbF90b29s
+    X2NhbGxzIjpmYWxzZSwicHJldmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInByb21wdF9jYWNoZV9r
+    ZXkiOm51bGwsInByb21wdF9jYWNoZV9yZXRlbnRpb24iOm51bGwsInJlYXNvbmluZyI6eyJlZmZv
+    cnQiOiJtaW5pbWFsIiwic3VtbWFyeSI6bnVsbH0sInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJz
+    dG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjoxLjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0
+    ZXh0In0sInZlcmJvc2l0eSI6Im1lZGl1bSJ9LCJ0b29sX2Nob2ljZSI6ImF1dG8iLCJ0b29scyI6
+    W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6InJlYWRfZmlsZSIsImRlc2NyaXB0aW9uIjoiUmVh
+    ZCBhIGZpbGUgYnkgaXRzIHBhdGguIiwicGFyYW1ldGVycyI6eyJhZGRpdGlvbmFsUHJvcGVydGll
+    cyI6ZmFsc2UsInByb3BlcnRpZXMiOnsicGF0aCI6eyJ0eXBlIjoic3RyaW5nIn19LCJyZXF1aXJl
+    ZCI6WyJwYXRoIl0sInR5cGUiOiJvYmplY3QifSwic3RyaWN0IjpmYWxzZX1dLCJ0b3BfbG9ncHJv
+    YnMiOjAsInRvcF9wIjoxLjAsInRydW5jYXRpb24iOiJkaXNhYmxlZCIsInVzYWdlIjp7ImlucHV0
+    X3Rva2VucyI6MjUyLCJvdXRwdXRfdG9rZW5zIjoyMiwidG90YWxfdG9rZW5zIjoyNzQsImlucHV0
+    X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjE5MiwiY2FjaGVfd3JpdGVfdG9rZW5z
+    IjowfSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9fSwidXNl
+    ciI6bnVsbCwic2FmZXR5X2lkZW50aWZpZXIiOm51bGwsImZyZXF1ZW5jeV9wZW5hbHR5IjowLjAs
+    InByZXNlbmNlX3BlbmFsdHkiOjAuMCwibWV0YWRhdGEiOnt9fQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 92cbcebe-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:42:06.525572+00:00'
+upstream_url: https://api.together.ai/v1/responses

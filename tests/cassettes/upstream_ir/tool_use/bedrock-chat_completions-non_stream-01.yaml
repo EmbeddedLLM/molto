@@ -1,0 +1,112 @@
+filename: 2026-11-05-01a1ac2f-a9bc-7963-928c-827849dd00f5
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - annotations: []
+      content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_773902313372537881e8bd033b9b4546
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_773902313372537881e8bd033b9b4546
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '908'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-a9bc-7963-928c-827849dd00f5
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        annotations: []
+        content: null
+        refusal: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"path":"garden.txt"}'
+            name: read_file
+          id: call_9a637b01109954889f09e3b8592b7833
+          type: function
+    created: 1793890167
+    id: chatcmpl-mjl2vx5byltmy7yym2jxwudxnvqsaq3zluexv5uyqkix26ttovcq
+    model: global.openai.gpt-5.6-luna
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: null
+    usage:
+      completion_tokens: 19
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 180
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+      total_tokens: 199
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJtZXNz
+    YWdlIjp7ImFubm90YXRpb25zIjpbXSwiY29udGVudCI6bnVsbCwicmVmdXNhbCI6bnVsbCwicm9s
+    ZSI6ImFzc2lzdGFudCIsInRvb2xfY2FsbHMiOlt7ImZ1bmN0aW9uIjp7ImFyZ3VtZW50cyI6Intc
+    InBhdGhcIjpcImdhcmRlbi50eHRcIn0iLCJuYW1lIjoicmVhZF9maWxlIn0sImlkIjoiY2FsbF85
+    YTYzN2IwMTEwOTk1NDg4OWYwOWUzYjg1OTJiNzgzMyIsInR5cGUiOiJmdW5jdGlvbiJ9XX19XSwi
+    Y3JlYXRlZCI6MTc5Mzg5MDE2NywiaWQiOiJjaGF0Y21wbC1tamwydng1YnlsdG15N3l5bTJqeHd1
+    ZHhudnFzYXEzemx1ZXh2NXV5cWtpeDI2dHRvdmNxIiwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdw
+    dC01LjYtbHVuYSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbiIsInNlcnZpY2VfdGllciI6ImRl
+    ZmF1bHQiLCJ1c2FnZSI6eyJjb21wbGV0aW9uX3Rva2VucyI6MTksImNvbXBsZXRpb25fdG9rZW5z
+    X2RldGFpbHMiOnsiYWNjZXB0ZWRfcHJlZGljdGlvbl90b2tlbnMiOjAsImF1ZGlvX3Rva2VucyI6
+    MCwicmVhc29uaW5nX3Rva2VucyI6MCwicmVqZWN0ZWRfcHJlZGljdGlvbl90b2tlbnMiOjB9LCJw
+    cm9tcHRfdG9rZW5zIjoxODAsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJhdWRpb190b2tlbnMi
+    OjAsImNhY2hlX3dyaXRlX3Rva2VucyI6MCwiY2FjaGVkX3Rva2VucyI6MH0sInRvdGFsX3Rva2Vu
+    cyI6MTk5fSwic3lzdGVtX2ZpbmdlcnByaW50IjpudWxsfQ==
+  headers:
+    connection: keep-alive
+    content-length: '775'
+    content-type: application/json
+    x-request-id: 039240b6-535e-4caf-bc38-0b0740da2d8a
+  status_code: 200
+timestamp: '2026-11-05T14:49:27.228145+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

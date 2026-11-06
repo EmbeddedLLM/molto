@@ -1005,7 +1005,7 @@ def _history(protocol: Protocol, search: bool) -> list[dict[str, Any]]:
 async def test_fixed_route_followup_history(
     downstream: Protocol, upstream: Protocol, stream: bool, search: bool
 ):
-    """Ensures native and compatible-provider followups preserve reduced history and placeholders."""
+    """Ensures followups preserve history or reject missing Anthropic continuation state."""
     body, expected = _request_pair(downstream, upstream, stream)
     body_key = "input" if downstream == "responses" else "messages"
     expected_key = "input" if upstream == "responses" else "messages"
@@ -1019,12 +1019,20 @@ async def test_fixed_route_followup_history(
         ]
     body[body_key].extend(_history(downstream, search))
     expected[expected_key].extend(_history(upstream, search))
+    requests = []
     async with _get_http_client(
         [_path(upstream, stream if downstream == upstream else True)],
         upstream,
         expected_body=expected,
+        requests=requests,
     ) as http_client:
-        if downstream == "chat/completions":
+        if downstream == "responses" and upstream == "messages" and search:
+            with pytest.raises(UnsupportedInput, match="original encrypted_content"):
+                await Molto(http_client=http_client).responses(
+                    body=body, endpoint=upstream, api_key="test-api-key"
+                )
+            assert requests == []
+        elif downstream == "chat/completions":
             with pytest.raises(
                 ValueError, match="Chat Completions cannot preserve reasoning signatures"
             ):
@@ -1040,9 +1048,6 @@ async def test_fixed_route_followup_history(
                 body=body,
                 endpoint=upstream,
                 api_key="test-api-key",
-                provider="openai"
-                if downstream == "responses" and upstream == "messages" and search
-                else None,
             )
             if stream:
                 _ = [event async for event in result]
@@ -1557,7 +1562,7 @@ async def test_synthetic_pause_has_no_invented_result(stream: bool, downstream: 
 async def test_synthetic_citation_boundaries_match_sdk_and_history(
     stream: bool, timing: str, text, ranges, expected_text, associations
 ):
-    """Ensures SDK attribution and exact text survive output and compatible-provider history projection."""
+    """Ensures citation boundaries survive output and history with required Anthropic state."""
     citations = [
         {
             "type": "url_citation",
@@ -1646,9 +1651,29 @@ async def test_synthetic_citation_boundaries_match_sdk_and_history(
         expected_body=expected_request,
         requests=requests,
     ) as http_client:
-        followup = await Molto(http_client=http_client).responses(
-            body=body, endpoint="messages", provider="openai", api_key="test-api-key"
-        )
+        molto = Molto(http_client=http_client)
+        with pytest.raises(UnsupportedInput, match="original encrypted_index"):
+            await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
+        assert requests == []
+        # Synthetic opaque state exercises history projection, not provider acceptance.
+        for index, citation in enumerate(history["content"][0]["annotations"]):
+            projected = next(
+                item
+                for block in expected_request["messages"][-2]["content"]
+                for item in block.get("citations", [])
+                if item["url"] == citation["url"]
+            )
+            citation["extra_content"] = {
+                "anthropic": {
+                    "encrypted_index": f"synthetic-index-{index}",
+                    "cited_text": projected["cited_text"],
+                }
+            }
+            for block in expected_request["messages"][-2]["content"]:
+                for item in block.get("citations", []):
+                    if item["url"] == citation["url"]:
+                        item["encrypted_index"] = f"synthetic-index-{index}"
+        followup = await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
         if stream:
             _ = [event async for event in followup]
     assert len(requests) == 1
@@ -2072,7 +2097,7 @@ async def test_synthetic_multiple_responses_text_parts_have_local_offsets(
 async def test_search_history_reaches_sdk_error_boundary(
     downstream: Protocol, upstream: Protocol, stream: bool
 ):
-    """Ensures native and compatible-provider reduced history retains recorded SDK error parity."""
+    """Ensures representable search history reaches the recorded SDK error boundary."""
     body, expected = _request_pair(downstream, upstream, stream)
     for request, protocol in ((body, downstream), (expected, upstream)):
         key = "input" if protocol == "responses" else "messages"
@@ -2081,6 +2106,22 @@ async def test_search_history_reaches_sdk_error_boundary(
                 {"role": "user", "content": [{"type": "input_text", "text": request[key]}]}
             ]
         request[key].extend(_history(protocol, True))
+    if downstream == "responses" and upstream == "messages":
+        # These synthetic values satisfy local continuation requirements; the
+        # recorded invalid-request response remains the SDK error reference.
+        body["input"][-3]["action"]["sources"][0]["extra_content"] = {
+            "anthropic": {"encrypted_content": "synthetic-content"}
+        }
+        citation = body["input"][-2]["content"][0]["annotations"][0]
+        citation["extra_content"] = {
+            "anthropic": {
+                "encrypted_index": "synthetic-index",
+                "cited_text": body["input"][-2]["content"][0]["text"],
+            }
+        }
+        blocks = expected["messages"][-2]["content"]
+        blocks[1]["content"][0]["encrypted_content"] = "synthetic-content"
+        blocks[2]["citations"][0]["encrypted_index"] = "synthetic-index"
     error_path = _matched_cassette_path("error-invalid_request_error", upstream, "stream-00.yaml")
     error_type = AnthropicBadRequestError if upstream == "messages" else OpenAIBadRequestError
     async with _get_http_client([error_path], upstream, expected_body=expected) as http_client:
@@ -2101,9 +2142,6 @@ async def test_search_history_reaches_sdk_error_boundary(
                 body=body,
                 endpoint=upstream,
                 api_key="test-api-key",
-                provider="openai"
-                if downstream == "responses" and upstream == "messages"
-                else None,
             )
             if stream:
                 _ = [event async for event in result]

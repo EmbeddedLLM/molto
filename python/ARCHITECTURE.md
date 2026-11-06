@@ -10,27 +10,29 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, prompt-cache intent, lifecycle metadata, and token usage. Because Chat Completions has no signature field, translated routes through Chat currently support only unsigned raw reasoning.
+Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, prompt-cache intent, lifecycle metadata, and token usage. Generic Chat Completions supports only unsigned raw reasoning on translated routes. Gemini additionally maps its thought-signature extension through Responses and Messages.
 
 ## Route configuration
 
 `endpoint`, `provider`, and `base_url` are independent:
 
-| Concept    | Purpose                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
-| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
-| `base_url` | Selects only the HTTP destination.                                                                                            |
+| Concept | Purpose |
+| --- | --- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`. |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, `vllm`, or an explicit hosted-provider profile. |
+| `base_url` | Selects only the HTTP destination. |
 
 Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
 ### Endpoint selection belongs to the coordinator
 
-Each upstream client implements one upstream wire protocol. A client must not switch or override the selected endpoint to accommodate a provider's supported protocols. Implement provider-specific clients only for protocols that the provider supports, reusing the existing protocol client where possible. For example, if Together AI supports only Chat Completions, implement `TogetherAIChatCompletionsClient`; do not implement a Responses client that silently sends Chat Completions requests.
+Each upstream client implements one upstream wire protocol. A client must not switch or override the selected endpoint to accommodate a provider's supported protocols. Implement provider-specific clients only for protocols that the provider supports, reusing the existing protocol client where possible. For example, `GeminiChatCompletionsClient` sends Chat Completions requests; it must not present itself as a Responses client.
 
-Any desired provider-specific endpoint default, forced switch, or override belongs in the `Molto` coordinator. Resolve the effective upstream endpoint before selecting the client and deciding between native passthrough and translation. The coordinator must preserve its downstream protocol contract: a Responses request routed through `TogetherAIChatCompletionsClient` uses the Responses adapter and normalized translation path.
+Any desired provider-specific endpoint default, forced switch, or override belongs in the `Molto` coordinator. Resolve the effective upstream endpoint before selecting the client and deciding between native passthrough and translation. The coordinator must preserve its downstream protocol contract: a Responses request routed through `GeminiChatCompletionsClient` uses the Responses adapter and normalized translation path.
 
 This defines ownership of any future routing policy; it does not introduce automatic endpoint switching. The current explicit-provider behavior described above remains unchanged.
+
+Each supported `(provider, endpoint)` route has an explicit class in `upstream/registry.py`, including thin subclasses where the shared implementation is sufficient. Prefer Responses for a model and capability it supports, then Messages, then Chat Completions. Together, Fireworks, and Bedrock each have separate Responses and Chat Completions classes; OpenRouter uses Responses and Gemini uses Chat Completions. Each class remains single-protocol, and registering a provider does not establish support for its entire model catalog. Existing canonical OpenAI/Anthropic clients and vLLM routes remain available. Cross-vendor aliases such as OpenAI Messages and Anthropic Responses are unsupported. `Molto` rejects an unregistered pair without switching endpoints. Provider classes own their default destination, required credential name, and protocol-specific capability adjustments; the coordinator resolves configured credentials and explicit overrides. Bedrock requires an explicit regional destination.
 
 ## Architectural goal
 
@@ -66,7 +68,7 @@ Downstream X protocol
 Downstream X events
 ```
 
-Each downstream protocol should require one adapter and each upstream protocol should require one client. Composition then grows approximately as N + M implementations instead of N x M pairwise translators.
+Each downstream protocol has one adapter, and each upstream protocol has a shared client implementation with provider-specific subclasses. The subclasses inherit transport and normalization unless a provider difference requires an override. Translation still composes adapters and clients instead of adding pairwise translators.
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
@@ -107,9 +109,9 @@ The layers have distinct ownership:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
-| `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
+| `providers.py` | Provider names, default protocol-to-provider selection, credential configuration names, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
-| `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
+| `upstream/` | Explicit provider/protocol client registry, destination/authentication defaults, upstream request construction, provider SDK stream integration, compatibility validation, and upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral schemas and validation for request content, response parts, deltas, lifecycle metadata, and usage | Protocol conversions, transport, or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
@@ -256,7 +258,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through Chat: Responses and Messages require a signature for completed summaries, while Chat has no signature field.
+`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Classification does not make summaries portable through generic Chat: Responses and Messages require a signature for completed summaries, while standard Chat has no signature field. Gemini separately maps its Google thought-signature extension for signature-only continuation.
 
 ## Normalized request model
 
@@ -500,7 +502,7 @@ Parity differs by path:
 
 ## Current limitations and extension path
 
-The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Routes through Chat Completions currently support only unsigned raw reasoning. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Native routes preserve hosted web search. Basic hosted search translation is supported through Responses and Messages upstreams, with text-only projection for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning raises an error; translated Chat upstreams reject normalized search declarations and history, while opaque `extra_body.web_search_options` is forwarded and returned annotations are dropped. Other hosted tools, failed client-function result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Generic Chat Completions routes support only unsigned raw reasoning; Gemini also supports signature-only continuation through Responses and Messages. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Native routes preserve hosted web search. Basic hosted search translation is supported through Responses and Messages upstreams, with text-only projection for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning raises an error; translated Chat upstreams reject normalized search declarations and history, while opaque `extra_body.web_search_options` is forwarded and returned annotations are dropped. Other hosted tools, failed client-function result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
 
 Function and hosted-search definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
@@ -514,3 +516,11 @@ To add another upstream protocol:
 4. add cassette-backed parity tests against the downstream SDK contract.
 
 To add another downstream protocol, add an adapter that normalizes its request and projects normalized events without performing transport.
+
+## Hosted compatibility boundaries
+
+[Hosted provider configuration and evidence](../docs/provider-compatibility.md) remain separate from endpoint selection and model availability. Provider clients inherit the shared protocol implementation and override only demonstrated differences. Gemini repairs missing tool indices only with unambiguous identity; the generic normalizer rejects missing indices. Native history schemas have narrow Google attachment and OpenRouter reasoning-format extensions. Gemini extracts message and tool `google.thought_signature` values into signature-only `Thinking` parts immediately after the associated text or call. The order preserves attachment identity through Responses `encrypted_content` and Messages `signature`, and Gemini restores the token to the preceding content on continuation. The shared Chat normalizer owns part finalization; the Gemini subclass owns extension extraction and history restoration. This keeps text incremental when its signature arrives at the end of the stream. The Gemini summary profile permits signature-only projection without adding a new IR field. Cross-protocol paths still reject other populated opaque state they cannot preserve.
+
+Provider conversations share `tests/upstream/test_multi_turn.py` and scenario-first `upstream_ir/` cassette names. Tests reuse actual output as history and compare independent SDK semantics. Configuration tests do not establish live provider compatibility.
+
+`OpenRouterResponsesClient` resolves `responses_reasoning="wire"` without changing the provider's interpretation of ambiguous Chat or Messages reasoning. Its Responses events explicitly identify raw text or summaries, so the client accepts either valid representation, keeps each item's representation consistent across its lifecycle, and requires signatures for completed summaries. The observed `format="unknown"` is accepted on raw output; named formats and signed/summary items carrying a format remain unsupported. Native passthrough preserves all original fields. Downstream Chat accepts unsigned raw reasoning only; Messages can project either representation. Incoming unsigned Messages thinking still follows the existing summary-input contract and rejects, so this output support does not claim a complete Messages reasoning round trip.

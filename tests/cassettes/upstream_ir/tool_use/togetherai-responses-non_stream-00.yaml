@@ -1,0 +1,140 @@
+filename: 2026-11-05-01a1a9cb-0bd2-7431-a1ba-d41e005db75a
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '592'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9cb-0bd2-7431-a1ba-d41e005db75a
+response:
+  body:
+    background: false
+    completed_at: 1793850019
+    created_at: 1793850019
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9cb-0d88-7242-99a0-a8f41c235b85
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_01a1a9cb0df07a72b0092b2f
+      id: fc_call_01a1a9cb0df07a72b0092b2f
+      name: read_file
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 182
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 128
+      output_tokens: 12
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 194
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMDFhMWE5Y2ItMGQ4OC03MjQyLTk5YTAtYThmNDFjMjM1Yjg1Iiwib2JqZWN0
+    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzODUwMDE5LCJjb21wbGV0ZWRfYXQiOjE3OTM4
+    NTAwMTksImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
+    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
+    dXRfdG9rZW5zIjoxMDI0LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
+    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJmdW5jdGlvbl9jYWxsIiwiaWQiOiJmY19jYWxsXzAx
+    YTFhOWNiMGRmMDdhNzJiMDA5MmIyZiIsImNhbGxfaWQiOiJjYWxsXzAxYTFhOWNiMGRmMDdhNzJi
+    MDA5MmIyZiIsIm5hbWUiOiJyZWFkX2ZpbGUiLCJhcmd1bWVudHMiOiJ7XCJwYXRoXCI6XCJpbmRl
+    eC50eHRcIn0iLCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZh
+    bHNlLCJwcmV2aW91c19yZXNwb25zZV9pZCI6bnVsbCwicHJvbXB0X2NhY2hlX2tleSI6bnVsbCwi
+    cHJvbXB0X2NhY2hlX3JldGVudGlvbiI6bnVsbCwicmVhc29uaW5nIjp7ImVmZm9ydCI6Im1pbmlt
+    YWwiLCJzdW1tYXJ5IjpudWxsfSwic2VydmljZV90aWVyIjoiZGVmYXVsdCIsInN0b3JlIjpmYWxz
+    ZSwidGVtcGVyYXR1cmUiOjEuMCwidGV4dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifSwidmVy
+    Ym9zaXR5IjoibWVkaXVtIn0sInRvb2xfY2hvaWNlIjoiYXV0byIsInRvb2xzIjpbeyJ0eXBlIjoi
+    ZnVuY3Rpb24iLCJuYW1lIjoicmVhZF9maWxlIiwiZGVzY3JpcHRpb24iOiJSZWFkIGEgZmlsZSBi
+    eSBpdHMgcGF0aC4iLCJwYXJhbWV0ZXJzIjp7ImFkZGl0aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZSwi
+    cHJvcGVydGllcyI6eyJwYXRoIjp7InR5cGUiOiJzdHJpbmcifX0sInJlcXVpcmVkIjpbInBhdGgi
+    XSwidHlwZSI6Im9iamVjdCJ9LCJzdHJpY3QiOmZhbHNlfV0sInRvcF9sb2dwcm9icyI6MCwidG9w
+    X3AiOjEuMCwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjox
+    ODIsIm91dHB1dF90b2tlbnMiOjEyLCJ0b3RhbF90b2tlbnMiOjE5NCwiaW5wdXRfdG9rZW5zX2Rl
+    dGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MTI4LCJjYWNoZV93cml0ZV90b2tlbnMiOjB9LCJvdXRw
+    dXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH19LCJ1c2VyIjpudWxsLCJz
+    YWZldHlfaWRlbnRpZmllciI6bnVsbCwiZnJlcXVlbmN5X3BlbmFsdHkiOjAuMCwicHJlc2VuY2Vf
+    cGVuYWx0eSI6MC4wLCJtZXRhZGF0YSI6e319
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: e0d08ad2-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:40:18.770770+00:00'
+upstream_url: https://api.together.ai/v1/responses

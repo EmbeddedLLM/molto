@@ -1,0 +1,137 @@
+filename: 2026-11-04-01a1a488-998f-78c3-b53d-ce3a18152d42
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        logprobs: []
+        text: Blue lantern.
+        type: output_text
+      id: msg_tmp_hgffyg7nbyn
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Repeat the phrase
+        type: input_text
+      - text: ' exactly, preserving its spaces.'
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '692'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a488-998f-78c3-b53d-ce3a18152d42
+response:
+  body:
+    access_programs: null
+    background: false
+    completed_at: 1793761778
+    created_at: 1793761778
+    error: null
+    frequency_penalty: 0
+    id: gen-1793761778-uyHAwoDvSLdfs2Ymk5pj
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: nvidia/nemotron-3.5-lightning:free
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: blue  lantern
+        type: output_text
+      id: msg_tmp_rb0pum20tf
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_options: null
+    reasoning:
+      effort: none
+    safety_identifier: null
+    service_tier: auto
+    status: completed
+    store: false
+    temperature: 1
+    text:
+      format:
+        type: text
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1
+    truncation: disabled
+    usage:
+      cost: 0
+      cost_details:
+        upstream_inference_cost: 0
+        upstream_inference_input_cost: 0
+        upstream_inference_output_cost: 0
+      input_tokens: 54
+      input_tokens_details:
+        cached_tokens: 0
+      is_byok: false
+      output_tokens: 4
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 58
+  body_bytes: !!binary |
+    eyJpZCI6Imdlbi0xNzkzNzYxNzc4LXV5SEF3b0R2U0xkZnMyWW1rNXBqIiwib2JqZWN0IjoicmVz
+    cG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzNzYxNzc4LCJtb2RlbCI6Im52aWRpYS9uZW1vdHJvbi0z
+    LjUtbGlnaHRuaW5nOmZyZWUiLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJjb21wbGV0ZWRfYXQiOjE3
+    OTM3NjE3NzgsIm91dHB1dCI6W3siaWQiOiJtc2dfdG1wX3JiMHB1bTIwdGYiLCJ0eXBlIjoibWVz
+    c2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJjb250ZW50Ijpb
+    eyJ0eXBlIjoib3V0cHV0X3RleHQiLCJ0ZXh0IjoiYmx1ZSAgbGFudGVybiIsImFubm90YXRpb25z
+    IjpbXSwibG9ncHJvYnMiOltdfV19XSwiZXJyb3IiOm51bGwsImluY29tcGxldGVfZGV0YWlscyI6
+    bnVsbCwiYWNjZXNzX3Byb2dyYW1zIjpudWxsLCJ0b29scyI6W10sInRvb2xfY2hvaWNlIjoiYXV0
+    byIsInBhcmFsbGVsX3Rvb2xfY2FsbHMiOnRydWUsIm1heF9vdXRwdXRfdG9rZW5zIjoxMDI0LCJ0
+    ZW1wZXJhdHVyZSI6MSwidG9wX3AiOjEsInByZXNlbmNlX3BlbmFsdHkiOjAsImZyZXF1ZW5jeV9w
+    ZW5hbHR5IjowLCJ0b3BfbG9ncHJvYnMiOjAsIm1heF90b29sX2NhbGxzIjpudWxsLCJtZXRhZGF0
+    YSI6e30sImJhY2tncm91bmQiOmZhbHNlLCJwcmV2aW91c19yZXNwb25zZV9pZCI6bnVsbCwic2Vy
+    dmljZV90aWVyIjoiYXV0byIsInRydW5jYXRpb24iOiJkaXNhYmxlZCIsInN0b3JlIjpmYWxzZSwi
+    aW5zdHJ1Y3Rpb25zIjpudWxsLCJ0ZXh0Ijp7ImZvcm1hdCI6eyJ0eXBlIjoidGV4dCJ9fSwicmVh
+    c29uaW5nIjp7ImVmZm9ydCI6Im5vbmUifSwic2FmZXR5X2lkZW50aWZpZXIiOm51bGwsInByb21w
+    dF9jYWNoZV9rZXkiOm51bGwsInByb21wdF9jYWNoZV9vcHRpb25zIjpudWxsLCJ1c2FnZSI6eyJp
+    bnB1dF90b2tlbnMiOjU0LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjow
+    fSwib3V0cHV0X3Rva2VucyI6NCwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190
+    b2tlbnMiOjB9LCJ0b3RhbF90b2tlbnMiOjU4LCJjb3N0IjowLCJpc19ieW9rIjpmYWxzZSwiY29z
+    dF9kZXRhaWxzIjp7InVwc3RyZWFtX2luZmVyZW5jZV9jb3N0IjowLCJ1cHN0cmVhbV9pbmZlcmVu
+    Y2VfaW5wdXRfY29zdCI6MCwidXBzdHJlYW1faW5mZXJlbmNlX291dHB1dF9jb3N0IjowfX19
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:09:38.063778+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

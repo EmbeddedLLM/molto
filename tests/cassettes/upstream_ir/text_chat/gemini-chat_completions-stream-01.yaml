@@ -1,0 +1,266 @@
+filename: 2026-11-06-01a1af0d-1e34-7a61-8b70-a9bfcaeb950c
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    - content: 'To choose the best name for a robot gardener, it helps to decide on
+        the "personality" you want it to have. Here are a few suggestions broken down
+        by category:
+
+
+        ### Friendly & Helpful
+
+        *   **Sprout:** Simple, classic, and suggests new growth.
+
+        *   **Buddy:** Sounds like a reliable, approachable companion.
+
+        *   **Petal:** Gentle and nature-focused.
+
+        *   **Gardner:** A play on "gardener" that feels like a robot name.
+
+        *   **Moss:** Perfect if the robot is small, green, or rugged.
+
+
+        ### Tech-Focused & Clever
+
+        *   **Bot-anist:** The gold standard for a robot gardener pun.
+
+        *   **Terra:** Latin for Earth; sounds futuristic but grounded.
+
+        *   **Root-R:** A play on "Router," but for a plant-based robot.
+
+        *   **S.O.I.L. (System for Organic Integrated Life):** An acronym name sounds
+        very "robot-like."
+
+        *   **Cultivator-9:** Sounds professional and industrial.
+
+
+        ### Whimsical & Fun
+
+        *   **Thistle:** A bit prickly, but charming.
+
+        *   **Flowerpot:** Cute, especially if the robot has a storage compartment.
+
+        *   **Digby:** Sounds like a helpful little guy who loves to dig in the dirt.
+
+        *   **Clippy:** A nod to the old Microsoft assistant (but hopefully much more
+        useful).
+
+        *   **Dewey:** A play on "morning dew" and a friendly name.
+
+
+        ### Sophisticated & Elegant
+
+        *   **Flora:** Timeless and perfectly suited for a green space.
+
+        *   **Silvan:** Derived from the Latin word for "woods" or "forest."
+
+        *   **Arbor:** Sounds sturdy, structural, and sophisticated.
+
+        *   **Verde:** Spanish/Italian for green; sounds sleek.
+
+        *   **Gaia:** Named after the personification of the Earth.
+
+
+        ### If you want to get creative:
+
+        *   **Combine your favorite plant with a robot term:** (e.g., **Fern-droid**,
+        **Rose-o-matic**, **Cactus-bot**)
+
+        *   **Use an acronym:** (e.g., **G.R.E.E.N.** – Garden Robotic Ecosystem Engineer
+        Node)
+
+
+        **My top recommendation:** If you want something charming, go with **Sprout**.
+        If you want something clever, go with **Bot-anist**.'
+      extra_content:
+        google:
+          thought_signature: EnMKcQFpFH0TNsLpBCRAwxC25RsdOMMSlbUxFGz669CzKl/7EoUKw7QVBn0kL1l9ny7ACRc0jkYIL3GqdjpedlVyKmpV8wuT67dBKnBb9AvnIt930RaGiRkDCcE0a2P+IvmMx2AEdBWynXAla7Kps1dTIiEV
+      role: assistant
+    - content:
+      - text: Explain why that name fits.
+        type: text
+      role: user
+    model: gemini-3.1-flash-lite
+    reasoning_effort: minimal
+    stream: true
+    stream_options:
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '2545'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-1e34-7a61-8b70-a9bfcaeb950c
+response:
+  error_event: false
+  headers:
+    cache-control: private
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"Since","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":1,"prompt_tokens":542,"total_tokens":543}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" I recommended **Sprout** and **Bot-anist**
+    as the top choices, here","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":20,"prompt_tokens":542,"total_tokens":562}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" is why each name perfectly captures the
+    \"vibe\" of a robot gardener:\n\n### Why \"Sprout\" works:\n","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":46,"prompt_tokens":542,"total_tokens":588}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"*   **The Emotional Connection:** \"Sprout\"
+    implies potential. Because a robot is a machine, people often view them","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":71,"prompt_tokens":542,"total_tokens":613}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" as cold or technical; naming it Sprout
+    humanizes it. It frames the robot’s job not just as \"maintenance","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":96,"prompt_tokens":542,"total_tokens":638}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":",\" but as \"nurturing.\"\n*   **Simplicity:**
+    It is short, easy to say, and easy for a voice","role":"assistant"},"index":0}],"created":1793938235,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":124,"prompt_tokens":542,"total_tokens":666}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"-activated system to recognize. It feels
+    like the name of a loyal sidekick in a Pixar movie.\n*   **Visual Contrast","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":151,"prompt_tokens":542,"total_tokens":693}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":":** There is a delightful irony in a machine
+    (made of metal, circuits, and wires) having a name that represents","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":175,"prompt_tokens":542,"total_tokens":717}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" the most delicate, organic stage of plant
+    life. It suggests that the robot understands the fragility of the things it is
+    growing","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":199,"prompt_tokens":542,"total_tokens":741}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":".\n\n### Why \"Bot-anist\" works:\n*   **The
+    \"Double Meaning\" Payoff:** It is a","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":226,"prompt_tokens":542,"total_tokens":768}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" clever, high-IQ pun. It explicitly states
+    exactly what the machine is (a *bot*) and exactly what it","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":250,"prompt_tokens":542,"total_tokens":792}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" does (it is an *anist* / botanist). \n*   **Professional
+    Authority:** While \"Sprout\" sounds","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":277,"prompt_tokens":542,"total_tokens":819}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" like a pet, \"Bot-anist\" sounds like
+    an expert. If your robot is sophisticated—meaning it has sensors for soil","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":304,"prompt_tokens":542,"total_tokens":846}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" acidity, light levels, and hydration—this
+    name gives it a sense of scientific purpose.\n*   **Memorable Branding","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":329,"prompt_tokens":542,"total_tokens":871}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":":** If you were to paint this name on
+    the side of the robot, it would immediately tell anyone who sees it exactly","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":353,"prompt_tokens":542,"total_tokens":895}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" what it’s for. It’s witty, punchy, and
+    feels like something a scientist or a high-tech gardener would genuinely","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":381,"prompt_tokens":542,"total_tokens":923}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" name their invention.\n\n***\n\n**How
+    to decide between the two:**\n\n*   Choose **Sprout** if your","role":"assistant"},"index":0}],"created":1793938236,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":406,"prompt_tokens":542,"total_tokens":948}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" robot is small, cute, rounded in shape,
+    or meant to be a friendly helper for a home garden.\n*   Choose","role":"assistant"},"index":0}],"created":1793938237,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":432,"prompt_tokens":542,"total_tokens":974}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" **Bot-anist** if your robot is more functional,
+    tech-forward, analytical, or has a professional \"","role":"assistant"},"index":0}],"created":1793938237,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":456,"prompt_tokens":542,"total_tokens":998}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"research-lab\" aesthetic.","role":"assistant"},"index":0}],"created":1793938237,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":462,"prompt_tokens":542,"total_tokens":1004}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EnMKcQFpFH0T1cwJYPvzREudpqMGFsZQZOKibfwFCPKDH1HInC20Xk3/5IyO2WHJQjg0QPhcByGUKwqNKjKjyknSPojBSDyyYZ83sYKsnTHXjbnT3MSpqJUKX6bMfjY2EHhjGTPq994ZBFbL2oL/gU2dTMI5"}},"role":"assistant"},"finish_reason":"stop","index":0}],"created":1793938237,"id":"O1Ptar_6Cs6tytMP1PeV6Q4","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":462,"prompt_tokens":542,"total_tokens":1004}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-06T04:10:34.932037+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
