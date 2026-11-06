@@ -9,6 +9,7 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 
 from molto import Molto
 from molto.utils.io import dumps_sse, json_loads
+from tests.core.test_web_search import _collect
 
 
 def _history(message):
@@ -351,3 +352,199 @@ async def test_reasoning_format_output_rejects_unsupported_translation(coordinat
             )
             if stream:
                 [event async for event in result]
+
+
+def _google_stream(deltas):
+    """Build synthetic Google chunks, retaining late attachment snapshots."""
+    chunk = {
+        "id": "chatcmpl_google",
+        "created": 1,
+        "model": "model",
+        "object": "chat.completion.chunk",
+    }
+    sse = "".join(
+        dumps_sse({**chunk, "choices": [{"index": 0, "delta": delta}]}) for delta in deltas
+    )
+    sse += dumps_sse(
+        {
+            **chunk,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+        }
+    )
+    return httpx.Response(
+        200,
+        stream=httpx.ByteStream((sse + "data: [DONE]\n\n").encode()),
+        headers={"content-type": "text/event-stream"},
+    )
+
+
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_google_translated_parallel_signature_history(coordinator, stream):
+    """Ensures late signature snapshots retain exact text and parallel-call associations."""
+    text_state = {"google": {"thought_signature": " message\n"}}
+    calls = [
+        {
+            "id": f"call_{i}",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": f'{{"n":{i}}}'},
+            "extra_content": {"google": {"thought_signature": f"call-{i}"}},
+        }
+        for i in range(2)
+    ]
+    deltas = [{"content": "Checking both."}, {"extra_content": text_state}]
+    for i, call in enumerate(calls):
+        first = deepcopy(call)
+        first["index"] = i
+        first["function"]["arguments"] = '{"n":'
+        first["extra_content"]["google"]["thought_signature"] = f"earlier-{i}"
+        deltas.extend(
+            [
+                {"tool_calls": [first]},
+                {"tool_calls": [{"index": i, "function": {"arguments": f"{i}}}"}}]},
+                {"tool_calls": [{"index": i, "extra_content": call["extra_content"]}]},
+            ]
+        )
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        return _google_stream(deltas)
+
+    body = {"model": "model", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = [{"role": "user", "content": "Check both."}]
+    else:
+        body.update(messages=[{"role": "user", "content": "Check both."}], max_tokens=32)
+
+    async def collect(result):
+        if not stream:
+            return result
+        async with result:
+            return _collect(coordinator, [event async for event in result])
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        create = getattr(molto, coordinator)
+        result = await collect(
+            await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
+        )
+        if coordinator == "responses":
+            assert [item.type for item in result.output] == [
+                "message",
+                "reasoning",
+                "function_call",
+                "reasoning",
+                "function_call",
+                "reasoning",
+            ]
+            assert [
+                item.encrypted_content for item in result.output if item.type == "reasoning"
+            ] == [" message\n", "call-0", "call-1"]
+            history = [item.model_dump(exclude_unset=True) for item in result.output]
+            body["input"].extend(history)
+            body["input"].extend(
+                {"type": "function_call_output", "call_id": call["id"], "output": "ok"}
+                for call in calls
+            )
+        else:
+            assert [item.type for item in result.content] == [
+                "text",
+                "thinking",
+                "tool_use",
+                "thinking",
+                "tool_use",
+                "thinking",
+            ]
+            assert [item.signature for item in result.content if item.type == "thinking"] == [
+                " message\n",
+                "call-0",
+                "call-1",
+            ]
+            body["messages"].extend(
+                [
+                    {
+                        "role": "assistant",
+                        "content": [item.model_dump() for item in result.content],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": call["id"], "content": "ok"}
+                            for call in calls
+                        ],
+                    },
+                ]
+            )
+        await collect(
+            await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
+        )
+    assert len(requests) == 2
+    assert requests[1]["messages"] == [
+        {"role": "user", "content": [{"type": "text", "text": "Check both."}]},
+        {
+            "role": "assistant",
+            "content": "Checking both.",
+            "extra_content": text_state,
+            "tool_calls": calls,
+        },
+        *[
+            {
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": [{"type": "text", "text": "ok"}],
+            }
+            for call in calls
+        ],
+    ]
+
+
+@pytest.mark.parametrize(
+    "extra_content",
+    [
+        {"google": {"thought_signature": ""}},
+        {"google": {"thought_signature": None}},
+        {"google": {"thought_signature": 7}},
+        {"google": {"thought_signature": "state", "unknown": True}},
+        {"google": "invalid"},
+        "invalid",
+    ],
+)
+@pytest.mark.parametrize("placement", ["message", "call"])
+async def test_google_malformed_signature_closes_stream(extra_content, placement):
+    """Ensures malformed Google state fails explicitly and releases the upstream response."""
+    delta = {"content": "Text"}
+    if placement == "message":
+        delta["extra_content"] = extra_content
+    else:
+        delta["tool_calls"] = [
+            {
+                "index": 0,
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "lookup", "arguments": "{}"},
+                "extra_content": extra_content,
+            }
+        ]
+    responses = []
+
+    def handler(request):
+        response = _google_stream([delta])
+        responses.append(response)
+        return response
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        with pytest.raises(ValueError, match="extra_content"):
+            result = await molto.responses(
+                {"model": "model", "input": "Hello", "stream": True},
+                endpoint="chat/completions",
+                provider="gemini",
+                api_key="test-key",
+            )
+            async with result:
+                [event async for event in result]
+        assert len(responses) == 1 and responses[0].is_closed

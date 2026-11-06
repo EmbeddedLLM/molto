@@ -3981,10 +3981,15 @@ def test_translated_history_rejects_google_state(placement):
     assert message == original
 
 
-@pytest.mark.parametrize("placement", ["message", "call"])
+@pytest.mark.parametrize(
+    ("provider", "placement"),
+    [("openai", "message"), ("openai", "call"), ("gemini", "message")],
+)
 @pytest.mark.parametrize("coordinator", ["responses", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_translated_output_rejects_google_state_and_closes(placement, coordinator, stream):
+async def test_translated_output_rejects_google_state_and_closes(
+    provider, placement, coordinator, stream
+):
     """Ensures unsupported output state fails explicitly and releases the upstream stream."""
     delta = {
         "tool_calls": [
@@ -4008,9 +4013,9 @@ async def test_translated_output_rejects_google_state_and_closes(placement, coor
     async with Molto(
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
     ) as client:
-        with pytest.raises(ValueError, match="extra_content"):
+        with pytest.raises(ValueError, match="extra_content|associated text"):
             result = await getattr(client, coordinator)(
-                body=body, endpoint="chat/completions", provider="gemini", api_key="test"
+                body=body, endpoint="chat/completions", provider=provider, api_key="test"
             )
             if stream:
                 async with result:

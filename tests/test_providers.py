@@ -21,7 +21,7 @@ def test_provider_capabilities_are_explicit_and_immutable() -> None:
         "bedrock": ProviderCapabilities(thinking="summary"),
         "fireworks": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),
-        "gemini": ProviderCapabilities(thinking="raw"),
+        "gemini": ProviderCapabilities(thinking="summary"),
         "openrouter": ProviderCapabilities(thinking="summary"),
         "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),

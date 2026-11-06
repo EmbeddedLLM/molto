@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from pathlib import Path
 
@@ -116,6 +116,7 @@ def _assert_ir(
     tool_name="read_file",
     source_timestamps=None,
     raw_reasoning=False,
+    termination_reason=None,
 ) -> list[TextOutput | ToolCall | Thinking]:
     """Check lifecycle balance and reconstruct each completed part from its deltas."""
     start, end = events[0], events[-1]
@@ -195,7 +196,8 @@ def _assert_ir(
     assert parts
     parts = [parts[index] for index in range(len(parts))]
     assert end.termination_reason == (
-        "tool_call" if any(isinstance(part, ToolCall) for part in parts) else "stop"
+        termination_reason
+        or ("tool_call" if any(isinstance(part, ToolCall) for part in parts) else "stop")
     )
     return parts
 
@@ -873,27 +875,78 @@ def _expected_chat_wire(recorded):
     return body
 
 
+def _messages_caller_input(messages):
+    """Express recorded caller input in Messages without copying assistant history."""
+    result = []
+    for message in messages:
+        if message["role"] == "tool":
+            result.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": message["tool_call_id"],
+                            "content": message["content"],
+                        }
+                    ],
+                }
+            )
+        else:
+            assert message["role"] == "user"
+            result.append(deepcopy(message))
+    return result
+
+
+def _google_signatures(message):
+    """Read opaque signatures from independently parsed SDK message and tool attachments."""
+    return [
+        extra["google"]["thought_signature"]
+        for attachment in (message, *(message.tool_calls or []))
+        if (extra := getattr(attachment, "extra_content", None))
+    ]
+
+
 @pytest.mark.parametrize(
-    ("provider", "endpoint", "scenario", "mode"),
+    ("provider", "endpoint", "scenario", "mode", "downstream"),
     [
-        case
+        pytest.param(*case.values, downstream, id=f"{case.id}-{downstream}")
         for case in PROVIDER_NATIVE_CONVERSATIONS
         if case.values[1] == "chat_completions" and case.values[3] == "stream"
+        for downstream in (
+            ("responses", "messages") if case.values[0] == "gemini" else ("responses",)
+        )
     ],
 )
 @pytest.mark.parametrize("stream", [False, True])
-async def test_provider_chat_translated_conversation(provider, endpoint, scenario, mode, stream):
-    """Ensures translated Chat preserves SDK semantics and continuation, or rejects opaque state."""
+async def test_provider_chat_translated_conversation(
+    provider, endpoint, scenario, mode, downstream, stream
+):
+    """Ensures translated text, calls and Gemini signatures survive SDK-backed continuation."""
     cassettes = _provider_turns(provider, scenario, mode, endpoint)
     first = cassettes[0]["request"]["body"]
+    responses = downstream == "responses"
+    history_key = "input" if responses else "messages"
+    caller_input = _responses_caller_input if responses else _messages_caller_input
     body = {
         "model": first["model"],
         "stream": stream,
-        "max_output_tokens": first["max_completion_tokens"],
-        "input": _responses_caller_input(first["messages"]),
+        "max_output_tokens" if responses else "max_tokens": first["max_completion_tokens"],
+        history_key: caller_input(first["messages"]),
     }
     if first.get("tools"):
-        body["tools"] = [{"type": "function", **tool["function"]} for tool in first["tools"]]
+        body["tools"] = (
+            [{"type": "function", **tool["function"]} for tool in first["tools"]]
+            if responses
+            else [
+                {
+                    "name": tool["function"]["name"],
+                    "description": tool["function"]["description"],
+                    "input_schema": tool["function"]["parameters"],
+                }
+                for tool in first["tools"]
+            ]
+        )
     for turn, cassette in enumerate(cassettes):
         recorded = cassette["request"]["body"]
         base_url = cassette["upstream_url"].removesuffix("/chat/completions")
@@ -912,6 +965,8 @@ async def test_provider_chat_translated_conversation(provider, endpoint, scenari
                 repair_single_call_index=provider == "gemini",
             )
         expected = _expected_chat_wire(recorded)
+        if not responses:
+            expected["stream_options"]["include_obfuscation"] = False
         calls = []
 
         def handle(request, cassette=cassette, expected=expected, calls=calls):
@@ -927,68 +982,190 @@ async def test_provider_chat_translated_conversation(provider, endpoint, scenari
         }
         before = deepcopy(body)
         message = reference.choices[0].message
-        opaque = any(
-            getattr(attachment, "extra_content", None)
-            for attachment in (message, *(message.tool_calls or []))
-        )
         async with Molto(
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
         ) as molto:
-            with (
-                pytest.raises(
-                    ValueError, match="Chat Completions extra_content cannot be translated"
-                )
-                if opaque
-                else nullcontext()
-            ):
-                actual, _ = await _collect_responses(
-                    await molto.responses(
-                        body,
-                        provider=provider,
-                        endpoint="chat/completions",
-                        api_key="test-key",
-                        base_url=base_url,
-                        extra_body=controls,
-                    ),
-                    stream,
-                )
+            result = await getattr(molto, downstream)(
+                body,
+                provider=provider,
+                endpoint="chat/completions",
+                api_key="test-key",
+                base_url=base_url,
+                extra_body=controls,
+            )
+            if responses:
+                actual, _ = await _collect_responses(result, stream)
+            elif stream:
+                actual = None
+                async with result:
+                    async for event in result:
+                        actual = accumulate_event(event=event, current_snapshot=actual)
+            else:
+                actual = result
         assert body == before
         assert len(calls) == 1
-        if opaque:
-            return
-        assert actual.status == "completed"
-        assert (actual.id, actual.model, actual.created_at) == (
-            reference.id,
-            reference.model,
-            reference.created,
-        )
-        assert actual.output_text == (message.content or "")
-        assert [
-            (item.call_id, item.name, json_loads(item.arguments))
-            for item in actual.output
-            if item.type == "function_call"
-        ] == [
+        assert (actual.id, actual.model) == (reference.id, reference.model)
+        if responses:
+            assert actual.status == "completed"
+            assert actual.created_at == reference.created
+            assert actual.usage.total_tokens == reference.usage.total_tokens
+            text = actual.output_text
+            tool_calls = [
+                (item.call_id, item.name, json_loads(item.arguments))
+                for item in actual.output
+                if item.type == "function_call"
+            ]
+            thoughts = [item for item in actual.output if item.type == "reasoning"]
+            signatures = [item.encrypted_content for item in thoughts]
+            assert all(not item.summary and not item.content for item in thoughts)
+            assert all(
+                item.type in {"message", "function_call", "reasoning"} for item in actual.output
+            )
+            usage = (actual.usage.input_tokens, actual.usage.output_tokens)
+        else:
+            assert actual.stop_reason == "end_turn"
+            text = "".join(block.text for block in actual.content if block.type == "text")
+            tool_calls = [
+                (block.id, block.name, block.input)
+                for block in actual.content
+                if block.type == "tool_use"
+            ]
+            thoughts = [block for block in actual.content if block.type == "thinking"]
+            signatures = [block.signature for block in thoughts]
+            assert all(not block.thinking for block in thoughts)
+            assert all(block.type in {"text", "tool_use", "thinking"} for block in actual.content)
+            usage = (
+                actual.usage.input_tokens
+                + (actual.usage.cache_read_input_tokens or 0)
+                + (actual.usage.cache_creation_input_tokens or 0),
+                actual.usage.output_tokens,
+            )
+        assert text == (message.content or "")
+        assert tool_calls == [
             (call.id, call.function.name, json_loads(call.function.arguments))
             for call in message.tool_calls or []
         ]
         assert not getattr(message, "reasoning_content", None)
-        assert all(item.type in {"message", "function_call"} for item in actual.output)
+        assert signatures == _google_signatures(message)
+        assert usage == (reference.usage.prompt_tokens, reference.usage.completion_tokens)
+        if turn + 1 < len(cassettes):
+            if responses:
+                body[history_key].extend(
+                    item.model_dump(exclude_unset=True) for item in actual.output
+                )
+            else:
+                body[history_key].append(
+                    {
+                        "role": "assistant",
+                        "content": [block.model_dump() for block in actual.content],
+                    }
+                )
+            suffix = cassettes[turn + 1]["request"]["body"]["messages"][
+                len(recorded["messages"]) + 1 :
+            ]
+            assert suffix
+            body[history_key].extend(caller_input(suffix))
+
+
+@pytest.mark.parametrize("scenario", ["text_chat", "tool_use"])
+async def test_gemini_normalized_signature_conversation(scenario):
+    """Ensures Gemini signatures enter IR unchanged and restore their original attachments."""
+    cassettes = _provider_turns("gemini", scenario, "stream", "chat_completions")
+    first = cassettes[0]["request"]["body"]
+    request = NormalizedRequest(
+        model=first["model"],
+        stream=True,
+        max_output_tokens=first["max_completion_tokens"],
+        input=_caller_input(_responses_caller_input(first["messages"])),
+        tools=[FunctionTool(**tool["function"]) for tool in first.get("tools", [])] or None,
+    )
+    for turn, cassette in enumerate(cassettes):
+        recorded = cassette["request"]["body"]
+        base_url = cassette["upstream_url"].removesuffix("/chat/completions")
+        sdk_body, extras = _sdk_body(recorded)
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _, cassette=cassette: _recorded_response(cassette)
+            )
+        ) as transport:
+            sdk = AsyncOpenAI(
+                api_key="test-key", base_url=base_url, http_client=transport, max_retries=0
+            )
+            reference, _ = await _collect_chat(
+                await sdk.chat.completions.create(**sdk_body, extra_body=extras),
+                True,
+                repair_single_call_index=True,
+            )
+        calls = []
+        expected = _expected_chat_wire(recorded)
+
+        def handle(http_request, cassette=cassette, expected=expected, calls=calls):
+            calls.append(http_request)
+            assert str(http_request.url) == cassette["upstream_url"]
+            assert json_loads(http_request.content) == expected
+            return _recorded_response(cassette)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
+            client = GeminiChatCompletionsClient(
+                transport,
+                api_key="test-key",
+                base_url=base_url,
+                capabilities=PROVIDER_CAPABILITIES["gemini"],
+                extra_body={
+                    key: recorded[key]
+                    for key in ("reasoning_effort", "tool_choice", "parallel_tool_calls")
+                    if key in recorded
+                },
+            )
+            before = request.model_copy(deep=True)
+            events = [event async for event in client.events(request)]
+            assert request == before
+        assert len(calls) == 1
+        assert reference.choices[0].finish_reason == "stop"
+        parts = _assert_ir(
+            events,
+            tool_name=request.tools[0].name if request.tools else "read_file",
+            termination_reason="stop",
+        )
+        message = reference.choices[0].message
+        assert (events[0].id, events[0].model, events[0].created_at) == (
+            reference.id,
+            reference.model,
+            reference.created,
+        )
         assert (
-            actual.usage.input_tokens,
-            actual.usage.output_tokens,
-            actual.usage.total_tokens,
+            events[-1].usage.input_tokens,
+            events[-1].usage.output_tokens,
+            events[-1].usage.total_tokens,
         ) == (
             reference.usage.prompt_tokens,
             reference.usage.completion_tokens,
             reference.usage.total_tokens,
         )
+        assert "".join(part.content for part in parts if isinstance(part, TextOutput)) == (
+            message.content or ""
+        )
+        assert [
+            (part.tool_call_id, part.tool_name, json_loads(part.args))
+            for part in parts
+            if isinstance(part, ToolCall)
+        ] == [
+            (call.id, call.function.name, json_loads(call.function.arguments))
+            for call in message.tool_calls or []
+        ]
+        assert [
+            part.signature for part in parts if isinstance(part, Thinking)
+        ] == _google_signatures(message)
+        assert all(
+            not part.content and not part.summary for part in parts if isinstance(part, Thinking)
+        )
         if turn + 1 < len(cassettes):
-            body["input"].extend(item.model_dump(exclude_unset=True) for item in actual.output)
+            request.input.append(AssistantInput(content=parts))
             suffix = cassettes[turn + 1]["request"]["body"]["messages"][
                 len(recorded["messages"]) + 1 :
             ]
             assert suffix
-            body["input"].extend(_responses_caller_input(suffix))
+            request.input.extend(_caller_input(_responses_caller_input(suffix)))
 
 
 @pytest.mark.parametrize("provider", ["openrouter", "fireworks"])

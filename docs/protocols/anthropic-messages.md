@@ -370,7 +370,7 @@ When Messages is the translated upstream and the provider is Anthropic, missing,
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
-A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Reasoning summaries are not currently portable through Chat Completions in either direction because Chat has no signature slot. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
+A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Reasoning summaries are not currently portable through generic Chat Completions because standard Chat has no signature slot. Gemini signature-only state is supported: a thinking block with empty `thinking` and the original `signature` follows its associated text or tool-use block, and echoing that order restores the Gemini attachment. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
 
 The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 

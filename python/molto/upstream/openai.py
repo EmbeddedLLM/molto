@@ -388,6 +388,7 @@ class _ChatToolCallState:
     tool_call_id: str
     tool_name: str
     args: str
+    signature: str | None = None
 
 
 class OpenAIResponsesClient(
@@ -1102,7 +1103,11 @@ class OpenAIChatCompletionsClient(
         return message
 
     @staticmethod
-    def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
+    def _starts_assistant_message(part: Thinking) -> bool:
+        return True
+
+    @classmethod
+    def _messages(cls, request: NormalizedRequest) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = []
         assistant_parts: list[Thinking | TextOutput | ToolCall] = []
         explicit_assistant = False
@@ -1113,7 +1118,7 @@ class OpenAIChatCompletionsClient(
         def flush_assistant() -> None:
             nonlocal explicit_assistant
             if explicit_assistant or assistant_parts:
-                messages.append(OpenAIChatCompletionsClient._assistant_message(assistant_parts))
+                messages.append(cls._assistant_message(assistant_parts))
                 assistant_parts.clear()
                 explicit_assistant = False
 
@@ -1175,7 +1180,8 @@ class OpenAIChatCompletionsClient(
                 assistant_parts.extend(item.content)
                 explicit_assistant = True
             elif isinstance(item, Thinking):
-                flush_assistant()
+                if cls._starts_assistant_message(item):
+                    flush_assistant()
                 assistant_parts.append(item)
             elif isinstance(item, ToolCall):
                 assistant_parts.append(item)
@@ -1316,9 +1322,16 @@ class OpenAIChatCompletionsClient(
             if isinstance(item, ToolReturn) and item.tool_name is not None:
                 raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
+    @staticmethod
+    def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
+        if extra_content:
+            raise ValueError("Chat Completions extra_content cannot be translated.")
+        return None
+
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
+        text_signature: str | None = None
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
@@ -1337,26 +1350,47 @@ class OpenAIChatCompletionsClient(
             part_text = ""
             return PartStartEvent(index=active_part_index, part=part)
 
-        def end_active_part() -> PartEndEvent | None:
-            nonlocal active_part
+        def end_part(
+            index: int, part: Thinking | TextOutput | ToolCall, signature: str | None = None
+        ) -> list[ModelResponseStreamEvent]:
+            nonlocal next_part_index
+            events: list[ModelResponseStreamEvent] = [PartEndEvent(index=index, part=part)]
+            if signature is not None:
+                # Attachment state follows its content so text can stream before
+                # providers supply the signature in their final chunk.
+                thinking = Thinking(content="", summary="", signature=signature)
+                events.extend(
+                    [
+                        PartStartEvent(index=next_part_index, part=thinking),
+                        PartEndEvent(index=next_part_index, part=thinking),
+                    ]
+                )
+                next_part_index += 1
+            return events
+
+        def end_active_part() -> list[ModelResponseStreamEvent]:
+            nonlocal active_part, text_signature
             if active_part == "thinking":
                 part: Thinking | TextOutput = self._classify_thinking(part_text)
             elif active_part == "text":
                 part = TextOutput(content=part_text)
             else:
-                return None
+                return []
             active_part = None
-            return PartEndEvent(index=active_part_index, part=part)
+            events = end_part(active_part_index, part, text_signature)
+            text_signature = None
+            return events
 
-        def end_tool_call(tool_call_index: int) -> PartEndEvent:
+        def end_tool_call(tool_call_index: int) -> list[ModelResponseStreamEvent]:
             state = tool_calls[tool_call_index]
-            return PartEndEvent(
-                index=state.part_index,
-                part=ToolCall(
+            return end_part(
+                state.part_index,
+                ToolCall(
                     tool_call_id=state.tool_call_id,
                     tool_name=state.tool_name,
                     args=state.args,
                 ),
+                state.signature,
             )
 
         native_request = OpenAIChatCompletionsCreateRequest.model_validate(
@@ -1375,23 +1409,21 @@ class OpenAIChatCompletionsClient(
 
                 if chunk.choices:
                     choice = chunk.choices[0]
-                    if any(
-                        getattr(attachment, "extra_content", None)
-                        for attachment in (choice.delta, *(choice.delta.tool_calls or []))
-                    ):
-                        raise ValueError("Chat Completions extra_content cannot be translated.")
+                    signature = self._thought_signature(
+                        getattr(choice.delta, "extra_content", None)
+                    )
                     reasoning_delta = getattr(choice.delta, "reasoning_content", None)
                     # Reasoning and text may interleave: a non-empty reasoning chunk
                     # ends an active text part and starts a new thinking part. Empty
                     # reasoning chunks carry nothing and never start or switch parts.
                     if reasoning_delta:
                         if active_tool_call_index is not None:
-                            yield end_tool_call(active_tool_call_index)
+                            for event in end_tool_call(active_tool_call_index):
+                                yield event
                             active_tool_call_index = None
                         if active_part == "text":
-                            ended_part = end_active_part()
-                            if ended_part is not None:
-                                yield ended_part
+                            for event in end_active_part():
+                                yield event
                         if active_part is None:
                             yield start_part(Thinking(content="", summary=""))
                         part_text += reasoning_delta
@@ -1402,12 +1434,12 @@ class OpenAIChatCompletionsClient(
 
                     if choice.delta.content:
                         if active_tool_call_index is not None:
-                            yield end_tool_call(active_tool_call_index)
+                            for event in end_tool_call(active_tool_call_index):
+                                yield event
                             active_tool_call_index = None
                         if active_part == "thinking":
-                            ended_part = end_active_part()
-                            if ended_part is not None:
-                                yield ended_part
+                            for event in end_active_part():
+                                yield event
                         if active_part is None:
                             yield start_part(TextOutput(content=""))
                         part_text += choice.delta.content
@@ -1416,15 +1448,24 @@ class OpenAIChatCompletionsClient(
                             delta=TextDelta(content_delta=choice.delta.content),
                         )
 
+                    if signature is not None:
+                        if active_part != "text":
+                            raise ValueError(
+                                "A Chat message thought signature requires an associated text part."
+                            )
+                        text_signature = signature
+
                     if choice.delta.tool_calls:
-                        ended_part = end_active_part()
-                        if ended_part is not None:
-                            yield ended_part
+                        for event in end_active_part():
+                            yield event
                         for tool_call_delta in choice.delta.tool_calls:
                             if tool_call_delta.index is None:
                                 raise ValueError(
                                     "Chat Completions tool-call deltas require an index."
                                 )
+                            tool_signature = self._thought_signature(
+                                getattr(tool_call_delta, "extra_content", None)
+                            )
                             function_delta = tool_call_delta.function
                             state = tool_calls.get(tool_call_delta.index)
                             if state is None:
@@ -1438,12 +1479,14 @@ class OpenAIChatCompletionsClient(
                                         "include its ID and function name."
                                     )
                                 if active_tool_call_index is not None:
-                                    yield end_tool_call(active_tool_call_index)
+                                    for event in end_tool_call(active_tool_call_index):
+                                        yield event
                                 state = _ChatToolCallState(
                                     part_index=next_part_index,
                                     tool_call_id=tool_call_delta.id,
                                     tool_name=function_delta.name,
                                     args=function_delta.arguments or "",
+                                    signature=tool_signature,
                                 )
                                 tool_calls[tool_call_delta.index] = state
                                 active_tool_call_index = tool_call_delta.index
@@ -1463,6 +1506,8 @@ class OpenAIChatCompletionsClient(
                                     "Chat Completions tool-call deltas must be contiguous by index."
                                 )
 
+                            if tool_signature is not None:
+                                state.signature = tool_signature
                             name_delta = (
                                 function_delta.name if function_delta is not None else None
                             )
@@ -1496,11 +1541,11 @@ class OpenAIChatCompletionsClient(
                             raise ValueError(
                                 f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
                             ) from exc
-                        ended_part = end_active_part()
-                        if ended_part is not None:
-                            yield ended_part
+                        for event in end_active_part():
+                            yield event
                         if active_tool_call_index is not None:
-                            yield end_tool_call(active_tool_call_index)
+                            for event in end_tool_call(active_tool_call_index):
+                                yield event
                         tool_calls.clear()
                         active_tool_call_index = None
 
@@ -1511,9 +1556,8 @@ class OpenAIChatCompletionsClient(
             raise ValueError("Chat Completions stream did not contain a response chunk.")
         if termination_reason is None:
             raise ValueError("Chat Completions stream ended without a finish reason.")
-        ended_part = end_active_part()
-        if ended_part is not None:
-            yield ended_part
+        for event in end_active_part():
+            yield event
         yield ResponseEndEvent(
             id=response_metadata.id,
             created_at=response_metadata.created_at,
