@@ -1,7 +1,6 @@
 from typing import Any
 
 import orjson
-import yaml
 from pydantic import BaseModel
 
 from molto.utils.types import JSONInput, JSONOutput
@@ -15,6 +14,19 @@ def json_dumps(data: JSONInput, **kwargs) -> str:
     return orjson.dumps(data, **kwargs).decode("utf-8")
 
 
+def read_json(path: str) -> JSONOutput:
+    """Reads a JSON file.
+
+    Args:
+        path (str): Path to the file.
+
+    Returns:
+        data (JSONOutput): The data.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        return orjson.loads(f.read())
+
+
 def read_yaml(path: str) -> JSONOutput:
     """Reads a YAML file.
 
@@ -24,7 +36,9 @@ def read_yaml(path: str) -> JSONOutput:
     Returns:
         data (JSONOutput): The data.
     """
-    with open(path, "r") as f:
+    import yaml  # Test-only dependency, so not imported at module scope.
+
+    with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -47,7 +61,10 @@ def dump_yaml(
     Returns:
         path (str): Path to the file.
     """
-    with open(path, "w") as f:
+    import yaml
+
+    # PyYAML ignores `encoding` for text streams, so the file itself must use it.
+    with open(path, "w", encoding=encoding) as f:
         yaml.dump(data, f, allow_unicode=allow_unicode, encoding=encoding, **kwargs)
     return path
 

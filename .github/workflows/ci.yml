@@ -52,6 +52,13 @@ jobs:
           echo "$uv_python"
           "$uv_python" -VV
 
+      # Runs before the test extras are installed, because they can transitively
+      # provide an undeclared runtime dependency (fastapi[standard] pulls in PyYAML).
+      - name: Check import with core dependencies only
+        run: |
+          uv pip install --system -e .
+          python -c "import molto"
+
       - name: Install package and test dependencies
         run: uv pip install --system -e ".[test]"
 
