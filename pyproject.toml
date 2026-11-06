@@ -104,7 +104,9 @@ test = [
     "openai==2.53.0",
     "pytest~=8.3",
     "pytest-asyncio>=0.23.8",
+    "pytest-cov==7.1.0",
     "pytest-timeout~=2.3",
+    "PyYAML==6.0.3",
 ]
 all = ["molto[lint,test]"]
 

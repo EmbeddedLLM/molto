@@ -1590,7 +1590,6 @@ async def test_responses_adapter_projects_incomplete_termination(
     "termination_reason",
     [
         "model_context_window_exceeded",
-        "pause",
         "refusal",
         "stop_sequence",
         "tool_call",
@@ -1624,7 +1623,7 @@ async def test_responses_adapter_coerces_unrepresentable_termination_to_complete
 
 @pytest.mark.parametrize(
     "termination_reason",
-    ["model_context_window_exceeded", "pause", "refusal"],
+    ["model_context_window_exceeded", "refusal"],
 )
 async def test_chat_completions_adapter_coerces_unrepresentable_termination_to_stop(
     termination_reason: TerminationReason,
@@ -1757,6 +1756,7 @@ async def test_responses_adapter_maps_same_provider_opaque_reasoning_state():
 
 
 async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.MonkeyPatch):
+    """Ensures native SDK events normalize reasoning, text, usage, and effective search state."""
     native_events = [
         _response_event(
             {
@@ -1890,7 +1890,10 @@ async def test_responses_events_translate_native_sdk_events(monkeypatch: pytest.
     }
     assert events == [
         ResponseStartEvent(
-            id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
+            id="resp_123",
+            created_at=1,
+            model="reasoning-model",
+            service_tier="default",
         ),
         PartStartEvent(
             index=0,
@@ -2959,14 +2962,33 @@ async def test_responses_events_ignore_native_sdk_events(
         assert [event async for event in client.events(NormalizedRequest())] == []
 
 
-async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize(
+    ("response_fields", "termination_reason"),
+    [
+        pytest.param(
+            {"incomplete_details": {"reason": "max_output_tokens"}},
+            "max_output_tokens",
+            id="max-output-tokens",
+        ),
+        pytest.param(
+            {"incomplete_details": {"reason": "content_filter"}},
+            "content_filter",
+            id="content-filter",
+        ),
+        pytest.param({"incomplete_details": None}, "unknown", id="null-details"),
+        pytest.param({}, "unknown", id="absent-details"),
+        pytest.param({"incomplete_details": {"reason": None}}, "unknown", id="null-reason"),
+        pytest.param({"incomplete_details": {}}, "unknown", id="absent-reason"),
+    ],
+)
+async def test_responses_events_retain_incomplete_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    response_fields: dict[str, object],
+    termination_reason: TerminationReason,
+):
+    """Ensures incomplete reasons survive and absent reasons remain unknown, never pauses."""
     incomplete_response = _response()
-    incomplete_response.update(
-        {
-            "incomplete_details": {"reason": "max_output_tokens"},
-            "status": "incomplete",
-        }
-    )
+    incomplete_response.update(status="incomplete", **response_fields)
     native_events = [
         _response_event(
             {
@@ -2996,12 +3018,13 @@ async def test_responses_events_retain_incomplete_reason(monkeypatch: pytest.Mon
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
     response_end = next(event for event in events if isinstance(event, ResponseEndEvent))
-    assert response_end.termination_reason == "max_output_tokens"
+    assert response_end.termination_reason == termination_reason
 
 
 async def test_responses_events_translate_function_call_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    """Ensures function-call events preserve identity and explicitly disable hosted-search policy."""
     function_call = {
         "id": "fc_123",
         "type": "function_call",
@@ -3065,7 +3088,10 @@ async def test_responses_events_translate_function_call_lifecycle(
 
     assert events == [
         ResponseStartEvent(
-            id="resp_123", created_at=1, model="reasoning-model", service_tier="default"
+            id="resp_123",
+            created_at=1,
+            model="reasoning-model",
+            service_tier="default",
         ),
         PartStartEvent(
             index=0,

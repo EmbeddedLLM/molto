@@ -1,0 +1,217 @@
+filename: 2026-09-24-01a0d1b5-fa67-7f42-8cbf-43e8c9a13006
+request:
+  body:
+    max_tokens: 4096
+    messages:
+    - content:
+      - text: 'Use hosted web search to find the official release date of Python 3.13.0.
+          Make exactly one search call with this single query string: site:python.org
+          Python 3.13.0 release date. Do not batch multiple queries or run additional
+          searches. Use web-page search results with source URLs. Use the returned
+          search snippets; do not open pages or use find-in-page actions. Answer in
+          one short sentence and attach at least one native URL citation to the official
+          python.org source supporting the date. You must search even if you already
+          know the answer.'
+        type: text
+      role: user
+    model: gpt-5.6-luna
+    stream: true
+    tool_choice:
+      name: web_search
+      type: tool
+    tools:
+    - name: web_search
+      type: web_search_20250305
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '755'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a0d1b5-fa67-7f42-8cbf-43e8c9a13006
+response:
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"gpt-5.6-luna","id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":4213,"cache_creation_input_tokens":0,"cache_read_input_tokens":4369,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":0,"service_tier":"standard","inference_geo":"global","server_tool_use":{"web_search_requests":0,"web_fetch_requests":0}},"diagnostics":null}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":"gAAAAABqtKl0U-WsjsCR8UaxLpQEs54iY01ncyw71cMzSo4CSMI4taPig7SSCI9KznNBLoeb7Wk-3gxcLgrlo6wUu6aah4hRL00h1ajpfAKBJXOP4gdIaed4GCRiaHqiefdLTfYzxwfmb7Y35BToKy8B8MbB8OixyJ9KIWFO3KcXww6sbJUOpfYzbRsUMr8b43YWN4Kbgg2Vct_iUx52HkMBzXfsEFtd1soWen2j-QzBLZS2R3eF60tXYytDvy2Dh3gl6E36EFvcIuhUlDPK0oXG2Ff0yEjFvWTDGOoF6IM8-BZEliR97tyQtuX7tXlErZZaD6QvpgZNUsz-o7VHrPV0uiVdD2kT3rwevoWX2Bfar-OCZVuYMz3QrxxBq-nKgfhPmYffY8jKcKumgVg8IcULeyuWeAyYFK0Q6eDiQ45wsEdHnxTY2af0YPSEXMubs_bci4TusxCLcz5PazX0eThOypmJUNcwMFE96EvpqO2lm9maqMSAkwYMNKw1sB8YWnUIoMIs3O_4Pnxv1FbdiWroZV9auFHGmfnzRblB4HSpruvu1r4UHc-rItYf2mijmqpIVT29SFxlrGe0ykhDA4_7tCotTgySn83sVhZmdodi4YixQxDj7jShHxCdCaWiSA9ypeoo5d7-Lq_41dJFYRzxijTK1BydWwSXj7aj298NYRSkx2zm--xhV7GV83znPQCgenrPNOqsLLlYXcr2QuO8jpKcRHGe6n76lPuaDyPg9uVL6QgWjVsSJFCjsaQu1iJVIypG8OkF448vgkJc18SQOBp9wDn3i4HTJV2FNAkO_O0iKypP54TTjfBd_oJH9vTRy05zD24r3v8dy7KLhZvfHsI4BCdWfEx4NkDB9Aule92de_uPOBqY_H3w1pyRUHQTAGoOZRuWzoiSiOq-LnnX4KmA77HssQSMswKxfG1PPMUNvMAFXLj5WawFg-T_lhIs9_kbaQT6y5BlZnxZZd4IrYIbllDReyGwRs_5y_L09fZ1G9wBtrs1Cr9CuGOpjN4C2gNlDy2Xb9zueqrBiwGXhssc0b9kgCR5DXO8r7QJOiPIDFp2Ad8zRHGjUwfEzZX7TtTelosas6LT9lB9Fa20CwqX8zyM11PDjALpcq-p_BWlq--ExJaQc0I2xt7cbzU7JJh95oVN0TeKL9KqJoCIvYM1Tobn-w=="}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"gAAAAABqtKl1P1FiUEYq48zPMGkoaG_W73QeGJm1dM_87qBdT8ZNPYfzS12bzIwsV9rzvTTaz8I-TnYyYS95-ZTFOV5NGkE83XBMQL2npZngV1lAs4aH4OpuM3FKEBXiQfMVNEwITdESEYoGj0Snp4NURqmzYGz40uzmAOgZHmQr5kgRqqjKx0n0zBYov5ZodETUS8fUpDHWPVdLpWvkWFexmAYYtIf_2fR2CEgx3M9JElKFltvK17PIdZ55GtEKX7Yoa9R_zVFRGZhd1YtdGet0kuu36OquiYlJmnIZ7nQBFofG1cytv-T4Vw4ltRdClejVzlli6oLQ3lbFUJJcnNrgy9WxskpoihR0cXkMuwWcAdHJk5e_GIf93Ui84LfIYn8uK5Kiq5nWiaNmKtTIZkXBehdZef8kTACmyFfWBBpaZ2FULWMDEHcQWI6kVLTUOCrPeDfBM0TpLf-HVj7SUPOYONTIzPVi0etcBo_ALyvInIhpT5cbFtLajGXhbyB0dsBVPZjX7yCVhUld76ESZe9kNF_-fiwyOSSh-FI0izIKjYAUT3QulH86Ln6pjutDf9ALgfw8lvfjS4YlklrXQD5HhUQUFLzFS8sViRL7lxEGwmIoyxxoiCiDL6c-NMskgppty_jZvo7edW5lAKsR-YzYeVks704lRTJjZxRVc6HqbJsPfL7KgmQn_NVJPd4adFccGxhDQ9E7g5XKQjHA2BdBHJfea4SZzx9_Uj8RXuzhy4tLmVVwwEko0aKszDDu8m7gvhLO_ZrACxhze0Jm9Yz22b-STJNs1Hb8Kz8ENGnOgaxNEg2sGkZfgrAt173qmZRAFyrVbOhhXZhLef_E4PfCa_e1fX_15mNxO6MuZWhuRcto2E8Q0uPhbeSSEUMLYDLpd4HfJBLFHepvY-tlBIzbEvh8OxMbUv8q-dy4sBEqUcDfgbo1E4BbB52jGgOxDZvH6LsFCRajKNbimj0g1IHHyFN4ry3Cu-M_jMYGRwt7_1yHq9y049zo7QaLInjJ-IYNiQjgPsKfcS_W4PwwDp0KPVgehBjEkABK_DZGHXcdSVxlr9ec6UZw3tpPTbTFj0U-mRXT-HgqqaaiRfiFVVfRXU9AsgYcn3Ufsor0EzbrF2pb-bLRjUbsNnamq79doP3S6MkTksJc_kjbo9YZ5b8pjKXUSlbAFuph3b4eOp9gJLKs69zwa9CiBDL_vSw6c7EbP-DyHaIsvjLjdihmwo0d6qV1KkZvDDwvMRHUkkUfQtagXd_lc1-ktX6xpu-JXivGFpgt8Yj7Ws-6Uy2BX2Kc8xhUkghTg94yZpyyiDPCf4fkwkl0J2MY_icbn4J5UlJGaFh_gxIkvAOF6QA3UsBl27i-7VFK4F_su5edIqWPHixPDb5W9vJIsWU7wgRh8bGAno0XiP2SaeCGybyHDo5AwDAIXi8oRztzqWIkwmEwBaFTXoiFQij6oaWMwKZyqaIAwSEGvVC5"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"server_tool_use","id":"ws_0ed5c396e5e3bfbc006ab4a9754c6c87d09aa0a25800fcac49","name":"web_search","input":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"site:python.org
+    Python 3.13.0 release date\"}"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":2,"content_block":{"type":"web_search_tool_result","tool_use_id":"ws_0ed5c396e5e3bfbc006ab4a9754c6c87d09aa0a25800fcac49","content":[{"type":"web_search_result","url":"https://www.python.org/downloads/release/python-3130/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://blog.python.org/2024/10/python-3130-final-released.html","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://test.python.org/downloads/release/python-3130/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://blog.python.org/2024/10/python-3130-release-candidate-3-released/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://blog.python.org/2024/08/python-3130-release-candidate-1-released/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://www.python.org/downloads/release/python-3130rc1/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://www.python.org/downloads/release/python-3130rc3/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://peps.python.org/pep-0719/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://www.python.org/doc/versions/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://www.python.org/downloads/release/python-3131/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://discuss.python.org/t/python-3-13-0-final-has-been-released/66972","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://blog.python.org/2024/01/python-3130-alpha-3-is-now-available/","title":"","encrypted_content":"N/A"},{"type":"web_search_result","url":"https://www.python.org/ftp/python/mac/libmac.pdf","title":"","encrypted_content":"N/A"}]}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":2}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":3,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":3,"delta":{"type":"text_delta","text":"Python
+    3.13.0 was officially released on **October 7, 2024**. "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":3}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":4,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":4,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","url":"https://www.python.org/downloads/release/python-3130/?utm_source=openai","title":"Python
+    Release Python 3.13.0 | Python.org","encrypted_index":"N/A","cited_text":"([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":4}
+
+    '
+  - '
+
+    '
+  - 'event: ping
+
+    '
+  - 'data: {"type": "ping"}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null},"usage":{"input_tokens":4213,"cache_creation_input_tokens":0,"cache_read_input_tokens":4369,"output_tokens":124,"output_tokens_details":{"thinking_tokens":85},"server_tool_use":{"web_search_requests":1,"web_fetch_requests":0}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"        }
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-09-24T04:39:19.399207+00:00'

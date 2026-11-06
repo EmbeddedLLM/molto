@@ -1,0 +1,74 @@
+filename: 2026-09-24-01a0d1b5-de43-7ad0-920b-36221188841e
+request:
+  body:
+    messages:
+    - content: 'Use hosted web search to find the official release date of Python
+        3.13.0. Make exactly one search call with this single query string: site:python.org
+        Python 3.13.0 release date. Do not batch multiple queries or run additional
+        searches. Use web-page search results with source URLs. Use the returned search
+        snippets; do not open pages or use find-in-page actions. Answer in one short
+        sentence and attach at least one native URL citation to the official python.org
+        source supporting the date. You must search even if you already know the answer.'
+      role: user
+    model: gpt-5.6-luna
+    stream: true
+    stream_options:
+      include_usage: true
+    web_search_options: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '691'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a0d1b5-de43-7ad0-920b-36221188841e
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'data: {"id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","object":"chat.completion.chunk","created":1790224756,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"finish_reason":null}],"usage":null,"obfuscation":"OnwxVlLRlNsGvK"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","object":"chat.completion.chunk","created":1790224756,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"Python
+    3.13.0 was officially released on **October "},"finish_reason":null}],"usage":null,"obfuscation":"OnwxVlLRlNsGvK"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","object":"chat.completion.chunk","created":1790224756,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"7,
+    2024**. ([python.org](https://www.python.org/downloads/release/python-3130/?utm_source=openai))"},"finish_reason":null}],"usage":null,"obfuscation":"GPn"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","object":"chat.completion.chunk","created":1790224756,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null,"obfuscation":"IusQN3D"}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"resp_0ed5c396e5e3bfbc006ab4a97460c887d0b337209ad634a700","object":"chat.completion.chunk","created":1790224756,"model":"gpt-5.6-luna","service_tier":"default","system_fingerprint":null,"choices":[],"usage":{"prompt_tokens":8582,"completion_tokens":124,"total_tokens":8706,"prompt_tokens_details":{"cached_tokens":4369,"audio_tokens":0,"cache_write_tokens":0},"completion_tokens_details":{"reasoning_tokens":85,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"obfuscation":""}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-09-24T04:39:12.195235+00:00'

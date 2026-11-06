@@ -3,7 +3,7 @@ import inspect
 import pytest
 from anthropic.lib.streaming._messages import accumulate_event
 from anthropic.resources.messages.messages import AsyncMessages
-from anthropic.types import Message, RawMessageStreamEvent
+from anthropic.types import Message, RawMessageStreamEvent, WebSearchToolResultBlock
 from pydantic import ValidationError
 
 from molto.types.anthropic_messages import (
@@ -45,6 +45,80 @@ def test_request_dump_accepts_compatible_thinking_history_without_signature():
     }
 
     assert AnthropicMessagesCreateRequest.model_validate(body).model_dump() == body
+
+
+@pytest.mark.parametrize("sdk_block", [False, True])
+@pytest.mark.parametrize(
+    "content",
+    [
+        [],
+        [
+            {
+                "type": "web_search_result",
+                "url": "https://example.com/",
+                "title": "Example",
+                "encrypted_content": "opaque-content",
+                "page_age": "1 day",
+            }
+        ],
+        {"type": "web_search_tool_result_error", "error_code": "unavailable"},
+    ],
+    ids=["empty", "sources", "error"],
+)
+def test_request_preserves_search_result_history(content, sdk_block):
+    """Ensures source lists stay eager and empty results survive dict and SDK history input."""
+    block = {"type": "web_search_tool_result", "tool_use_id": "search_1", "content": content}
+    request = AnthropicMessagesCreateRequest(
+        model="model",
+        max_tokens=100,
+        messages=[
+            {
+                "role": "assistant",
+                "content": [WebSearchToolResultBlock(**block) if sdk_block else block],
+            }
+        ],
+    )
+    result = request.messages[0].content[0]
+    result_content = result["content"] if isinstance(result, dict) else result.content
+    if isinstance(content, list):
+        assert isinstance(result_content, list)
+    first_dump = request.model_dump()
+    assert first_dump["messages"][0]["content"] == [block]
+    assert request.model_dump() == first_dump
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"type": "web_search_result"},
+        {
+            "type": "web_search_result",
+            "url": 42,
+            "title": "Example",
+            "encrypted_content": "opaque-content",
+        },
+    ],
+    ids=["missing-fields", "invalid-url"],
+)
+def test_request_validates_search_sources_eagerly(source):
+    """Ensures malformed search sources fail at request construction before iteration or transport."""
+    with pytest.raises(ValidationError):
+        AnthropicMessagesCreateRequest(
+            model="model",
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "web_search_tool_result",
+                            "tool_use_id": "search_1",
+                            "content": [source],
+                        }
+                    ],
+                }
+            ],
+        )
 
 
 def test_result_types_use_sdk_models():
