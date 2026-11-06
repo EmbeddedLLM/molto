@@ -137,4 +137,8 @@ except Exception as error:
         f"Recording failed: {type(error).__name__}; HTTP {getattr(error, 'status_code', None)}",
         flush=True,
     )
+    details = getattr(error, "body", None)
+    if details:
+        sanitized = json.dumps(details).replace(os.environ["GEMINI_API_KEY"], "***")
+        print(sanitized[:2000], flush=True)
     raise SystemExit(1) from None
