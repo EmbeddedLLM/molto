@@ -8,33 +8,40 @@ import pytest
 from anthropic import AsyncAnthropic
 from anthropic import AsyncStream as AnthropicAsyncStream
 from anthropic import BadRequestError as AnthropicBadRequestError
+from anthropic.lib.streaming._messages import accumulate_event
 from httpx import AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI, AsyncStream
 from openai import BadRequestError as OpenAIBadRequestError
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
-from molto.adapters.anthropic import AnthropicMessagesAdapter
-from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
-from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, PROVIDER_CAPABILITIES, Provider
+from molto.providers import DEFAULT_PROVIDER_BY_ENDPOINT, Provider
 from molto.types.anthropic_messages import (
-    AnthropicMessagesCreateRequest,
     AnthropicMessagesResponse,
 )
 from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
-    OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
 )
-from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
-from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.types.openai_responses import OpenAIResponsesResponse
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
     reconstructable_anthropic_event,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
+)
+from tests.cassette_discovery import (
+    MATCHED_CONVERSATIONS,
+    NATIVE_CONVERSATIONS,
+    Conversation,
+    Mode,
+    RouteCase,
+    parse_cassette,
+    public_conversations,
+    route_cases,
+    select_conversation,
 )
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes"
@@ -65,9 +72,6 @@ PROMPT_CACHE_SCENARIOS: tuple[str, ...] = (
     "prompt_cache_implicit",
     "prompt_cache_explicit",
 )
-PROMPT_CACHE_CASES: tuple[tuple[str, str], ...] = tuple(
-    product(PROMPT_CACHE_SCENARIOS, ("stream-00.yaml", "stream-01.yaml"))
-)
 
 
 def _protocol_name(protocol: Protocol) -> str:
@@ -79,43 +83,84 @@ def _protocol_name(protocol: Protocol) -> str:
 
 
 def _provider_from_cassette_path(path: Path) -> Provider:
-    provider, separator, _ = path.name.partition("-")
-    if not separator or provider not in PROVIDER_CAPABILITIES:
-        raise ValueError(f"Cannot determine provider from matched cassette: {path}")
-    return cast(Provider, provider)
+    return parse_cassette(path).provider
 
 
-def _recorded_cassette_path(protocol: Protocol, cassette_name: str) -> Path:
-    return CASSETTE_DIR / "openai" / _protocol_name(protocol) / "test_interface" / cassette_name
+def _matched_cassette_path(
+    scenario: str, protocol: Protocol, variant: str, *, provider: Provider | None = None
+) -> Path:
+    mode, turn = variant.removesuffix(".yaml").rsplit("-", 1)
+    conversation = select_conversation(
+        MATCHED_CONVERSATIONS, scenario, protocol, cast(Mode, mode), provider=provider
+    )
+    for cassette in conversation.cassettes:
+        if cassette.turn == int(turn):
+            return cassette.path
+    raise ValueError(f"Missing turn {turn} in {conversation.id}")
 
 
-def _matched_cassette_paths(
-    scenario: str,
-    protocol: Protocol,
-    mode: Literal["stream", "non_stream"] = "stream",
-) -> dict[str, Path]:
-    protocol_name = _protocol_name(protocol)
-    filename_marker = f"-{protocol_name}-"
-    cassette_paths: dict[str, Path] = {}
-    for path in sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*{filename_marker}{mode}-*.yaml")):
-        variant = path.name.partition(filename_marker)[2]
-        if variant in cassette_paths:
-            raise ValueError(
-                f"Expected one matched {protocol!r} cassette for {scenario!r}/{variant!r}"
-            )
-        cassette_paths[variant] = path
-    return cassette_paths
-
-
-def _matched_cassette_path(scenario: str, protocol: Protocol, variant: str) -> Path:
-    protocol_name = _protocol_name(protocol)
-    paths = sorted((MATCHED_CASSETTE_DIR / scenario).glob(f"*-{protocol_name}-{variant}"))
-    if len(paths) != 1:
-        raise ValueError(
-            f"Expected one matched {protocol!r} cassette for {scenario!r}/{variant!r}, "
-            f"found {len(paths)}."
+def _scenario_routes(scenario: str) -> tuple[tuple[Protocol, Protocol], ...]:
+    if scenario in ENCRYPTED_REASONING_SCENARIOS:
+        return RESPONSES_MESSAGES_ROUTES
+    if scenario == "tool_call_image_result_parallel":
+        return (
+            *RESPONSES_MESSAGES_ROUTES,
+            ("responses", "chat/completions"),
+            ("messages", "chat/completions"),
         )
-    return paths[0]
+    return ROUTES
+
+
+def _stream_cases(scenario: str) -> list[Any]:
+    return [
+        pytest.param(case, id=case.id)
+        for case in route_cases(
+            MATCHED_CONVERSATIONS, scenario, "stream", _scenario_routes(scenario)
+        )
+    ]
+
+
+def _non_stream_cases(scenario: str) -> list[Any]:
+    return [
+        pytest.param(case, id=case.id)
+        for downstream, upstream in _scenario_routes(scenario)
+        for case in route_cases(
+            MATCHED_CONVERSATIONS,
+            scenario,
+            "non_stream" if downstream == upstream else "stream",
+            [(downstream, upstream)],
+        )
+    ]
+
+
+def _default_case(
+    scenario: str, downstream: Protocol, upstream: Protocol, mode: Mode
+) -> RouteCase:
+    return next(
+        case
+        for case in route_cases(MATCHED_CONVERSATIONS, scenario, mode, [(downstream, upstream)])
+        if case.upstream == select_conversation(MATCHED_CONVERSATIONS, scenario, upstream, mode)
+    )
+
+
+# Retain the existing native SDK baselines. Other matched scenarios already
+# exercise native routes; faithful provider-deviation recordings join separately.
+NATIVE_SDK_CONVERSATIONS = (
+    *(
+        conversation
+        for conversation in MATCHED_CONVERSATIONS
+        if conversation.scenario
+        in {
+            "simple_text",
+            "sampling_tests",
+            "tool_call",
+            "tool_call_image_result_parallel",
+            *PROMPT_CACHE_SCENARIOS,
+        }
+        or conversation.mode == "non_stream"
+    ),
+    *NATIVE_CONVERSATIONS,
+)
 
 
 @lru_cache(maxsize=5)
@@ -133,14 +178,15 @@ def _get_http_client(
     expected_extra_body: dict[str, Any] | None = None,
     requests: list[Request] | None = None,
     response_headers: dict[str, str] | None = None,
+    continued: bool = False,
 ) -> AsyncClient:
     """Replay `cassette_paths`, optionally asserting one exact outgoing request body."""
-    cassette_paths = cassette_paths.copy()
+    cassette_turns = iter(enumerate(cassette_paths))
 
     def cassette_handler(request: Request) -> Response:
         if requests is not None:
             requests.append(request)
-        cassette_path = cassette_paths.pop(0)
+        turn, cassette_path = next(cassette_turns)
         cassette = _read_cassette(cassette_path)
         scenario = cassette_path.parent.name
         request_body = json_loads(request.content)
@@ -157,6 +203,16 @@ def _get_http_client(
             expected = {**expected, **(expected_extra_body or {})}
             if translated and upstream == "responses":
                 expected = _without_reasoning_item_status(expected)
+            if continued and turn > 0:
+                key = "input" if upstream == "responses" else "messages"
+                request_body[key] = _comparable_history(
+                    request_body[key], upstream, translated=translated
+                )
+                expected[key] = _comparable_history(
+                    _without_reasoning_item_status(expected).get(key),
+                    upstream,
+                    translated=translated,
+                )
             if (
                 translated
                 and upstream == "responses"
@@ -211,20 +267,108 @@ def _assert_reconstructable_encrypted_responses_request(
     actual_body: dict[str, Any],
     expected_body: dict[str, Any],
 ) -> None:
-    adapter = OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["openai"])
-
-    def normalize(body: dict[str, Any]) -> dict[str, Any]:
-        request = OpenAIResponsesCreateRequest.model_validate(body)
-        normalized = adapter.normalize_request(request).model_dump(
-            exclude={"extra_fields", "stream_options"}
-        )
-        for item in normalized.get("input") or []:
-            if isinstance(item, dict):
+    actual = deepcopy(actual_body)
+    expected = _without_reasoning_item_status(expected_body)
+    for body in (actual, expected):
+        # These exact options have no Messages equivalent. Inclusion already
+        # preserves opaque state, store=false requests no state, and disabling
+        # obfuscation affects only SSE padding. Other values must still match.
+        for key, value in (
+            ("include", ["reasoning.encrypted_content"]),
+            ("store", False),
+            ("stream_options", {"include_obfuscation": False}),
+        ):
+            if body.get(key) == value:
+                body.pop(key)
+        for item in body["input"]:
+            item_type = item.get("type", "message")
+            if item_type in {"message", "reasoning", "function_call"}:
+                # Messages cannot carry Responses output-item IDs or phase.
+                # Portable function call_id values remain part of the comparison.
                 item.pop("id", None)
-        return normalized
+                if item_type == "message":
+                    item.pop("phase", None)
+            if item_type == "reasoning":
+                assert "status" not in item, "Reconstructed reasoning input has output-only status"
+                # Omitted and empty raw content both mean no raw reasoning.
+                item.setdefault("content", [])
+            elif item_type == "message":
+                item.setdefault("type", "message")
+                if item["role"] == "assistant":
+                    # Easy assistant text is one completed output_text part, not
+                    # a license to join multiple parts or separate messages.
+                    item.setdefault("status", "completed")
+                    if isinstance(item["content"], str):
+                        item["content"] = [
+                            {
+                                "type": "output_text",
+                                "text": item["content"],
+                                "annotations": [],
+                                "logprobs": [],
+                            }
+                        ]
+    assert actual == expected
 
-    # Messages has no equivalents for Responses include/stream options or item IDs.
-    assert normalize(actual_body) == normalize(expected_body)
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "token-limit",
+        "call-id",
+        "encrypted-content",
+        "input-order",
+        "cache-key",
+        "cache-lifetime",
+        "reasoning-status",
+        "part-order",
+        "part-boundaries",
+    ],
+)
+def test_encrypted_request_comparison_rejects_semantic_changes(defect: str) -> None:
+    """Ensures narrow wire equivalences cannot hide changed history or request settings."""
+    path = _matched_cassette_path(
+        "tool_call_with_reasoning_encrypted", "responses", "stream-01.yaml"
+    )
+    expected = deepcopy(_read_cassette(path)["request"]["body"])
+    expected.update(prompt_cache_key="conversation", prompt_cache_options={"ttl": "30m"})
+    expected["input"][1]["status"] = "completed"
+    # Two parts with the same joined text must still retain their boundaries.
+    expected["input"][2]["content"] = [
+        {"type": "output_text", "text": "First", "annotations": [], "logprobs": []},
+        {"type": "output_text", "text": "Second", "annotations": [], "logprobs": []},
+    ]
+    actual = deepcopy(expected)
+    for item in actual["input"]:
+        item.pop("id", None)
+        item.pop("phase", None)
+    actual["input"][1].pop("status")
+    original_expected = deepcopy(expected)
+    original_actual = deepcopy(actual)
+    _assert_reconstructable_encrypted_responses_request(actual, expected)
+    assert actual == original_actual and expected == original_expected
+
+    if defect == "token-limit":
+        actual.pop("max_output_tokens")
+    elif defect == "call-id":
+        actual["input"][3]["call_id"] = "wrong-call"
+    elif defect == "encrypted-content":
+        actual["input"][1]["encrypted_content"] = "wrong-opaque-state"
+    elif defect == "input-order":
+        actual["input"][1:3] = reversed(actual["input"][1:3])
+    elif defect == "cache-key":
+        actual.pop("prompt_cache_key")
+    elif defect == "cache-lifetime":
+        actual["prompt_cache_options"]["ttl"] = "5m"
+    elif defect == "reasoning-status":
+        actual["input"][1]["status"] = "completed"
+    elif defect == "part-order":
+        actual["input"][2]["content"].reverse()
+    elif defect == "part-boundaries":
+        actual["input"][2]["content"] = [
+            {"type": "output_text", "text": "FirstSecond", "annotations": [], "logprobs": []}
+        ]
+    with pytest.raises(AssertionError):
+        _assert_reconstructable_encrypted_responses_request(actual, expected)
 
 
 def _assert_reconstructable_tool_responses_request(
@@ -350,31 +494,198 @@ def _expect_responses_search_usage(events: list[dict[str, Any]], upstream_path: 
                 }
 
 
-def _responses_output_text(response: dict[str, Any]) -> str:
-    return "".join(
-        part["text"]
-        for item in response["output"]
-        if item["type"] == "message"
-        for part in item["content"]
-        if part["type"] == "output_text"
-    )
-
-
-def _assert_responses_stream_invariants(sse_events: list[str]) -> None:
+def _assert_responses_stream_invariants(sse_events: list[str], *, native: bool = False) -> None:
     events = [load_sse(sse) for sse in sse_events]
     sequence_numbers = [event["sequence_number"] for event in events]
     assert all(current == previous + 1 for previous, current in pairwise(sequence_numbers)), (
         f"Non-contiguous sequence numbers: {sequence_numbers}"
     )
 
-    output_item_ids = [
-        event["item"]["id"]
-        for event in events
-        if event.get("type") == "response.output_item.added"
-    ]
-    assert len(output_item_ids) == len(set(output_item_ids)), (
-        f"Duplicate output item IDs: {output_item_ids}"
+    started: dict[int, dict[str, Any]] = {}
+    completed: dict[int, dict[str, Any]] = {}
+    item_ids: set[str] = set()
+    for event in events:
+        event_type = event["type"]
+        if "output_index" in event or "item_id" in event:
+            index = event["output_index"]
+            if event_type == "response.output_item.added":
+                assert index not in started, f"Output item {index} started twice"
+                item = event["item"]
+                assert item["id"] and item["id"] not in item_ids, "Duplicate or empty item ID"
+                item_ids.add(item["id"])
+                started[index] = item
+            else:
+                assert index in started, f"Update before output item {index} started"
+                assert index not in completed, f"Update after output item {index} completed"
+                if event_type == "response.output_item.done":
+                    item = event["item"]
+                    assert item["id"] == started[index]["id"], "Completed item ID changed"
+                    assert item["type"] == started[index]["type"], "Completed item type changed"
+                    if item["type"] == "function_call":
+                        assert item["call_id"] == started[index]["call_id"]
+                    completed[index] = item
+                else:
+                    assert event["item_id"] == started[index]["id"], "Update targets another item"
+        elif event_type in {"response.completed", "response.incomplete"}:
+            assert event is events[-1], "Events after terminal response"
+            output = event["response"]["output"]
+            assert started.keys() == completed.keys() == set(range(len(output))), (
+                "Unbalanced output item starts, completions, or terminal output"
+            )
+            for index, item in enumerate(output):
+                done = completed[index]
+                if (
+                    native
+                    and item["type"] == "reasoning"
+                    and done.get("encrypted_content")
+                    and item.get("encrypted_content")
+                ):
+                    # Native Responses may expose a third opaque snapshot. A
+                    # translated terminal item must reuse its done snapshot.
+                    done = {**done, "encrypted_content": item["encrypted_content"]}
+                if (
+                    native
+                    and item["type"] == "web_search_call"
+                    and item["action"]["type"] == "search"
+                    and "sources" in item["action"]
+                ):
+                    # Native search may report more sources in its terminal
+                    # snapshot. Translated output retains the done snapshot.
+                    done = {
+                        **done,
+                        "action": {**done["action"], "sources": item["action"]["sources"]},
+                    }
+                assert item == done, f"Terminal output differs from completed item {index}"
+    assert events[-1]["type"] in {"response.completed", "response.incomplete"}, (
+        "Missing terminal response"
     )
+
+
+@pytest.mark.parametrize(
+    "scenario", ["reasoning_raw", "reasoning_encrypted", "tool_call_with_reasoning_encrypted"]
+)
+def test_responses_stream_updates_require_the_started_item_id(scenario: str) -> None:
+    """Ensures every text, reasoning, summary, and argument update retains its item's identity."""
+    path = _matched_cassette_path(scenario, "responses", "stream-00.yaml")
+    records = _sse_records(_read_cassette(path), "responses")
+    _assert_responses_stream_invariants(records)
+    events = [load_sse(record) for record in records]
+    item_ids = [
+        event["item"]["id"] for event in events if event["type"] == "response.output_item.added"
+    ]
+    # One representative of every update type covers each wire shape without
+    # repeating the same assertion for every text token in the recording.
+    for event_type in {event["type"] for event in events if "item_id" in event}:
+        changed = deepcopy(events)
+        update = next(event for event in changed if event["type"] == event_type)
+        update["item_id"] = next(item_id for item_id in item_ids if item_id != update["item_id"])
+        with pytest.raises(AssertionError, match="Update targets another item"):
+            _assert_responses_stream_invariants([dumps_sse(event) for event in changed])
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "before-start",
+        "after-completion",
+        "wrong-index",
+        "done-id",
+        "duplicate-start",
+        "missing-completion",
+        "terminal-order",
+        "terminal-content",
+    ],
+)
+def test_responses_stream_invariants_reject_invalid_item_lifecycles(defect: str) -> None:
+    """Ensures balanced item lifecycles and ordered terminal output are checked before ID removal."""
+    path = _matched_cassette_path(
+        "tool_call_with_reasoning_encrypted", "responses", "stream-00.yaml"
+    )
+    records = _sse_records(_read_cassette(path), "responses")
+    _assert_responses_stream_invariants(records)
+    events = [load_sse(record) for record in records]
+    update_index = next(i for i, event in enumerate(events) if "item_id" in event)
+    output_index = events[update_index]["output_index"]
+    start_index = next(
+        i
+        for i, event in enumerate(events)
+        if event["type"] == "response.output_item.added" and event["output_index"] == output_index
+    )
+    done_index = next(
+        i
+        for i, event in enumerate(events)
+        if event["type"] == "response.output_item.done" and event["output_index"] == output_index
+    )
+    if defect == "before-start":
+        events.insert(start_index, events.pop(update_index))
+    elif defect == "after-completion":
+        events.insert(done_index, events.pop(update_index))
+    elif defect == "wrong-index":
+        events[update_index]["output_index"] = 0
+    elif defect == "done-id":
+        events[done_index]["item"]["id"] = "wrong-id"
+    elif defect == "duplicate-start":
+        events.insert(start_index, deepcopy(events[start_index]))
+    elif defect == "missing-completion":
+        events.pop(done_index)
+    elif defect == "terminal-order":
+        events[-1]["response"]["output"].reverse()
+    elif defect == "terminal-content":
+        events[-1]["response"]["output"][1]["content"][0]["text"] = "wrong-text"
+    # Keep sequence numbers valid so a failure demonstrates the item check.
+    for index, event in enumerate(events):
+        event["sequence_number"] = index
+    with pytest.raises(AssertionError):
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+
+
+def test_incomplete_responses_stream_requires_completed_items() -> None:
+    """Ensures incomplete terminal responses also require a done event for each partial item."""
+    path = CASSETTE_DIR / "errors/incomplete_response/openai-responses-stream-00.yaml"
+    records = _sse_records(_read_cassette(path), "responses")
+    _assert_responses_stream_invariants(records)
+    events = [load_sse(record) for record in records]
+    events = [event for event in events if event["type"] != "response.output_item.done"]
+    for index, event in enumerate(events):
+        event["sequence_number"] = index
+    with pytest.raises(AssertionError, match="Unbalanced output item"):
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+
+
+def test_responses_terminal_encrypted_snapshot_policy() -> None:
+    """Ensures only native streams may expose a separate terminal encrypted snapshot."""
+    path = _matched_cassette_path("reasoning_encrypted", "responses", "stream-00.yaml")
+    events = [load_sse(record) for record in _sse_records(_read_cassette(path), "responses")]
+    events[-1]["response"]["output"][0]["encrypted_content"] = "separate-terminal-snapshot"
+    records = [dumps_sse(event) for event in events]
+    _assert_responses_stream_invariants(records, native=True)
+    with pytest.raises(AssertionError, match="Terminal output differs"):
+        _assert_responses_stream_invariants(records)
+
+
+@pytest.mark.parametrize("field", ["id", "status", "query"])
+def test_responses_terminal_search_snapshot_policy(field: str) -> None:
+    """Ensures only native search sources may change while identity and action stay strict."""
+    path = _matched_cassette_path("web_search", "responses", "stream-00.yaml")
+    events = [load_sse(record) for record in _sse_records(_read_cassette(path), "responses")]
+    output = events[-1]["response"]["output"]
+    for event in events:
+        if event["type"] == "response.output_item.done" and event["item"]["type"] == "reasoning":
+            # Isolate the search-source difference from the independent
+            # terminal reasoning snapshot in this recording.
+            output[event["output_index"]] = deepcopy(event["item"])
+    records = [dumps_sse(event) for event in events]
+    _assert_responses_stream_invariants(records, native=True)
+    with pytest.raises(AssertionError, match="Terminal output differs"):
+        _assert_responses_stream_invariants(records)
+
+    search = next(item for item in output if item["type"] == "web_search_call")
+    if field == "query":
+        search["action"]["query"] = "changed query"
+    else:
+        search[field] = "changed"
+    with pytest.raises(AssertionError, match="Terminal output differs"):
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events], native=True)
 
 
 async def test_extra_inputs():
@@ -503,23 +814,18 @@ async def test_responses_translation_ignores_disabled_store(upstream: Protocol):
         assert [event async for event in stream]
 
 
-@pytest.mark.parametrize("protocol", PROTOCOLS)
 @pytest.mark.parametrize(
-    ("scenario", "variant"),
-    [
-        ("simple_text", "stream-00.yaml"),
-        ("tool_call", "stream-00.yaml"),
-        ("tool_call", "stream-01.yaml"),
-        ("tool_call", "stream-02.yaml"),
-        *PROMPT_CACHE_CASES,
-    ],
+    "conversation",
+    [c for c in NATIVE_SDK_CONVERSATIONS if c.mode == "stream"],
+    ids=lambda c: f"{c.paths[0].parent.parent.name}-{c.id}",
 )
-async def test_native_stream_matches_provider_sdk(
-    protocol: Protocol,
-    scenario: str,
-    variant: str,
-):
-    cassette_path = _matched_cassette_path(scenario, protocol, variant)
+async def test_native_stream_matches_provider_sdk(conversation: Conversation):
+    """Ensures every discovered native turn preserves parsed SDK events and provider selection."""
+    for cassette_path in conversation.paths:
+        await _assert_native_stream_matches_provider_sdk(cassette_path, conversation.endpoint)
+
+
+async def _assert_native_stream_matches_provider_sdk(cassette_path: Path, protocol: Protocol):
     cassette = _read_cassette(cassette_path)
     request_body = deepcopy(cassette["request"]["body"])
 
@@ -554,7 +860,10 @@ async def test_native_stream_matches_provider_sdk(
             "messages": client.messages,
         }[protocol]
         molto_stream = await coordinator(
-            body=request_body, endpoint=protocol, api_key="test-api-key"
+            body=request_body,
+            endpoint=protocol,
+            provider=_provider_from_cassette_path(cassette_path),
+            api_key="test-api-key",
         )
         molto_events = [event async for event in molto_stream]
 
@@ -565,23 +874,14 @@ async def test_native_stream_matches_provider_sdk(
 
 
 @pytest.mark.parametrize(
-    ("scenario", "protocol"),
-    [
-        ("simple_text", "responses"),
-        ("simple_text", "chat/completions"),
-        ("simple_text", "messages"),
-        ("reasoning_encrypted", "responses"),
-        ("reasoning_encrypted", "messages"),
-    ],
+    "conversation",
+    [c for c in NATIVE_SDK_CONVERSATIONS if c.mode == "non_stream"],
+    ids=lambda c: f"{c.paths[0].parent.parent.name}-{c.id}",
 )
-async def test_native_non_streaming_responses_match_provider_sdk(
-    scenario: str,
-    protocol: Protocol,
-):
-    cassette_paths = [
-        _matched_cassette_path(scenario, protocol, variant)
-        for variant in ("non_stream-00.yaml", "non_stream-01.yaml")
-    ]
+async def test_native_non_streaming_responses_match_provider_sdk(conversation: Conversation):
+    """Ensures discovered complete native responses retain SDK parity and provider selection."""
+    protocol = conversation.endpoint
+    cassette_paths = conversation.paths
     request_bodies = [
         deepcopy(_read_cassette(cassette_path)["request"]["body"])
         for cassette_path in cassette_paths
@@ -624,6 +924,7 @@ async def test_native_non_streaming_responses_match_provider_sdk(
             await coordinator(
                 body=request_body,
                 endpoint=protocol,
+                provider=conversation.provider,
                 api_key="test-api-key",
             )
             for request_body in request_bodies
@@ -642,76 +943,244 @@ async def test_native_non_streaming_responses_match_provider_sdk(
         ) == sdk_response.model_dump(mode="json", exclude_unset=True)
 
 
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_discovered_native_runners_forward_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: Mode
+) -> None:
+    """Ensures both native runners pass a discovered non-default provider to the coordinator."""
+    path = tmp_path / "native" / "simple_text" / f"vllm-chat_completions-{mode}-00.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(
+        _matched_cassette_path("simple_text", "chat/completions", f"{mode}-00.yaml").read_bytes()
+    )
+    (conversation,) = public_conversations(tmp_path / "native")
+    providers = []
+    original = Molto.chat_completions
+
+    async def capture_provider(self, **kwargs):
+        providers.append(kwargs.get("provider"))
+        return await original(self, **kwargs)
+
+    monkeypatch.setattr(Molto, "chat_completions", capture_provider)
+    if mode == "stream":
+        await test_native_stream_matches_provider_sdk(conversation)
+    else:
+        await test_native_non_streaming_responses_match_provider_sdk(conversation)
+    assert providers == ["vllm"]
+
+
 def _assert_matched_response(
     response: BaseModel,
     downstream: Protocol,
-    expected: dict[str, Any],
+    expected: dict[str, Any] | OpenAIResponsesResponse,
 ) -> None:
-    expected_text = _responses_output_text(expected)
-    expected_usage = expected["usage"]
+    # Parse the reference with the SDK, independently of Molto's translators and
+    # collectors. These scenarios contain ordered text and encrypted reasoning.
+    expected_response = (
+        expected
+        if isinstance(expected, OpenAIResponsesResponse)
+        else OpenAIResponsesResponse.model_validate(expected)
+    )
+    expected_usage = expected_response.usage
+    assert expected_usage is not None
+    expected_input_details = expected_usage.input_tokens_details
+    expected_output_details = expected_usage.output_tokens_details
+    cache_write_tokens = expected_input_details.cache_write_tokens or 0
+    cached_tokens = expected_input_details.cached_tokens
+    reasoning_tokens = expected_output_details.reasoning_tokens
     response_type = {
         "responses": OpenAIResponsesResponse,
         "chat/completions": OpenAIChatCompletionsResponse,
         "messages": AnthropicMessagesResponse,
     }[downstream]
     assert type(response) is response_type
-    assert response.id == expected["id"]
-    assert response.model == expected["model"]
+    assert response.id == expected_response.id
+    assert response.model == expected_response.model
 
     if downstream == "responses":
         assert isinstance(response, OpenAIResponsesResponse)
-        assert response.output_text == expected_text
-        assert response.status == expected["status"]
+        assert [item.type for item in response.output] == [
+            item.type for item in expected_response.output
+        ]
+        for item, reference in zip(response.output, expected_response.output, strict=True):
+            if item.type == "message":
+                assert item.role == reference.role == "assistant"
+                assert item.status == reference.status
+                assert all(part.type == "output_text" for part in item.content)
+                assert all(part.type == "output_text" for part in reference.content)
+                assert [part.text for part in item.content] == [
+                    part.text for part in reference.content
+                ]
+            elif item.type == "reasoning":
+                assert (item.content or []) == (reference.content or [])
+                assert item.summary == reference.summary
+                assert item.encrypted_content == reference.encrypted_content
+            else:
+                raise AssertionError(f"Unsupported matched response item: {item.type}")
+        assert response.status == expected_response.status
+        assert response.incomplete_details == expected_response.incomplete_details
         assert response.usage is not None
-        assert response.usage.input_tokens == expected_usage["input_tokens"]
-        assert response.usage.output_tokens == expected_usage["output_tokens"]
-        assert response.usage.total_tokens == expected_usage["total_tokens"]
+        assert response.usage.input_tokens == expected_usage.input_tokens
+        assert response.usage.output_tokens == expected_usage.output_tokens
+        assert response.usage.total_tokens == expected_usage.total_tokens
+        assert response.usage.input_tokens_details.cached_tokens == cached_tokens
+        assert (response.usage.input_tokens_details.cache_write_tokens or 0) == cache_write_tokens
+        assert response.usage.output_tokens_details.reasoning_tokens == reasoning_tokens
     elif downstream == "chat/completions":
         assert isinstance(response, OpenAIChatCompletionsResponse)
+        # Chat has only one scalar text field. Require the fixture's single text
+        # item/part instead of silently flattening unsupported output boundaries.
+        assert len(expected_response.output) == 1
+        reference = expected_response.output[0]
+        assert reference.type == "message"
+        assert len(reference.content) == 1
+        assert reference.content[0].type == "output_text"
         assert len(response.choices) == 1
-        assert response.choices[0].message.content == expected_text
-        assert response.choices[0].finish_reason == "stop"
+        choice = response.choices[0]
+        assert choice.index == 0
+        assert choice.message.role == reference.role == "assistant"
+        assert choice.message.content == reference.content[0].text
+        assert not choice.message.tool_calls
+        assert choice.message.refusal is None
+        assert not getattr(choice.message, "reasoning_content", None)
+        if expected_response.status == "incomplete":
+            assert expected_response.incomplete_details.reason == "max_output_tokens"
+            assert choice.finish_reason == "length"
+        else:
+            assert expected_response.status == "completed"
+            assert choice.finish_reason == "stop"
         assert response.usage is not None
-        assert response.usage.prompt_tokens == expected_usage["input_tokens"]
-        assert response.usage.completion_tokens == expected_usage["output_tokens"]
-        assert response.usage.total_tokens == expected_usage["total_tokens"]
+        assert response.usage.prompt_tokens == expected_usage.input_tokens
+        assert response.usage.completion_tokens == expected_usage.output_tokens
+        assert response.usage.total_tokens == expected_usage.total_tokens
+        assert response.usage.prompt_tokens_details.cached_tokens == cached_tokens
+        assert (response.usage.prompt_tokens_details.cache_write_tokens or 0) == cache_write_tokens
+        assert response.usage.completion_tokens_details.reasoning_tokens == reasoning_tokens
     else:
         assert isinstance(response, AnthropicMessagesResponse)
-        assert "".join(block.text for block in response.content if block.type == "text") == (
-            expected_text
+        expected_content = []
+        for item in expected_response.output:
+            if item.type == "message":
+                assert item.role == "assistant"
+                for part in item.content:
+                    assert part.type == "output_text"
+                    expected_content.append({"type": "text", "text": part.text})
+            elif item.type == "reasoning":
+                assert not item.content
+                # The retained encrypted fixtures have at most one summary part;
+                # Messages cannot expose separate summary-part boundaries.
+                assert len(item.summary) <= 1
+                expected_content.append(
+                    {
+                        "type": "thinking",
+                        "thinking": item.summary[0].text if item.summary else "",
+                        "signature": item.encrypted_content,
+                    }
+                )
+            else:
+                raise AssertionError(f"Unsupported matched response item: {item.type}")
+        assert [block.model_dump(exclude_none=True) for block in response.content] == (
+            expected_content
         )
+        assert response.role == "assistant"
+        assert expected_response.status == "completed"
         assert response.stop_reason == "end_turn"
-        input_details = expected_usage["input_tokens_details"]
-        cache_write_tokens = input_details.get("cache_write_tokens", 0)
-        cached_tokens = input_details.get("cached_tokens", 0)
+        assert response.stop_sequence is None
         assert response.usage.input_tokens == (
-            expected_usage["input_tokens"] - cache_write_tokens - cached_tokens
+            expected_usage.input_tokens - cache_write_tokens - cached_tokens
         )
         assert response.usage.cache_creation_input_tokens == cache_write_tokens
         assert response.usage.cache_read_input_tokens == cached_tokens
-        assert response.usage.output_tokens == expected_usage["output_tokens"]
+        assert response.usage.output_tokens == expected_usage.output_tokens
+        assert response.usage.output_tokens_details.thinking_tokens == reasoning_tokens
 
-    expected_reasoning = next(
-        (item for item in expected["output"] if item["type"] == "reasoning"),
-        None,
+
+@pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize(
+    "defect", ["order", "extra_reasoning", "missing_reasoning", "extra_text_part", "encrypted"]
+)
+def test_matched_response_rejects_changed_output(downstream: Protocol, defect: str) -> None:
+    """Ensure output comparisons preserve every reasoning item and text-part boundary."""
+    expected = _completed_responses_body(
+        _matched_cassette_path("reasoning_encrypted", "responses", "non_stream-00.yaml")
     )
-    if expected_reasoning is None:
-        return
-
-    expected_summary = "".join(part["text"] for part in expected_reasoning["summary"])
-    expected_signature = expected_reasoning["encrypted_content"]
-    if downstream == "responses":
-        assert isinstance(response, OpenAIResponsesResponse)
-        reasoning = next(item for item in response.output if item.type == "reasoning")
-        assert "".join(part.text for part in reasoning.summary) == expected_summary
-        assert reasoning.encrypted_content == expected_signature
-    elif downstream == "messages":
-        assert isinstance(response, AnthropicMessagesResponse)
-        thinking = next(block for block in response.content if block.type == "thinking")
-        assert thinking.thinking == expected_summary
-        assert thinking.signature == expected_signature
+    response_type = {
+        "responses": OpenAIResponsesResponse,
+        "messages": AnthropicMessagesResponse,
+    }[downstream]
+    response = response_type.model_validate(
+        _read_cassette(
+            _matched_cassette_path("reasoning_encrypted", downstream, "non_stream-00.yaml")
+        )["response"]["body"]
+    )
+    _assert_matched_response(response, downstream, expected)
+    response = response.model_copy(deep=True)
+    items = response.output if downstream == "responses" else response.content
+    if defect == "order":
+        items.reverse()
+    elif defect == "extra_reasoning":
+        items.append(items[0].model_copy(deep=True))
+    elif defect == "missing_reasoning":
+        items.pop(0)
+    elif defect == "extra_text_part":
+        parts = items[-1].content if downstream == "responses" else items
+        parts.append(parts[-1].model_copy(update={"text": ""}))
+    elif downstream == "responses":
+        items[0].encrypted_content = "changed-opaque-state"
     else:
-        raise AssertionError("Chat Completions cannot preserve encrypted reasoning.")
+        items[0].signature = "changed-opaque-state"
+
+    with pytest.raises(AssertionError):
+        _assert_matched_response(response, downstream, expected)
+
+
+@pytest.mark.parametrize("downstream", PROTOCOLS)
+@pytest.mark.parametrize("detail", ["cache_read", "cache_write", "reasoning"])
+def test_matched_response_rejects_changed_usage_details(downstream: Protocol, detail: str) -> None:
+    """Ensure non-streaming comparisons check semantic cache and reasoning usage."""
+    expected = _completed_responses_body(
+        _matched_cassette_path("simple_text", "responses", "non_stream-00.yaml")
+    )
+    response_type = {
+        "responses": OpenAIResponsesResponse,
+        "chat/completions": OpenAIChatCompletionsResponse,
+        "messages": AnthropicMessagesResponse,
+    }[downstream]
+    response = response_type.model_validate(
+        _read_cassette(_matched_cassette_path("simple_text", downstream, "non_stream-00.yaml"))[
+            "response"
+        ]["body"]
+    )
+    _assert_matched_response(response, downstream, expected)
+    response = response.model_copy(deep=True)
+    usage = response.usage
+    if downstream == "messages":
+        if detail == "reasoning":
+            usage.output_tokens_details.thinking_tokens += 1
+        elif detail == "cache_read":
+            usage.cache_read_input_tokens += 1
+        else:
+            usage.cache_creation_input_tokens += 1
+    else:
+        input_details = (
+            usage.input_tokens_details
+            if downstream == "responses"
+            else usage.prompt_tokens_details
+        )
+        output_details = (
+            usage.output_tokens_details
+            if downstream == "responses"
+            else usage.completion_tokens_details
+        )
+        if detail == "reasoning":
+            output_details.reasoning_tokens += 1
+        elif detail == "cache_read":
+            input_details.cached_tokens += 1
+        else:
+            input_details.cache_write_tokens += 1
+
+    with pytest.raises(AssertionError):
+        _assert_matched_response(response, downstream, expected)
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
@@ -738,6 +1207,7 @@ async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool)
             assert [event.model_dump() for event in actual_events] == [
                 event.model_dump() for event in expected_events
             ]
+            _assert_responses_stream_invariants([dumps_sse(event) for event in actual_events])
             actual = actual_events[-1].response
             assert (
                 "".join(
@@ -749,6 +1219,7 @@ async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool)
             )
 
     assert actual.model_dump() == expected.model_dump()
+    _assert_matched_response(actual, "responses", expected)
     assert actual.output_text == expected.output_text != ""
     assert actual.status == "incomplete"
     assert actual.incomplete_details.reason == "max_output_tokens"
@@ -816,6 +1287,7 @@ async def test_incomplete_responses_translate_to_chat_with_text_and_usage(stream
             assert len(usages) == 1
             usage = usages[0]
         else:
+            _assert_matched_response(actual, "chat/completions", expected)
             assert len(actual.choices) == 1
             text = actual.choices[0].message.content
             finish_reasons = [actual.choices[0].finish_reason]
@@ -837,29 +1309,143 @@ async def test_incomplete_responses_translate_to_chat_with_text_and_usage(stream
     )
 
 
+def _response_history(response: BaseModel, protocol: Protocol) -> list[dict[str, Any]]:
+    """Convert SDK output to the explicit input shapes used by these conversations."""
+    if protocol == "responses":
+        assert isinstance(response, OpenAIResponsesResponse)
+        history = [item.model_dump(mode="json", exclude_none=True) for item in response.output]
+        for item in history:
+            assert item["type"] in {"message", "reasoning", "function_call"}
+            if item["type"] == "reasoning":
+                # Reasoning status is output-only, unlike message/call status.
+                item.pop("status", None)
+        return history
+    if protocol == "chat/completions":
+        assert isinstance(response, OpenAIChatCompletionsResponse)
+        assert len(response.choices) == 1 and response.choices[0].index == 0
+        message = response.choices[0].message.model_dump(mode="json", exclude_none=True)
+        # The SDK's streaming parser adds these local parsing properties.
+        message.pop("parsed", None)
+        if message.get("annotations") == []:
+            message.pop("annotations")
+        for call in message.get("tool_calls", []):
+            call.pop("index", None)
+            call["function"].pop("parsed_arguments", None)
+        if message.get("content") == "" and message.get("tool_calls"):
+            message.pop("content")
+        return [message]
+    assert isinstance(response, AnthropicMessagesResponse)
+    content = []
+    for block in response.content:
+        item = block.model_dump(exclude_none=True)
+        assert item["type"] in {"text", "thinking", "tool_use"}
+        if item["type"] == "tool_use":
+            item.pop("__json_buf", None)
+            # The SDK supplies the default direct caller even when absent on
+            # the wire; omitting that default preserves the same tool use.
+            if item.get("caller") == {"type": "direct"}:
+                item.pop("caller")
+        elif item["type"] == "thinking" and item.get("signature") == "":
+            # Unsigned raw reasoning has no opaque state to send back.
+            item.pop("signature")
+        content.append(item)
+    return [{"role": response.role, "content": content}]
+
+
+def _stream_history(events: list[BaseModel], protocol: Protocol) -> list[dict[str, Any]]:
+    """Collect returned SDK events independently of Molto's adapters and collectors."""
+    if protocol == "responses":
+        assert events[-1].type in {"response.completed", "response.incomplete"}
+        return _response_history(events[-1].response, protocol)
+    if protocol == "chat/completions":
+        state = ChatCompletionStreamState()
+        for event in events:
+            state.handle_chunk(event.model_copy(deep=True))
+        return _response_history(state.get_final_completion(), protocol)
+    snapshot = None
+    for event in events:
+        snapshot = accumulate_event(event=event.model_copy(deep=True), current_snapshot=snapshot)
+    assert events[-1].type == "message_stop" and snapshot is not None
+    return _response_history(snapshot, protocol)
+
+
+def _comparable_history(
+    history: list[dict[str, Any]], protocol: Protocol, *, translated: bool
+) -> list[dict[str, Any]]:
+    """Allow only named native input equivalences; keep parts, calls and state ordered."""
+    history = deepcopy(history)
+    if protocol != "responses":
+        return history
+    for item in history:
+        item_type = item.get("type", "message")
+        if item_type not in {"message", "reasoning", "function_call"}:
+            continue
+        # Responses output-item IDs are optional history metadata. The other
+        # protocols cannot reproduce IDs or phase; portable call_id stays exact.
+        item.pop("id", None)
+        if item_type == "reasoning":
+            assert "status" not in item, "Reasoning history must omit output-only status"
+            item.setdefault("content", [])
+        elif item_type == "message":
+            item.setdefault("type", "message")
+            # Native fixtures also omit the optional final-answer phase.
+            # Keep commentary exact on native routes, where it is recorded.
+            if translated or item.get("phase") == "final_answer":
+                item.pop("phase", None)
+            if item["role"] == "assistant":
+                item.setdefault("status", "completed")
+                if isinstance(item["content"], str):
+                    item["content"] = [{"type": "output_text", "text": item["content"]}]
+                for part in item["content"]:
+                    if part["type"] == "output_text":
+                        part.setdefault("annotations", [])
+                        part.setdefault("logprobs", [])
+    return history
+
+
+def _continued_request(
+    saved_body: dict[str, Any],
+    protocol: Protocol,
+    history: list[dict[str, Any]] | None,
+    *,
+    translated: bool,
+) -> dict[str, Any]:
+    """Append only saved new inputs to the cumulative history returned by Molto."""
+    body = _without_reasoning_item_status(saved_body)
+    if history is None:
+        return body
+    key = "input" if protocol == "responses" else "messages"
+    expected_history = body[key][: len(history)]
+    assert _comparable_history(history, protocol, translated=translated) == _comparable_history(
+        expected_history, protocol, translated=translated
+    ), "Returned history differs from the next saved request"
+    new_inputs = body[key][len(history) :]
+    assert new_inputs
+    # Never restore an earlier assistant turn from a fixture, even when it has
+    # the same length as the actual history.
+    assert all(
+        item.get("role") != "assistant" and item.get("type") not in {"reasoning", "function_call"}
+        for item in new_inputs
+    )
+    body[key] = deepcopy(history) + new_inputs
+    return body
+
+
 async def _assert_matched_non_stream(
     scenario: str,
     downstream: Protocol,
     upstream: Protocol,
+    *,
+    case: RouteCase | None = None,
 ) -> None:
     translated = downstream != upstream
     mode: Literal["stream", "non_stream"] = "stream" if translated else "non_stream"
-    downstream_paths = _matched_cassette_paths(scenario, downstream, mode)
-    upstream_paths = _matched_cassette_paths(scenario, upstream, mode)
-    responses_paths = _matched_cassette_paths(scenario, "responses", mode)
-    assert downstream_paths, f"No matched {downstream!r} {mode} cassettes in {scenario!r}"
-    assert downstream_paths.keys() == upstream_paths.keys() == responses_paths.keys(), (
-        f"Mismatched cassette variants for {scenario!r}: "
-        f"{downstream!r} has {sorted(downstream_paths)}, "
-        f"{upstream!r} has {sorted(upstream_paths)}, "
-        f"'responses' has {sorted(responses_paths)}"
-    )
-    variants = sorted(downstream_paths)
-
+    case = case or _default_case(scenario, downstream, upstream, mode)
     async with _get_http_client(
-        [upstream_paths[variant] for variant in variants],
+        case.upstream.paths,
         upstream,
         translated=translated,
+        continued=True,
     ) as http_client:
         client = Molto(http_client=http_client)
         coordinator = {
@@ -867,82 +1453,49 @@ async def _assert_matched_non_stream(
             "chat/completions": client.chat_completions,
             "messages": client.messages,
         }[downstream]
-        for variant in variants:
-            request_body = deepcopy(_read_cassette(downstream_paths[variant])["request"]["body"])
+        history = None
+        for downstream_path, reference_path in zip(
+            case.downstream.paths, case.reference.paths, strict=True
+        ):
+            request_body = _continued_request(
+                _read_cassette(downstream_path)["request"]["body"],
+                downstream,
+                history,
+                translated=translated,
+            )
             if translated:
                 request_body["stream"] = False
             response = await coordinator(
                 body=request_body,
                 endpoint=upstream,
-                provider=_provider_from_cassette_path(upstream_paths[variant]),
+                provider=case.upstream.provider,
                 api_key="test-api-key",
             )
             _assert_matched_response(
                 response,
                 downstream,
-                _completed_responses_body(responses_paths[variant]),
+                _completed_responses_body(reference_path),
             )
-
-
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-@pytest.mark.parametrize(
-    ("scenario", "variant"),
-    [
-        ("simple_text", "stream-00.yaml"),
-        ("reasoning_raw", "stream-00.yaml"),
-        ("reasoning_raw", "stream-01.yaml"),
-        ("tool_call", "stream-00.yaml"),
-        ("tool_call", "stream-01.yaml"),
-        ("tool_call", "stream-02.yaml"),
-        *PROMPT_CACHE_CASES,
-    ],
-)
-def test_matched_request_body_matches_across_protocols(
-    downstream: Protocol,
-    upstream: Protocol,
-    scenario: str,
-    variant: str,
-):
-    downstream_path = _matched_cassette_path(scenario, downstream, variant)
-    upstream_path = _matched_cassette_path(scenario, upstream, variant)
-    downstream_body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
-    request_type = {
-        "responses": OpenAIResponsesCreateRequest,
-        "chat/completions": OpenAIChatCompletionsCreateRequest,
-        "messages": AnthropicMessagesCreateRequest,
-    }[downstream]
-    request = request_type.model_validate(downstream_body)
-
-    if downstream == upstream:
-        actual_body = request.model_dump()
-    else:
-        capabilities = PROVIDER_CAPABILITIES[_provider_from_cassette_path(upstream_path)]
-        adapter = {
-            "responses": OpenAIResponsesAdapter(capabilities),
-            "chat/completions": OpenAIChatCompletionsAdapter(capabilities),
-            "messages": AnthropicMessagesAdapter(capabilities),
-        }[downstream]
-        normalized_request = adapter.normalize_request(request)
-        project_request = {
-            "responses": OpenAIResponsesClient._request_body,
-            "chat/completions": OpenAIChatCompletionsClient._request_body,
-            "messages": AnthropicMessagesClient._request_body,
-        }[upstream]
-        actual_body = project_request(normalized_request)
-
-    expected_body = _read_cassette(upstream_path)["request"]["body"]
-    if upstream == "responses" and downstream != upstream:
-        expected_body = _without_reasoning_item_status(expected_body)
-    if scenario == "tool_call" and upstream == "responses" and downstream != upstream:
-        _assert_reconstructable_tool_responses_request(actual_body, expected_body)
-    else:
-        assert actual_body == expected_body
+            key = "input" if downstream == "responses" else "messages"
+            history = request_body[key] + _response_history(response, downstream)
 
 
 async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
+    """Ensures the matched omission parses in the SDK and receives only the documented adjustment."""
     cassette_path = _matched_cassette_path("reasoning_raw", "responses", "stream-00.yaml")
     cassette = _read_cassette(cassette_path)
     request_body = deepcopy(cassette["request"]["body"])
+
+    # This matched fixture exercises compatibility, but has no faithful provider
+    # original establishing the omission's provenance.
+    async with _get_http_client([cassette_path], "responses") as http_client:
+        sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
+        async with await sdk.responses.create(**request_body) as sdk_stream:
+            sdk_events = [event async for event in sdk_stream]
+    sdk_completed = next(event for event in sdk_events if event.type == "response.completed")
+    assert sdk_completed.response.usage.input_tokens_details.cache_write_tokens is None
+    expected = [event.model_dump(mode="json", exclude_unset=True) for event in sdk_events]
+    expected[-1]["response"]["usage"]["input_tokens_details"]["cache_write_tokens"] = 0
 
     async with _get_http_client([cassette_path], "responses") as http_client:
         client = Molto(http_client=http_client)
@@ -954,6 +1507,7 @@ async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
         )
         events = [event async for event in stream]
 
+    assert [event.model_dump(mode="json", exclude_unset=True) for event in events] == expected
     completed = next(event for event in events if event.type == "response.completed")
     assert completed.response.usage is not None
     assert completed.response.usage.input_tokens_details.cache_write_tokens == 0
@@ -963,9 +1517,15 @@ async def _assert_stream_events(
     cassette_path_pairs: list[tuple[Path, Path]],
     downstream: Protocol,
     upstream: Protocol,
+    *,
+    requests: list[Request] | None = None,
 ) -> None:
     first_downstream_path, first_upstream_path = cassette_path_pairs[0]
     scenario = first_downstream_path.parent.name
+    continued = (
+        first_downstream_path.is_relative_to(MATCHED_CASSETTE_DIR)
+        and scenario not in PROMPT_CACHE_SCENARIOS
+    )
     provider = (
         _provider_from_cassette_path(first_upstream_path)
         if first_upstream_path.is_relative_to(MATCHED_CASSETTE_DIR)
@@ -975,17 +1535,30 @@ async def _assert_stream_events(
         [upstream_path for _, upstream_path in cassette_path_pairs],
         upstream,
         translated=downstream != upstream,
+        continued=continued,
+        requests=requests,
     ) as http_client:
         client = Molto(http_client=http_client)
+        history = None
         for downstream_path, upstream_path in cassette_path_pairs:
             cassette = _read_cassette(downstream_path)
+            request_body = (
+                _continued_request(
+                    cassette["request"]["body"],
+                    downstream,
+                    history,
+                    translated=downstream != upstream,
+                )
+                if continued
+                else deepcopy(cassette["request"]["body"])
+            )
             coordinator = {
                 "responses": client.responses,
                 "chat/completions": client.chat_completions,
                 "messages": client.messages,
             }[downstream]
             response = await coordinator(
-                body=deepcopy(cassette["request"]["body"]),
+                body=request_body,
                 endpoint=upstream,
                 provider=provider,
                 api_key="test-api-key",
@@ -998,7 +1571,9 @@ async def _assert_stream_events(
                 actual_sse_events.append(dumps_sse(event))
             if downstream == "responses":
                 assert len(events) == len(expected_sse_events)
-                _assert_responses_stream_invariants(actual_sse_events)
+                _assert_responses_stream_invariants(
+                    actual_sse_events, native=upstream == "responses"
+                )
                 if scenario in PROMPT_CACHE_SCENARIOS:
                     usage = events[-1].response.usage
                     assert usage.input_tokens_details.cached_tokens > 0
@@ -1085,60 +1660,123 @@ async def _assert_stream_events(
                     assert actual_events == expected_events
             else:
                 raise ValueError(f"Unsupported downstream protocol: {downstream}")
-
-
-async def _assert_responses_events(
-    cassette_names: list[str],
-    upstream: Protocol = "responses",
-) -> None:
-    cassette_path_pairs = [
-        (
-            _recorded_cassette_path("responses", cassette_name),
-            _recorded_cassette_path(upstream, cassette_name),
-        )
-        for cassette_name in cassette_names
-    ]
-    await _assert_stream_events(
-        cassette_path_pairs,
-        downstream="responses",
-        upstream=upstream,
-    )
+            if continued:
+                key = "input" if downstream == "responses" else "messages"
+                history = request_body[key] + _stream_history(events, downstream)
 
 
 async def _assert_matched_stream_events(
     scenario: str,
     downstream: Protocol,
     upstream: Protocol,
+    *,
+    requests: list[Request] | None = None,
+    case: RouteCase | None = None,
 ) -> None:
-    downstream_paths = _matched_cassette_paths(scenario, downstream)
-    upstream_paths = _matched_cassette_paths(scenario, upstream)
-    assert downstream_paths, f"No matched {downstream!r} cassettes found in {scenario!r}"
-    assert downstream_paths.keys() == upstream_paths.keys(), (
-        f"Mismatched cassette variants for {scenario!r}: "
-        f"{downstream!r} has {sorted(downstream_paths)}, "
-        f"{upstream!r} has {sorted(upstream_paths)}"
-    )
-    cassette_path_pairs = [
-        (downstream_paths[variant], upstream_paths[variant])
-        for variant in sorted(downstream_paths)
-    ]
-    await _assert_stream_events(cassette_path_pairs, downstream, upstream)
+    case = case or _default_case(scenario, downstream, upstream, "stream")
+    cassette_path_pairs = list(zip(case.downstream.paths, case.upstream.paths, strict=True))
+    await _assert_stream_events(cassette_path_pairs, downstream, upstream, requests=requests)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_simple_text_non_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_non_stream("simple_text", downstream, upstream)
+@pytest.mark.parametrize(
+    ("downstream", "defect", "stream"),
+    [(protocol, "call-id", True) for protocol in PROTOCOLS]
+    + [
+        (protocol, "opaque-snapshot", stream)
+        for protocol in RESPONSES_MESSAGES_PROTOCOLS
+        for stream in (False, True)
+    ],
+)
+async def test_continuation_rejects_changed_returned_history(
+    monkeypatch: pytest.MonkeyPatch, downstream: Protocol, defect: str, stream: bool
+) -> None:
+    """Ensure public replay continuation rejects corrupted returned calls and opaque state."""
+    collect_history = _response_history
+
+    def changed_history(response: BaseModel, protocol: Protocol) -> list[dict[str, Any]]:
+        history = collect_history(response, protocol)
+        if defect == "call-id":
+            if protocol == "responses":
+                next(item for item in history if item["type"] == "function_call")["call_id"] = (
+                    "changed-call"
+                )
+            elif protocol == "chat/completions":
+                history[0]["tool_calls"][0]["id"] = "changed-call"
+            else:
+                next(block for block in history[0]["content"] if block["type"] == "tool_use")[
+                    "id"
+                ] = "changed-call"
+        elif protocol == "responses":
+            next(item for item in history if item["type"] == "reasoning")["encrypted_content"] = (
+                "changed-snapshot"
+            )
+        else:
+            next(block for block in history[0]["content"] if block["type"] == "thinking")[
+                "signature"
+            ] = "changed-snapshot"
+        return history
+
+    monkeypatch.setattr(f"{__name__}._response_history", changed_history)
+    scenario = "tool_call" if defect == "call-id" else "reasoning_encrypted"
+    upstream = "messages" if downstream == "responses" else "responses"
+    runner = _assert_matched_stream_events if stream else _assert_matched_non_stream
+    with pytest.raises(AssertionError, match="Returned history differs"):
+        await runner(scenario, downstream, upstream)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_simple_text_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("simple_text", downstream, upstream)
+async def test_continuation_keeps_actual_earlier_turns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure the third public call retains the first returned output, including generated IDs."""
+    collect_history = _response_history
+    continue_request = _continued_request
+    returned_history = []
+    sent_bodies = []
+
+    def remember_history(response: BaseModel, protocol: Protocol) -> list[dict[str, Any]]:
+        history = collect_history(response, protocol)
+        returned_history.append(deepcopy(history))
+        return history
+
+    def remember_request(*args, **kwargs) -> dict[str, Any]:
+        body = continue_request(*args, **kwargs)
+        sent_bodies.append(deepcopy(body))
+        return body
+
+    monkeypatch.setattr(f"{__name__}._response_history", remember_history)
+    monkeypatch.setattr(f"{__name__}._continued_request", remember_request)
+    await _assert_matched_stream_events("tool_call", "responses", "chat/completions")
+    assert len(sent_bodies) == len(returned_history) == 3
+    first_history = sent_bodies[0]["input"] + returned_history[0]
+    assert sent_bodies[1]["input"][: len(first_history)] == first_history
+    second_history = sent_bodies[1]["input"] + returned_history[1]
+    assert sent_bodies[2]["input"][: len(second_history)] == second_history
+    saved_body = _read_cassette(
+        _matched_cassette_path("tool_call", "responses", "stream-01.yaml")
+    )["request"]["body"]
+    assert returned_history[0][0]["id"] != saved_body["input"][1]["id"]
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-@pytest.mark.parametrize("scenario", PROMPT_CACHE_SCENARIOS)
-async def test_prompt_cache_stream(scenario: str, downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events(scenario, downstream, upstream)
+@pytest.mark.parametrize("case", _non_stream_cases("simple_text"))
+async def test_simple_text_non_stream(case: RouteCase):
+    """Ensure complete text output becomes actual history for the next public request."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_non_stream("simple_text", downstream, upstream, case=case)
+
+
+@pytest.mark.parametrize("case", _stream_cases("simple_text"))
+async def test_simple_text_stream(case: RouteCase):
+    """Ensure streamed text output becomes actual history across every protocol pair."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("simple_text", downstream, upstream, case=case)
+
+
+@pytest.mark.parametrize(
+    "case", [case for scenario in PROMPT_CACHE_SCENARIOS for case in _stream_cases(scenario)]
+)
+async def test_prompt_cache_stream(case: RouteCase):
+    """Ensures discovered cache conversations retain their scenario-specific request and usage assertions."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    scenario = case.upstream.scenario
+    await _assert_matched_stream_events(scenario, downstream, upstream, case=case)
 
 
 @pytest.mark.parametrize(
@@ -1448,71 +2086,161 @@ async def test_interleaved_assistant_history(upstream: Protocol) -> None:
     await _assert_request_parity("messages", upstream, additions, expected, provider="vllm")
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_reasoning_raw_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("reasoning_raw", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("reasoning_raw"))
+async def test_reasoning_raw_stream(case: RouteCase):
+    """Ensure returned raw reasoning and text survive actual conversation continuation."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("reasoning_raw", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("reasoning_encrypted"))
+async def test_reasoning_encrypted_stream(case: RouteCase):
+    """Ensure streamed summaries and exact opaque snapshots survive the next request."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("reasoning_encrypted", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_reasoning_encrypted_non_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_non_stream("reasoning_encrypted", downstream, upstream)
+@pytest.mark.parametrize("case", _non_stream_cases("reasoning_encrypted"))
+async def test_reasoning_encrypted_non_stream(case: RouteCase):
+    """Ensure complete encrypted reasoning output supplies the next request's history."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_non_stream("reasoning_encrypted", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_input_image_base64_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("input_image_base64", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("input_image_base64"))
+async def test_input_image_base64_stream(case: RouteCase):
+    """Ensure base64 image conversations retain actual assistant history and image input."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("input_image_base64", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_input_image_remote_url_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("input_image_remote_url", downstream, upstream)
-
-
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_input_image_with_reasoning_encrypted_stream(
-    downstream: Protocol, upstream: Protocol
-):
+@pytest.mark.parametrize("case", _stream_cases("input_image_remote_url"))
+async def test_input_image_remote_url_stream(case: RouteCase):
+    """Ensure every route retains the remote URL after text and in continued history."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    requests: list[Request] = []
     await _assert_matched_stream_events(
-        "input_image_with_reasoning_encrypted", downstream, upstream
+        "input_image_remote_url", downstream, upstream, requests=requests, case=case
+    )
+    url = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+    expected_content = {
+        "responses": [
+            {"type": "input_text", "text": "What logo is this?"},
+            {"type": "input_image", "image_url": url},
+        ],
+        "chat/completions": [
+            {"type": "text", "text": "What logo is this?"},
+            {"type": "image_url", "image_url": {"url": url}},
+        ],
+        "messages": [
+            {"type": "text", "text": "What logo is this?"},
+            {"type": "image", "source": {"type": "url", "url": url}},
+        ],
+    }[upstream]
+    assert len(requests) == 2
+    for request in requests:
+        body = json_loads(request.content)
+        history = body["input" if upstream == "responses" else "messages"]
+        assert history[0] == {"role": "user", "content": expected_content}
+
+
+@pytest.mark.parametrize("case", _stream_cases("input_image_with_reasoning_encrypted"))
+async def test_input_image_with_reasoning_encrypted_stream(case: RouteCase):
+    """Ensure image input and actual encrypted reasoning history survive together."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events(
+        "input_image_with_reasoning_encrypted", downstream, upstream, case=case
     )
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_tool_call_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("tool_call"))
+async def test_tool_call_stream(case: RouteCase):
+    """Ensure three public turns reuse returned tool calls and cumulatively linked results."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("tool_call", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_tool_call_choice_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call_choice", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("tool_call_choice"))
+async def test_tool_call_choice_stream(case: RouteCase):
+    """Ensure tool selection changes retain the actual preceding tool call in history."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("tool_call_choice", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_tool_call_image_result_parallel_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call_image_result_parallel", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("tool_call_image_result_parallel"))
+async def test_tool_call_image_result_parallel_stream(case: RouteCase):
+    """Ensure linked parallel results precede relocated images in actual conversations."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    requests: list[Request] = []
+    await _assert_matched_stream_events(
+        "tool_call_image_result_parallel", downstream, upstream, requests=requests, case=case
+    )
+    if upstream == "chat/completions":
+        assert len(requests) == 2
+        messages = json_loads(requests[1].content)["messages"]
+        assert [message["role"] for message in messages] == [
+            "user",
+            "assistant",
+            "tool",
+            "tool",
+            "user",
+            "user",
+            "user",
+        ]
+        call_ids = [call["id"] for call in messages[1]["tool_calls"]]
+        assert len(call_ids) == len(set(call_ids)) == 2
+        assert [message["tool_call_id"] for message in messages[2:4]] == call_ids
+        expected_input = _read_cassette(case.reference.paths[1])["request"]["body"]["input"]
+        image_urls = [
+            part["image_url"]
+            for item in expected_input
+            if item.get("type") == "function_call_output"
+            for part in item["output"]
+            if part["type"] == "input_image"
+        ]
+        assert messages[4:6] == [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                    {"type": "image_url", "image_url": {"url": url}},
+                ],
+            }
+            for call_id, url in zip(call_ids, image_urls, strict=True)
+        ]
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_tool_call_parallel_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call_parallel", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("tool_call_parallel"))
+async def test_tool_call_parallel_stream(case: RouteCase):
+    """Ensure both returned parallel calls survive into the request containing their results."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events("tool_call_parallel", downstream, upstream, case=case)
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), RESPONSES_MESSAGES_ROUTES)
-async def test_tool_call_with_reasoning_encrypted_stream(downstream: Protocol, upstream: Protocol):
-    await _assert_matched_stream_events("tool_call_with_reasoning_encrypted", downstream, upstream)
+@pytest.mark.parametrize("case", _stream_cases("tool_call_with_reasoning_encrypted"))
+async def test_tool_call_with_reasoning_encrypted_stream(case: RouteCase):
+    """Ensure three-turn tool history retains actual call IDs and opaque reasoning snapshots."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    await _assert_matched_stream_events(
+        "tool_call_with_reasoning_encrypted", downstream, upstream, case=case
+    )
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_error_matched(downstream: Protocol, upstream: Protocol):
-    scenario = "error-invalid_request_error"
-    variant = "stream-00.yaml"
-    downstream_path = _matched_cassette_path(scenario, downstream, variant)
-    upstream_path = _matched_cassette_path(scenario, upstream, variant)
+@pytest.mark.parametrize(
+    ("case", "turn"),
+    [
+        pytest.param(case, turn, id=f"{case.id}-{turn:02d}")
+        for case in route_cases(
+            MATCHED_CONVERSATIONS, "error-invalid_request_error", "stream", ROUTES
+        )
+        for turn in range(len(case.upstream.cassettes))
+    ],
+)
+async def test_error_matched(case: RouteCase, turn: int):
+    """Ensures discovered unknown error fixtures preserve the original upstream SDK exception."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    downstream_path = case.downstream.paths[turn]
+    upstream_path = case.upstream.paths[turn]
     downstream_cassette = _read_cassette(downstream_path)
     upstream_cassette = _read_cassette(upstream_path)
     expected_response = upstream_cassette["response"]
@@ -1542,12 +2270,167 @@ async def test_error_matched(downstream: Protocol, upstream: Protocol):
     assert exc_info.value.response.json() == expected_response["body"]
 
 
-async def test_instructions_stream():
-    cassette_names = [
-        "instructions-stream-00.yaml",
-        "instructions-stream-01.yaml",
+@pytest.mark.parametrize("upstream", ["chat/completions", "messages"])
+async def test_translated_top_level_instructions(upstream: Protocol) -> None:
+    """Ensures nonempty top-level instructions precede existing translated instructions."""
+    additions = {
+        "instructions": "Follow the leading instruction.",
+        "input": [
+            {"role": "system", "content": "Keep the second instruction."},
+            {"role": "user", "content": "Hello"},
+        ],
+    }
+    instructions = ["Follow the leading instruction.", "Keep the second instruction."]
+    user = {"role": "user", "content": [{"type": "text", "text": "Hello"}]}
+    expected = (
+        {
+            "messages": [
+                *[
+                    {"role": "developer", "content": [{"type": "text", "text": text}]}
+                    for text in instructions
+                ],
+                user,
+            ]
+        }
+        if upstream == "chat/completions"
+        else {"system": "\n\n".join(instructions), "messages": [user]}
+    )
+    await _assert_request_parity("responses", upstream, additions, expected)
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("parallel", [False, True])
+async def test_required_tool_choice_request(
+    downstream: Protocol, upstream: Protocol, parallel: bool
+) -> None:
+    """Ensures required/any tool selection preserves explicit parallel-call control."""
+    function = {
+        "name": "lookup",
+        "parameters": {"type": "object", "properties": {}},
+        "strict": False,
+    }
+    additions = {
+        "responses": {
+            "tools": [{"type": "function", **function}],
+            "tool_choice": "required",
+            "parallel_tool_calls": parallel,
+        },
+        "chat/completions": {
+            "tools": [{"type": "function", "function": function}],
+            "tool_choice": "required",
+            "parallel_tool_calls": parallel,
+        },
+        "messages": {
+            "tools": [{"name": "lookup", "input_schema": function["parameters"]}],
+            "tool_choice": {"type": "any", "disable_parallel_tool_use": not parallel},
+        },
+    }
+    await _assert_request_parity(downstream, upstream, additions[downstream], additions[upstream])
+
+
+@pytest.mark.parametrize("downstream", RESPONSES_MESSAGES_PROTOCOLS)
+@pytest.mark.parametrize(
+    "image_names",
+    [(("a",), ()), ((), ("b",)), (("b", "a"), ("d", "c"))],
+    ids=["first-result-image", "last-result-image", "multiple-images-in-both-results"],
+)
+async def test_chat_tool_result_image_order(
+    downstream: Protocol, image_names: tuple[tuple[str, ...], tuple[str, ...]]
+) -> None:
+    """Ensures linked parallel results precede all relocated images in source order."""
+    calls = [
+        {"type": "function_call", "call_id": call_id, "name": "lookup", "arguments": "{}"}
+        for call_id in ("call-a", "call-b")
     ]
-    await _assert_responses_events(cassette_names)
+    results = []
+    chat_results = []
+    deferred_images = []
+    for call, names in zip(calls, image_names, strict=True):
+        call_id = call["call_id"]
+        urls = [f"https://example.com/{name}.png" for name in names]
+        text = f"Result for {call_id}"
+        results.append(
+            {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": [
+                    {"type": "input_text", "text": text},
+                    *[{"type": "input_image", "image_url": url} for url in urls],
+                ],
+            }
+        )
+        chat_content = [{"type": "text", "text": text}]
+        if urls:
+            chat_content.append(
+                {
+                    "type": "text",
+                    "text": (
+                        f"The image result of tool call {call_id!r} will be "
+                        "attached as user prompt after all tool responses."
+                    ),
+                }
+            )
+            deferred_images.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                        *[{"type": "image_url", "image_url": {"url": url}} for url in urls],
+                    ],
+                }
+            )
+        chat_results.append({"role": "tool", "tool_call_id": call_id, "content": chat_content})
+    if downstream == "responses":
+        additions = {"input": [*calls, *results]}
+    else:
+        additions = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": call["call_id"], "name": "lookup", "input": {}}
+                        for call in calls
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": result["call_id"],
+                            "content": [
+                                {"type": "text", "text": part["text"]}
+                                if part["type"] == "input_text"
+                                else {
+                                    "type": "image",
+                                    "source": {"type": "url", "url": part["image_url"]},
+                                }
+                                for part in result["output"]
+                            ],
+                        }
+                        for result in results
+                    ],
+                },
+            ]
+        }
+    expected = {
+        "messages": [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "id": call["call_id"],
+                        "function": {"name": "lookup", "arguments": "{}"},
+                    }
+                    for call in calls
+                ],
+            },
+            *chat_results,
+            *deferred_images,
+        ]
+    }
+    await _assert_request_parity(downstream, "chat/completions", additions, expected)
 
 
 # --- Prompt caching --- #
@@ -1579,12 +2462,20 @@ async def _assert_request_parity(
     expected_additions: dict[str, Any],
     *,
     provider: Provider | None = None,
+    stream: bool = True,
 ) -> None:
-    """Assert the outgoing request and parity with parsed downstream SDK events."""
-    downstream_path = _simple_text_cassette(downstream)
-    upstream_path = _simple_text_cassette(upstream)
-    body = deepcopy(_read_cassette(downstream_path)["request"]["body"]) | additions
+    """Assert the outgoing request and parity with independently parsed SDK output."""
+    mode = "stream" if stream or downstream != upstream else "non_stream"
+    downstream_path = _matched_cassette_path("simple_text", downstream, f"{mode}-00.yaml")
+    upstream_path = _matched_cassette_path("simple_text", upstream, f"{mode}-00.yaml")
+    body = (
+        deepcopy(_read_cassette(downstream_path)["request"]["body"])
+        | additions
+        | {"stream": stream}
+    )
     expected_body = deepcopy(_read_cassette(upstream_path)["request"]["body"]) | expected_additions
+    if downstream == upstream:
+        expected_body["stream"] = stream
 
     async with _get_http_client(
         [upstream_path],
@@ -1592,13 +2483,24 @@ async def _assert_request_parity(
         translated=downstream != upstream,
         expected_body=expected_body,
     ) as http_client:
-        stream = await _coordinator(Molto(http_client=http_client), downstream)(
+        result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body,
             endpoint=upstream,
             provider=provider or _provider_from_cassette_path(upstream_path),
             api_key="test-api-key",
         )
-        events = [event async for event in stream]
+        if stream:
+            events = [event async for event in result]
+
+    if not stream:
+        _assert_matched_response(
+            result,
+            downstream,
+            _completed_responses_body(
+                _matched_cassette_path("simple_text", "responses", f"{mode}-00.yaml")
+            ),
+        )
+        return
 
     # Reuse the recorded response without rewriting fixtures: these tests exercise
     # request projection and stream fidelity, not the provider's acceptance of the modified input.
@@ -1658,6 +2560,33 @@ async def _assert_request_parity(
         if upstream == "responses":
             _expect_responses_search_usage(expected, upstream_path)
     assert actual == expected
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+@pytest.mark.parametrize(
+    "controls",
+    [
+        {"temperature": 0.45},
+        {"top_p": 0.55},
+        {"temperature": 0.0},
+        {"top_p": 0.0},
+        {},
+        {"temperature": None, "top_p": None},
+    ],
+    ids=["temperature", "top_p", "zero_temperature", "zero_top_p", "omitted", "explicit_none"],
+)
+async def test_sampling_controls_preserve_public_request_and_sdk_output(
+    downstream: Protocol, upstream: Protocol, stream: bool, controls: dict[str, float | None]
+) -> None:
+    """Ensures sampling values and omissions survive every route and downstream response mode."""
+    await _assert_request_parity(
+        downstream,
+        upstream,
+        controls,
+        {key: value for key, value in controls.items() if value is not None},
+        stream=stream,
+    )
 
 
 async def _assert_prompt_cache_rejected(

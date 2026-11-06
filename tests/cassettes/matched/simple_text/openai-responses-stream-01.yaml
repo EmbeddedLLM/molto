@@ -3,7 +3,9 @@ request:
   body:
     input:
     - content:
-      - text: Write one short sentence about the ocean.
+      - text: 'Write one short sentence '
+        type: input_text
+      - text: about the ocean.
         type: input_text
       role: user
     - content:

@@ -124,9 +124,11 @@ def _collect(protocol: Protocol, events: list[BaseModel]) -> BaseModel:
     return snapshot
 
 
-def _assert_lifecycle(protocol: Protocol, events: list[BaseModel]) -> None:
+def _assert_lifecycle(
+    protocol: Protocol, events: list[BaseModel], *, native: bool = False
+) -> None:
     if protocol == "responses":
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+        _assert_responses_stream_invariants([dumps_sse(event) for event in events], native=native)
         assert events[0].type == "response.created"
         assert events[-1].type in {"response.completed", "response.incomplete"}
         added = [
@@ -278,7 +280,7 @@ async def test_native_search_matches_sdk(
         actual = [event async for event in result] if stream else result
     if stream:
         if protocol != "chat/completions":
-            _assert_lifecycle(protocol, actual)
+            _assert_lifecycle(protocol, actual, native=True)
         assert [type(event) for event in actual] == [type(event) for event in expected]
         assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
             event.model_dump(mode="json", exclude_unset=True) for event in expected

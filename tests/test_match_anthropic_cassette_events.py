@@ -16,10 +16,10 @@ from scripts.match_anthropic_cassette_events import (
     main,
     match_messages_events,
 )
+from tests.cassette_discovery import matcher_pairs
 
 MATCHED_CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 REASONING_RAW_CASSETTES = MATCHED_CASSETTES / "reasoning_raw"
-TOOL_CALL_CASSETTES = MATCHED_CASSETTES / "tool_call"
 MESSAGE_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
 OPAQUE_STATE_CASSETTES = (
     Path(__file__).parent / "cassettes" / "matched" / "input_image_with_reasoning_encrypted"
@@ -1282,14 +1282,14 @@ def test_uses_standard_service_tier_for_translated_messages() -> None:
     assert message["usage"]["service_tier"] == "standard"
 
 
-@pytest.mark.parametrize("turn", range(3))
-def test_matches_real_tool_call_cassettes(turn: int) -> None:
-    messages_cassette = read_yaml(
-        str(TOOL_CALL_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
-    )
-    responses_cassette = read_yaml(
-        str(TOOL_CALL_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
-    )
+@pytest.mark.parametrize(
+    ("messages_path", "responses_path"),
+    [(messages, responses) for _, messages, responses in matcher_pairs("tool_call", "messages")],
+)
+def test_matches_real_tool_call_cassettes(messages_path: Path, responses_path: Path) -> None:
+    """Ensures discovered tool turns retain call identities, arguments, and result history."""
+    messages_cassette = read_yaml(messages_path)
+    responses_cassette = read_yaml(responses_path)
 
     match_messages_events(messages_cassette, responses_cassette)
 
@@ -1380,12 +1380,18 @@ def test_matches_real_tool_call_cassettes(turn: int) -> None:
     ]
 
 
-@pytest.mark.parametrize("scenario", ["prompt_cache_implicit", "prompt_cache_explicit"])
-@pytest.mark.parametrize("turn", range(2))
-def test_matches_prompt_cache_cassettes(scenario: str, turn: int) -> None:
-    directory = MATCHED_CASSETTES / scenario
-    messages_cassette = read_yaml(str(directory / f"anthropic-messages-stream-{turn:02d}.yaml"))
-    responses_cassette = read_yaml(str(directory / f"openai-responses-stream-{turn:02d}.yaml"))
+@pytest.mark.parametrize(
+    ("messages_path", "responses_path"),
+    [
+        (messages, responses)
+        for scenario in ("prompt_cache_implicit", "prompt_cache_explicit")
+        for _, messages, responses in matcher_pairs(scenario, "messages")
+    ],
+)
+def test_matches_prompt_cache_cassettes(messages_path: Path, responses_path: Path) -> None:
+    """Ensures discovered cache turns preserve markers, cache policy, and semantic usage."""
+    messages_cassette = read_yaml(messages_path)
+    responses_cassette = read_yaml(responses_path)
     original_messages = deepcopy(messages_cassette)
     original_responses = deepcopy(responses_cassette)
     messages_cassette["request"]["body"].update(
@@ -1568,14 +1574,21 @@ def test_matches_real_two_turn_request_body() -> None:
     assert message_start["usage"]["output_tokens"] == 0
 
 
-@pytest.mark.parametrize("turn", range(2))
-def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
-    messages_cassette = read_yaml(
-        str(OPAQUE_STATE_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
-    )
-    responses_cassette = read_yaml(
-        str(OPAQUE_STATE_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
-    )
+@pytest.mark.parametrize(
+    ("messages_path", "responses_path"),
+    [
+        (messages, responses)
+        for _, messages, responses in matcher_pairs(
+            "input_image_with_reasoning_encrypted", "messages"
+        )
+    ],
+)
+def test_same_provider_opaque_state_cassettes_are_matched(
+    messages_path: Path, responses_path: Path
+) -> None:
+    """Ensures every discovered encrypted turn retains the same-issuer opaque-state mapping."""
+    messages_cassette = read_yaml(messages_path)
+    responses_cassette = read_yaml(responses_path)
     original_messages_cassette = deepcopy(messages_cassette)
 
     match_messages_events(messages_cassette, responses_cassette)
@@ -1583,14 +1596,19 @@ def test_same_provider_opaque_state_cassettes_are_matched(turn: int) -> None:
     assert messages_cassette == original_messages_cassette
 
 
-@pytest.mark.parametrize("turn", range(2))
-def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
-    messages_cassette = read_yaml(
-        str(ENCRYPTED_REASONING_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
-    )
-    responses_cassette = read_yaml(
-        str(ENCRYPTED_REASONING_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
-    )
+@pytest.mark.parametrize(
+    ("messages_path", "responses_path"),
+    [
+        (messages, responses)
+        for _, messages, responses in matcher_pairs("reasoning_encrypted", "messages")
+    ],
+)
+def test_encrypted_reasoning_cassettes_are_matched(
+    messages_path: Path, responses_path: Path
+) -> None:
+    """Ensures every discovered encrypted turn retains the same-issuer opaque-state mapping."""
+    messages_cassette = read_yaml(messages_path)
+    responses_cassette = read_yaml(responses_path)
     original_messages_cassette = deepcopy(messages_cassette)
 
     match_messages_events(messages_cassette, responses_cassette)
@@ -1602,14 +1620,21 @@ def test_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
             MESSAGE_EVENT_ADAPTER.validate_python(event)
 
 
-@pytest.mark.parametrize("turn", range(3))
-def test_tool_call_encrypted_reasoning_cassettes_are_matched(turn: int) -> None:
-    messages_cassette = read_yaml(
-        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / f"anthropic-messages-stream-{turn:02d}.yaml")
-    )
-    responses_cassette = read_yaml(
-        str(TOOL_CALL_ENCRYPTED_REASONING_CASSETTES / f"openai-responses-stream-{turn:02d}.yaml")
-    )
+@pytest.mark.parametrize(
+    ("messages_path", "responses_path"),
+    [
+        (messages, responses)
+        for _, messages, responses in matcher_pairs(
+            "tool_call_with_reasoning_encrypted", "messages"
+        )
+    ],
+)
+def test_tool_call_encrypted_reasoning_cassettes_are_matched(
+    messages_path: Path, responses_path: Path
+) -> None:
+    """Ensures every discovered encrypted turn retains the same-issuer opaque-state mapping."""
+    messages_cassette = read_yaml(messages_path)
+    responses_cassette = read_yaml(responses_path)
     original_messages_cassette = deepcopy(messages_cassette)
 
     match_messages_events(messages_cassette, responses_cassette)
