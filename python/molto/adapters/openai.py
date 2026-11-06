@@ -982,8 +982,6 @@ class OpenAIResponsesAdapter(
                             )
                     elif part.content:
                         raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-                    if part.summary and not part.signature:
-                        raise ValueError("A Responses reasoning summary requires a signature.")
                     representation = self._capabilities.thinking
                     completed_item = {
                         "id": item_id,
