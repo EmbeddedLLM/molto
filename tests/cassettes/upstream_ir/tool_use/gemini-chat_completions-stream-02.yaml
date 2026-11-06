@@ -1,0 +1,111 @@
+filename: 2026-11-06-01a1af0d-4312-7af2-b5f9-2269a64e88ef
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0TBCf3MhrW5EPapkFsL4ST3JJ/OPCqi+MtWEkiDq6ffxc2TtAGZA20egiuVTqmyyVEVJRJjpRSBolUxs+eN0OyqdD72aLBfG1HI8aZE/pvrFgRsgl7AMl5WR7u3T3qTpGOcMcU7QX7pVP7dD9l
+        function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_17906014837408201138
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_17906014837408201138
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0TnD9yNQ7UjAisfTTr7kiJhpVqui8fz4/yLFokDYnxW3jfYVKD/XeH7Djx3BLwPQ9EY8vakquXM97L+WZG4ekwD+iYMv4ZkEkbuKHEQODlsHv9NAWP2msJXzu7GuJtH0kDMRiT1JA6pA0hqQk1
+        function:
+          arguments: '{"path":"garden.txt"}'
+          name: read_file
+        id: call_2523317766613766412
+        type: function
+    - content: Water the tomatoes every morning and harvest ripe fruit.
+      role: tool
+      tool_call_id: call_2523317766613766412
+    model: gemini-3.1-flash-lite
+    parallel_tool_calls: false
+    reasoning_effort: minimal
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1578'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-4312-7af2-b5f9-2269a64e88ef
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"This","role":"assistant"},"index":0}],"created":1793938245,"id":"RFPtauT8IaKO1sgPpeLp8QE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":1,"prompt_tokens":150,"total_tokens":151}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" text provides instructions for maintaining
+    a tomato plant, specifically advising that it be watered every","role":"assistant"},"index":0}],"created":1793938245,"id":"RFPtauT8IaKO1sgPpeLp8QE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":17,"prompt_tokens":150,"total_tokens":167}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" morning and that ripe fruit should be
+    harvested.","role":"assistant"},"index":0}],"created":1793938245,"id":"RFPtauT8IaKO1sgPpeLp8QE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":26,"prompt_tokens":150,"total_tokens":176}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EnMKcQFpFH0TzkHQdm5/P0OvnM2takhCxvdKxVGMg2EnUZzX+zjE8qZVLmvPpexJ6pD8yYQqzCtZWzOostdaikJpDmes5aVujqYEGwB2c0QJLXM35bIAuh66dmfulTdll1eL1D2f80HsyIgiU/Q+FnZp1UCV"}},"role":"assistant"},"finish_reason":"stop","index":0}],"created":1793938245,"id":"RFPtauT8IaKO1sgPpeLp8QE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":26,"prompt_tokens":150,"total_tokens":176}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-06T04:10:44.370114+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

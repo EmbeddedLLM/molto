@@ -1,0 +1,180 @@
+filename: 2026-11-06-01a1af0d-271b-7d42-abfc-dfdc607c2e35
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: gemini-3.1-flash-lite
+    reasoning_effort: minimal
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '209'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-271b-7d42-abfc-dfdc607c2e35
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: 'To choose the best name for a robot gardener, it helps to consider
+          the "vibe" of your robot. Here are several suggestions categorized by style:
+
+
+          ### Botanical & Nature-Inspired
+
+          These names emphasize the robot’s connection to plants and growth.
+
+          *   **Floros:** A classic, tech-sounding name derived from "flora."
+
+          *   **Sprout:** Cute, simple, and perfect for a small helper.
+
+          *   **Chloris:** Named after the Greek nymph of flowers.
+
+          *   **Bud:** Friendly and short; implies growth.
+
+          *   **Terra:** Latin for earth/soil.
+
+          *   **Thistle:** A fun, slightly edgy name for a robot that handles weeds.
+
+          *   **Arbor:** Sounds sturdy and structural, like a tree.
+
+
+          ### Functional & Descriptive
+
+          These names highlight the robot’s job and capabilities.
+
+          *   **GrowBot:** Straight to the point.
+
+          *   **Prunella:** A clever play on "pruning."
+
+          *   **Cultivator (or "Cully"):** Sounds professional and efficient.
+
+          *   **The Trowel:** A nod to the most essential gardening tool.
+
+          *   **Rooter:** Simple, punchy, and functional.
+
+          *   **WeedWiz:** If the robot is specifically good at weeding.
+
+
+          ### Playful & Whimsical
+
+          If you want your robot to have personality.
+
+          *   **Wall-E (or "Wally"):** The gold standard for nature-loving bots.
+
+          *   **Petal Pusher:** A fun pun on "paper pusher."
+
+          *   **Green Thumb:** A classic, slightly ironic name for a machine.
+
+          *   **Twiggy:** Light, nimble, and plant-related.
+
+          *   **Bloom:** Short, sweet, and descriptive.
+
+          *   **Botany:** A clever pun on the field of study.
+
+
+          ### Sophisticated & Mythological
+
+          These names sound a bit more "high-end" or elegant.
+
+          *   **Gaia:** The personification of the Earth itself.
+
+          *   **Demeter:** The Greek goddess of agriculture.
+
+          *   **Silvanus:** The Roman god of woods and fields.
+
+          *   **Verdant:** An adjective meaning green with grass or other rich vegetation.
+
+          *   **Eden:** Suggests the robot is creating a paradise.
+
+
+          ### My Personal Favorites:
+
+          1.  **Sprout** (if it’s small and cute)
+
+          2.  **Prunella** (if it’s precise and helpful)
+
+          3.  **Terra** (if it’s a heavy-duty landscaping robot)
+
+          4.  **Bud** (if it’s a friendly companion)
+
+
+          **Which one feels like the best fit for your robot''s personality?**'
+        extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0TI4+252Fl0FAaX86pMAl+gciDec4Iol+aGKWnLaddBpKAZrHLCjY8NJHipy292S0D4IKlF5nncWMqOtiRlQvB61PWXVJbg0W/YuRzl/gnAFAlty+notTEppM9cGoWqdI1l5OFXQgpPEctBLPc
+        role: assistant
+    created: 1793938239
+    id: PVPtaqTiGfyyytMPvoLJiQQ
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 592
+      prompt_tokens: 9
+      total_tokens: 601
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImNvbnRlbnQiOiJUbyBjaG9vc2UgdGhlIGJlc3QgbmFtZSBmb3IgYSByb2JvdCBnYXJkZW5lciwg
+    aXQgaGVscHMgdG8gY29uc2lkZXIgdGhlIFwidmliZVwiIG9mIHlvdXIgcm9ib3QuIEhlcmUgYXJl
+    IHNldmVyYWwgc3VnZ2VzdGlvbnMgY2F0ZWdvcml6ZWQgYnkgc3R5bGU6XG5cbiMjIyBCb3Rhbmlj
+    YWwgJiBOYXR1cmUtSW5zcGlyZWRcblRoZXNlIG5hbWVzIGVtcGhhc2l6ZSB0aGUgcm9ib3TigJlz
+    IGNvbm5lY3Rpb24gdG8gcGxhbnRzIGFuZCBncm93dGguXG4qICAgKipGbG9yb3M6KiogQSBjbGFz
+    c2ljLCB0ZWNoLXNvdW5kaW5nIG5hbWUgZGVyaXZlZCBmcm9tIFwiZmxvcmEuXCJcbiogICAqKlNw
+    cm91dDoqKiBDdXRlLCBzaW1wbGUsIGFuZCBwZXJmZWN0IGZvciBhIHNtYWxsIGhlbHBlci5cbiog
+    ICAqKkNobG9yaXM6KiogTmFtZWQgYWZ0ZXIgdGhlIEdyZWVrIG55bXBoIG9mIGZsb3dlcnMuXG4q
+    ICAgKipCdWQ6KiogRnJpZW5kbHkgYW5kIHNob3J0OyBpbXBsaWVzIGdyb3d0aC5cbiogICAqKlRl
+    cnJhOioqIExhdGluIGZvciBlYXJ0aC9zb2lsLlxuKiAgICoqVGhpc3RsZToqKiBBIGZ1biwgc2xp
+    Z2h0bHkgZWRneSBuYW1lIGZvciBhIHJvYm90IHRoYXQgaGFuZGxlcyB3ZWVkcy5cbiogICAqKkFy
+    Ym9yOioqIFNvdW5kcyBzdHVyZHkgYW5kIHN0cnVjdHVyYWwsIGxpa2UgYSB0cmVlLlxuXG4jIyMg
+    RnVuY3Rpb25hbCAmIERlc2NyaXB0aXZlXG5UaGVzZSBuYW1lcyBoaWdobGlnaHQgdGhlIHJvYm90
+    4oCZcyBqb2IgYW5kIGNhcGFiaWxpdGllcy5cbiogICAqKkdyb3dCb3Q6KiogU3RyYWlnaHQgdG8g
+    dGhlIHBvaW50LlxuKiAgICoqUHJ1bmVsbGE6KiogQSBjbGV2ZXIgcGxheSBvbiBcInBydW5pbmcu
+    XCJcbiogICAqKkN1bHRpdmF0b3IgKG9yIFwiQ3VsbHlcIik6KiogU291bmRzIHByb2Zlc3Npb25h
+    bCBhbmQgZWZmaWNpZW50LlxuKiAgICoqVGhlIFRyb3dlbDoqKiBBIG5vZCB0byB0aGUgbW9zdCBl
+    c3NlbnRpYWwgZ2FyZGVuaW5nIHRvb2wuXG4qICAgKipSb290ZXI6KiogU2ltcGxlLCBwdW5jaHks
+    IGFuZCBmdW5jdGlvbmFsLlxuKiAgICoqV2VlZFdpejoqKiBJZiB0aGUgcm9ib3QgaXMgc3BlY2lm
+    aWNhbGx5IGdvb2QgYXQgd2VlZGluZy5cblxuIyMjIFBsYXlmdWwgJiBXaGltc2ljYWxcbklmIHlv
+    dSB3YW50IHlvdXIgcm9ib3QgdG8gaGF2ZSBwZXJzb25hbGl0eS5cbiogICAqKldhbGwtRSAob3Ig
+    XCJXYWxseVwiKToqKiBUaGUgZ29sZCBzdGFuZGFyZCBmb3IgbmF0dXJlLWxvdmluZyBib3RzLlxu
+    KiAgICoqUGV0YWwgUHVzaGVyOioqIEEgZnVuIHB1biBvbiBcInBhcGVyIHB1c2hlci5cIlxuKiAg
+    ICoqR3JlZW4gVGh1bWI6KiogQSBjbGFzc2ljLCBzbGlnaHRseSBpcm9uaWMgbmFtZSBmb3IgYSBt
+    YWNoaW5lLlxuKiAgICoqVHdpZ2d5OioqIExpZ2h0LCBuaW1ibGUsIGFuZCBwbGFudC1yZWxhdGVk
+    LlxuKiAgICoqQmxvb206KiogU2hvcnQsIHN3ZWV0LCBhbmQgZGVzY3JpcHRpdmUuXG4qICAgKipC
+    b3Rhbnk6KiogQSBjbGV2ZXIgcHVuIG9uIHRoZSBmaWVsZCBvZiBzdHVkeS5cblxuIyMjIFNvcGhp
+    c3RpY2F0ZWQgJiBNeXRob2xvZ2ljYWxcblRoZXNlIG5hbWVzIHNvdW5kIGEgYml0IG1vcmUgXCJo
+    aWdoLWVuZFwiIG9yIGVsZWdhbnQuXG4qICAgKipHYWlhOioqIFRoZSBwZXJzb25pZmljYXRpb24g
+    b2YgdGhlIEVhcnRoIGl0c2VsZi5cbiogICAqKkRlbWV0ZXI6KiogVGhlIEdyZWVrIGdvZGRlc3Mg
+    b2YgYWdyaWN1bHR1cmUuXG4qICAgKipTaWx2YW51czoqKiBUaGUgUm9tYW4gZ29kIG9mIHdvb2Rz
+    IGFuZCBmaWVsZHMuXG4qICAgKipWZXJkYW50OioqIEFuIGFkamVjdGl2ZSBtZWFuaW5nIGdyZWVu
+    IHdpdGggZ3Jhc3Mgb3Igb3RoZXIgcmljaCB2ZWdldGF0aW9uLlxuKiAgICoqRWRlbjoqKiBTdWdn
+    ZXN0cyB0aGUgcm9ib3QgaXMgY3JlYXRpbmcgYSBwYXJhZGlzZS5cblxuIyMjIE15IFBlcnNvbmFs
+    IEZhdm9yaXRlczpcbjEuICAqKlNwcm91dCoqIChpZiBpdOKAmXMgc21hbGwgYW5kIGN1dGUpXG4y
+    LiAgKipQcnVuZWxsYSoqIChpZiBpdOKAmXMgcHJlY2lzZSBhbmQgaGVscGZ1bClcbjMuICAqKlRl
+    cnJhKiogKGlmIGl04oCZcyBhIGhlYXZ5LWR1dHkgbGFuZHNjYXBpbmcgcm9ib3QpXG40LiAgKipC
+    dWQqKiAoaWYgaXTigJlzIGEgZnJpZW5kbHkgY29tcGFuaW9uKVxuXG4qKldoaWNoIG9uZSBmZWVs
+    cyBsaWtlIHRoZSBiZXN0IGZpdCBmb3IgeW91ciByb2JvdCdzIHBlcnNvbmFsaXR5PyoqIiwiZXh0
+    cmFfY29udGVudCI6eyJnb29nbGUiOnsidGhvdWdodF9zaWduYXR1cmUiOiJFbk1LY1FGcEZIMFRJ
+    NCsyNTJGbDBGQWFYODZwTUFsK2djaURlYzRJb2wrYUdLV25MYWRkQnBLQVpySExDalk4TkpIaXB5
+    MjkyUzBENElLbEY1bm5jV01xT3RpUmxRdkI2MVBXWFZKYmcwVy9ZdVJ6bC9nbkFGQWx0eStub3RU
+    RXBwTTljR29XcWRJMWw1T0ZYUWdwUEVjdEJMUGMifX0sInJvbGUiOiJhc3Npc3RhbnQifX1dLCJj
+    cmVhdGVkIjoxNzkzOTM4MjM5LCJpZCI6IlBWUHRhcVRpR2Z5eXl0TVB2b0xKaVFRIiwibW9kZWwi
+    OiJnZW1pbmktMy4xLWZsYXNoLWxpdGUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJ1c2Fn
+    ZSI6eyJjb21wbGV0aW9uX3Rva2VucyI6NTkyLCJwcm9tcHRfdG9rZW5zIjo5LCJ0b3RhbF90b2tl
+    bnMiOjYwMX19
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-06T04:10:37.211418+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

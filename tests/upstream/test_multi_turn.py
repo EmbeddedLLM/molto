@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
 
@@ -35,6 +35,7 @@ from molto.types.normalized import (
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.bedrock import BedrockChatCompletionsClient, BedrockResponsesClient
 from molto.upstream.fireworks import FireworksChatCompletionsClient, FireworksResponsesClient
+from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.upstream.openrouter import OpenRouterResponsesClient
 from molto.upstream.together import TogetherAIChatCompletionsClient, TogetherAIResponsesClient
@@ -48,6 +49,7 @@ CLIENTS = {
     BedrockChatCompletionsClient: ("bedrock", "chat_completions"),
     FireworksResponsesClient: ("fireworks", "responses"),
     FireworksChatCompletionsClient: ("fireworks", "chat_completions"),
+    GeminiChatCompletionsClient: ("gemini", "chat_completions"),
     OpenRouterResponsesClient: ("openrouter", "responses"),
     TogetherAIResponsesClient: ("togetherai", "responses"),
     TogetherAIChatCompletionsClient: ("togetherai", "chat_completions"),
@@ -496,12 +498,26 @@ async def _collect_responses(result, stream):
     return completed[0], [event.model_dump() for event in events]
 
 
-async def _collect_chat(result, stream):
+async def _collect_chat(result, stream, *, repair_single_call_index=False):
     if not stream:
         return result, None
     state = ChatCompletionStreamState()
     async with result:
         events = [event async for event in result]
+    if repair_single_call_index:
+        # The Gemini recordings contain one complete, unindexed call per response.
+        # Repair SDK reference copies only; Molto output must already carry indices.
+        events = [event.model_copy(deep=True) for event in events]
+        tools = [
+            tool
+            for event in events
+            for choice in event.choices
+            for tool in choice.delta.tool_calls or []
+        ]
+        assert len(tools) <= 1
+        for tool in tools:
+            assert tool.index is None and tool.id
+            tool.index = 0
     for event in events:
         state.handle_chunk(event)
     return state.get_final_completion(), [event.model_dump() for event in events]
@@ -511,13 +527,17 @@ def _chat_history(message, provider):
     """Reproduce the recording driver's actual SDK-output history."""
     # Fireworks rejects null output-only fields in assistant input.
     history = message.model_dump(exclude_unset=True, exclude_none=provider == "fireworks")
+    if provider == "gemini":
+        # Gemini rejects null optional message fields; opaque nested nulls stay intact.
+        history = {name: value for name, value in history.items() if value is not None}
+        assert history.pop("annotations", None) in (None, [])
     history.pop("parsed", None)
     for call in history.get("tool_calls") or []:
-        if provider == "togetherai":
+        if provider in {"togetherai", "gemini"}:
             call.pop("index", None)
         call["function"].pop("parsed_arguments", None)
-    # Together repeats delta.role; the SDK accumulator concatenates those strings.
-    if provider == "togetherai":
+    # These providers repeat delta.role; the SDK accumulator concatenates those strings.
+    if provider in {"togetherai", "gemini"}:
         assert history["role"] and history["role"].replace("assistant", "") == ""
         history["role"] = "assistant"
     else:
@@ -576,11 +596,13 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
                 http_client=transport,
                 max_retries=0,
             )
-            expected, expected_events = await collect(
-                await (sdk.responses.create if responses else sdk.chat.completions.create)(
-                    **body, extra_body=extras
-                ),
-                stream,
+            sdk_result = await (
+                sdk.responses.create if responses else sdk.chat.completions.create
+            )(**body, extra_body=extras)
+            expected, expected_events = await (
+                _collect_chat(sdk_result, stream, repair_single_call_index=True)
+                if provider == "gemini"
+                else collect(sdk_result, stream)
             )
         async with Molto(
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
@@ -861,7 +883,7 @@ def _expected_chat_wire(recorded):
 )
 @pytest.mark.parametrize("stream", [False, True])
 async def test_provider_chat_translated_conversation(provider, endpoint, scenario, mode, stream):
-    """Ensures Responses through provider Chat preserves SDK text, tools, usage and actual-output continuation."""
+    """Ensures translated Chat preserves SDK semantics and continuation, or rejects opaque state."""
     cassettes = _provider_turns(provider, scenario, mode, endpoint)
     first = cassettes[0]["request"]["body"]
     body = {
@@ -885,7 +907,9 @@ async def test_provider_chat_translated_conversation(provider, endpoint, scenari
                 api_key="test-key", base_url=base_url, http_client=transport, max_retries=0
             )
             reference, _ = await _collect_chat(
-                await sdk.chat.completions.create(**sdk_body, extra_body=extras), True
+                await sdk.chat.completions.create(**sdk_body, extra_body=extras),
+                True,
+                repair_single_call_index=provider == "gemini",
             )
         expected = _expected_chat_wire(recorded)
         calls = []
@@ -902,23 +926,36 @@ async def test_provider_chat_translated_conversation(provider, endpoint, scenari
             if key in recorded
         }
         before = deepcopy(body)
+        message = reference.choices[0].message
+        opaque = any(
+            getattr(attachment, "extra_content", None)
+            for attachment in (message, *(message.tool_calls or []))
+        )
         async with Molto(
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
         ) as molto:
-            actual, _ = await _collect_responses(
-                await molto.responses(
-                    body,
-                    provider=provider,
-                    endpoint="chat/completions",
-                    api_key="test-key",
-                    base_url=base_url,
-                    extra_body=controls,
-                ),
-                stream,
-            )
+            with (
+                pytest.raises(
+                    ValueError, match="Chat Completions extra_content cannot be translated"
+                )
+                if opaque
+                else nullcontext()
+            ):
+                actual, _ = await _collect_responses(
+                    await molto.responses(
+                        body,
+                        provider=provider,
+                        endpoint="chat/completions",
+                        api_key="test-key",
+                        base_url=base_url,
+                        extra_body=controls,
+                    ),
+                    stream,
+                )
         assert body == before
         assert len(calls) == 1
-        message = reference.choices[0].message
+        if opaque:
+            return
         assert actual.status == "completed"
         assert (actual.id, actual.model, actual.created_at) == (
             reference.id,
