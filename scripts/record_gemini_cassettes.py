@@ -98,6 +98,12 @@ async def main():
                             print(f"{scenario} {mode} turn {turn}: completed", flush=True)
                             if turn + 1 < turns:
                                 history = message.model_dump(exclude_unset=True)
+                                # Gemini repeats the role in deltas; the SDK concatenates it.
+                                assert (
+                                    history["role"]
+                                    and history["role"].replace("assistant", "") == ""
+                                )
+                                history["role"] = "assistant"
                                 history.pop("parsed", None)
                                 assert history.pop("annotations", None) in (None, [])
                                 for tool in history.get("tool_calls") or []:
