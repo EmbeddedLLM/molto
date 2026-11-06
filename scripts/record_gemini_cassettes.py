@@ -97,7 +97,15 @@ async def main():
                             assert key not in filename.read_text()
                             print(f"{scenario} {mode} turn {turn}: completed", flush=True)
                             if turn + 1 < turns:
-                                history = message.model_dump(exclude_unset=True)
+                                # Gemini rejects null optional message fields. Keep any
+                                # nested opaque Google state unchanged.
+                                history = {
+                                    name: value
+                                    for name, value in message.model_dump(
+                                        exclude_unset=True
+                                    ).items()
+                                    if value is not None
+                                }
                                 # Gemini repeats the role in deltas; the SDK concatenates it.
                                 assert (
                                     history["role"]
