@@ -6,10 +6,9 @@ from httpx import AsyncClient, MockTransport, Response
 
 from molto import Molto
 from molto.utils.io import dumps_sse
-from tests.core.test_interface import _get_http_client
+from tests.core.test_interface import _collect, _get_http_client
 from tests.core.test_web_search import (
     _assert_lifecycle,
-    _collect,
     _messages_semantics,
     _path,
     _request_pair,

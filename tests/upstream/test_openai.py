@@ -2048,9 +2048,14 @@ def _message_item_events(
     ]
 
 
+@pytest.mark.parametrize(
+    "signature_fields", [{}, {"encrypted_content": None}, {"encrypted_content": ""}]
+)
 async def test_responses_events_omit_completely_empty_reasoning_part(
     monkeypatch: pytest.MonkeyPatch,
+    signature_fields: dict[str, str | None],
 ) -> None:
+    """Ensures absent or empty ciphertext cannot materialize an empty reasoning lifecycle."""
     # A reasoning item with no content, summary, signature, or deltas carries
     # nothing to translate, so its part lifecycle is omitted from the IR and the
     # surviving parts are reindexed to stay dense.
@@ -2059,6 +2064,7 @@ async def test_responses_events_omit_completely_empty_reasoning_part(
         "type": "reasoning",
         "content": [],
         "summary": [],
+        **signature_fields,
     }
     native_events = [
         *_message_item_events("msg_a", "Hi", 0, 0),
@@ -2345,25 +2351,11 @@ async def test_responses_events_preserve_unsigned_summary_completion(
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
-    assert events[0] == PartStartEvent(
-        index=0,
-        part=Thinking(
-            content="",
-            summary="",
-            id="rs_123",
-            signature=signature_fields.get("encrypted_content"),
-        ),
-    )
-    assert events[1] == PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary"))
-    assert events[-1] == PartEndEvent(
-        index=0,
-        part=Thinking(
-            content="",
-            summary="Summary",
-            id="rs_123",
-            signature=signature_fields.get("encrypted_content"),
-        ),
-    )
+    assert events == [
+        PartStartEvent(index=0, part=Thinking(content="", summary="", id="rs_123")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+        PartEndEvent(index=0, part=Thinking(content="", summary="Summary", id="rs_123")),
+    ]
 
 
 async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(

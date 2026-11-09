@@ -10,12 +10,10 @@ import pytest
 from anthropic import AsyncAnthropic
 from anthropic import BadRequestError as AnthropicBadRequestError
 from anthropic import RateLimitError as AnthropicRateLimitError
-from anthropic.lib.streaming._messages import accumulate_event
 from httpx import AsyncByteStream, AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import RateLimitError as OpenAIRateLimitError
-from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.responses.response_output_text import AnnotationURLCitation
 from pydantic import BaseModel
 
@@ -32,13 +30,14 @@ from tests.core.test_interface import (
     PROTOCOLS,
     RESPONSES_MESSAGES_PROTOCOLS,
     Protocol,
-    _assert_responses_stream_invariants,
+    _collect,
     _coordinator,
     _get_http_client,
     _matched_cassette_path,
     _read_cassette,
     _sse_records,
 )
+from tests.core.test_interface import _assert_lifecycle as _assert_stream_lifecycle
 
 SEARCH_ROUTES = tuple(product(PROTOCOLS, RESPONSES_MESSAGES_PROTOCOLS))
 
@@ -99,65 +98,9 @@ async def _sdk_result(protocol: Protocol, stream: bool):
             return [event async for event in result]
 
 
-def _collect(protocol: Protocol, events: list[BaseModel]) -> BaseModel:
-    if protocol == "responses":
-        assert events[-1].type in {"response.completed", "response.incomplete"}
-        return events[-1].response
-    if protocol == "chat/completions":
-        state = ChatCompletionStreamState()
-        for event in events:
-            state.handle_chunk(event.model_copy(deep=True))
-        return state.current_completion_snapshot
-    snapshot = None
-    for event in events:
-        snapshot = accumulate_event(event=event.model_copy(deep=True), current_snapshot=snapshot)
-        # The SDK accumulator does not copy this compatible-provider extension,
-        # although its parsed message_delta preserves the observed value.
-        if (
-            event.type == "message_delta"
-            and getattr(event.usage, "output_tokens_details", None) is not None
-        ):
-            snapshot.usage = snapshot.usage.model_copy(
-                update={"output_tokens_details": event.usage.output_tokens_details}
-            )
-    assert snapshot is not None
-    return snapshot
-
-
 def _assert_lifecycle(protocol: Protocol, events: list[BaseModel]) -> None:
-    if protocol == "responses":
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
-        assert events[0].type == "response.created"
-        assert events[-1].type in {"response.completed", "response.incomplete"}
-        added = [
-            event.output_index for event in events if event.type == "response.output_item.added"
-        ]
-        done = [
-            event.output_index for event in events if event.type == "response.output_item.done"
-        ]
-        assert added == done == list(range(len(added)))
-    elif protocol == "messages":
-        assert events[0].type == "message_start"
-        assert events[-1].type == "message_stop"
-        opened = set()
-        starts = []
-        for event in events:
-            if event.type == "content_block_start":
-                assert event.index == len(starts)
-                starts.append(event.index)
-                opened.add(event.index)
-            elif event.type == "content_block_delta":
-                assert event.index in opened
-            elif event.type == "content_block_stop":
-                assert event.index in opened
-                opened.remove(event.index)
-        assert not opened
-        assert sum(event.type == "message_delta" for event in events) == 1
-    else:
-        assert (
-            sum(choice.finish_reason is not None for event in events for choice in event.choices)
-            == 1
-        )
+    _assert_stream_lifecycle(protocol, events)
+    if protocol == "chat/completions":
         assert all(not choice.delta.tool_calls for event in events for choice in event.choices)
         assert all(
             not getattr(choice.delta, "annotations", None)

@@ -60,18 +60,30 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
     return AnthropicMessagesAdapter(capabilities).normalize_request(request)
 
 
-def test_normalization_rejects_unsigned_summary_history() -> None:
+@pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}, {"signature": "state"}])
+def test_normalization_preserves_summary_history(signature_fields: dict[str, str]) -> None:
+    """Ensures normalization preserves summary history for destination-owned validation."""
     request = _request(
         messages=[
             {
                 "role": "assistant",
-                "content": [{"type": "thinking", "thinking": "Summary"}],
+                "content": [{"type": "thinking", "thinking": "Summary", **signature_fields}],
             }
         ]
     )
 
-    with pytest.raises(UnsupportedInput, match="summary requires a signature"):
-        _normalize(request, _CAPABILITIES)
+    normalized = _normalize(request, _CAPABILITIES)
+    assert normalized.input == [
+        AssistantInput(
+            content=[
+                Thinking(
+                    content="",
+                    summary="Summary",
+                    signature=signature_fields.get("signature") or None,
+                )
+            ]
+        )
+    ]
 
 
 @pytest.mark.parametrize(

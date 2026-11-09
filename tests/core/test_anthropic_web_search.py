@@ -16,10 +16,9 @@ from molto.types.normalized import PartEndEvent, ResponseEndEvent, SearchCall, T
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.utils.io import json_loads
-from tests.core.test_interface import _get_http_client, _read_cassette
+from tests.core.test_interface import _collect, _get_http_client, _read_cassette
 from tests.core.test_web_search import (
     _assert_lifecycle,
-    _collect,
     _history,
     _messages_semantics,
     _path,

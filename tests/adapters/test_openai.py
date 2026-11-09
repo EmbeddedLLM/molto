@@ -966,20 +966,33 @@ async def test_responses_projection_rejects_reasoning_outside_capability(
         ]
 
 
-def test_responses_normalization_rejects_unsigned_summary_history() -> None:
+@pytest.mark.parametrize(
+    "signature_fields", [{}, {"encrypted_content": ""}, {"encrypted_content": "state"}]
+)
+def test_responses_normalization_preserves_summary_history(
+    signature_fields: dict[str, str],
+) -> None:
+    """Ensures Responses normalization leaves summary-signature requirements to the destination."""
     request = OpenAIResponsesCreateRequest(
         input=[
             {
                 "type": "reasoning",
                 "content": [],
                 "summary": [{"type": "summary_text", "text": "Summary"}],
+                **signature_fields,
             }
         ],
         model="m",
     )
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    assert normalized.input == [
+        Thinking(
+            content="",
+            summary="Summary",
+            signature=signature_fields.get("encrypted_content") or None,
+        )
+    ]
 
 
 @pytest.mark.parametrize("signature", [None, ""])

@@ -174,7 +174,7 @@ def _reasoning_part(item: Any) -> Thinking:
         content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
         summary="".join(part.text for part in item.summary if part.type == "summary_text"),
         id=item.id,
-        signature=item.encrypted_content,
+        signature=item.encrypted_content or None,
     )
 
 

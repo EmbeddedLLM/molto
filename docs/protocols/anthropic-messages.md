@@ -284,7 +284,7 @@ Inbound `thinking_delta` classification is a separate concern from the outbound 
 - a reasoning summary with an optional signature; or
 - a signature without reasoning text.
 
-It must not mix or switch representations within one block. Output processing accepts a missing summary signature and projects it as an empty Messages signature without inventing continuation state. Request translation still rejects unsigned summary history before transport. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
+It must not mix or switch representations within one block. Output processing accepts a missing summary signature and projects it as an empty Messages signature without inventing continuation state. Request normalization preserves unsigned summary history for upstream validation. Chat upstreams accept the summary text, while Responses and Messages upstream builders reject it before transport. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
 
 ### Opaque thinking state
 
@@ -368,7 +368,7 @@ When Messages is the translated upstream and the provider is Anthropic, missing,
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
-A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Unsigned reasoning summary output can pass through Chat Completions, but present signatures cannot because Chat has no signature slot. Translated summary-history requests still require signatures. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
+A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Unsigned reasoning summary output can pass through Chat Completions, but present signatures cannot because Chat has no signature slot. Unsigned summary history can be translated to a Chat upstream; Responses and Messages upstream builders still require signatures. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
 
 The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 

@@ -12,12 +12,13 @@ from molto.utils.io import dumps_sse, json_loads, load_sse
 from tests.core.test_interface import (
     PROTOCOLS,
     Protocol,
+    _collect,
     _coordinator,
     _matched_cassette_path,
     _read_cassette,
     _sse_records,
 )
-from tests.core.test_web_search import _assert_lifecycle, _collect
+from tests.core.test_web_search import _assert_lifecycle
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])

@@ -207,7 +207,7 @@ The translated path currently supports:
 - string input and ordered text messages;
 - ordered mixed text and image user input using remote URLs or base64 data URLs;
 - system prompts and supported assistant history;
-- raw reasoning across all three protocols, reasoning summaries between Responses and Messages, and unsigned summary output through Chat;
+- raw reasoning across all three protocols, reasoning summaries between Responses and Messages, and unsigned summary output and history through Chat;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
 - basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning is rejected;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
@@ -232,7 +232,7 @@ Responses events label those representations explicitly and must agree with the 
 
 A Responses reasoning output lifecycle contains raw reasoning without a summary or signature, a summary with an optional signature and no raw reasoning, or a signature without reasoning text. A Messages thinking output lifecycle follows the same rule. A completely empty start may be deferred until its representation is known, and a lifecycle must not switch representations.
 
-Output processing preserves unsigned summaries rather than rejecting a response because its signature is missing. Chat can carry unsigned raw reasoning or summaries according to the provider profile, but rejects present signatures because it has no signature field. Request translation remains strict: replaying summary history through Responses or Messages requires its original signature. Receiving unsigned reasoning output does not establish usable continuation state.
+Output processing preserves unsigned summaries rather than rejecting a response because its signature is missing. Chat can carry unsigned raw reasoning or summaries according to the provider profile, but rejects present signatures because it has no signature field. Request normalization preserves unsigned summary history. Upstream Chat request construction accepts that summary text; upstream Responses and Messages request construction still requires its original signature. Receiving unsigned reasoning output does not establish opaque continuation state. Native passthrough is unchanged.
 
 ### Opaque continuation state
 

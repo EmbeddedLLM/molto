@@ -263,7 +263,7 @@ A Responses reasoning output lifecycle must use exactly one representation:
 - a reasoning summary with optional encrypted state and no raw content; or
 - encrypted state with neither summary nor raw content.
 
-The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. Output processing accepts completed summaries without encrypted state. Request translation still rejects unsigned summary history before transport.
+The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. Output processing accepts completed summaries without encrypted state and normalizes empty `encrypted_content` to no signature. Request normalization preserves unsigned summary history; upstream Chat accepts the summary text, while upstream Responses and Messages builders still reject it before transport.
 
 Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Unsigned Chat reasoning output can project into Responses as raw reasoning or a summary according to that capability. Responses-to-Chat output rejects any present signature instead of dropping it; unsigned summary output is representable. Supported delta boundaries remain observable and are preserved by matched parity coverage.
 
@@ -390,7 +390,7 @@ A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the c
 The following are implementation gaps, not general claims that the source data cannot exist:
 
 - multiple Chat Completions choices; the current translated client reads only `choices[0]`;
-- signed reasoning output through Chat Completions and unsigned summary history on translated requests; Chat has no signature slot, while Responses and Messages request translation requires summary signatures;
+- signed reasoning output or history through Chat Completions and unsigned summary history targeting Responses or Messages upstreams; Chat has no signature slot, while Responses and Messages request builders require summary signatures;
 - refusals as content, hosted tools other than basic search, failed client-function result semantics, redacted thinking, non-web annotations, moderation, and other multimodal output;
 - log probability transport across the normalized representation;
 - Chat audio and accepted or rejected prediction-token details;

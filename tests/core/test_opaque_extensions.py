@@ -9,12 +9,13 @@ from molto import Molto
 from tests.core.test_interface import (
     PROTOCOLS,
     Protocol,
+    _collect,
     _coordinator,
     _get_http_client,
     _matched_cassette_path,
     _read_cassette,
 )
-from tests.core.test_web_search import _assert_lifecycle, _collect
+from tests.core.test_web_search import _assert_lifecycle
 
 
 @pytest.mark.parametrize("upstream", PROTOCOLS)
