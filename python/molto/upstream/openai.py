@@ -635,7 +635,7 @@ class OpenAIResponsesClient(
         return items
 
     @classmethod
-    def _request_body(cls, request: NormalizedRequest) -> dict[str, Any]:
+    def _native_request(cls, request: NormalizedRequest) -> OpenAIResponsesCreateRequest:
         body: dict[str, Any] = {
             "input": cls._process_input(request),
             "model": request.model,
@@ -664,13 +664,12 @@ class OpenAIResponsesClient(
             body["include"] = ["web_search_call.action.sources"]
         body.update(_prompt_cache_fields(request))
         try:
-            return OpenAIResponsesCreateRequest.model_validate(body).model_dump()
+            return OpenAIResponsesCreateRequest.model_validate(body)
         except ValidationError as error:
             raise UnsupportedInput(str(error)) from error
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
-        request_body = self._request_body(request)
-        native_request = OpenAIResponsesCreateRequest.model_validate(request_body)
+        native_request = self._native_request(request)
         # Only a reasoning item whose `added` snapshot is completely empty (no
         # content, summary, or encrypted state) is deferred: if nothing ever
         # arrives, its part lifecycle is omitted from the IR entirely. An item
@@ -1214,7 +1213,7 @@ class OpenAIChatCompletionsClient(
         return messages
 
     @classmethod
-    def _request_body(cls, request: NormalizedRequest) -> dict[str, Any]:
+    def _native_request(cls, request: NormalizedRequest) -> OpenAIChatCompletionsCreateRequest:
         cls._validate_request(request)
         stream_options: dict[str, Any] = {}
         if request.stream:
@@ -1249,7 +1248,7 @@ class OpenAIChatCompletionsClient(
             body["top_p"] = request.top_p
         body.update(_prompt_cache_fields(request))
         try:
-            return OpenAIChatCompletionsCreateRequest.model_validate(body).model_dump()
+            return OpenAIChatCompletionsCreateRequest.model_validate(body)
         except ValidationError as error:
             raise UnsupportedInput(str(error)) from error
 
@@ -1326,9 +1325,7 @@ class OpenAIChatCompletionsClient(
                 ),
             )
 
-        native_request = OpenAIChatCompletionsCreateRequest.model_validate(
-            self._request_body(request)
-        )
+        native_request = self._native_request(request)
         async with aclosing(self.native_events(native_request)) as native_events:
             async for chunk in native_events:
                 if response_metadata is None:

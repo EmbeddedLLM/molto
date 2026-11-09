@@ -764,7 +764,8 @@ def test_client_selects_model_supported_thinking_configuration(
     thinking: dict,
     output_config: dict | None,
 ):
-    body = AnthropicMessagesClient._request_body(
+    """Ensures thinking mode and effort follow the target model capabilities."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=40_000,
@@ -772,7 +773,7 @@ def test_client_selects_model_supported_thinking_configuration(
             reasoning=Reasoning(effort=effort),
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["thinking"] == thinking
     assert body.get("output_config") == output_config
@@ -780,7 +781,7 @@ def test_client_selects_model_supported_thinking_configuration(
 
 def test_client_projects_user_text_as_content_block_list():
     """Ensures Messages projection retains user parts and assistant message boundaries."""
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[
                 UserInput(content=[TextInput(content="Part one"), TextInput(content="Part two")]),
@@ -791,7 +792,7 @@ def test_client_projects_user_text_as_content_block_list():
             model="compatible-model",
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["messages"] == [
         {
@@ -810,14 +811,14 @@ def test_client_projects_prompt_cache_as_automatic_cache_control():
     """Ensures automatic caching follows mode and lifetime intent, never a caller key."""
 
     def body(prompt_cache: PromptCache) -> dict[str, object]:
-        return AnthropicMessagesClient._request_body(
+        return AnthropicMessagesClient._native_request(
             NormalizedRequest(
                 max_output_tokens=2048,
                 model="compatible-model",
                 stream=True,
                 prompt_cache=prompt_cache,
             )
-        )
+        ).model_dump()
 
     assert body(PromptCache(mode="implicit"))["cache_control"] == {"type": "ephemeral"}
     assert body(PromptCache(ttl="1h"))["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
@@ -856,7 +857,7 @@ def test_client_preserves_assistant_message_boundaries_and_ordered_blocks():
         ],
     )
 
-    assert AnthropicMessagesClient._request_body(request)["messages"] == [
+    assert AnthropicMessagesClient._native_request(request).model_dump()["messages"] == [
         {"role": "assistant", "content": []},
         {
             "role": "assistant",
@@ -960,7 +961,8 @@ def test_request_rejects_file_image_source():
 
 
 def test_client_projects_image_parts_as_image_blocks():
-    body = AnthropicMessagesClient._request_body(
+    """Ensures Messages image projection preserves the source URL or base64 data."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[
                 UserInput(
@@ -976,7 +978,7 @@ def test_client_projects_image_parts_as_image_blocks():
             model="compatible-model",
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["messages"] == [
         {
@@ -999,6 +1001,7 @@ def test_client_projects_image_parts_as_image_blocks():
 
 @pytest.mark.parametrize("detail", ["low", "high", "original"])
 def test_client_rejects_unrepresentable_image_detail(detail: str):
+    """Ensures Messages rejects image fidelity controls it cannot represent."""
     request = NormalizedRequest(
         input=[
             UserInput(content=[ImageUrlInput(url="data:image/png;base64,AA==", detail=detail)])
@@ -1009,10 +1012,11 @@ def test_client_rejects_unrepresentable_image_detail(detail: str):
     )
 
     with pytest.raises(UnsupportedInput, match="cannot represent image detail"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 def test_client_rejects_non_base64_data_url_image():
+    """Ensures Messages rejects image data URLs without base64 encoding."""
     request = NormalizedRequest(
         input=[UserInput(content=[ImageUrlInput(url="data:image/png,%89NP")])],
         max_output_tokens=2048,
@@ -1021,7 +1025,7 @@ def test_client_rejects_non_base64_data_url_image():
     )
 
     with pytest.raises(UnsupportedInput, match="base64 data URL"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 @pytest.mark.parametrize(
@@ -1039,7 +1043,8 @@ def test_client_maps_effort_to_extended_thinking_budget(
     effort: str,
     budget_tokens: int,
 ):
-    body = AnthropicMessagesClient._request_body(
+    """Ensures manual thinking uses the documented effort token budget."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=40_000,
@@ -1047,7 +1052,7 @@ def test_client_maps_effort_to_extended_thinking_budget(
             reasoning=Reasoning(effort=effort),
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["thinking"] == {
         "type": "enabled",
@@ -1059,7 +1064,7 @@ def test_client_maps_effort_to_extended_thinking_budget(
 
 def test_client_enables_adaptive_thinking_for_reasoning_history():
     """Ensures nested assistant reasoning enables adaptive thinking for supported models."""
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[
                 AssistantInput(
@@ -1073,7 +1078,7 @@ def test_client_enables_adaptive_thinking_for_reasoning_history():
             model="compatible-model",
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["thinking"] == {"type": "adaptive", "display": "summarized"}
     assert body["output_config"] == {"effort": "high"}
@@ -1081,7 +1086,7 @@ def test_client_enables_adaptive_thinking_for_reasoning_history():
 
 def test_client_uses_summary_when_reasoning_history_omits_raw_content():
     """Ensures nested signed summaries preserve text and signature in thinking blocks."""
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[
                 AssistantInput(
@@ -1095,7 +1100,7 @@ def test_client_uses_summary_when_reasoning_history_omits_raw_content():
             model="compatible-model",
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["messages"][0]["content"][0] == {
         "type": "thinking",
@@ -1105,6 +1110,7 @@ def test_client_uses_summary_when_reasoning_history_omits_raw_content():
 
 
 def test_client_rejects_reasoning_history_outside_capability() -> None:
+    """Ensures reasoning history respects the selected provider capability."""
     request = NormalizedRequest(
         input=[Thinking(content="", summary="Summary", signature="opaque-state")],
         max_output_tokens=100,
@@ -1113,11 +1119,12 @@ def test_client_rejects_reasoning_history_outside_capability() -> None:
     )
 
     with pytest.raises(UnsupportedInput, match="does not match the provider"):
-        AnthropicMessagesClient._request_body(request, capabilities=VLLM_CAPABILITIES)
+        AnthropicMessagesClient._native_request(request, capabilities=VLLM_CAPABILITIES)
 
 
 def test_client_disables_thinking_without_output_effort():
-    body = AnthropicMessagesClient._request_body(
+    """Ensures disabled thinking does not send an output effort setting."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[UserInput(content=[TextInput(content="Hello")])],
             max_output_tokens=2048,
@@ -1125,15 +1132,16 @@ def test_client_disables_thinking_without_output_effort():
             reasoning=Reasoning(effort="none"),
             stream=True,
         )
-    )
+    ).model_dump()
 
     assert body["thinking"] == {"type": "disabled"}
     assert "output_config" not in body
 
 
 def test_client_rejects_extended_thinking_budget_at_output_limit():
+    """Ensures manual thinking leaves room for output within the token limit."""
     with pytest.raises(UnsupportedInput, match="must be less than max_output_tokens"):
-        AnthropicMessagesClient._request_body(
+        AnthropicMessagesClient._native_request(
             NormalizedRequest(
                 input=[UserInput(content=[TextInput(content="Hello")])],
                 max_output_tokens=10_000,
@@ -1474,7 +1482,7 @@ def test_adapter_rejects_server_generated_tool_history():
 
 def test_client_projects_function_tools_and_tool_history_without_caller():
     """Ensures grouped assistant tool history projects without synthesizing caller metadata."""
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[
                 UserInput(content=[TextInput(content="Run both tools.")]),
@@ -1505,7 +1513,7 @@ def test_client_projects_function_tools_and_tool_history_without_caller():
                 )
             ],
         )
-    )
+    ).model_dump()
 
     assert body["messages"] == [
         {
@@ -1563,26 +1571,29 @@ def test_client_projects_function_tools_and_tool_history_without_caller():
 
 @pytest.mark.parametrize("tool_choice", ["required", FunctionToolChoice(name="First")])
 def test_client_rejects_required_tool_choice_without_tools(tool_choice):
+    """Ensures required tool selection cannot be sent without tool definitions."""
     with pytest.raises(UnsupportedInput, match="needs at least one tool"):
-        AnthropicMessagesClient._request_body(
+        AnthropicMessagesClient._native_request(
             NormalizedRequest(model="model", tool_choice=tool_choice)
         )
 
 
 def test_client_omits_parallel_tool_choice_without_tools():
-    body = AnthropicMessagesClient._request_body(
+    """Ensures parallel-call control alone does not enable tool selection."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             max_output_tokens=10,
             model="model",
             parallel_tool_calls=False,
         )
-    )
+    ).model_dump()
 
     assert "tool_choice" not in body
 
 
 @pytest.mark.parametrize("outcome", ["denied", "interrupted"])
 def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
+    """Ensures Messages rejects tool outcomes it cannot preserve."""
     request = NormalizedRequest(
         input=[
             ToolReturn(
@@ -1595,18 +1606,19 @@ def test_client_rejects_unrepresentable_tool_result_outcomes(outcome):
     )
 
     with pytest.raises(UnsupportedInput, match="cannot preserve denied or interrupted"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 def test_client_accepts_disabled_stream_obfuscation():
-    body = AnthropicMessagesClient._request_body(
+    """Ensures disabling obfuscation remains accepted without a Messages field."""
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             max_output_tokens=10,
             model="model",
             stream=True,
             stream_options=StreamOptions(include_obfuscation=False),
         )
-    )
+    ).model_dump()
 
     assert body["stream"] is True
 
@@ -1649,8 +1661,9 @@ def test_client_rejects_unrepresentable_normalized_request_fields(
     normalized_request: NormalizedRequest,
     error: str,
 ):
+    """Ensures unsupported normalized semantics fail before Messages transport."""
     with pytest.raises(UnsupportedInput, match=error):
-        AnthropicMessagesClient._request_body(normalized_request)
+        AnthropicMessagesClient._native_request(normalized_request)
 
 
 def test_anthropic_client_ignores_responses_history_item_ids():
@@ -1679,9 +1692,10 @@ def test_anthropic_client_ignores_responses_history_item_ids():
             model="model",
         )
 
-    assert AnthropicMessagesClient._request_body(
-        request("responses_item_id")
-    ) == AnthropicMessagesClient._request_body(request(None))
+    assert (
+        AnthropicMessagesClient._native_request(request("responses_item_id")).model_dump()
+        == AnthropicMessagesClient._native_request(request(None)).model_dump()
+    )
 
 
 async def test_client_normalizes_streamed_tool_call(monkeypatch: pytest.MonkeyPatch):
@@ -1938,7 +1952,7 @@ def test_cache_breakpoints_preserve_system_parts_and_inherit_lifetime(mode):
         ],
         prompt_cache=PromptCache(mode=mode, ttl="30m"),
     )
-    body = AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._native_request(request).model_dump()
     control = {"type": "ephemeral", "ttl": "1h"}
     assert body["system"] == [
         {"type": "text", "text": "Cached instructions", "cache_control": control},
@@ -1964,7 +1978,7 @@ def test_rejects_cache_prefix_changes_from_hoisted_instructions():
         ],
     )
     with pytest.raises(UnsupportedInput, match="hoisting"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 @pytest.mark.parametrize(
@@ -1988,7 +2002,7 @@ def test_cache_breakpoint_count_is_left_to_upstream(count, mode, unmarked_tail):
         input=[UserInput(content=content)],
         prompt_cache=PromptCache(mode=mode),
     )
-    body = AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._native_request(request).model_dump()
     expected = [
         {"type": "text", "text": str(i), "cache_control": {"type": "ephemeral"}}
         for i in range(count)
@@ -2016,13 +2030,13 @@ def test_block_lifetimes_must_decrease_in_prompt_order(ttls):
         prompt_cache=PromptCache(mode="explicit"),
     )
     if ttls == ("1h", "5m"):
-        body = AnthropicMessagesClient._request_body(request)
+        body = AnthropicMessagesClient._native_request(request).model_dump()
         assert [part["cache_control"]["ttl"] for part in body["messages"][0]["content"]] == list(
             ttls
         )
     else:
         with pytest.raises(UnsupportedInput, match="must precede"):
-            AnthropicMessagesClient._request_body(request)
+            AnthropicMessagesClient._native_request(request)
 
 
 def test_automatic_and_final_block_cache_lifetimes_must_match():
@@ -2040,4 +2054,4 @@ def test_automatic_and_final_block_cache_lifetimes_must_match():
         prompt_cache=PromptCache(mode="implicit", ttl="5m"),
     )
     with pytest.raises(UnsupportedInput, match="must match"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)

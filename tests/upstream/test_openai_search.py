@@ -399,22 +399,22 @@ async def test_typed_search_usage_retains_reported_count(monkeypatch):
 def test_normalized_chat_search_rejected(normalized_request):
     """Ensures hosted declarations and replayed search state cannot select Chat upstream."""
     with pytest.raises(UnsupportedInput, match="Chat Completions upstream"):
-        OpenAIChatCompletionsClient._request_body(normalized_request)
+        OpenAIChatCompletionsClient._native_request(normalized_request)
 
 
 def test_responses_rejects_explicit_domain_blocking():
     """Ensures even an explicit empty blocklist is rejected rather than silently discarded."""
     with pytest.raises(UnsupportedInput, match="blocked_domains"):
-        OpenAIResponsesClient._request_body(
+        OpenAIResponsesClient._native_request(
             NormalizedRequest(tools=[WebSearchTool(blocked_domains=[])])
         )
 
 
 def test_standalone_result_history_defers_validity_to_api():
     """Ensures replayed search results retain their linked identity without local state validation."""
-    body = OpenAIResponsesClient._request_body(
+    body = OpenAIResponsesClient._native_request(
         NormalizedRequest(input=[SearchResult(tool_call_id="ws_1", sources=[])])
-    )
+    ).model_dump()
     assert body["input"] == [
         {
             "id": "ws_1",
@@ -436,10 +436,10 @@ def test_split_search_history_preserves_assistant_text_boundaries(split_at):
         TextOutput(content="After"),
     ]
     tail = AssistantInput(content=[TextOutput(content="Tail")])
-    combined = OpenAIResponsesClient._request_body(
+    combined = OpenAIResponsesClient._native_request(
         NormalizedRequest(input=[AssistantInput(content=parts), tail])
-    )
-    split = OpenAIResponsesClient._request_body(
+    ).model_dump()
+    split = OpenAIResponsesClient._native_request(
         NormalizedRequest(
             input=[
                 AssistantInput(content=parts[:split_at]),
@@ -447,7 +447,7 @@ def test_split_search_history_preserves_assistant_text_boundaries(split_at):
                 tail,
             ]
         )
-    )
+    ).model_dump()
     assert split == combined
     assert [item["type"] for item in split["input"]] == [
         "message",
@@ -475,14 +475,14 @@ def test_search_history_links_top_level_and_assistant_parts(nested_call, nested_
     """Ensures call/result linkage spans top-level parts and explicit assistant messages."""
     call = SearchCall(id="ws_1", query="x")
     result = SearchResult(tool_call_id="ws_1", error="unavailable")
-    body = OpenAIResponsesClient._request_body(
+    body = OpenAIResponsesClient._native_request(
         NormalizedRequest(
             input=[
                 AssistantInput(content=[call]) if nested_call else call,
                 AssistantInput(content=[result]) if nested_result else result,
             ]
         )
-    )
+    ).model_dump()
     assert body["input"] == [
         {
             "id": "ws_1",
@@ -610,7 +610,9 @@ async def test_search_history_does_not_change_text_normalization(history, overri
     request = NormalizedRequest(model="m", input=history, stream=True)
     extra_body = None
     if override:
-        extra_body = {"input": OpenAIResponsesClient._request_body(request)["input"]}
+        extra_body = {
+            "input": OpenAIResponsesClient._native_request(request).model_dump()["input"]
+        }
         request.input = []
     part = {"type": "output_text", "text": "answer", "annotations": []}
     item = {

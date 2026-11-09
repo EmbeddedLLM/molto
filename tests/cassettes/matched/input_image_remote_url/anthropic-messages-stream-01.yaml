@@ -13,7 +13,7 @@ request:
       role: user
     - content:
       - type: text
-        text: That is the **GitHub logo**, featuring the Octocat silhouette.
+        text: That is the **GitHub logo**, featuring the stylized “Octocat” silhouette.
       role: assistant
     - content:
       - type: text

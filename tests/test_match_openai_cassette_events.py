@@ -11,26 +11,18 @@ from scripts.match_openai_cassette_events import (
     _serialize_data_event,
     main,
     match_chat_completions_events,
+    match_chat_completions_request,
 )
+from tests.cassette_discovery import matcher_pairs
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched"
 CHAT_CASSETTE = CASSETTES / "simple_text" / "openai-chat_completions-stream-00.yaml"
 RESPONSES_CASSETTE = CASSETTES / "simple_text" / "openai-responses-stream-00.yaml"
 REASONING_CASSETTES = [
-    (
-        CASSETTES / "reasoning_raw" / f"vllm-chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "reasoning_raw" / f"vllm-responses-stream-{index:02d}.yaml",
-    )
-    for index in range(2)
+    (chat_path, responses_path)
+    for _, chat_path, responses_path in matcher_pairs("reasoning_raw", "chat/completions")
 ]
-TOOL_CALL_CASSETTES = [
-    (
-        index,
-        CASSETTES / "tool_call" / f"openai-chat_completions-stream-{index:02d}.yaml",
-        CASSETTES / "tool_call" / f"openai-responses-stream-{index:02d}.yaml",
-    )
-    for index in range(3)
-]
+TOOL_CALL_CASSETTES = matcher_pairs("tool_call", "chat/completions")
 TOOL_CALL_CHOICE_CASSETTES = (
     CASSETTES / "tool_call_choice" / "openai-chat_completions-stream-00.yaml",
     CASSETTES / "tool_call_choice" / "openai-responses-stream-00.yaml",
@@ -279,12 +271,18 @@ def test_matches_reasoning_history_with_instruction_parts_and_cache(with_cache: 
     assert responses_cassette == original_responses
 
 
-@pytest.mark.parametrize("scenario", ["prompt_cache_implicit", "prompt_cache_explicit"])
-@pytest.mark.parametrize("turn", range(2))
-def test_matches_prompt_cache_cassettes(scenario: str, turn: int) -> None:
-    directory = CASSETTES / scenario
-    chat_cassette = read_yaml(str(directory / f"openai-chat_completions-stream-{turn:02d}.yaml"))
-    responses_cassette = read_yaml(str(directory / f"openai-responses-stream-{turn:02d}.yaml"))
+@pytest.mark.parametrize(
+    ("chat_path", "responses_path"),
+    [
+        (chat_path, responses_path)
+        for scenario in ("prompt_cache_implicit", "prompt_cache_explicit")
+        for _, chat_path, responses_path in matcher_pairs(scenario, "chat/completions")
+    ],
+)
+def test_matches_prompt_cache_cassettes(chat_path: Path, responses_path: Path) -> None:
+    """Ensures discovered cache turns preserve cache intent and semantic usage when matched."""
+    chat_cassette = read_yaml(chat_path)
+    responses_cassette = read_yaml(responses_path)
     original_responses = deepcopy(responses_cassette)
     original_chat = deepcopy(chat_cassette)
     chat_cassette["request"]["body"].update(
@@ -396,6 +394,7 @@ def test_cli_sorts_yaml_mapping_keys(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(("chat_path", "responses_path"), REASONING_CASSETTES)
 def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path: Path) -> None:
+    """Ensures every discovered raw-reasoning turn retains reasoning and text deltas."""
     chat_cassette = read_yaml(str(chat_path))
     responses_cassette = read_yaml(str(responses_path))
 
@@ -455,6 +454,7 @@ def test_matches_reasoning_text_stream_cassettes(chat_path: Path, responses_path
 def test_matches_tool_call_stream_cassettes(
     turn: int, chat_path: Path, responses_path: Path
 ) -> None:
+    """Ensures discovered tool turns retain arguments, linked history, and termination."""
     chat_cassette = read_yaml(str(chat_path))
     responses_cassette = read_yaml(str(responses_path))
     original_chat_request = deepcopy(chat_cassette["request"]["body"])
@@ -521,6 +521,188 @@ def test_matches_tool_call_stream_cassettes(
     ]
     assert len(chat_request["messages"]) == 1 + 2 * turn
     assert sum(entry.strip() == "data: [DONE]" for entry in chat_cassette["response"]["sse"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("companion_path", "responses_path"),
+    [
+        (chat_path, responses_path)
+        for _, chat_path, responses_path in matcher_pairs(
+            "tool_call_image_result_parallel", "chat/completions"
+        )
+    ],
+)
+def test_parallel_tool_image_companions_are_idempotent(
+    tmp_path: Path, companion_path: Path, responses_path: Path
+) -> None:
+    """Ensures rematching preserves valid saved companions without modifying either input."""
+    output_path = tmp_path / companion_path.name
+    companion_bytes = companion_path.read_bytes()
+    responses_bytes = responses_path.read_bytes()
+
+    assert (
+        main(
+            [
+                str(companion_path),
+                str(responses_path),
+                "--request-only",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+    assert main([str(output_path), str(responses_path)]) == 0
+
+    matched = read_yaml(str(output_path))
+    assert matched == read_yaml(str(companion_path))
+    OpenAIChatCompletionsCreateRequest.model_validate(matched["request"]["body"])
+    for event in _data_events(matched):
+        ChatCompletionChunk.model_validate(event)
+    first_match = output_path.read_bytes()
+    assert main([str(output_path), str(responses_path), "--request-only"]) == 0
+    assert main([str(output_path), str(responses_path)]) == 0
+    assert output_path.read_bytes() == first_match
+    assert companion_path.read_bytes() == companion_bytes
+    assert responses_path.read_bytes() == responses_bytes
+
+
+@pytest.mark.parametrize("image_counts", [(2, 1), (1, 0), (0, 1)])
+@pytest.mark.parametrize("follow_up", [False, True])
+@pytest.mark.parametrize("with_text", [False, True])
+def test_matches_parallel_tool_images_after_all_results(
+    tmp_path: Path, image_counts: tuple[int, int], follow_up: bool, with_text: bool
+) -> None:
+    """Ensures parallel results stay contiguous before relocated images in source order."""
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+    response_input = [{"role": "user", "content": "Read both images."}]
+    response_input.extend(
+        {
+            "type": "function_call",
+            "call_id": f"call_{index}",
+            "name": "read_image",
+            "arguments": "{}",
+        }
+        for index in range(2)
+    )
+    expected_tools = []
+    expected_images = []
+    for index, image_count in enumerate(image_counts):
+        call_id = f"call_{index}"
+        output = [{"type": "input_text", "text": f"Result {index}."}] if with_text else []
+        images = []
+        for image_index in range(image_count):
+            url = (
+                f"https://example.com/{index}-{image_index}.png"
+                if index == 0
+                else "data:image/png;base64,aW1hZ2U="
+            )
+            output.append({"type": "input_image", "image_url": url, "detail": "high"})
+            images.append({"type": "image_url", "image_url": {"url": url, "detail": "high"}})
+        # Text after an image must remain in its original tool response.
+        if with_text:
+            output.append({"type": "input_text", "text": f"End {index}."})
+        response_input.append(
+            {"type": "function_call_output", "call_id": call_id, "output": output}
+        )
+        tool_content = (
+            [
+                {"type": "text", "text": f"Result {index}."},
+                {"type": "text", "text": f"End {index}."},
+            ]
+            if with_text
+            else []
+        )
+        if images:
+            tool_content.append(
+                {
+                    "type": "text",
+                    "text": (
+                        f"The image result of tool call {call_id!r} will be "
+                        "attached as user prompt after all tool responses."
+                    ),
+                }
+            )
+            expected_images.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                        *images,
+                    ],
+                }
+            )
+        expected_tools.append({"role": "tool", "tool_call_id": call_id, "content": tool_content})
+    if follow_up:
+        response_input.append({"role": "user", "content": "Describe the images."})
+    responses["request"]["body"]["input"] = response_input
+    responses_path = tmp_path / "responses.yaml"
+    output_path = tmp_path / "chat.yaml"
+    dump_yaml(responses, str(responses_path))
+
+    assert main([str(CHAT_CASSETTE), str(responses_path), "--output", str(output_path)]) == 0
+
+    matched = read_yaml(str(output_path))
+    request = matched["request"]["body"]
+    OpenAIChatCompletionsCreateRequest.model_validate(request)
+    for event in _data_events(matched):
+        ChatCompletionChunk.model_validate(event)
+    messages = request["messages"]
+    assert messages[1] == {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": f"call_{index}",
+                "type": "function",
+                "function": {"name": "read_image", "arguments": "{}"},
+            }
+            for index in range(2)
+        ],
+    }
+    assert messages[2:] == expected_tools + expected_images + (
+        [{"role": "user", "content": [{"type": "text", "text": "Describe the images."}]}]
+        if follow_up
+        else []
+    )
+    assert read_yaml(str(responses_path)) == responses
+    first_match = output_path.read_bytes()
+    assert main([str(output_path), str(responses_path)]) == 0
+    assert output_path.read_bytes() == first_match
+
+
+@pytest.mark.parametrize("invalid_part", ["marked_image", "marked_later_text", "original_detail"])
+def test_rejects_unrepresentable_relocated_tool_images(invalid_part: str) -> None:
+    """Ensures image relocation preserves cache prefixes and rejects unsupported fidelity."""
+    chat = read_yaml(str(CHAT_CASSETTE))
+    responses = read_yaml(str(RESPONSES_CASSETTE))
+    image = {"type": "input_image", "image_url": "https://example.com/image.png"}
+    later_text = {"type": "input_text", "text": "Second result."}
+    if invalid_part == "original_detail":
+        image["detail"] = "original"
+    else:
+        marked_part = image if invalid_part == "marked_image" else later_text
+        marked_part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+    responses["request"]["body"]["input"] = [
+        {
+            "type": "function_call",
+            "call_id": f"call_{index}",
+            "name": "read_image",
+            "arguments": "{}",
+        }
+        for index in range(2)
+    ] + [
+        {"type": "function_call_output", "call_id": "call_0", "output": [image]},
+        {"type": "function_call_output", "call_id": "call_1", "output": [later_text]},
+    ]
+    original_responses = deepcopy(responses)
+    original_chat = deepcopy(chat)
+    expected_error = "image detail" if invalid_part == "original_detail" else "cache breakpoints"
+
+    with pytest.raises(ValueError, match=expected_error):
+        match_chat_completions_request(chat, responses)
+
+    assert responses == original_responses
+    assert chat == original_chat
 
 
 @pytest.mark.parametrize("adjustment", ["extra", "missing"])

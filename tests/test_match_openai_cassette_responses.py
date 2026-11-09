@@ -14,6 +14,7 @@ from scripts.match_openai_cassette_responses import (
     main,
     match_chat_completions_response,
 )
+from tests.cassette_discovery import matcher_pairs
 
 CASSETTES = Path(__file__).parent / "cassettes" / "matched" / "simple_text"
 
@@ -26,9 +27,16 @@ def _cassettes(turn: int = 0) -> tuple[dict, dict]:
     return chat, responses
 
 
-@pytest.mark.parametrize("turn", [0, 1])
-def test_matches_real_non_streaming_cassette_and_is_idempotent(turn: int) -> None:
-    chat, responses = _cassettes(turn)
+@pytest.mark.parametrize(
+    ("turn", "chat_path", "responses_path"),
+    matcher_pairs("simple_text", "chat/completions", "non_stream"),
+)
+def test_matches_real_non_streaming_cassette_and_is_idempotent(
+    turn: int, chat_path: Path, responses_path: Path
+) -> None:
+    """Ensures every discovered conversation turn matches valid native output idempotently."""
+    chat = read_yaml(chat_path)
+    responses = read_yaml(responses_path)
     transport = deepcopy(chat["response"]["headers"])
 
     match_chat_completions_response(chat, responses)

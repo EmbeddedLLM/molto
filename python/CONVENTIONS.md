@@ -186,6 +186,8 @@ For hosted search, compare native SDK values exactly and translated values under
 
 Read [`tests/cassettes/README.md`](../tests/cassettes/README.md) before adding or updating cassette fixtures. It distinguishes faithful provider recordings from deliberately edited matched cassettes and documents the encrypted-reasoning exception.
 
+If recorded fields fail validation against the pinned SDK, follow the [SDK schema mismatch rule](../tests/cassettes/README.md#sdk-schema-mismatches): request a fresh developer recording and report the affected verification as pending. Do not introduce compatibility defaults or weaken validation solely to make an existing cassette pass.
+
 Matched cross-protocol cassettes use:
 
 ```text

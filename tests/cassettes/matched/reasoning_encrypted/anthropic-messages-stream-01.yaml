@@ -15,7 +15,7 @@ request:
           I need to come up with a classic tongue twister, maybe something like "How
           much wood would a woodchuck chuck if a woodchuck could chuck wood?" That’s
           a fun one! The user asked how much, so it should be concise. I could clarify
-          that there isn''''t a definitive answer, just a play on words. Let’s ensure
+          that there isn''t a definitive answer, just a play on words. Let’s ensure
           I convey that in a clear way!'
         type: thinking
       - text: "A woodchuck would chuck as much wood as a woodchuck could chuck—if\
