@@ -98,8 +98,10 @@ async def _sdk_result(protocol: Protocol, stream: bool):
             return [event async for event in result]
 
 
-def _assert_lifecycle(protocol: Protocol, events: list[BaseModel]) -> None:
-    _assert_stream_lifecycle(protocol, events)
+def _assert_lifecycle(
+    protocol: Protocol, events: list[BaseModel], *, native: bool = False
+) -> None:
+    _assert_stream_lifecycle(protocol, events, native=native)
     if protocol == "chat/completions":
         assert all(not choice.delta.tool_calls for event in events for choice in event.choices)
         assert all(
@@ -221,7 +223,7 @@ async def test_native_search_matches_sdk(
         actual = [event async for event in result] if stream else result
     if stream:
         if protocol != "chat/completions":
-            _assert_lifecycle(protocol, actual)
+            _assert_lifecycle(protocol, actual, native=True)
         assert [type(event) for event in actual] == [type(event) for event in expected]
         assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
             event.model_dump(mode="json", exclude_unset=True) for event in expected

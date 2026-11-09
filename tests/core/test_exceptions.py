@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from itertools import product
@@ -31,6 +30,12 @@ from molto.types.exceptions import (
     ResourceNotFoundError,
 )
 from molto.utils.io import json_loads, read_yaml
+from tests.cassette_discovery import (
+    Mode,
+    RouteCase,
+    discover_conversations,
+    route_cases,
+)
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes" / "errors"
 Protocol = Literal["responses", "chat/completions", "messages"]
@@ -117,22 +122,18 @@ ERROR_SCENARIOS: tuple[ErrorScenario, ...] = (
 )
 
 
-def scenario_ids(scenarios: Sequence[ErrorScenario]) -> list[str]:
-    return [scenario.name for scenario in scenarios]
+ERROR_CONVERSATIONS = discover_conversations(
+    CASSETTE_DIR, scenarios=(scenario.name for scenario in ERROR_SCENARIOS)
+)
 
 
-def _cassette_path(scenario: str, protocol: Protocol, *, stream: bool = True) -> Path:
-    prefix = {
-        "responses": "openai-responses",
-        "chat/completions": "openai-chat_completions",
-        "messages": "anthropic-messages",
-    }[protocol]
-    filename = f"{prefix}-{'stream' if stream else 'non_stream'}-00.yaml"
-    return CASSETTE_DIR / scenario / filename
-
-
-def _read_cassette(scenario: str, protocol: Protocol, *, stream: bool = True) -> dict[str, Any]:
-    return read_yaml(_cassette_path(scenario, protocol, stream=stream))
+def _error_cases(mode: Mode) -> list[Any]:
+    return [
+        pytest.param(scenario, case, turn, id=f"{case.id}-{turn:02d}")
+        for scenario in ERROR_SCENARIOS
+        for case in route_cases(ERROR_CONVERSATIONS, scenario.name, mode, ROUTES)
+        for turn in case.upstream.turns
+    ]
 
 
 def _response_body(cassette: dict[str, Any]) -> dict[str, Any]:
@@ -181,21 +182,15 @@ async def _replay_sdk_error(
     cassette: dict[str, Any],
     protocol: Protocol,
     error_type: type[OpenAIAPIError | AnthropicAPIError],
-    *,
-    base_url: str | None = None,
 ) -> tuple[OpenAIAPIError | AnthropicAPIError, list[Any]]:
     http_client, requests = _get_http_client(cassette)
     events = []
     async with http_client:
         if protocol == "messages":
-            sdk = AsyncAnthropic(
-                http_client=http_client, api_key="test-api-key", max_retries=0, base_url=base_url
-            )
+            sdk = AsyncAnthropic(http_client=http_client, api_key="test-api-key", max_retries=0)
             create = sdk.messages.create
         else:
-            sdk = AsyncOpenAI(
-                http_client=http_client, api_key="test-api-key", max_retries=0, base_url=base_url
-            )
+            sdk = AsyncOpenAI(http_client=http_client, api_key="test-api-key", max_retries=0)
             create = (
                 sdk.responses.create if protocol == "responses" else sdk.chat.completions.create
             )
@@ -213,11 +208,12 @@ async def _replay_sdk_error(
     return exc_info.value, events
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-@pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
-async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, upstream: Protocol):
-    downstream_cassette = _read_cassette(scenario.name, downstream)
-    upstream_cassette = _read_cassette(scenario.name, upstream)
+@pytest.mark.parametrize(("scenario", "case", "turn"), _error_cases("stream"))
+async def test_error_scenario(scenario: ErrorScenario, case: RouteCase, turn: int):
+    """Ensures each discovered provider error preserves SDK parity and the full cause chain."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    downstream_cassette = read_yaml(case.downstream.paths[turn])
+    upstream_cassette = read_yaml(case.upstream.paths[turn])
     expected_response = upstream_cassette["response"]
     stream_error = "sse" in expected_response
     sdk_error, sdk_events = await _replay_sdk_error(
@@ -249,7 +245,7 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
             stream = await coordinator(
                 body=body,
                 endpoint=upstream,
-                provider="anthropic" if upstream == "messages" else "openai",
+                provider=case.upstream.provider,
                 api_key="test-api-key",
             )
             async with stream:
@@ -319,15 +315,46 @@ async def test_error_scenario(scenario: ErrorScenario, downstream: Protocol, ups
 @pytest.mark.parametrize("api_key", [None, ""])
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
-    "base_url",
+    ("base_url", "expected_urls"),
     [
-        None,
-        "https://gateway.example/api",
-        "https://gateway.example/api/",
-        "https://gateway.example/api//",
+        (
+            None,
+            {
+                "responses": "https://api.openai.com/v1/responses",
+                "chat/completions": "https://api.openai.com/v1/chat/completions",
+                "messages": "https://api.anthropic.com/v1/messages",
+            },
+        ),
+        (
+            "https://gateway.example/api",
+            {
+                "responses": "https://gateway.example/api/responses",
+                "chat/completions": "https://gateway.example/api/chat/completions",
+                "messages": "https://gateway.example/api/v1/messages",
+            },
+        ),
+        (
+            "https://gateway.example/api/",
+            {
+                "responses": "https://gateway.example/api/responses",
+                "chat/completions": "https://gateway.example/api/chat/completions",
+                "messages": "https://gateway.example/api/v1/messages",
+            },
+        ),
+        (
+            "https://gateway.example/api//",
+            {
+                "responses": "https://gateway.example/api//responses",
+                "chat/completions": "https://gateway.example/api//chat/completions",
+                "messages": "https://gateway.example/api//v1/messages",
+            },
+        ),
     ],
 )
-async def test_missing_credentials(downstream, upstream, api_key, stream, base_url, monkeypatch):
+async def test_missing_credentials(
+    downstream, upstream, api_key, stream, base_url, expected_urls, monkeypatch
+):
+    """Ensures missing keys fail locally with SDK causes and credential-free intended URLs."""
     for name in (
         "OPENAI_API_KEY",
         "OPENAI_ADMIN_KEY",
@@ -339,40 +366,54 @@ async def test_missing_credentials(downstream, upstream, api_key, stream, base_u
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(ENV_CONFIG, "openai_api_key", SecretStr(""))
     monkeypatch.setattr(ENV_CONFIG, "anthropic_api_key", SecretStr(""))
-    upstream_cassette = _read_cassette("invalid_api_key", upstream)
-    downstream_cassette = _read_cassette("invalid_api_key", downstream)
-    request_body = deepcopy(downstream_cassette["request"]["body"])
-    request_body["stream"] = stream
-    http_client, requests = _get_http_client(upstream_cassette)
+    bodies = {
+        "responses": {
+            "model": "test-model",
+            "input": "Hello",
+            "max_output_tokens": 16,
+            "stream": stream,
+        },
+        "chat/completions": {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_completion_tokens": 16,
+            "stream": stream,
+        },
+        "messages": {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_tokens": 16,
+            "stream": stream,
+        },
+    }
+    requests: list[Request] = []
+
+    def fail_on_request(request: Request) -> Response:
+        requests.append(request)
+        raise AssertionError("Missing credentials must fail before HTTP transport")
+
+    http_client = AsyncClient(transport=MockTransport(fail_on_request))
     sdk_error_type = TypeError if upstream == "messages" else OpenAIError
     expected_error_type = (
         AnthropicAuthenticationError if downstream == "messages" else OpenAIAuthenticationError
     )
-    origin = base_url or (
-        "https://api.anthropic.com" if upstream == "messages" else "https://api.openai.com/v1"
-    )
-    reference_error, _ = await _replay_sdk_error(
-        upstream_cassette,
-        upstream,
-        AnthropicAuthenticationError if upstream == "messages" else OpenAIAuthenticationError,
-        base_url=origin,
-    )
     async with http_client:
-        # Missing credentials fail locally; no response cassette should be consumed.
         with pytest.raises(sdk_error_type) as sdk_exc_info:
             if upstream == "messages":
-                sdk = AsyncAnthropic(http_client=http_client, api_key="", max_retries=0)
+                sdk = AsyncAnthropic(
+                    http_client=http_client, api_key="", max_retries=0, base_url=base_url
+                )
                 create = sdk.messages.create
             else:
-                sdk = AsyncOpenAI(http_client=http_client, api_key="", max_retries=0)
+                sdk = AsyncOpenAI(
+                    http_client=http_client, api_key="", max_retries=0, base_url=base_url
+                )
                 create = (
                     sdk.responses.create
                     if upstream == "responses"
                     else sdk.chat.completions.create
                 )
-            sdk_body = deepcopy(upstream_cassette["request"]["body"])
-            sdk_body["stream"] = stream
-            await create(**sdk_body)
+            await create(**bodies[upstream])
         assert requests == []
 
         client = Molto(http_client=http_client)
@@ -383,7 +424,7 @@ async def test_missing_credentials(downstream, upstream, api_key, stream, base_u
         }[downstream]
         with pytest.raises(expected_error_type) as exc_info:
             await coordinator(
-                body=request_body,
+                body=bodies[downstream],
                 endpoint=upstream,
                 api_key=api_key,
                 base_url=base_url,
@@ -404,7 +445,7 @@ async def test_missing_credentials(downstream, upstream, api_key, stream, base_u
     assert error.status_code == error.response.status_code == 401
     assert error.request is error.response.request is normalized_error.request
     assert error.request.method == "POST"
-    assert error.request.url == reference_error.request.url
+    assert str(error.request.url) == expected_urls[upstream]
     assert "authorization" not in error.request.headers
     assert "x-api-key" not in error.request.headers
     assert error.request_id is None
@@ -412,13 +453,12 @@ async def test_missing_credentials(downstream, upstream, api_key, stream, base_u
     assert requests == []
 
 
-@pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-@pytest.mark.parametrize("scenario", ERROR_SCENARIOS, ids=scenario_ids(ERROR_SCENARIOS))
-async def test_non_streaming_error_scenario(
-    scenario: ErrorScenario, downstream: Protocol, upstream: Protocol
-):
-    downstream_cassette = _read_cassette(scenario.name, downstream, stream=False)
-    upstream_cassette = _read_cassette(scenario.name, upstream, stream=False)
+@pytest.mark.parametrize(("scenario", "case", "turn"), _error_cases("non_stream"))
+async def test_non_streaming_error_scenario(scenario: ErrorScenario, case: RouteCase, turn: int):
+    """Ensures discovered complete-response errors retain SDK behavior on every supported route."""
+    downstream, upstream = case.downstream.endpoint, case.upstream.endpoint
+    downstream_cassette = read_yaml(case.downstream.paths[turn])
+    upstream_cassette = read_yaml(case.upstream.paths[turn])
     request_body = deepcopy(downstream_cassette["request"]["body"])
     assert request_body["stream"] is False
     expected_response = upstream_cassette["response"]
@@ -467,7 +507,7 @@ async def test_non_streaming_error_scenario(
             await coordinator(
                 body=request_body,
                 endpoint=upstream,
-                provider="anthropic" if upstream == "messages" else "openai",
+                provider=case.upstream.provider,
                 api_key="test-api-key",
             )
         assert exc_info.value.__cause__.response.is_closed

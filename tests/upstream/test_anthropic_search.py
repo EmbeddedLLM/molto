@@ -90,7 +90,7 @@ def test_blank_text_history_is_an_input_error(text, cited):
         model="m", max_output_tokens=100, input=[AssistantInput(content=[part])]
     )
     with pytest.raises(UnsupportedInput, match="non-whitespace"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 @pytest.mark.parametrize(
@@ -112,7 +112,7 @@ def test_unrepresentable_search_history_is_an_input_error(part):
         model="m", max_output_tokens=100, input=[AssistantInput(content=[part])]
     )
     with pytest.raises(UnsupportedInput) as caught:
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 
@@ -132,7 +132,7 @@ def test_multi_query_history_is_rejected(nested: bool, queries: list[str]):
         input=[*history, UserInput(content=[TextInput(content="Please continue.")])],
     )
     with pytest.raises(UnsupportedInput, match="multi-query search history"):
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
 
 
 @pytest.mark.parametrize("nested", [True, False])
@@ -151,7 +151,7 @@ def test_single_query_history_preserves_result_pairing(nested, queries, expected
         max_output_tokens=100,
         input=[AssistantInput(content=parts)] if nested else parts,
     )
-    body = AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._native_request(request).model_dump()
     assert body["messages"][0]["content"] == [
         {
             "type": "server_tool_use",
@@ -177,7 +177,7 @@ def test_history_projection_preserves_unexpected_value_error(monkeypatch):
         input=[AssistantInput(content=[TextOutput(content="answer")])],
     )
     with pytest.raises(ValueError) as caught:
-        AnthropicMessagesClient._request_body(request)
+        AnthropicMessagesClient._native_request(request)
     assert caught.value is error
 
 
@@ -216,7 +216,7 @@ def test_request_search_options_and_history():
             )
         ],
     )
-    body = AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._native_request(request).model_dump()
     assert body["tools"] == [
         {
             "type": "web_search_20250305",
@@ -272,9 +272,11 @@ def test_search_history_requires_state_only_for_anthropic(provider, state, part_
     capabilities = PROVIDER_CAPABILITIES[provider]
     if provider == "anthropic" and state in (None, "", "N/A"):
         with pytest.raises(UnsupportedInput, match=field):
-            AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+            AnthropicMessagesClient._native_request(request, capabilities=capabilities)
     else:
-        body = AnthropicMessagesClient._request_body(request, capabilities=capabilities)
+        body = AnthropicMessagesClient._native_request(
+            request, capabilities=capabilities
+        ).model_dump()
         block = body["messages"][0]["content"][0]
         value = (
             block["citations"][0][field] if part_kind == "citation" else block["content"][0][field]
@@ -293,9 +295,9 @@ def test_anthropic_search_history_without_sources_needs_no_ciphertext(sources, e
             SearchResult(tool_call_id="ws_1", sources=sources, error=error),
         ],
     )
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         request, capabilities=PROVIDER_CAPABILITIES["anthropic"]
-    )
+    ).model_dump()
     blocks = body["messages"][0]["content"]
     assert len(blocks) == (1 if sources is None and error is None else 2)
     if sources == []:
@@ -308,7 +310,7 @@ def test_anthropic_search_history_without_sources_needs_no_ciphertext(sources, e
 def test_rejects_explicit_context_size(context):
     """Ensures an explicit context size cannot silently disappear on Messages targets."""
     with pytest.raises(UnsupportedInput, match="tools.web_search.search_context_size.*Messages"):
-        AnthropicMessagesClient._request_body(
+        AnthropicMessagesClient._native_request(
             NormalizedRequest(
                 model="m",
                 max_output_tokens=100,
@@ -328,11 +330,11 @@ def test_function_name_collision_without_ambiguous_choice(choice):
         FunctionTool(name="web_search", parameters={}),
         FunctionTool(name="different", parameters={}),
     ]
-    body = AnthropicMessagesClient._request_body(
+    body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             model="m", max_output_tokens=100, input=[], tools=tools, tool_choice=choice
         )
-    )
+    ).model_dump()
     assert len(body["tools"]) == 3
 
 
@@ -340,7 +342,7 @@ def test_function_name_collision_without_ambiguous_choice(choice):
 def test_rejects_ambiguous_named_tool_selection(choice):
     """Ensures Messages named choice never accidentally selects the wrong execution owner."""
     with pytest.raises(UnsupportedInput, match="ambiguous"):
-        AnthropicMessagesClient._request_body(
+        AnthropicMessagesClient._native_request(
             NormalizedRequest(
                 model="m",
                 max_output_tokens=100,
@@ -490,7 +492,7 @@ def test_browsing_history_omits_linked_results(nested):
         max_output_tokens=100,
         input=[AssistantInput(content=parts)] if nested else parts,
     )
-    body = AnthropicMessagesClient._request_body(request)
+    body = AnthropicMessagesClient._native_request(request).model_dump()
     assert [part["type"] for part in body["messages"][0]["content"]] == [
         "server_tool_use",
         "web_search_tool_result",
