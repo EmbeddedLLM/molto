@@ -280,13 +280,13 @@ When the application speaks Messages, an inbound thinking block is normalized as
 
 Adaptive requests always use summarized display and an explicit effort. A manual `budget_tokens` value must be less than `max_tokens`; Molto rejects the request before transport when the budget is invalid. Reasoning history enables thinking when the current request omits reasoning configuration, using high effort for adaptive models or the default 10,000-token manual budget.
 
-Inbound `thinking_delta` classification is a separate concern from the outbound adaptive-versus-manual model policy. A valid Messages thinking lifecycle contains one of:
+Inbound `thinking_delta` classification is a separate concern from the outbound adaptive-versus-manual model policy. A Messages thinking output lifecycle contains one of:
 
 - raw reasoning without a signature;
-- a reasoning summary with a signature; or
+- a reasoning summary with an optional signature; or
 - a signature without reasoning text.
 
-It must not mix or switch representations within one block. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
+It must not mix or switch representations within one block. Output processing accepts a missing summary signature and projects it as an empty Messages signature without inventing continuation state. Request normalization preserves unsigned summary history for upstream validation. Chat upstreams accept the summary text, while Responses and Messages upstream builders reject it before transport. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
 
 ### Opaque thinking state
 
@@ -370,7 +370,7 @@ When Messages is the translated upstream and the provider is Anthropic, missing,
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
-A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Reasoning summaries are not currently portable through generic Chat Completions because standard Chat has no signature slot. Gemini signature-only state is supported: a thinking block with empty `thinking` and the original `signature` follows its associated text or tool-use block, and echoing that order restores the Gemini attachment. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
+A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Unsigned reasoning summary output can pass through Chat Completions, but present signatures cannot because Chat has no signature slot. Unsigned summary history can be translated to a Chat upstream; Responses and Messages upstream builders still require signatures. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider. Gemini signature-only state is supported: a thinking block with empty `thinking` and the original `signature` follows its associated text or tool-use block, and echoing that order restores the Gemini attachment.
 
 The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 

@@ -329,12 +329,6 @@ def _responses_citations(annotations: list[dict[str, Any]]) -> list[WebCitation]
     return [citation_from_responses(annotation) for annotation in annotations]
 
 
-def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
-    if part.summary and not part.signature:
-        raise UnsupportedInput("A Responses reasoning summary requires a signature.")
-    return part
-
-
 class OpenAIResponsesAdapter(
     BaseAdapter[
         OpenAIResponsesCreateRequest,
@@ -421,13 +415,11 @@ class OpenAIResponsesAdapter(
             if not all(part.get("type") == "summary_text" for part in summary):
                 raise UnsupportedInput("Reasoning summary should only contain `summary_text`.")
             return [
-                _validate_completed_responses_reasoning(
-                    Thinking(
-                        content="".join(part["text"] for part in content),
-                        summary="".join(part["text"] for part in summary),
-                        id=message.get("id"),
-                        signature=message.get("encrypted_content"),
-                    )
+                Thinking(
+                    content="".join(part["text"] for part in content),
+                    summary="".join(part["text"] for part in summary),
+                    id=message.get("id"),
+                    signature=message.get("encrypted_content") or None,
                 )
             ]
         if message_type == "function_call":
@@ -984,8 +976,6 @@ class OpenAIResponsesAdapter(
                             )
                     elif part.content:
                         raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-                    if part.summary and not part.signature:
-                        raise ValueError("A Responses reasoning summary requires a signature.")
                     representation = self._capabilities.thinking
                     completed_item = {
                         "id": item_id,

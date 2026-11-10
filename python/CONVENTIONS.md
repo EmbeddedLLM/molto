@@ -135,9 +135,9 @@ Preserve chunk boundaries when they are observable and covered by parity tests. 
 
 Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly; preserve that label and require it to match `ProviderCapabilities.thinking`. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so classify them with the same capability. Project only the matching normalized representation into each protocol's reasoning field.
 
-A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
+A Responses reasoning output lifecycle must use exactly one representation: raw reasoning content with no summary or signature, a reasoning summary with optional signature and no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
 
-Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models. Generic cross-protocol paths through Chat therefore support only unsigned raw reasoning; reject summaries rather than discarding required opaque state. Gemini additionally maps its Google thought-signature extension to signature-only `Thinking` parts after the associated text or tool call. Preserve that order in Responses/Messages history so the Gemini client can restore the original attachment; never wrap or parse the token.
+Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Responses and Messages output processing tolerates missing summary signatures and preserves observed opaque state. Chat output may carry unsigned raw reasoning or summaries but rejects present signatures rather than discarding them. Request normalization preserves unsigned summary history and any supplied signature. Upstream request builders own destination constraints: Chat accepts unsigned summary text but rejects signatures, while Responses and Messages require signatures for summary history. Accepting summary text does not restore opaque continuation state. Keep these checks in the upstream builders rather than the downstream adapters or provider-neutral normalized models; native passthrough remains unchanged. Gemini additionally maps its Google thought-signature extension to signature-only `Thinking` parts after the associated text or tool call. Preserve that order in Responses/Messages history so the Gemini client can restore the original attachment; never wrap or parse the token.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 
@@ -188,6 +188,8 @@ For hosted search, compare native SDK values exactly and translated values under
 
 Read [`tests/cassettes/README.md`](../tests/cassettes/README.md) before adding or updating cassette fixtures. It distinguishes faithful provider recordings from deliberately edited matched cassettes and documents the encrypted-reasoning exception.
 
+If recorded fields fail validation against the pinned SDK, follow the [SDK schema mismatch rule](../tests/cassettes/README.md#sdk-schema-mismatches): request a fresh developer recording and report the affected verification as pending. Do not introduce compatibility defaults or weaken validation solely to make an existing cassette pass.
+
 Matched cross-protocol cassettes use:
 
 ```text
@@ -233,6 +235,8 @@ Run all implementation tests in cassette playback mode. Actual translated output
 ## Verification
 
 Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events.
+
+Keep reusable SDK stream collectors and protocol lifecycle assertions in `molto.utils.test`, with no imports from test modules. Keep scenario-specific expectations in their tests and pytest fixtures and hooks in `conftest.py`.
 
 Log probabilities are not yet transported through the normalized path. Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
 

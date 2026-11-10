@@ -61,22 +61,34 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
 
 
 @pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
-def test_normalization_rejects_unsigned_summary_history(responses_reasoning) -> None:
-    """Ensures explicit Responses output policy never reclassifies ambiguous Messages input."""
+@pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}, {"signature": "state"}])
+def test_normalization_preserves_summary_history(
+    signature_fields: dict[str, str], responses_reasoning
+) -> None:
+    """Ensures normalization preserves summary history for destination-owned validation."""
     request = _request(
         messages=[
             {
                 "role": "assistant",
-                "content": [{"type": "thinking", "thinking": "Summary"}],
+                "content": [{"type": "thinking", "thinking": "Summary", **signature_fields}],
             }
         ]
     )
 
-    with pytest.raises(UnsupportedInput, match="summary requires a signature"):
-        _normalize(
-            request,
-            ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning),
+    normalized = _normalize(
+        request, ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
+    assert normalized.input == [
+        AssistantInput(
+            content=[
+                Thinking(
+                    content="",
+                    summary="Summary",
+                    signature=signature_fields.get("signature") or None,
+                )
+            ]
         )
+    ]
 
 
 @pytest.mark.parametrize(
@@ -577,25 +589,39 @@ async def test_projection_rejects_reasoning_outside_capability() -> None:
 
 
 @pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
-async def test_projection_rejects_unsigned_summary_completion(responses_reasoning) -> None:
-    """Ensures wire-labeled reasoning still requires a signature for completed summaries."""
+@pytest.mark.parametrize("signature", [None, ""])
+async def test_projection_preserves_unsigned_summary_completion(
+    signature: str | None, responses_reasoning
+) -> None:
+    """Ensures missing output signatures do not discard streamed reasoning summaries."""
     adapter, request = _adapter(
         ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
     )
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _MESSAGE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
-                    PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(
+                    index=0, part=Thinking(content="", summary="", signature=signature)
                 ),
-                request,
-            )
-        ]
+                PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                PartEndEvent(
+                    index=0, part=Thinking(content="", summary="Summary", signature=signature)
+                ),
+                _MESSAGE_END,
+            ),
+            request,
+        )
+    ]
+
+    deltas = [event.delta for event in events if event.type == "content_block_delta"]
+    assert [delta.type for delta in deltas] == ["thinking_delta"]
+    assert deltas[0].thinking == "Summary"
+    response = await adapter.project_response(_native_stream(*events), request)
+    assert response.content[0].thinking == "Summary"
+    assert response.content[0].signature == ""
 
 
 async def test_projection_preserves_non_empty_part_starts() -> None:

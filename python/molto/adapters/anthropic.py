@@ -469,8 +469,6 @@ class AnthropicMessagesAdapter(
             if block_type == "thinking":
                 _reject_cache_breakpoint(block)
                 part = self._classify_thinking(block["thinking"], signature=block.get("signature"))
-                if self._capabilities.thinking == "summary" and not part.signature:
-                    raise UnsupportedInput("An Anthropic reasoning summary requires a signature.")
                 items.append(part)
             elif block_type == "text":
                 items.append(
@@ -888,11 +886,7 @@ class AnthropicMessagesAdapter(
                                 raise ValueError(
                                     "An Anthropic summary block cannot contain raw reasoning."
                                 )
-                            if not part.signature:
-                                raise ValueError(
-                                    "An Anthropic reasoning summary requires a signature."
-                                )
-                            if thinking_signatures.get(index) != part.signature:
+                            if thinking_signatures.get(index) != (part.signature or None):
                                 raise ValueError(
                                     "An Anthropic reasoning signature must be streamed before "
                                     "the block ends."

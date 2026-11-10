@@ -55,7 +55,7 @@ def test_chat_search_requires_only_hosted_tool(mixed):
     )
     normalized = OpenAIChatCompletionsAdapter(CAPABILITIES).normalize_request(request)
     assert isinstance(normalized.tool_choice, WebSearchToolChoice)
-    body = OpenAIResponsesClient._request_body(normalized)
+    body = OpenAIResponsesClient._native_request(normalized).model_dump()
     assert body["model"] == request.model
     assert body["tools"][-1] == {
         "type": "web_search",
@@ -178,7 +178,7 @@ def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_
     ]
     assert normalized.tools == [WebSearchTool(allowed_domains=["example.com"])]
     assert normalized.max_tool_calls == 3
-    body = OpenAIResponsesClient._request_body(normalized)
+    body = OpenAIResponsesClient._native_request(normalized).model_dump()
     assert body["input"][0]["action"]["query"] == ""
     assert body["input"][1]["content"][0]["annotations"][0]["end_index"] == 6
 

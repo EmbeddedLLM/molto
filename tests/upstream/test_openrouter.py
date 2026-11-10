@@ -35,16 +35,16 @@ def item_event(item, *, done=False):
     }
 
 
-@pytest.mark.parametrize("raw", [False, True])
-async def test_wire_reasoning_preserves_raw_or_signed_summary(monkeypatch, raw):
-    """Ensures explicit raw text and signed summaries retain their distinct IR representations."""
+@pytest.mark.parametrize(("raw", "signature"), [(True, None), (False, None), (False, "opaque")])
+async def test_wire_reasoning_preserves_raw_or_summary(monkeypatch, raw, signature):
+    """Ensures explicit raw text and summaries preserve their representation and observed state."""
     item = reasoning_item(
         **(
             {"content": [{"type": "reasoning_text", "text": "Thought"}], "format": "unknown"}
             if raw
             else {
                 "summary": [{"type": "summary_text", "text": "Thought"}],
-                "encrypted_content": "opaque",
+                "encrypted_content": signature,
             }
         )
     )
@@ -55,7 +55,7 @@ async def test_wire_reasoning_preserves_raw_or_signed_summary(monkeypatch, raw):
             id="rs_1",
             content="Thought" if raw else "",
             summary="" if raw else "Thought",
-            signature=None if raw else "opaque",
+            signature=signature,
         ),
     )
 
@@ -63,10 +63,6 @@ async def test_wire_reasoning_preserves_raw_or_signed_summary(monkeypatch, raw):
 @pytest.mark.parametrize(
     ("fields", "error"),
     [
-        (
-            {"summary": [{"type": "summary_text", "text": "Summary"}]},
-            "summary requires a signature",
-        ),
         (
             {
                 "summary": [{"type": "summary_text", "text": "Summary"}],
@@ -97,7 +93,7 @@ async def test_wire_reasoning_preserves_raw_or_signed_summary(monkeypatch, raw):
     ],
 )
 async def test_wire_reasoning_keeps_format_and_signature_boundaries(monkeypatch, fields, error):
-    """Ensures wire interpretation does not accept unsigned summaries, opaque formats, or mixed parts."""
+    """Ensures wire interpretation rejects unsupported opaque formats and mixed parts."""
     with pytest.raises(ValueError, match=error):
         await normalized_events(monkeypatch, [item_event(reasoning_item(**fields), done=True)])
 

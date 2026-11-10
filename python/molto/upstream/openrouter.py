@@ -29,6 +29,6 @@ class OpenRouterResponsesClient(OpenAIResponsesClient):
         return part
 
     def _validate_reasoning(self, part: Thinking) -> None:
-        # Responses already distinguishes raw text from summaries. Thinking owns
-        # mixed-representation validation; completion requires signed summaries.
+        # Responses labels the representation on the wire; the shared stream
+        # normalizer rejects mixed representations within one reasoning item.
         pass

@@ -189,7 +189,7 @@ def _assert_ir(
                     assert active.content and not active.summary and not active.signature
                 else:
                     assert active.content == ""
-                    assert active.signature
+                    assert active.summary or active.signature
             parts[event.index] = event.part
             del active_parts[event.index]
     assert not active_parts
@@ -768,13 +768,6 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
                 extra_body=controls,
             )
             before = request.model_copy(deep=True)
-            if unsigned_summary:
-                with pytest.raises(
-                    ValueError, match="A Responses reasoning summary requires a signature"
-                ):
-                    _ = [event async for event in client.events(request)]
-                assert len(calls) == 1
-                return
             events = [event async for event in client.events(request)]
             assert request == before
         assert len(calls) == 1
@@ -831,6 +824,12 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
             ]
             assert suffix
             request.input.extend(_caller_input(suffix))
+            if unsigned_summary:
+                with pytest.raises(
+                    ValueError, match="A Responses reasoning summary requires a signature"
+                ):
+                    client_type._native_request(request)
+                return
 
 
 def _responses_caller_input(messages):
@@ -1172,7 +1171,7 @@ async def test_gemini_normalized_signature_conversation(scenario):
 @pytest.mark.parametrize("downstream", ["chat_completions", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
 async def test_provider_reasoning_public_projection(provider, downstream, stream):
-    """Ensures public projections preserve raw reasoning or reject unsigned summaries from actual Responses evidence."""
+    """Ensures public projections preserve raw reasoning and unsigned summaries from SDK evidence."""
     cassette = _provider_turns(provider, "tool_use_reasoning", "stream")[0]
     recorded = cassette["request"]["body"]
     base_url = cassette["upstream_url"].removesuffix("/responses")
@@ -1234,27 +1233,6 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
     async with Molto(
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
     ) as molto:
-        if provider == "fireworks":
-            assert any(
-                item.type == "reasoning" and item.summary and not item.encrypted_content
-                for item in reference.output
-            )
-            with pytest.raises(
-                ValueError, match="A Responses reasoning summary requires a signature"
-            ):
-                result = await getattr(molto, downstream)(
-                    body,
-                    provider=provider,
-                    endpoint="responses",
-                    base_url=base_url,
-                    api_key="test-key",
-                    extra_body=controls,
-                )
-                if stream:
-                    async with result:
-                        _ = [event async for event in result]
-            assert len(calls) == 1
-            return
         result = await getattr(molto, downstream)(
             body,
             provider=provider,
@@ -1306,7 +1284,10 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
         assert actual.stop_reason == "tool_use"
     assert text == reference.output_text
     assert reasoning == "".join(
-        part.text for item in reference.output if item.type == "reasoning" for part in item.content
+        part.text
+        for item in reference.output
+        if item.type == "reasoning"
+        for part in (item.content or item.summary)
     )
     assert calls == [
         (item.call_id, item.name, json_loads(item.arguments))

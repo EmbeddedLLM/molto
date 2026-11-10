@@ -9,7 +9,7 @@ from openai.lib.streaming.chat import ChatCompletionStreamState
 
 from molto import Molto
 from molto.utils.io import dumps_sse, json_loads
-from tests.core.test_web_search import _collect
+from molto.utils.test import collect_sdk_response
 
 
 def _history(message):
@@ -422,7 +422,7 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
         if not stream:
             return result
         async with result:
-            return _collect(coordinator, [event async for event in result])
+            return collect_sdk_response(coordinator, [event async for event in result])
 
     async with Molto(
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))

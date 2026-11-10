@@ -596,12 +596,12 @@ class AnthropicMessagesClient(
         return system, messages, has_thinking
 
     @classmethod
-    def _request_body(
+    def _native_request(
         cls,
         request: NormalizedRequest,
         *,
         capabilities: ProviderCapabilities | None = None,
-    ) -> dict[str, Any]:
+    ) -> AnthropicMessagesCreateRequest:
         cls._validate_request(request)
         system, messages, has_thinking = cls._request_parts(request, capabilities=capabilities)
         body: dict[str, Any] = {
@@ -630,7 +630,7 @@ class AnthropicMessagesClient(
         if request.top_p is not None:
             body["top_p"] = request.top_p
         try:
-            return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
+            return AnthropicMessagesCreateRequest.model_validate(body)
         except ValidationError as error:
             raise UnsupportedInput(str(error)) from error
 
@@ -709,9 +709,7 @@ class AnthropicMessagesClient(
             part_indices[source_index] = len(part_indices)
             return PartStartEvent(index=part_indices[source_index], part=part)
 
-        native_request = AnthropicMessagesCreateRequest.model_validate(
-            self._request_body(request, capabilities=self._capabilities)
-        )
+        native_request = self._native_request(request, capabilities=self._capabilities)
         async with aclosing(self.native_events(native_request)) as native_events:
             async for event in native_events:
                 if isinstance(event, RawMessageStartEvent):
@@ -852,10 +850,6 @@ class AnthropicMessagesClient(
                         continue
                     part = state.part
                     if isinstance(part, Thinking):
-                        if self._capabilities.thinking == "summary" and not state.signature:
-                            raise ValueError(
-                                "An Anthropic reasoning summary requires a signature."
-                            )
                         completed_part: (
                             Thinking | TextOutput | ToolCall | SearchCall | SearchResult
                         ) = self._classify_thinking(state.content, signature=state.signature)

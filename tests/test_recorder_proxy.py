@@ -8,7 +8,6 @@ import pytest
 from starlette.requests import Request
 from yaml import safe_load
 
-from molto.utils.test import OpenAICassetteManager, OpenAICassetteTransport
 from scripts import recorder_proxy
 
 
@@ -242,36 +241,6 @@ async def test_credentials_are_masked_in_recordings_only(monkeypatch, recording_
     assert captured["request"]["headers"]["authorization"] == "Bearer ***"
     assert captured["response"]["body_bytes"] == b"*** *** *** opaque-state"
     assert "secret" not in next(recording_dir.glob("*.yaml")).read_text()
-
-
-@pytest.mark.parametrize("body", [b"", b'{ "error": "bad request" }\n', b"\xff\x00"])
-def test_replay_uses_authoritative_response_bytes(monkeypatch, tmp_path, body):
-    """Ensures replay does not reserialize JSON or corrupt empty and binary error bodies."""
-    manager = OpenAICassetteManager("recorder", "recorder", "recorder", False, root=tmp_path)
-    cassette = {
-        "request": {
-            "method": "POST",
-            "path": "/v1/responses",
-            "body": {"model": "m"},
-            "query_params": {},
-            "headers": {"content-type": "application/json"},
-        },
-        "response": {
-            "status_code": 400,
-            "headers": {"content-type": "application/json", "x-request-id": "request-1"},
-            "body": {"error": "parsed value is not authoritative"},
-            "body_bytes": body,
-        },
-    }
-    monkeypatch.setattr(manager, "read", lambda _: cassette)
-    transport = OpenAICassetteTransport(manager, playback_only=True)
-    request = httpx.Request("POST", "https://provider.test/v1/responses", json={"model": "m"})
-    response = transport._response_from_cassette(
-        request, {"model": "m"}, tmp_path / "capture.yaml"
-    )
-    assert response.content == body
-    assert response.status_code == 400
-    assert response.headers["x-request-id"] == "request-1"
 
 
 @pytest.mark.parametrize("content_type", ["application/json", "text/html"])

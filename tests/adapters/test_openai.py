@@ -170,6 +170,51 @@ def test_chat_normalizes_complete_assistant_messages_without_flattening_parts():
     ]
 
 
+@pytest.mark.parametrize("arguments", ['{"city":"Paris"}', "{bad json", '["not","an","object"]'])
+@pytest.mark.parametrize("protocol", ["responses", "chat/completions"])
+def test_tool_history_preserves_raw_arguments(protocol, arguments):
+    """Ensures valid, malformed, and non-object JSON arguments survive OpenAI history projection."""
+    if protocol == "responses":
+        request = OpenAIResponsesCreateRequest(
+            model="m",
+            input=[
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": arguments,
+                }
+            ],
+        )
+        normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+        [tool_call] = normalized.input
+    else:
+        request = OpenAIChatCompletionsCreateRequest(
+            model="m",
+            messages=[
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "call_1",
+                            "function": {"name": "lookup", "arguments": arguments},
+                        }
+                    ],
+                }
+            ],
+        )
+        normalized = OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)
+        [assistant] = normalized.input
+        [tool_call] = assistant.content
+
+    assert tool_call.args == arguments
+    responses = OpenAIResponsesClient._native_request(normalized).model_dump()
+    chat = OpenAIChatCompletionsClient._native_request(normalized).model_dump()
+    assert responses["input"][0]["arguments"] == arguments
+    assert chat["messages"][0]["tool_calls"][0]["function"]["arguments"] == arguments
+
+
 def test_adapters_preserve_multimodal_input_boundaries_and_order():
     responses = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(
         OpenAIResponsesCreateRequest(
@@ -543,6 +588,36 @@ def _chat_adapter(capabilities: ProviderCapabilities):
 _RESPONSE_START = ResponseStartEvent(id="resp_123", created_at=1, model="m")
 _RESPONSE_END = ResponseEndEvent(id="resp_123", created_at=1, model="m", termination_reason="stop")
 _CHAT_START = ResponseStartEvent(id="chatcmpl_123", created_at=1, model="m")
+
+
+@pytest.mark.parametrize("arguments", ['{"city":"Paris"}', "{bad json", '["not","an","object"]'])
+@pytest.mark.parametrize("protocol", ["responses", "chat/completions"])
+async def test_response_projection_preserves_raw_tool_arguments(protocol, arguments):
+    """Ensures collected OpenAI output retains raw tool JSON without parsing or repairing it."""
+    factory = _responses_adapter if protocol == "responses" else _chat_adapter
+    adapter, request = factory(_CAPABILITIES)
+    part = ToolCall(tool_name="lookup", args=arguments, tool_call_id="call_1")
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=part),
+                PartEndEvent(index=0, part=part),
+                ResponseEndEvent(
+                    id="resp_123", created_at=1, model="m", termination_reason="tool_call"
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    if protocol == "responses":
+        [tool_call] = response.output
+        assert tool_call.arguments == arguments
+    else:
+        [tool_call] = response.choices[0].message.tool_calls
+        assert tool_call.function.arguments == arguments
 
 
 async def test_responses_response_projection_returns_terminal_response() -> None:
@@ -966,38 +1041,68 @@ async def test_responses_projection_rejects_reasoning_outside_capability(
         ]
 
 
-def test_responses_normalization_rejects_unsigned_summary_history() -> None:
+@pytest.mark.parametrize(
+    "signature_fields", [{}, {"encrypted_content": ""}, {"encrypted_content": "state"}]
+)
+def test_responses_normalization_preserves_summary_history(
+    signature_fields: dict[str, str],
+) -> None:
+    """Ensures Responses normalization leaves summary-signature requirements to the destination."""
     request = OpenAIResponsesCreateRequest(
         input=[
             {
                 "type": "reasoning",
                 "content": [],
                 "summary": [{"type": "summary_text", "text": "Summary"}],
+                **signature_fields,
             }
         ],
         model="m",
     )
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    assert normalized.input == [
+        Thinking(
+            content="",
+            summary="Summary",
+            signature=signature_fields.get("encrypted_content") or None,
+        )
+    ]
 
 
-async def test_responses_projection_rejects_unsigned_summary_completion() -> None:
+@pytest.mark.parametrize("signature", [None, ""])
+async def test_responses_projection_preserves_unsigned_summary_completion(
+    signature: str | None,
+) -> None:
+    """Ensures Responses completes unsigned reasoning summaries without inventing opaque state."""
     adapter, request = _responses_adapter(_CAPABILITIES)
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _RESPONSE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
-                    PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(
+                    index=0, part=Thinking(content="", summary="", signature=signature)
                 ),
-                request,
-            )
-        ]
+                PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                PartEndEvent(
+                    index=0, part=Thinking(content="", summary="Summary", signature=signature)
+                ),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [
+        event.delta for event in events if event.type == "response.reasoning_summary_text.delta"
+    ] == ["Summary"]
+    completed = next(event.item for event in events if event.type == "response.output_item.done")
+    assert completed.summary[0].text == "Summary"
+    assert completed.encrypted_content is None
+    assert events[-1].type == "response.completed"
+    assert events[-1].response.output[0] == completed
 
 
 async def test_responses_projection_rejects_thinking_part_with_content_and_summary() -> None:

@@ -10,12 +10,10 @@ import pytest
 from anthropic import AsyncAnthropic
 from anthropic import BadRequestError as AnthropicBadRequestError
 from anthropic import RateLimitError as AnthropicRateLimitError
-from anthropic.lib.streaming._messages import accumulate_event
 from httpx import AsyncByteStream, AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import RateLimitError as OpenAIRateLimitError
-from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.responses.response_output_text import AnnotationURLCitation
 from pydantic import BaseModel
 
@@ -27,12 +25,15 @@ from molto.types.anthropic_messages import (
 from molto.types.exceptions import UnsupportedInput
 from molto.upstream.openai import OpenAIResponsesClient
 from molto.utils.io import dumps_sse, json_loads, load_sse
-from molto.utils.test import reconstructable_chat_completions_chunks
+from molto.utils.test import (
+    assert_stream_lifecycle,
+    collect_sdk_response,
+    reconstructable_chat_completions_chunks,
+)
 from tests.core.test_interface import (
     PROTOCOLS,
     RESPONSES_MESSAGES_PROTOCOLS,
     Protocol,
-    _assert_responses_stream_invariants,
     _coordinator,
     _get_http_client,
     _matched_cassette_path,
@@ -99,65 +100,11 @@ async def _sdk_result(protocol: Protocol, stream: bool):
             return [event async for event in result]
 
 
-def _collect(protocol: Protocol, events: list[BaseModel]) -> BaseModel:
-    if protocol == "responses":
-        assert events[-1].type in {"response.completed", "response.incomplete"}
-        return events[-1].response
+def _assert_search_lifecycle(
+    protocol: Protocol, events: list[BaseModel], *, native: bool = False
+) -> None:
+    assert_stream_lifecycle(protocol, events, native=native)
     if protocol == "chat/completions":
-        state = ChatCompletionStreamState()
-        for event in events:
-            state.handle_chunk(event.model_copy(deep=True))
-        return state.current_completion_snapshot
-    snapshot = None
-    for event in events:
-        snapshot = accumulate_event(event=event.model_copy(deep=True), current_snapshot=snapshot)
-        # The SDK accumulator does not copy this compatible-provider extension,
-        # although its parsed message_delta preserves the observed value.
-        if (
-            event.type == "message_delta"
-            and getattr(event.usage, "output_tokens_details", None) is not None
-        ):
-            snapshot.usage = snapshot.usage.model_copy(
-                update={"output_tokens_details": event.usage.output_tokens_details}
-            )
-    assert snapshot is not None
-    return snapshot
-
-
-def _assert_lifecycle(protocol: Protocol, events: list[BaseModel]) -> None:
-    if protocol == "responses":
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
-        assert events[0].type == "response.created"
-        assert events[-1].type in {"response.completed", "response.incomplete"}
-        added = [
-            event.output_index for event in events if event.type == "response.output_item.added"
-        ]
-        done = [
-            event.output_index for event in events if event.type == "response.output_item.done"
-        ]
-        assert added == done == list(range(len(added)))
-    elif protocol == "messages":
-        assert events[0].type == "message_start"
-        assert events[-1].type == "message_stop"
-        opened = set()
-        starts = []
-        for event in events:
-            if event.type == "content_block_start":
-                assert event.index == len(starts)
-                starts.append(event.index)
-                opened.add(event.index)
-            elif event.type == "content_block_delta":
-                assert event.index in opened
-            elif event.type == "content_block_stop":
-                assert event.index in opened
-                opened.remove(event.index)
-        assert not opened
-        assert sum(event.type == "message_delta" for event in events) == 1
-    else:
-        assert (
-            sum(choice.finish_reason is not None for event in events for choice in event.choices)
-            == 1
-        )
         assert all(not choice.delta.tool_calls for event in events for choice in event.choices)
         assert all(
             not getattr(choice.delta, "annotations", None)
@@ -278,7 +225,7 @@ async def test_native_search_matches_sdk(
         actual = [event async for event in result] if stream else result
     if stream:
         if protocol != "chat/completions":
-            _assert_lifecycle(protocol, actual)
+            _assert_search_lifecycle(protocol, actual, native=True)
         assert [type(event) for event in actual] == [type(event) for event in expected]
         assert [event.model_dump(mode="json", exclude_unset=True) for event in actual] == [
             event.model_dump(mode="json", exclude_unset=True) for event in expected
@@ -301,7 +248,7 @@ async def test_translated_search_matches_sdk(
     """Ensures exact translated requests, SDK-collected search semantics, and balanced lifecycle."""
     body, expected_request = _request_pair(downstream, upstream, stream)
     expected_events = await _sdk_result(downstream, True)
-    expected = _collect(downstream, expected_events)
+    expected = collect_sdk_response(downstream, expected_events)
     async with _get_http_client(
         [_path(upstream)], upstream, expected_body=expected_request
     ) as http_client:
@@ -313,8 +260,8 @@ async def test_translated_search_matches_sdk(
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle(downstream, events)
-            actual = _collect(downstream, events)
+            _assert_search_lifecycle(downstream, events)
+            actual = collect_sdk_response(downstream, events)
         else:
             actual = result
     if downstream == "responses":
@@ -329,7 +276,7 @@ async def test_translated_search_matches_sdk(
         expected.output = [completed.get(item.id, item) for item in expected.output]
         actual_semantics = _responses_semantics(actual)
         expected_semantics = _responses_semantics(expected)
-        native = _collect("messages", await _sdk_result("messages", True))
+        native = collect_sdk_response("messages", await _sdk_result("messages", True))
         # Canonical Responses has no Anthropic state. Compare the extension with
         # the Messages SDK before reducing only this unavailable field locally.
         assert [citation.pop("extra_content") for citation in actual_semantics["citations"]] == [
@@ -409,7 +356,7 @@ async def test_messages_search_selection_matches_sdk(stream: bool, choice_type: 
         expected_request.pop("tool_choice")
         if choice_type == "any":
             expected_request["tool_choice"] = "required"
-    expected = _collect("messages", await _sdk_result("messages", True))
+    expected = collect_sdk_response("messages", await _sdk_result("messages", True))
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
@@ -418,8 +365,8 @@ async def test_messages_search_selection_matches_sdk(stream: bool, choice_type: 
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("messages", events)
-            actual = _collect("messages", events)
+            _assert_search_lifecycle("messages", events)
+            actual = collect_sdk_response("messages", events)
         else:
             actual = result
     assert _messages_semantics(actual) == _messages_semantics(expected)
@@ -452,7 +399,7 @@ async def test_messages_citation_annotation_matches_sdk(
 
     monkeypatch.setattr(OpenAIResponsesClient, "native_events", annotation_events)
     body, expected_request = _request_pair("messages", "responses", stream)
-    expected = _collect("messages", await _sdk_result("messages", True))
+    expected = collect_sdk_response("messages", await _sdk_result("messages", True))
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
@@ -461,8 +408,8 @@ async def test_messages_citation_annotation_matches_sdk(
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("messages", events)
-            actual = _collect("messages", events)
+            _assert_search_lifecycle("messages", events)
+            actual = collect_sdk_response("messages", events)
         else:
             actual = result
     assert converted
@@ -486,7 +433,7 @@ async def test_messages_search_extra_body_matches_sdk(stream: bool, include: lis
         extra_body["include"] = include
     expected_request.pop("include")
     expected_request.update(extra_body)
-    expected = _collect("messages", await _sdk_result("messages", True))
+    expected = collect_sdk_response("messages", await _sdk_result("messages", True))
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
@@ -499,8 +446,8 @@ async def test_messages_search_extra_body_matches_sdk(stream: bool, include: lis
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("messages", events)
-            actual = _collect("messages", events)
+            _assert_search_lifecycle("messages", events)
+            actual = collect_sdk_response("messages", events)
         else:
             actual = result
     assert _messages_semantics(actual) == _messages_semantics(expected)
@@ -513,7 +460,7 @@ async def test_chat_search_rejects_recorded_signatures(
     upstream: Protocol, stream: bool, search_in_extra_body: bool
 ):
     """Ensures recorded SDK reasoning signatures fail Chat projection regardless of search declaration."""
-    reference = _collect(upstream, await _sdk_result(upstream, True))
+    reference = collect_sdk_response(upstream, await _sdk_result(upstream, True))
     if upstream == "responses":
         assert any(
             item.type == "reasoning" and item.encrypted_content for item in reference.output
@@ -719,7 +666,7 @@ async def test_chat_upstream_extra_search_reaches_transport(
                 for chunk in sdk_events
                 for choice in chunk.choices
             )
-        reference = _collect("chat/completions", sdk_events)
+        reference = collect_sdk_response("chat/completions", sdk_events)
         result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=body,
             endpoint="chat/completions",
@@ -729,7 +676,7 @@ async def test_chat_upstream_extra_search_reaches_transport(
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle(downstream, events)
+            _assert_search_lifecycle(downstream, events)
             if downstream == "messages":
                 assert [
                     event.delta.text
@@ -741,7 +688,7 @@ async def test_chat_upstream_extra_search_reaches_transport(
                     for choice in chunk.choices
                     if choice.delta.content
                 ]
-            result = _collect(downstream, events)
+            result = collect_sdk_response(downstream, events)
     assert len(requests) == 2
     if downstream == "responses":
         assert result.output_text == reference.choices[0].message.content
@@ -1083,8 +1030,8 @@ async def test_split_assistant_search_history_matches_combined_sdk(stream: bool,
         },
     )
     expected_request["input"].extend(expected_history)
-    expected = _collect("messages", await _sdk_result("messages", True))
-    reference = _collect("responses", await _sdk_result("responses", True))
+    expected = collect_sdk_response("messages", await _sdk_result("messages", True))
+    reference = collect_sdk_response("responses", await _sdk_result("responses", True))
     actual_results = []
     for split in (False, True):
         request = deepcopy(body)
@@ -1109,8 +1056,8 @@ async def test_split_assistant_search_history_matches_combined_sdk(stream: bool,
             )
             if stream:
                 events = [event async for event in result]
-                _assert_lifecycle("messages", events)
-                result = _collect("messages", events)
+                _assert_search_lifecycle("messages", events)
+                result = collect_sdk_response("messages", events)
         assert result.id == reference.id
         assert result.model == reference.model
         assert (
@@ -1356,11 +1303,11 @@ async def _synthetic_replay(
         )
         if stream:
             projected = [event async for event in result]
-            _assert_lifecycle(downstream, projected)
-            result = _collect(downstream, projected)
+            _assert_search_lifecycle(downstream, projected)
+            result = collect_sdk_response(downstream, projected)
         assert provider_stream.closed
         assert len(requests) == 1
-    return result, _collect(upstream, sdk_events)
+    return result, collect_sdk_response(upstream, sdk_events)
 
 
 def _search_snapshots(events: list[dict[str, Any]]):
@@ -1724,7 +1671,7 @@ async def test_synthetic_messages_usage_accounting(upstream: Protocol, stream: b
                 reference.usage.model_dump(exclude_unset=True, exclude_none=True) == expected_usage
             )
     else:
-        reference = _collect(
+        reference = collect_sdk_response(
             "messages",
             [AnthropicMessagesStreamEventAdapter.validate_python(event) for event in events],
         )
