@@ -1,0 +1,55 @@
+filename: 2026-11-04-01a1a54a-e430-7692-8044-94760ee3744c
+request:
+  body:
+    max_tokens: 128
+    messages:
+    - content:
+      - text: Reply with one short sentence about the ocean.
+        type: text
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+    temperature: 0.45
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    connection: keep-alive
+    content-length: '201'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /v1/messages
+  query_params: {}
+request_id: 01a1a54a-e430-7692-8044-94760ee3744c
+response:
+  body:
+    container: null
+    content:
+    - text: The ocean covers over 70% of the Earth's surface and is vital for life.
+      type: text
+    diagnostics: null
+    id: resp_0ef734a7578a4ef0016aead3a59f3087d2a69ae11b0193eb5b
+    model: gpt-4.1-mini-2025-04-14
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      inference_geo: not_available
+      input_tokens: 16
+      output_tokens: 18
+      output_tokens_details:
+        thinking_tokens: 0
+      service_tier: standard
+      speed: standard
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T06:41:51.152097+00:00'

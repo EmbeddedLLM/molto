@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from molto import Molto
 from molto.types.exceptions import UnsupportedInput
+from molto.upstream.embeddings import InfinityEmbeddingsClient, VLLMEmbeddingsClient
 
 FIXTURES = Path(__file__).parents[1] / "cassettes" / "embeddings" / "synthetic"
 ENGINES = ("infinity", "vllm")
@@ -175,3 +176,11 @@ async def test_engine_preserves_response_order_and_indices(engine):
         )
     assert [item.index for item in result.data] == [1, 0]
     assert result.model_dump() == response_body
+
+
+@pytest.mark.parametrize("client_type", [InfinityEmbeddingsClient, VLLMEmbeddingsClient])
+async def test_engine_client_requires_explicit_destination(client_type):
+    """Ensures self-hosted destination policy belongs to each client, even outside Molto."""
+    async with AsyncClient() as http_client:
+        with pytest.raises(UnsupportedInput, match="explicit base_url"):
+            client_type(http_client, api_key="engine-test-key")

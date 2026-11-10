@@ -171,6 +171,18 @@ class OpenAIEmbeddingsClient(_EmbeddingsClient):
         return response
 
 
+class InfinityEmbeddingsClient(OpenAIEmbeddingsClient):
+    """Infinity embeddings using the shared OpenAI wire implementation."""
+
+    REQUIRES_BASE_URL = True
+
+
+class VLLMEmbeddingsClient(OpenAIEmbeddingsClient):
+    """vLLM embeddings using the shared OpenAI wire implementation."""
+
+    REQUIRES_BASE_URL = True
+
+
 def _text_input(request: OpenAIEmbeddingsCreateRequest) -> str | list[str]:
     value = request.input
     if not isinstance(value, str) and not (

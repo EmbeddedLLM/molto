@@ -8,6 +8,7 @@ from openai import AsyncOpenAI, omit
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
+from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -20,6 +21,7 @@ class BaseHTTPClient:
     """Request-scoped transport borrowing the facade's shared HTTP client."""
 
     DEFAULT_BASE_URL: str
+    REQUIRES_BASE_URL = False
 
     def __init__(
         self,
@@ -30,6 +32,8 @@ class BaseHTTPClient:
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
     ) -> None:
+        if self.REQUIRES_BASE_URL and not base_url:
+            raise UnsupportedInput(f"{type(self).__name__} requires an explicit base_url.")
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url

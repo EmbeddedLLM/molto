@@ -226,13 +226,13 @@ The provider or model renderer can still merge, move, or reinterpret accepted wi
 
 ### Reasoning and continuation state
 
-Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. In the current implementation, only unsigned raw reasoning is portable through Chat on a translated route. A Chat summary has no signature and therefore cannot satisfy the completed-summary contract required by Responses or Messages; in the reverse direction, a Responses or Messages summary carries a signature that Chat projection rejects rather than silently discarding. Opaque continuation state and summarized reasoning are therefore not currently portable through Chat.
+Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. Translated output supports unsigned raw reasoning and summaries. Responses and Messages output projection accepts a Chat summary without inventing a signature; in the reverse direction, Chat projection rejects any present signature rather than silently discarding it. Request normalization preserves unsigned summary history, and the Chat upstream builder accepts it as `reasoning_content`. Responses and Messages upstream builders still reject unsigned summaries before transport. Accepting summary text does not restore opaque continuation state; native passthrough is unchanged.
 
 ### Tools and tool results
 
 Function definitions preserve their portable schema fields. Named selection maps to a named target function or tool, `required` maps to Messages `any`, and parallel-call control maps to each target's native setting. Tool-call IDs are portable call identities; they must not be confused with Responses output-item IDs, which are a separate structure. When Responses history is projected to Chat, those output-item IDs are accepted and omitted under the documented identity-metadata exception. The separate cache-key omission applies only to Messages upstreams.
 
-Successful text tool results preserve call ID, content order, and conversation order. Image results require the upstream-Chat relocation described above. Failed-result semantics, hosted tools, server tools, and general custom tool types do not have a complete cross-protocol mapping.
+Successful text tool results preserve call ID, content order, and conversation order. Image results require the upstream-Chat relocation described above. Failed client-function results, hosted tools other than basic web search, and general custom tool types do not have a complete cross-protocol mapping.
 
 ### Prompt caching
 
@@ -292,17 +292,27 @@ Recognized errors use the OpenAI SDK namespace and the [shared error contract](.
 - Chat has no output-item IDs, content indexes, item statuses, assistant `phase`, exact response-completion timestamp, or encrypted reasoning state. A richer downstream protocol must generate, omit, or reject those values according to its own guide.
 - Parsing and serialization can change key order, omitted versus explicit null, whitespace, SSE framing, and provider chunk placement. Cross-protocol parity is semantic, not byte-for-byte wire equality.
 
+## Hosted web search
+
+Native Chat routes forward `web_search_options` from the request or `extra_body` and preserve the provider's response fields, including structured citations. Molto keeps the requested model, which must support search.
+
+Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Translated routes targeting a Chat upstream reject hosted search before transport.
+
+Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned raw reasoning remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
+
+For representable output, translated Chat retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
+
 ## Current implementation limitations
 
 These are implementation gaps rather than inherent claims about the Chat protocol:
 
 - An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
-- Translated reasoning through Chat currently supports only unsigned raw reasoning, such as the `vllm` provider profile. Summary profiles fail at the target protocol's signature boundary in either direction.
-- Refusals, hosted tools, moderation, annotations, audio, prediction output, and log probabilities are not carried through the normalized path.
+- Chat cannot carry signed reasoning output or history. Unsigned summary output and history are supported, but Responses and Messages upstream builders still require signatures when replaying summary history.
+- Refusals, hosted tools other than basic web search, moderation, non-web annotations, audio, prediction output, and log probabilities are not carried through the normalized path. Hosted-search structured annotations are deliberately omitted from translated Chat output.
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
-- Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and normalized terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
+- Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and pauses map to `finish_reason="length"`; other terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
-- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, `service_tier`, `store`, `top_logprobs`, `verbosity`, and web-search options must not be assumed to work on translated routes.
+- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, `service_tier`, `store`, `top_logprobs`, and `verbosity` must not be assumed to work on translated routes.
 - There is no focused regression coverage for role-preserving instruction round trips, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
 
 ## Compatibility and references

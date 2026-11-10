@@ -22,6 +22,13 @@ from molto.types.openai_embeddings import (
     OpenAIEmbeddingsCreateRequest,
     OpenAIEmbeddingsResponse,
 )
+from molto.upstream.embeddings import (
+    CohereEmbeddingsClient,
+    InfinityEmbeddingsClient,
+    OpenAIEmbeddingsClient,
+    VLLMEmbeddingsClient,
+    VoyageAIEmbeddingsClient,
+)
 from molto.utils.io import read_yaml
 
 CASSETTE_DIR = Path(__file__).parents[1] / "cassettes/embeddings/recorded/openai"
@@ -378,3 +385,40 @@ async def test_embeddings_cancellation_does_not_close_shared_client() -> None:
         assert cancelled.is_set()
         assert not http_client.is_closed
     assert http_client.is_closed
+
+
+@pytest.mark.parametrize(
+    ("provider", "endpoint", "client_type"),
+    [
+        ("openai", "embeddings", OpenAIEmbeddingsClient),
+        ("infinity", "embeddings", InfinityEmbeddingsClient),
+        ("vllm", "embeddings", VLLMEmbeddingsClient),
+        ("cohere", "cohere/embed", CohereEmbeddingsClient),
+        ("voyageai", "voyage/embeddings", VoyageAIEmbeddingsClient),
+    ],
+)
+async def test_embedding_routes_select_provider_protocol_client(
+    provider, endpoint, client_type, monkeypatch
+):
+    """Ensures each public provider/protocol route invokes its dedicated client."""
+
+    class SelectedClient(Exception):
+        pass
+
+    async def check_client(self, *args):
+        assert type(self) is client_type
+        raise SelectedClient
+
+    method = "native_response" if endpoint == "embeddings" else "response"
+    monkeypatch.setattr(client_type, method, check_client)
+    async with Molto(
+        http_client=AsyncClient(transport=MockTransport(lambda _: pytest.fail()))
+    ) as molto:
+        with pytest.raises(SelectedClient):
+            await molto.embeddings(
+                {"model": "example", "input": "text"},
+                endpoint=endpoint,
+                provider=provider,
+                api_key="test-key",
+                base_url="https://provider.example/v1",
+            )

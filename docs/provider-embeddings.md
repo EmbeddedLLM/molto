@@ -34,6 +34,8 @@ The request body has the same body fields as the pinned OpenAI SDK: required `mo
 | `extra_body` | Applies upstream body extensions after request projection. The effective body is checked for supported embedding semantics. |
 | `extra_headers` | Adds request-scoped upstream headers after Molto removes credentials, account selectors, connection headers, and ingress transport headers. |
 
+Each supported provider/protocol pair has an explicit client class selected through the upstream registry. Infinity and vLLM reuse the OpenAI embeddings implementation through thin subclasses that require an explicit destination.
+
 Changing a provider never silently changes the endpoint. For example, `provider="cohere"` requires `endpoint="cohere/embed"`. A custom URL does not imply compatibility with a different provider or protocol. OpenAI account environment headers are suppressed on compatible routes, and explicit credentials cannot be replaced through `extra_headers`.
 
 ## Evidence and support matrix

@@ -4,7 +4,7 @@ from typing import Any, Self
 from httpx import AsyncClient, Headers
 from pydantic import BaseModel
 
-from molto.adapters.anthropic import AnthropicMessagesAdapter
+from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.embeddings import project_embeddings_response
 from molto.adapters.openai import (
     OpenAIChatCompletionsAdapter,
@@ -15,7 +15,6 @@ from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_EMBEDDING_PROVIDER,
     DEFAULT_PROVIDER_BY_ENDPOINT,
-    EMBEDDING_PROVIDERS,
     PROVIDER_CAPABILITIES,
     EmbeddingEndpoint,
     EmbeddingProvider,
@@ -44,12 +43,8 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.embeddings import (
-    CohereEmbeddingsClient,
-    OpenAIEmbeddingsClient,
-    VoyageAIEmbeddingsClient,
-)
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.registry import EMBEDDING_CLIENTS
 
 VLLM_DUMMY_API_KEY = "EMPTY"
 
@@ -207,36 +202,31 @@ class Molto:
         if endpoint not in DEFAULT_EMBEDDING_PROVIDER:
             raise UnsupportedInput(f"Unsupported embedding endpoint: {endpoint!r}.")
         resolved_provider = provider or DEFAULT_EMBEDDING_PROVIDER[endpoint]
-        if resolved_provider not in EMBEDDING_PROVIDERS[endpoint]:
+        if (resolved_provider, endpoint) not in EMBEDDING_CLIENTS:
             raise UnsupportedInput(
                 f"Provider {resolved_provider!r} does not support embedding endpoint {endpoint!r}."
             )
-        if resolved_provider in {"infinity", "vllm"} and not base_url:
-            raise UnsupportedInput(
-                f"Provider {resolved_provider!r} requires an explicit base_url."
-            )
-        transport = {
-            "api_key": self._resolve_api_key(resolved_provider, api_key),
-            "base_url": base_url,
-            "extra_body": extra_body,
-            "extra_headers": _upstream_headers(extra_headers),
-        }
+        client_type = EMBEDDING_CLIENTS[resolved_provider, endpoint]
+        upstream = client_type(
+            self._http_client,
+            api_key=self._resolve_api_key(resolved_provider, api_key),
+            base_url=base_url,
+            extra_body=extra_body,
+            extra_headers=_upstream_headers(extra_headers),
+        )
         try:
             if endpoint == "embeddings":
                 if options is not None:
                     raise UnsupportedInput(
                         "Native embedding options require their matching endpoint."
                     )
-                upstream = OpenAIEmbeddingsClient(self._http_client, **transport)
                 return await upstream.native_response(request)
             if endpoint == "cohere/embed":
                 if options is not None and not isinstance(options, CohereEmbeddingOptions):
                     raise UnsupportedInput("Cohere embeddings require CohereEmbeddingOptions.")
-                upstream = CohereEmbeddingsClient(self._http_client, **transport)
             else:
                 if options is not None and not isinstance(options, VoyageEmbeddingOptions):
                     raise UnsupportedInput("Voyage embeddings require VoyageEmbeddingOptions.")
-                upstream = VoyageAIEmbeddingsClient(self._http_client, **transport)
             return project_embeddings_response(await upstream.response(request, options))
         except Exception as error:
             _raise_openai_error(error)
@@ -293,6 +283,12 @@ class Molto:
         """
         request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
+        preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
+        if request.has_anthropic_search_metadata() and not preserve_search_metadata:
+            raise UnsupportedInput(
+                "Anthropic search extra_content requires endpoint='messages' "
+                "and provider='anthropic'."
+            )
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -314,7 +310,9 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = OpenAIResponsesAdapter(capabilities)
+        adapter = OpenAIResponsesAdapter(
+            capabilities, preserve_anthropic_search_metadata=preserve_search_metadata
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "chat/completions":
             upstream = OpenAIChatCompletionsClient(
@@ -421,12 +419,18 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        citation_policy: CitationPolicy = "drop",
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
-        HTTP destination.
+        HTTP destination. With Responses upstream, `citation_policy="buffer"`
+        withholds text until each part completes to preserve citation boundaries;
+        `"auto"` buffers only when normalized tools or history signal possible
+        citations, otherwise streaming text without citations. The default `"drop"`
+        always streams text without citations. Transport extensions do not inform
+        `"auto"`. The policy has no effect with Chat upstream or native Messages.
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
@@ -442,7 +446,7 @@ class Molto:
                 extra_body=extra_body,
                 extra_headers=upstream_headers,
             )
-            adapter = AnthropicMessagesAdapter(capabilities)
+            adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
             if request.stream is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(request)),
@@ -450,7 +454,11 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(request))
 
-        adapter = AnthropicMessagesAdapter(capabilities)
+        # Chat normalization drops annotations, so buffering cannot recover citations.
+        adapter = AnthropicMessagesAdapter(
+            capabilities,
+            citation_policy="drop" if endpoint == "chat/completions" else citation_policy,
+        )
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
             upstream = OpenAIResponsesClient(

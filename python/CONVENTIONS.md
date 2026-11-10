@@ -14,7 +14,11 @@
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
-- Type modules define schemas and wire helpers. They must not select routes or instantiate clients.
+- Type modules define schemas and validation. Normalized types must not contain protocol conversions, select routes, or instantiate clients.
+
+Each protocol adapter and upstream client translates individual tool declarations through its `_translate_tool` method. Keep request assembly, selection, call/result linking, buffering, and stream lifecycle in those layers; normalized models contain only schemas and provider-neutral validation.
+
+Cross-layer wire conversions for hosted web search live in `utils/web_search.py`, shared by adapters and upstream clients to prevent duplicated conversions from drifting.
 
 A future `chat()` method is a dispatcher over those coordinators. It should select and delegate to a protocol method rather than duplicate that method's validation, normalization, composition, or projection logic.
 
@@ -30,7 +34,7 @@ Keep these three concepts separate:
 
 Do not treat an endpoint or URL hostname as evidence about provider behavior. A coordinator may supply a documented canonical provider when the caller omits one, but an explicit provider must override that convenience default independently of the endpoint and base URL. Keep provider capabilities in the single `PROVIDER_CAPABILITIES` registry and pass the resolved profile explicitly to adapters and clients.
 
-Keep upstream clients specific to one supported wire protocol; never switch or override endpoints inside a client. Any desired endpoint override belongs in `Molto`, before client selection and the native-versus-translated route decision. See [endpoint selection ownership](ARCHITECTURE.md#endpoint-selection-belongs-to-the-coordinator).
+Keep upstream clients specific to one supported wire protocol; never switch or override endpoints inside a client. Register each supported embedding `(provider, endpoint)` pair with a distinct client class in `upstream/registry.py`, using thin subclasses when the shared wire implementation is sufficient. Default destinations and explicit-URL requirements belong to those clients. Any desired endpoint override belongs in `Molto`, before client selection and the native-versus-translated route decision. See [endpoint selection ownership](ARCHITECTURE.md#endpoint-selection-belongs-to-the-coordinator).
 
 ## Adapter and client base classes
 
@@ -113,13 +117,15 @@ The cross-protocol contract is: Molto is strict during input validation but leni
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, and `ToolCall` models reject extras when validated as request parts, including within `AssistantInput`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
+Normalized request-only models inherit from `StrictModel` and reject unknown fields. The dual-use `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` models reject extras when validated as request parts, including within `AssistantInput`. Normalized output models inherit from `ExtraModel`; `extra_fields` is an internal escape hatch for provider-specific output, not a vendor wire field. Never blindly dump a normalized model into a provider response; project supported fields explicitly.
 
-Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing an upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing a translated upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
+
+Never raise `UnsupportedInput` from `native_events()` or `native_response()`: the caller has already validated the exact wire protocol these methods forward.
 
 ## Normalized content and events
 
-Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts. One assistant-history message is an `AssistantInput` containing ordered `Thinking`, `TextOutput`, and `ToolCall` parts; do not encode roles as content-part metadata. Preserve explicit assistant boundaries and per-part markers. Keep standalone Responses reasoning and function calls as top-level items. A Responses projection emits contiguous text runs from mixed assistant content as messages interleaved with standalone reasoning and calls. Within one explicit assistant message, Chat accepts reasoning, text, and tool-call runs in that order. Adjacent reasoning parts concatenate with a newline separator; text parts retain their boundaries and markers, and tool calls retain distinct IDs. Never merge separate explicit assistant messages. Reject reasoning after text or calls and text after calls rather than splitting or reordering the message. These request containers do not change the normalized output-event grammar.
+Use explicit semantic content types and discriminated unions. In particular, one user message is a `UserInput` containing ordered `TextInput` and `ImageUrlInput` parts. One assistant-history message is an `AssistantInput` containing ordered `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` parts; do not encode roles as content-part metadata. Preserve explicit assistant boundaries and per-part markers. Keep standalone Responses reasoning and function calls as top-level items. A Responses projection emits contiguous text runs from mixed assistant content as messages interleaved with standalone reasoning and calls. Within one explicit assistant message, Chat accepts reasoning, text, and tool-call runs in that order. Adjacent reasoning parts concatenate with a newline separator; text parts retain their boundaries and markers, and tool calls retain distinct IDs. Never merge separate explicit assistant messages. Reject reasoning after text or calls and text after calls rather than splitting or reordering the message. These request containers do not change the normalized output-event grammar.
 
 Streaming is the primitive. Upstream clients emit normalized lifecycle, part, and delta events; downstream adapters project those events. A single normalized event may produce multiple native lifecycle events.
 
@@ -129,9 +135,9 @@ Preserve chunk boundaries when they are observable and covered by parity tests. 
 
 Store raw reasoning in `Thinking.content` and `ThinkingDelta.content_delta`. Store reasoning summaries in `Thinking.summary` and `ThinkingDelta.summary_delta`. Responses wire events label these representations explicitly; preserve that label and require it to match `ProviderCapabilities.thinking`. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so classify them with the same capability. Project only the matching normalized representation into each protocol's reasoning field.
 
-A Responses reasoning lifecycle must use exactly one valid representation: raw reasoning content with no summary or signature, a reasoning summary accompanied by a signature with no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
+A Responses reasoning output lifecycle must use exactly one representation: raw reasoning content with no summary or signature, a reasoning summary with optional signature and no raw content, or a signature with no reasoning summary or raw content. Preserve that representation across its start, delta, and end state; do not combine or switch representations during the part lifecycle. A completely empty start may remain deferred until its representation is known.
 
-Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Messages follows the same pairing rule as Responses: raw reasoning has no signature, a reasoning summary must have one, and a signature may appear without reasoning text. Enforce protocol-specific pairing at the relevant wire boundary rather than in the provider-neutral normalized models. Current cross-protocol paths through Chat therefore support only unsigned raw reasoning; reject summaries rather than discarding required opaque state.
+Chat Completions reasoning has no signature and may represent either raw reasoning or a summary according to the provider capability profile. Responses and Messages output processing tolerates missing summary signatures and preserves observed opaque state. Chat output may carry unsigned raw reasoning or summaries but rejects present signatures rather than discarding them. Request normalization preserves unsigned summary history and any supplied signature. Upstream request builders own destination constraints: Chat accepts unsigned summary text but rejects signatures, while Responses and Messages require signatures for summary history. Accepting summary text does not restore opaque continuation state. Keep these checks in the upstream builders rather than the downstream adapters or provider-neutral normalized models; native passthrough remains unchanged.
 
 Treat `ThinkingDelta.signature_delta` as a complete replacement snapshot of provider-specific opaque state. Never concatenate it with `Thinking.signature`.
 
@@ -172,13 +178,17 @@ Avoid rejecting inputs based on provider restrictions that may change, such as c
 
 Reject unsupported roles, content parts, request modes, and event types explicitly. Never silently drop a field that changes request meaning. This rule is aspirational for the Messages client's stream loop: it inspects only the six handled `RawMessageStreamEvent` types and silently ignores any other variant (documented in the [Messages guide](../docs/protocols/anthropic-messages.md)), diverging from the Responses client, which raises for unknown stream events. Tightening the Messages path is tracked future work. Retaining a value in `extra_fields` is not evidence that an upstream protocol supports it.
 
-For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics, except under the documented [cache-lifetime approximation policy](../docs/README.md#prompt-caching). The documented omission exceptions are optional Responses output-item `id` values on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, and `store=true` remains unsupported for translation. Messages computes cache identity implicitly and must not enable caching from a key alone. These exceptions do not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks beside that client's request construction rather than in the provider-neutral normalized models.
+For cross-protocol requests, a downstream adapter must map each populated native field into `NormalizedRequest`, apply it while projecting the downstream response, or reject it. An upstream client must map each populated normalized field into its native request or reject it when the target protocol cannot preserve the semantics, except under the documented [cache-lifetime approximation policy](../docs/README.md#prompt-caching). The documented omission exceptions are optional Responses output-item `id` values on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, and `store=true` remains unsupported for translation. Messages computes cache identity implicitly and must not enable caching from a key alone. These exceptions do not apply to portable identifiers such as `ToolCall.tool_call_id`. Keep target-specific compatibility checks with the relevant wire conversion: adapters validate native hosted-search declarations, and upstream clients reject normalized options that their protocol cannot represent.
 
 Prefer semantic normalized types over SDK parameter types. Any SDK type retained inside the normalized IR is transitional coupling and should not spread to new adapters or clients.
 
 ## Matched cassettes
 
+For hosted search, compare native SDK values exactly and translated values under the [reduction contract](../docs/web-search.md). Assert citation associations, sources, call/result linkage, usage, and lifecycle independently of text chunk placement. Synthetic cases supplement recordings; they are not provider evidence.
+
 Read [`tests/cassettes/README.md`](../tests/cassettes/README.md) before adding or updating cassette fixtures. It distinguishes faithful provider recordings from deliberately edited matched cassettes and documents the encrypted-reasoning exception.
+
+If recorded fields fail validation against the pinned SDK, follow the [SDK schema mismatch rule](../tests/cassettes/README.md#sdk-schema-mismatches): request a fresh developer recording and report the affected verification as pending. Do not introduce compatibility defaults or weaken validation solely to make an existing cassette pass.
 
 Matched cross-protocol cassettes use:
 
@@ -225,6 +235,8 @@ Run all implementation tests in cassette playback mode. Actual translated output
 ## Verification
 
 Public protocol behavior requires cassette-backed parity coverage against parsed OpenAI SDK events.
+
+Keep reusable SDK stream collectors and protocol lifecycle assertions in `molto.utils.test`, with no imports from test modules. Keep scenario-specific expectations in their tests and pytest fixtures and hooks in `conftest.py`.
 
 Log probabilities are not yet transported through the normalized path. Until support lands, `python/molto/utils/test.py` drops empty `logprobs` from reconstructible Chat chunks behind a TODO, so tests must not assert a `logprobs` value; update the helper when log-probability support is implemented. IR and request-mapping unit tests are supplementary, not a replacement.
 

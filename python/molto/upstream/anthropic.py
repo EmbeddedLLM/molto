@@ -23,6 +23,7 @@ from pydantic_ai.profiles.anthropic import (
     anthropic_model_profile,
     resolve_anthropic_effort,
 )
+from pydantic_core import from_json
 
 from molto.providers import ProviderCapabilities
 from molto.types.anthropic_messages import (
@@ -39,6 +40,8 @@ from molto.types.exceptions import (
 )
 from molto.types.normalized import (
     AssistantInput,
+    CitationDelta,
+    FunctionTool,
     FunctionToolChoice,
     ImageUrlInput,
     InputTokenDetails,
@@ -51,6 +54,8 @@ from molto.types.normalized import (
     ReasoningEffort,
     ResponseEndEvent,
     ResponseStartEvent,
+    SearchCall,
+    SearchResult,
     SystemPrompt,
     TerminationReason,
     TextDelta,
@@ -63,9 +68,19 @@ from molto.types.normalized import (
     ToolReturn,
     Usage,
     UserInput,
+    WebCitation,
+    WebSearchTool,
+    WebSearchToolChoice,
 )
 from molto.upstream.base import BaseClient
 from molto.utils.io import json_dumps, json_loads
+from molto.utils.web_search import (
+    citation_from_messages,
+    messages_text_blocks,
+    search_calls_to_messages,
+    search_result_from_messages,
+    search_result_to_messages,
+)
 
 _TERMINATION_REASONS: dict[str, TerminationReason] = {
     "end_turn": "stop",
@@ -126,7 +141,7 @@ def _thinking_budget(effort: ReasoningEffort) -> int:
 class _PartState:
     """Accumulated wire state for one streamed Anthropic content block."""
 
-    part: Thinking | TextOutput | ToolCall
+    part: Thinking | TextOutput | ToolCall | SearchCall | SearchResult
     content: str = ""
     signature: str = ""
 
@@ -204,27 +219,11 @@ def _validate_cache_controls(body: dict[str, Any]) -> None:
             raise UnsupportedInput("Anthropic 1h cache breakpoints must precede 5m breakpoints.")
 
 
-def _tools(request: NormalizedRequest) -> list[dict[str, Any]] | None:
-    if request.tools is None:
-        return None
-    tools: list[dict[str, Any]] = []
-    for tool in request.tools:
-        native_tool: dict[str, Any] = {
-            "name": tool.name,
-            "input_schema": tool.parameters,
-        }
-        if tool.description is not None:
-            native_tool["description"] = tool.description
-        if tool.strict:
-            native_tool["strict"] = True
-        tools.append(native_tool)
-    return tools
-
-
 def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
     has_tools = bool(request.tools)
     if not has_tools and (
-        request.tool_choice == "required" or isinstance(request.tool_choice, FunctionToolChoice)
+        request.tool_choice == "required"
+        or isinstance(request.tool_choice, (FunctionToolChoice, WebSearchToolChoice))
     ):
         raise UnsupportedInput("A required Anthropic tool choice needs at least one tool.")
     if request.tool_choice is not None and has_tools:
@@ -234,6 +233,8 @@ def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
             tool_choice = {"type": "none"}
         elif request.tool_choice == "required":
             tool_choice = {"type": "any"}
+        elif isinstance(request.tool_choice, WebSearchToolChoice):
+            tool_choice = {"type": "tool", "name": "web_search"}
         elif isinstance(request.tool_choice, FunctionToolChoice):
             tool_choice = {"type": "tool", "name": request.tool_choice.name}
         else:
@@ -243,6 +244,18 @@ def _tool_choice(request: NormalizedRequest) -> dict[str, Any] | None:
         tool_choice = {"type": "auto"}
     else:
         return None
+    if (
+        tool_choice == {"type": "tool", "name": "web_search"}
+        and any(isinstance(tool, WebSearchTool) for tool in request.tools or [])
+        and any(
+            isinstance(tool, FunctionTool) and tool.name == "web_search"
+            for tool in request.tools or []
+        )
+    ):
+        raise UnsupportedInput(
+            "Anthropic named web_search selection is ambiguous when a client function "
+            "has the same name as hosted search. Rename the client function."
+        )
     # Messages cannot encode parallel-call control when tool use is disabled.
     if request.parallel_tool_calls is not None and tool_choice["type"] != "none":
         tool_choice["disable_parallel_tool_use"] = not request.parallel_tool_calls
@@ -355,12 +368,44 @@ class AnthropicMessagesClient(
             self._handle_error(error)
 
     @staticmethod
+    def _translate_tool(
+        tool: FunctionTool | WebSearchTool, *, max_tool_calls: int | None = None
+    ) -> dict[str, Any]:
+        """Translate a normalized tool into a Messages tool declaration."""
+        if isinstance(tool, WebSearchTool):
+            if tool.search_context_size is not None:
+                raise UnsupportedInput(
+                    "tools.web_search.search_context_size cannot be represented by Anthropic Messages."
+                )
+            native_tool: dict[str, Any] = {"type": "web_search_20250305", "name": "web_search"}
+            for key in ("allowed_domains", "blocked_domains"):
+                if (value := getattr(tool, key)) is not None:
+                    native_tool[key] = value
+            if tool.user_location is not None:
+                native_tool["user_location"] = {
+                    "type": "approximate",
+                    **tool.user_location.model_dump(),
+                }
+            if max_tool_calls is not None:
+                native_tool["max_uses"] = max_tool_calls
+            return native_tool
+        native_tool = {"name": tool.name, "input_schema": tool.parameters}
+        if tool.description is not None:
+            native_tool["description"] = tool.description
+        if tool.strict:
+            native_tool["strict"] = True
+        return native_tool
+
+    @staticmethod
     def _assistant_blocks(
-        parts: list[Thinking | TextOutput | ToolCall],
+        parts: list[Thinking | TextOutput | ToolCall | SearchCall | SearchResult],
         request: NormalizedRequest,
         capabilities: ProviderCapabilities | None,
     ) -> list[dict[str, Any]]:
         blocks: list[dict[str, Any]] = []
+        requires_search_state = (
+            capabilities is not None and capabilities.requires_search_history_state
+        )
         for item in parts:
             if isinstance(item, Thinking):
                 representation = (
@@ -389,7 +434,54 @@ class AnthropicMessagesClient(
                     block["signature"] = item.signature
                 blocks.append(block)
             elif isinstance(item, TextOutput):
-                blocks.append(_content_block(item, request))
+                if not item.content.strip():
+                    raise UnsupportedInput("Messages text blocks require non-whitespace text.")
+                if any(
+                    not 0 <= citation.start_index <= citation.end_index <= len(item.content)
+                    for citation in item.citations
+                ):
+                    raise UnsupportedInput(
+                        "Citation ranges must be within the associated answer text."
+                    )
+                if requires_search_state and any(
+                    citation.encrypted_index in (None, "", "N/A") for citation in item.citations
+                ):
+                    raise UnsupportedInput(
+                        "Anthropic cannot replay citations without their original encrypted_index; "
+                        "preserve provider metadata or send text-only history."
+                    )
+                text_blocks = messages_text_blocks(item)
+                if item.cache_breakpoint is not None:
+                    text_blocks[-1]["cache_control"] = _content_block(item, request)[
+                        "cache_control"
+                    ]
+                blocks.extend(text_blocks)
+            elif isinstance(item, SearchCall):
+                if item.action == "search":
+                    # A pooled batch result cannot complete the separate server calls
+                    # Messages requires, so splitting history would leave pending work.
+                    if item.queries is not None and len(item.queries) > 1:
+                        raise UnsupportedInput(
+                            "Anthropic Messages cannot preserve multi-query search history."
+                        )
+                    blocks.extend(search_calls_to_messages(item))
+            elif isinstance(item, SearchResult):
+                # Anthropic decrypts original state on replay; the display placeholder
+                # cannot restore it. Compatible providers retain their own policy.
+                if (
+                    requires_search_state
+                    and item.error is None
+                    and any(
+                        source.encrypted_content in (None, "", "N/A")
+                        for source in item.sources or []
+                    )
+                ):
+                    raise UnsupportedInput(
+                        "Anthropic cannot replay search results without their original "
+                        "encrypted_content; preserve provider metadata or send text-only history."
+                    )
+                if item.sources is not None or item.error is not None:
+                    blocks.append(search_result_to_messages(item))
             elif isinstance(item, ToolCall):
                 tool_input = {} if item.args is None else json_loads(item.args)
                 if not isinstance(tool_input, dict):
@@ -414,6 +506,7 @@ class AnthropicMessagesClient(
         messages: list[dict[str, Any]] = []
         assistant_blocks: list[dict[str, Any]] = []
         explicit_assistant = False
+        omitted_search_calls: set[str] = set()
         tool_result_blocks: list[dict[str, Any]] = []
         has_thinking = False
 
@@ -444,11 +537,32 @@ class AnthropicMessagesClient(
                 if explicit_assistant:
                     flush_assistant()
                 has_thinking |= any(isinstance(part, Thinking) for part in item.content)
+                omitted_search_calls.update(
+                    part.id
+                    for part in item.content
+                    if isinstance(part, SearchCall) and part.action != "search"
+                )
                 assistant_blocks.extend(
-                    AnthropicMessagesClient._assistant_blocks(item.content, request, capabilities)
+                    AnthropicMessagesClient._assistant_blocks(
+                        [
+                            part
+                            for part in item.content
+                            if not (
+                                isinstance(part, SearchResult)
+                                and part.tool_call_id in omitted_search_calls
+                            )
+                        ],
+                        request,
+                        capabilities,
+                    )
                 )
                 explicit_assistant = True
-            elif isinstance(item, (Thinking, ToolCall)):
+            elif isinstance(item, (Thinking, ToolCall, SearchCall, SearchResult)):
+                if isinstance(item, SearchCall) and item.action != "search":
+                    omitted_search_calls.add(item.id)
+                    continue
+                if isinstance(item, SearchResult) and item.tool_call_id in omitted_search_calls:
+                    continue
                 flush_tool_results()
                 if isinstance(item, Thinking) and explicit_assistant:
                     flush_assistant()
@@ -482,12 +596,12 @@ class AnthropicMessagesClient(
         return system, messages, has_thinking
 
     @classmethod
-    def _request_body(
+    def _native_request(
         cls,
         request: NormalizedRequest,
         *,
         capabilities: ProviderCapabilities | None = None,
-    ) -> dict[str, Any]:
+    ) -> AnthropicMessagesCreateRequest:
         cls._validate_request(request)
         system, messages, has_thinking = cls._request_parts(request, capabilities=capabilities)
         body: dict[str, Any] = {
@@ -498,9 +612,11 @@ class AnthropicMessagesClient(
         }
         if system is not None:
             body["system"] = system
-        tools = _tools(request)
-        if tools is not None:
-            body["tools"] = tools
+        if request.tools is not None:
+            body["tools"] = [
+                cls._translate_tool(tool, max_tool_calls=request.max_tool_calls)
+                for tool in request.tools
+            ]
         tool_choice = _tool_choice(request)
         if tool_choice is not None:
             body["tool_choice"] = tool_choice
@@ -514,7 +630,7 @@ class AnthropicMessagesClient(
         if request.top_p is not None:
             body["top_p"] = request.top_p
         try:
-            return AnthropicMessagesCreateRequest.model_validate(body).model_dump()
+            return AnthropicMessagesCreateRequest.model_validate(body)
         except ValidationError as error:
             raise UnsupportedInput(str(error)) from error
 
@@ -531,8 +647,11 @@ class AnthropicMessagesClient(
                         )
                 else:
                     seen_message = True
-        if request.max_tool_calls is not None:
-            raise UnsupportedInput("Anthropic Messages cannot represent max_tool_calls.")
+        searches = [tool for tool in request.tools or [] if isinstance(tool, WebSearchTool)]
+        if request.max_tool_calls is not None and not searches:
+            raise UnsupportedInput(
+                "Anthropic Messages cannot represent max_tool_calls without hosted search."
+            )
         if (
             request.stream_options is not None
             and request.stream_options.include_obfuscation is True
@@ -562,6 +681,9 @@ class AnthropicMessagesClient(
         termination_reason: TerminationReason | None = None
         stop_sequence: str | None = None
         parts: dict[int, _PartState] = {}
+        search_usage: int | None = None
+        citations: dict[int, list[WebCitation]] = {}
+        search_inputs: dict[int, dict[str, Any]] = {}
         # Only a thinking block that starts completely empty (no text or
         # signature) is deferred: if no deltas ever arrive, its part lifecycle is
         # omitted from the IR entirely. A block that already carries text or a
@@ -580,16 +702,14 @@ class AnthropicMessagesClient(
             return part if isinstance(part, Thinking) else None
 
         def start_part(
-            source_index: int, part: Thinking | TextOutput | ToolCall
+            source_index: int, part: Thinking | TextOutput | ToolCall | SearchCall | SearchResult
         ) -> PartStartEvent:
             # Assign the dense index only when the start is actually emitted, so
             # an omitted thinking block never consumes a normalized index.
             part_indices[source_index] = len(part_indices)
             return PartStartEvent(index=part_indices[source_index], part=part)
 
-        native_request = AnthropicMessagesCreateRequest.model_validate(
-            self._request_body(request, capabilities=self._capabilities)
-        )
+        native_request = self._native_request(request, capabilities=self._capabilities)
         async with aclosing(self.native_events(native_request)) as native_events:
             async for event in native_events:
                 if isinstance(event, RawMessageStartEvent):
@@ -602,15 +722,38 @@ class AnthropicMessagesClient(
                     input_tokens = message.usage.input_tokens
                     cache_creation = message.usage.cache_creation_input_tokens or 0
                     cache_read = message.usage.cache_read_input_tokens or 0
+                    if message.usage.server_tool_use is not None:
+                        search_usage = message.usage.server_tool_use.web_search_requests
                     yield metadata
                 elif isinstance(event, RawContentBlockStartEvent):
                     block = event.content_block
                     if block.type == "thinking":
-                        part: Thinking | TextOutput | ToolCall = self._classify_thinking(
-                            block.thinking, signature=block.signature
+                        part: Thinking | TextOutput | ToolCall | SearchCall | SearchResult = (
+                            self._classify_thinking(block.thinking, signature=block.signature)
                         )
                     elif block.type == "text":
                         part = TextOutput(content=block.text)
+                        citations[event.index] = []
+                        for citation in block.citations or []:
+                            if citation.type != "web_search_result_location":
+                                raise ValueError(
+                                    f"Unsupported Anthropic citation: {citation.type}"
+                                )
+                            citations[event.index].append(
+                                citation_from_messages(citation.model_dump(), text=block.text)
+                            )
+                        part.citations = citations[event.index].copy()
+                    elif block.type == "server_tool_use" and block.name == "web_search":
+                        if block.caller is not None and block.caller.type != "direct":
+                            raise ValueError(
+                                "Only directly invoked Anthropic hosted searches can be translated."
+                            )
+                        part = SearchCall(id=block.id)
+                        search_inputs[event.index] = block.input
+                        parts[event.index] = _PartState(part)
+                        continue
+                    elif block.type == "web_search_tool_result":
+                        part = search_result_from_messages(block.model_dump())
                     elif block.type == "tool_use":
                         if block.caller is not None and block.caller.type != "direct":
                             raise ValueError(
@@ -636,7 +779,12 @@ class AnthropicMessagesClient(
                         yield start_part(event.index, part)
                     else:
                         parts[event.index] = _PartState(
-                            part, part.content if isinstance(part, TextOutput) else part.args
+                            part,
+                            part.content
+                            if isinstance(part, TextOutput)
+                            else part.args
+                            if isinstance(part, ToolCall)
+                            else "",
                         )
                         yield start_part(event.index, part)
                 elif isinstance(event, RawContentBlockDeltaEvent):
@@ -676,6 +824,15 @@ class AnthropicMessagesClient(
                             index=part_indices[event.index],
                             delta=TextDelta(content_delta=delta.text),
                         )
+                    elif delta.type == "citations_delta" and isinstance(part, TextOutput):
+                        citation = delta.citation
+                        if citation.type != "web_search_result_location":
+                            raise ValueError(f"Unsupported Anthropic citation: {citation.type}")
+                        citations[event.index].append(
+                            citation_from_messages(citation.model_dump(), text=state.content)
+                        )
+                    elif delta.type == "input_json_delta" and isinstance(part, SearchCall):
+                        state.content += delta.partial_json
                     elif delta.type == "input_json_delta" and isinstance(part, ToolCall):
                         state.content += delta.partial_json
                         yield PartDeltaEvent(
@@ -693,13 +850,28 @@ class AnthropicMessagesClient(
                         continue
                     part = state.part
                     if isinstance(part, Thinking):
-                        if self._capabilities.thinking == "summary" and not state.signature:
-                            raise ValueError(
-                                "An Anthropic reasoning summary requires a signature."
-                            )
-                        completed_part: Thinking | TextOutput | ToolCall = self._classify_thinking(
-                            state.content, signature=state.signature
+                        completed_part: (
+                            Thinking | TextOutput | ToolCall | SearchCall | SearchResult
+                        ) = self._classify_thinking(state.content, signature=state.signature)
+                    elif isinstance(part, SearchCall):
+                        # JSON deltas replace the initial input snapshot, as in the SDK;
+                        # partial parsing preserves interrupted calls without inventing results.
+                        initial_input = search_inputs.pop(event.index)
+                        search_input = (
+                            from_json(state.content, allow_partial=True)
+                            if state.content
+                            else initial_input
                         )
+                        # Provider output may add fields or contain a non-object partial value;
+                        # caller-history validation remains strict in the adapter.
+                        if not isinstance(search_input, dict):
+                            search_input = initial_input
+                        if not isinstance(search_input, dict):
+                            search_input = {}
+                        completed_part = SearchCall(id=part.id, query=search_input.get("query"))
+                        yield start_part(event.index, completed_part)
+                    elif isinstance(part, SearchResult):
+                        completed_part = part
                     elif isinstance(part, ToolCall):
                         completed_part = ToolCall(
                             tool_name=part.tool_name,
@@ -707,7 +879,18 @@ class AnthropicMessagesClient(
                             tool_call_id=part.tool_call_id,
                         )
                     else:
-                        completed_part = TextOutput(content=state.content)
+                        final_citations = [
+                            citation.model_copy(update={"end_index": len(state.content)})
+                            for citation in citations[event.index]
+                        ]
+                        for citation in final_citations:
+                            yield PartDeltaEvent(
+                                index=part_indices[event.index],
+                                delta=CitationDelta(citation=citation),
+                            )
+                        completed_part = TextOutput(
+                            content=state.content, citations=final_citations
+                        )
                     yield PartEndEvent(index=part_indices[event.index], part=completed_part)
                 elif isinstance(event, RawMessageDeltaEvent):
                     if event.delta.stop_reason is not None:
@@ -719,6 +902,8 @@ class AnthropicMessagesClient(
                             ) from exc
                         stop_sequence = event.delta.stop_sequence
                     raw_usage = event.usage
+                    if raw_usage.server_tool_use is not None:
+                        search_usage = raw_usage.server_tool_use.web_search_requests
                     if raw_usage.input_tokens is not None:
                         input_tokens = raw_usage.input_tokens
                     if raw_usage.cache_creation_input_tokens is not None:
@@ -730,6 +915,7 @@ class AnthropicMessagesClient(
                         output_details.thinking_tokens if output_details is not None else 0
                     )
                     usage = Usage(
+                        web_search_requests=search_usage,
                         input_tokens=input_tokens + cache_creation + cache_read,
                         input_tokens_details=InputTokenDetails(
                             cached_tokens=cache_read,

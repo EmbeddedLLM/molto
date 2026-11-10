@@ -19,6 +19,9 @@ concurrency:
 jobs:
   offline_replay:
     name: Unit tests (Python ${{ matrix.python-version }})
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -43,6 +46,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Print Python version selected by uv
+        run: |
+          uv_python="$(uv python find --system --no-project)"
+          echo "$uv_python"
+          "$uv_python" -VV
+
+      # Runs before the test extras are installed, because they can transitively
+      # provide an undeclared runtime dependency (fastapi[standard] pulls in PyYAML).
+      - name: Check import with core dependencies only
+        run: |
+          uv pip install --system -e .
+          python -c "import molto"
+
       - name: Install package and test dependencies
         run: uv pip install --system -e ".[test]"
 
@@ -50,7 +66,21 @@ jobs:
         run: uv pip list --system
 
       - name: Run tests
-        run: python -m pytest
+        run: |
+          python -m pytest --cov=python/molto --cov-report=term-missing \
+            --cov-report=xml:coverage.xml --junitxml=junit/pytest.xml
+
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@4a4889e6085d4e19fd19bf4a763c83d5332c8d06 # v1.9.0
+        if: always() && github.event_name == 'pull_request' && hashFiles('coverage.xml') != '' && hashFiles('junit/pytest.xml') != ''
+        continue-on-error: true
+        with:
+          pytest-xml-coverage-path: coverage.xml
+          coverage-path-prefix: python/molto/
+          junitxml-path: junit/pytest.xml
+          title: Coverage Report (Python ${{ matrix.python-version }})
+          unique-id-for-comment: coverage-python-${{ matrix.python-version }}
+          report-only-changed-files: true
 
       - name: Verify cassettes are unchanged
         if: always()

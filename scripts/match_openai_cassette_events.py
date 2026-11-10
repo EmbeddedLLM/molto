@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a Chat Completions cassette for CC-to-Responses stream parity tests.
+"""Prepare a Chat Completions cassette against canonical Responses stream data.
 
 The Responses cassette is the canonical expected output. This script rewrites the
 Chat Completions SSE stream so a converter receives one corresponding CC delta for
@@ -10,6 +10,8 @@ same content. It also synchronizes fields that can pass through the conversion,
 including the response ID, creation time, model, target-default service tier, tool
 calls, and usage. Cache requests also copy the canonical cache options, keys,
 retention, and content-part breakpoints without changing their prefix boundaries.
+Tool-result images move to user messages after the complete tool-response block,
+preserving their source order and the portable call IDs in their labels.
 
 Matched reasoning requests carry the canonical Responses effort as
 `reasoning_effort`. When a continuation contains reasoning history but omits a
@@ -28,6 +30,11 @@ tool-call history are translated into Chat Completions messages. Other request
 fields and transport metadata are intentionally left unchanged. With
 `--request-only`, match input, model, token limit, reasoning effort, and streaming
 settings without touching the recorded response; this mode supports error cassettes.
+
+Hosted-search cassettes instead cover Responses-to-Chat downstream projection:
+Chat search upstreams are disabled. Match required search requests and answer text,
+omitting hosted operations, structured citations, and provider search usage.
+Signed or encrypted reasoning is rejected, including on hosted-search turns.
 """
 
 from __future__ import annotations
@@ -48,6 +55,87 @@ def _request_body(cassette: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(request_body, dict):
         raise ValueError("Cassette request.body must be an object.")
     return request_body
+
+
+def _match_search_request(
+    chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
+) -> bool:
+    """Align the request for reduced, downstream-only hosted-search parity."""
+    chat_request = _request_body(chat_cassette)
+    responses_request = _request_body(responses_cassette)
+    tools = responses_request.get("tools") or []
+    search_tools = [tool for tool in tools if tool.get("type") == "web_search"]
+    if not search_tools:
+        return False
+    if len(search_tools) != 1:
+        raise ValueError("Chat search matching requires exactly one hosted-search tool.")
+    search_tool = search_tools[0]
+    unsupported = search_tool.keys() - {"type", "search_context_size", "user_location"}
+    if unsupported or responses_request.get("max_tool_calls") is not None:
+        raise ValueError(
+            "Responses search filters, budgets, and other advanced options cannot map "
+            "to Chat web_search_options."
+        )
+    choice = responses_request.get("tool_choice")
+    required_search = choice == "required" and len(tools) == 1
+    if isinstance(choice, dict) and choice.get("type") == "allowed_tools":
+        required_search = choice.get("mode") == "required" and choice.get("tools") == [
+            {"type": "web_search"}
+        ]
+    if not required_search:
+        raise ValueError(
+            "Chat web_search_options requires hosted search; the canonical Responses "
+            "tool_choice must require search specifically."
+        )
+    if chat_request.get("tool_choice") is not None:
+        raise ValueError("Chat tool_choice conflicts with mandatory hosted search.")
+    functions = []
+    for tool in tools:
+        if tool is search_tool:
+            continue
+        if tool.get("type") != "function":
+            raise ValueError("Only client functions can accompany Chat hosted search.")
+        functions.append(
+            {
+                "type": "function",
+                "function": deepcopy({k: v for k, v in tool.items() if k != "type"}),
+            }
+        )
+    options: dict[str, Any] = {}
+    if "search_context_size" in search_tool:
+        options["search_context_size"] = search_tool["search_context_size"]
+    location = search_tool.get("user_location")
+    if location is not None:
+        if not isinstance(location, dict) or location.get("type") != "approximate":
+            raise ValueError("Chat search requires an approximate user_location.")
+        options["user_location"] = {
+            "type": "approximate",
+            "approximate": {key: value for key, value in location.items() if key != "type"},
+        }
+    chat_request["web_search_options"] = options
+    chat_request["model"] = responses_request["model"]
+    chat_request["messages"] = _chat_messages_from_response_input(responses_request.get("input"))
+    if responses_request.get("instructions") is not None:
+        chat_request["messages"].insert(
+            0,
+            {
+                "role": "system",
+                "content": _response_message_content(
+                    responses_request["instructions"], preserve_parts=True
+                ),
+            },
+        )
+    if chat_request.get("stream"):
+        chat_request["stream_options"] = {
+            **chat_request.get("stream_options", {}),
+            "include_usage": True,
+        }
+    chat_request.pop("tool_choice", None)
+    if functions:
+        chat_request["tools"] = functions
+    else:
+        chat_request.pop("tools", None)
+    return True
 
 
 def _response_message_content(
@@ -101,26 +189,6 @@ def _raw_reasoning_content(item: dict[str, Any]) -> str:
     return "".join(reasoning)
 
 
-def _raw_reasoning_content(item: dict[str, Any]) -> str:
-    content = item.get("content")
-    if not isinstance(content, list):
-        raise ValueError("Responses reasoning item must contain a content list.")
-    if item.get("summary") not in (None, []):
-        raise ValueError("Responses reasoning summaries cannot map to Chat Completions.")
-    if item.get("encrypted_content") is not None:
-        raise ValueError("Encrypted Responses reasoning cannot map to Chat Completions.")
-
-    reasoning: list[str] = []
-    for part in content:
-        if not isinstance(part, dict) or part.get("type") != "reasoning_text":
-            raise ValueError("Only raw Responses reasoning can map to Chat Completions.")
-        text = part.get("text")
-        if not isinstance(text, str):
-            raise ValueError("Responses reasoning text must be a string.")
-        reasoning.append(text)
-    return "".join(reasoning)
-
-
 def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, Any]]:
     if isinstance(response_input, str):
         return [{"content": response_input, "role": "user"}]
@@ -128,6 +196,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
         raise ValueError("Responses input must be a string or an input-item list.")
 
     messages: list[dict[str, Any]] = []
+    deferred_image_messages: list[dict[str, Any]] = []
     tool_call_ids: set[str] = set()
     returned_tool_call_ids: set[str] = set()
     for item in response_input:
@@ -135,6 +204,11 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             raise ValueError("Responses input items must be objects.")
 
         item_type = item.get("type", "message")
+        if item_type == "web_search_call":
+            continue
+        if item_type != "function_call_output":
+            messages.extend(deferred_image_messages)
+            deferred_image_messages.clear()
         if item_type == "reasoning":
             messages.append(
                 {
@@ -175,9 +249,53 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
                 raise ValueError(f"Responses function call output has unknown ID: {call_id!r}.")
             if call_id in returned_tool_call_ids:
                 raise ValueError(f"Duplicate Responses function call output ID: {call_id!r}.")
+            image_content: list[dict[str, Any]] = []
+            if isinstance(output, list):
+                text_content = []
+                for part in output:
+                    if not isinstance(part, dict) or part.get("type") != "input_image":
+                        text_content.append(part)
+                        continue
+                    image_url = part.get("image_url")
+                    if not isinstance(image_url, str):
+                        raise ValueError("Responses image content requires an image_url string.")
+                    mapped_url = {"url": image_url}
+                    if part.get("detail") is not None:
+                        if part["detail"] not in {"auto", "low", "high"}:
+                            raise ValueError(
+                                "Responses image detail cannot map to Chat Completions."
+                            )
+                        mapped_url["detail"] = part["detail"]
+                    image_content.append({"type": "image_url", "image_url": mapped_url})
+                content = _response_message_content(text_content, preserve_parts=True)
+            else:
+                content = _response_message_content(output, preserve_parts=True)
+            if (deferred_image_messages or image_content) and _has_cache_breakpoint(output):
+                raise ValueError("Tool-result image relocation cannot preserve cache breakpoints.")
+            if image_content:
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"The image result of tool call {call_id!r} will be "
+                            "attached as user prompt after all tool responses."
+                        ),
+                    }
+                )
+                # Chat tool messages cannot carry images, and every parallel
+                # result must precede any user message containing those images.
+                deferred_image_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Image returned by tool call {call_id!r}:"},
+                            *image_content,
+                        ],
+                    }
+                )
             messages.append(
                 {
-                    "content": _response_message_content(output, preserve_parts=True),
+                    "content": content,
                     "role": "tool",
                     "tool_call_id": call_id,
                 }
@@ -205,6 +323,7 @@ def _chat_messages_from_response_input(response_input: Any) -> list[dict[str, An
             messages[-1].update(message)
         else:
             messages.append(message)
+    messages.extend(deferred_image_messages)
     return messages
 
 
@@ -286,9 +405,7 @@ def _response_event(events: list[dict[str, Any]], event_type: str) -> dict[str, 
     return matches[0]
 
 
-def _response_terminal(
-    events: list[dict[str, Any]],
-) -> tuple[dict[str, Any], str]:
+def _response_terminal(events: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
     terminal_events = [
         event
         for event in events
@@ -308,8 +425,10 @@ def _response_terminal(
         return response, "stop"
 
     incomplete_details = response.get("incomplete_details")
+    if incomplete_details is None:
+        return response, "stop"
     if not isinstance(incomplete_details, dict):
-        raise ValueError("response.incomplete must contain incomplete_details.")
+        raise ValueError("response.incomplete incomplete_details must be an object or null.")
     reason = incomplete_details.get("reason")
     finish_reasons = {
         "content_filter": "content_filter",
@@ -343,7 +462,11 @@ def _serialize_data_event(event: dict[str, Any], template: str) -> str:
 
 
 def _response_text_deltas(
-    events: list[dict[str, Any]], event_prefix: str, *, optional: bool = False
+    events: list[dict[str, Any]],
+    event_prefix: str,
+    *,
+    optional: bool = False,
+    multiple_parts: bool = False,
 ) -> list[str]:
     delta_type = f"{event_prefix}.delta"
     done_type = f"{event_prefix}.done"
@@ -354,6 +477,16 @@ def _response_text_deltas(
     done_events = [event for event in events if event.get("type") == done_type]
     if optional and not deltas and not done_events:
         return []
+    if multiple_parts:
+        # Search may emit assistant text both before and after a hosted operation.
+        parts: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+        for event in events:
+            if event.get("type") in {delta_type, done_type}:
+                key = (event.get("item_id"), event.get("content_index"))
+                parts.setdefault(key, []).append(event)
+        for part_events in parts.values():
+            _response_text_deltas(part_events, event_prefix)
+        return deltas
     if len(done_events) != 1:
         raise ValueError(f"Expected exactly one {done_type!r} event, found {len(done_events)}.")
 
@@ -708,14 +841,27 @@ def _replace_tool_call_events(
 def match_chat_completions_events(
     chat_cassette: dict[str, Any], responses_cassette: dict[str, Any]
 ) -> None:
-    """Rewrite CC SSE events into the canonical input for Responses parity."""
+    """Align Chat SSE events with representable canonical Responses output."""
+    _match_request_history(chat_cassette, responses_cassette)
+    has_search = _match_search_request(chat_cassette, responses_cassette)
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
     indexed_chat_events = _data_events(chat_cassette)
     response_events = [event for _, event in _data_events(responses_cassette)]
 
     created_event = _response_event(response_events, "response.created")
     created_response = created_event.get("response")
+    has_search = has_search or any(
+        isinstance(event.get("item"), dict) and event["item"].get("type") == "web_search_call"
+        for event in response_events
+    )
     terminal_response, finish_reason = _response_terminal(response_events)
+    # Validate every snapshot: earlier opaque state must not disappear just
+    # because a terminal snapshot replaces it.
+    for event in response_events:
+        items = [event.get("item"), *event.get("response", {}).get("output", [])]
+        for item in items:
+            if isinstance(item, dict) and item.get("type") == "reasoning":
+                _raw_reasoning_content({"content": [], **item})
     if not isinstance(created_response, dict):
         raise ValueError("Responses lifecycle events must contain response objects.")
     for field in ("id", "created_at", "model"):
@@ -730,7 +876,7 @@ def match_chat_completions_events(
         raise ValueError("Responses terminal event must contain usage for stream matching.")
 
     response_content_deltas = _response_text_deltas(
-        response_events, "response.output_text", optional=True
+        response_events, "response.output_text", optional=True, multiple_parts=has_search
     )
     response_reasoning_deltas = _response_text_deltas(
         response_events, "response.reasoning_text", optional=True
@@ -738,6 +884,26 @@ def match_chat_completions_events(
     response_tool_calls = _response_tool_calls(response_events)
     if response_tool_calls["calls"] and terminal_response.get("status") == "completed":
         finish_reason = "tool_calls"
+
+    if has_search:
+        # Native search may put answer text on the role chunk. Separate it so the
+        # regular delta replacement also replaces that recorded answer prefix.
+        sse_entries = chat_cassette["response"]["sse"]
+        for index, event in reversed(indexed_chat_events):
+            if not event.get("choices"):
+                continue
+            delta = event["choices"][0].get("delta", {})
+            if "role" not in delta or not delta.get("content"):
+                continue
+            content_event = deepcopy(event)
+            content_event["choices"][0]["delta"] = {"content": delta["content"]}
+            delta["content"] = ""
+            sse_entries[index] = _serialize_data_event(event, sse_entries[index])
+            sse_entries[index + 1 : index + 1] = [
+                "\n",
+                f"data: {json_dumps(content_event)}\n",
+            ]
+        indexed_chat_events = _data_events(chat_cassette)
 
     usage_events = [
         usage
@@ -749,6 +915,22 @@ def match_chat_completions_events(
         for _, event in indexed_chat_events
         if event.get("choices") and event["choices"][0].get("finish_reason") is not None
     ]
+
+    if has_search and not usage_events and len(finish_events) == 1:
+        # Some native search recordings omit usage. The canonical Responses count
+        # supplies the matched include_usage chunk, rather than an invented count.
+        usage_event = deepcopy(finish_events[0])
+        usage_event.update(choices=[], usage={})
+        sse_entries = chat_cassette["response"]["sse"]
+        done_index = next(
+            (index for index, entry in enumerate(sse_entries) if entry.strip() == "data: [DONE]"),
+            None,
+        )
+        if done_index is None:
+            raise ValueError("Chat search stream must contain a [DONE] terminator.")
+        sse_entries[done_index:done_index] = [f"data: {json_dumps(usage_event)}\n", "\n"]
+        indexed_chat_events = _data_events(chat_cassette)
+        usage_events = [usage_event["usage"]]
 
     if len(usage_events) != 1:
         raise ValueError(
@@ -787,6 +969,9 @@ def match_chat_completions_events(
         event["created"] = created_at
         event["model"] = model
         event["service_tier"] = "default"
+        if has_search:
+            for choice in event.get("choices", []):
+                choice.get("delta", {}).pop("annotations", None)
     finish_events = [
         event
         for _, event in indexed_chat_events
@@ -798,7 +983,6 @@ def match_chat_completions_events(
     sse_entries = chat_cassette["response"]["sse"]
     for index, event in indexed_chat_events:
         sse_entries[index] = _serialize_data_event(event, sse_entries[index])
-    _match_request_history(chat_cassette, responses_cassette)
 
 
 def match_chat_completions_request(
@@ -817,14 +1001,15 @@ def match_chat_completions_request(
             **responses_request.get("stream_options", {}),
             "include_usage": True,
         }
+    _match_search_request(chat_cassette, responses_cassette)
     _match_request_reasoning_effort(chat_cassette, responses_cassette)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare a Chat Completions input cassette for exact CC-to-Responses stream "
-            "parity. The Chat Completions cassette is updated in place unless --output "
+            "Prepare a Chat Completions cassette for protocol parity against canonical "
+            "Responses. The Chat Completions cassette is updated in place unless --output "
             "is provided."
         )
     )

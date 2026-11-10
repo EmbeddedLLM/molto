@@ -11,7 +11,7 @@ request:
     - content:
       - annotations: []
         logprobs: []
-        text: That is the **GitHub logo**, featuring the Octocat silhouette.
+        text: That is the **GitHub logo**, featuring the stylized “Octocat” silhouette.
         type: output_text
       role: assistant
       status: completed

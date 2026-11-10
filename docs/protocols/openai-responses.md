@@ -231,7 +231,7 @@ Only successful tool results are portable to OpenAI protocols. Function `call_id
 
 If a normalized request came from Messages, Molto sets `stream_options.include_obfuscation=false` because Messages has no obfuscation setting; omitting the field could select a provider default that is not equivalent to Anthropic's stream. More generally, only explicitly normalized request fields are emitted.
 
-Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
+Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools other than basic web search, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
 Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Summary text, item IDs, and encrypted state are preserved. Native passthrough still forwards the caller's validated request unchanged.
 
@@ -257,15 +257,15 @@ Responses is explicit where Chat Completions and Messages are ambiguous:
 
 Every explicit Responses event must agree with the selected provider capability profile. OpenAI is classified as summarized reasoning and vLLM as raw reasoning. A base URL never chooses this behavior.
 
-A Responses reasoning lifecycle must use exactly one valid representation:
+A Responses reasoning output lifecycle must use exactly one representation:
 
 - raw reasoning content with no summary or encrypted state;
-- a reasoning summary accompanied by encrypted state and no raw content; or
+- a reasoning summary with optional encrypted state and no raw content; or
 - encrypted state with neither summary nor raw content.
 
-The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. When Responses is the downstream target, summary providers require a signature for a completed reasoning summary.
+The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. Output processing accepts completed summaries without encrypted state and normalizes empty `encrypted_content` to no signature. Request normalization preserves unsigned summary history; upstream Chat accepts the summary text, while upstream Responses and Messages builders still reject it before transport.
 
-Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Only unsigned raw Chat reasoning is currently portable into Responses: a Chat summary cannot supply the signature required at Responses part completion. Responses-to-Chat summary translation also fails because Chat rejects the source signature instead of dropping it. Supported delta boundaries remain observable and are preserved by matched parity coverage.
+Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Unsigned Chat reasoning output can project into Responses as raw reasoning or a summary according to that capability. Responses-to-Chat output rejects any present signature instead of dropping it; unsigned summary output is representable. Supported delta boundaries remain observable and are preserved by matched parity coverage.
 
 ### Opaque continuation state
 
@@ -296,7 +296,7 @@ Function-call history preserves call IDs, function names, JSON arguments, succes
 - `call_id` is the portable identity that pairs a function call with its result.
 - The Responses function-call item `id` identifies the enclosing output item and has no Chat Completions equivalent.
 
-Hosted tools, custom-text tools, server tools, and failed tool-result semantics outside Messages are not currently portable.
+Hosted tools other than basic web search, custom-text tools, and failed client-function result semantics outside Messages are not currently portable.
 
 ### Prompt caching
 
@@ -331,10 +331,21 @@ Termination projection is:
 | `stop_sequence`                 | `response.completed`, coerced              |
 | `tool_call`                     | `response.completed`, coerced              |
 | `model_context_window_exceeded` | `response.completed`, coerced              |
-| `pause`                         | `response.completed`, coerced              |
+| `pause`                         | `response.incomplete` with null details    |
+| `unknown`                       | `response.incomplete` with null details    |
 | `refusal`                       | `response.completed`, coerced              |
 
-Molto retains the more specific source reason in the normalized stream. The coercion occurs only because the pinned Responses schema cannot represent that reason as an incomplete status.
+Molto retains the more specific source reason in the normalized stream. Reasons without a corresponding Responses termination value use the coercions above.
+
+An upstream `response.incomplete` with missing or null `incomplete_details`, or a missing or null `reason`, normalizes to `unknown`. Explicit `max_output_tokens` and `content_filter` reasons are preserved. Both `unknown` and a Messages-source `pause` project to incomplete Responses with null details, but only the explicit Messages `pause_turn` signal establishes a pause.
+
+## Hosted web search
+
+Declare `{"type":"web_search"}` in `tools`. Translation to Messages supports allowed domains, approximate location, and search budgets; explicit context size is rejected.
+
+Messages search calls and results become `web_search_call` items, and citations become local URL ranges. With an Anthropic Messages upstream, sources and URL citations also carry the typed `extra_content.anthropic` extension, preserving original encrypted state and source metadata for continuation. Clients must retain it when replaying output in `input`; metadata-bearing history rejects other upstream routes before transport. The extension is not forwarded in standard OpenAI upstream requests. Search errors mark the linked item as failed; `pause_turn` produces an incomplete response. See [Hosted web search](../web-search.md) for extension fields, mappings, attribution losses, and continuation limits.
+
+Translated Anthropic history rejects missing, empty, or `"N/A"` search-source and citation state before transport, including when no new search is requested. Retain the provider metadata or explicitly use text-only history. This provider-specific check does not apply to other Messages-compatible providers or native passthrough.
 
 ## Errors
 
@@ -379,8 +390,8 @@ A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the c
 The following are implementation gaps, not general claims that the source data cannot exist:
 
 - multiple Chat Completions choices; the current translated client reads only `choices[0]`;
-- summarized reasoning through Chat Completions; Chat has no signature slot, so current translation fails in either direction rather than discarding required continuation state;
-- refusals as content, hosted and server tools, failed tool-result semantics, redacted thinking, citations, annotations, moderation, and other multimodal output;
+- signed reasoning output or history through Chat Completions and unsigned summary history targeting Responses or Messages upstreams; Chat has no signature slot, while Responses and Messages request builders require summary signatures;
+- refusals as content, hosted tools other than basic search, failed client-function result semantics, redacted thinking, non-web annotations, moderation, and other multimodal output;
 - log probability transport across the normalized representation;
 - Chat audio and accepted or rejected prediction-token details;
 - Responses conversation references, previous-response state, background execution, and other Responses-only server state;
