@@ -1,0 +1,28 @@
+recorded_at: '2026-11-03T17:02:24.478988+00:00'
+provider: cohere
+deployment: direct hosted API
+driver: Standalone httpx POST outside pytest, independent of Molto. No retries.
+httpx_version: 0.28.1
+base_url: https://api.cohere.com/v2/embed
+provenance: faithful live HTTP recording; only authentication header masked and headers
+  whitelisted; body_bytes preserves original decoded response bytes
+schema_reference: https://docs.cohere.com/reference/embed
+fixtures:
+- file: single-query.yaml
+  sha256: bfdaf3aae9c65063444987061bdc0007ce4b50b3244ed95efbc5952cfba71a57
+  status_code: 200
+- file: batch-document.yaml
+  sha256: d6d4cd00b12782694e16f162e11b54cf2c8fa186583b614cd533da7d2a8790ab
+  status_code: 200
+- file: batch-base64.yaml
+  sha256: 947ff81342062e0103d9797f5331c01c75ee8a4c93dc91db7a23190603ebcd22
+  status_code: 200
+- file: classification.yaml
+  sha256: 8ee355774fd2169be578dc54f475697b47f50502c86d42270eed2373c80a6672
+  status_code: 200
+- file: clustering.yaml
+  sha256: 4726d05955cffe16a10dcd4874249a55783335107c9075321cca46896207d264
+  status_code: 200
+- file: invalid-model.yaml
+  sha256: 0027dc26b96e29ed56ca3a387098981522c1e94fb7a8969e891d9cabb601608e
+  status_code: 404

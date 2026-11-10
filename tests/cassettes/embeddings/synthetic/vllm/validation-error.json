@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/embeddings",
+    "body": {
+      "model": "schema-test-model",
+      "input": [],
+      "encoding_format": "float"
+    }
+  },
+  "response": {
+    "status_code": 400,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": {
+        "message": "Input cannot be empty",
+        "type": "BadRequestError",
+        "param": null,
+        "code": 400
+      }
+    }
+  }
+}

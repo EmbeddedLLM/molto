@@ -69,6 +69,21 @@ asyncio.run(main())
 
 These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough. The returned `MoltoStream.response_headers` retains successful upstream HTTP headers for callers such as proxy servers.
 
+## Embeddings
+
+`Molto.embeddings()` accepts an OpenAI embeddings body and returns the parsed OpenAI SDK response. With `OPENAI_API_KEY` configured:
+
+```python
+async with Molto() as molto:
+    result = await molto.embeddings(
+        {"model": "text-embedding-3-small", "input": ["A document", "A question"]}
+    )
+    for item in result.data:
+        print(item.index, len(item.embedding))
+```
+
+The [embedding guide and support matrix](docs/provider-embeddings.md) covers OpenAI, Cohere, VoyageAI, Infinity, and vLLM, including native task options and evidence limitations. OpenAI and Cohere have successful live recordings; VoyageAI, Infinity, and vLLM require further live verification. Embeddings use one ordinary asynchronous request, without streaming or automatic batching.
+
 ## Error handling
 
 Molto exposes recognized errors in the downstream SDK namespace, with a normalized Molto cause for portable classification. HTTP errors preserve their upstream status and body.

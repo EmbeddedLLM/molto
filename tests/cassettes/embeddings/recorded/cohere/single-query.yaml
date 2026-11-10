@@ -1,0 +1,351 @@
+timestamp: '2026-11-03T17:02:22.778917+00:00'
+request:
+  method: POST
+  url: https://api.cohere.com/v2/embed
+  path: /v2/embed
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+  body:
+    model: embed-v4.0
+    texts:
+    - Where do penguins live?
+    input_type: search_query
+    truncate: NONE
+    embedding_types:
+    - float
+    output_dimension: 256
+response:
+  status_code: 200
+  headers:
+    content-type: application/json
+  body:
+    id: 416a76d9-313f-4c1e-bfa6-d1f7be36eeb2
+    texts:
+    - Where do penguins live?
+    embeddings:
+      float:
+      - - 0.019325318
+        - -0.013359112
+        - 0.018287716
+        - 0.051361248
+        - -0.008754758
+        - -0.081970476
+        - 0.03190623
+        - 0.028404325
+        - -0.03164683
+        - -0.076263666
+        - 0.028144926
+        - 0.06536886
+        - 0.043579243
+        - 0.09753449
+        - -0.041504037
+        - 0.082489274
+        - 0.054214645
+        - -0.029701326
+        - -0.037353635
+        - -0.14111373
+        - -0.0030641651
+        - 0.037613034
+        - -0.2220466
+        - -0.02101142
+        - -0.050842445
+        - 0.14837693
+        - 0.010311159
+        - 0.026718223
+        - 0.028144926
+        - -0.013164562
+        - -0.073669665
+        - -0.026199425
+        - -0.1079105
+        - -0.042801037
+        - 0.059921455
+        - -0.004134191
+        - -0.121918105
+        - -0.042541638
+        - 0.124512106
+        - -0.0033884153
+        - 0.00058365054
+        - 0.07418846
+        - -0.05706805
+        - 0.07107566
+        - 0.07833887
+        - 0.039169434
+        - 0.098053284
+        - 0.11984291
+        - 0.15979055
+        - -0.08145167
+        - -0.004766479
+        - 0.050064247
+        - -0.009922059
+        - 0.07833887
+        - 0.07833887
+        - 0.04383864
+        - 0.13696332
+        - -0.040466435
+        - 0.03579723
+        - 0.06407186
+        - -0.0059337807
+        - 0.005966205
+        - -0.051880047
+        - 0.09338408
+        - 0.021789622
+        - 0.048767246
+        - -0.006938956
+        - 0.06588766
+        - -0.008073832
+        - -0.099609695
+        - -0.014850663
+        - -0.010311159
+        - -0.04435744
+        - -0.016212514
+        - -0.01134876
+        - -0.01108936
+        - 0.0035505407
+        - -0.0077495817
+        - 0.06536886
+        - -0.03216563
+        - 0.0024318772
+        - 0.06277486
+        - -0.019325318
+        - 0.002204902
+        - -0.04228224
+        - 0.033462632
+        - -0.081970476
+        - 0.025161821
+        - -0.02230842
+        - -0.0061607556
+        - 0.025421223
+        - -0.070556864
+        - 0.070556864
+        - -0.098053284
+        - 0.016990716
+        - -0.04643264
+        - 0.026069723
+        - 0.02269752
+        - -0.053436447
+        - -0.0015239764
+        - -0.082489274
+        - -0.04228224
+        - -0.03164683
+        - 0.03281413
+        - -0.030998327
+        - 0.041504037
+        - -0.09857209
+        - 0.061996654
+        - 0.0017752703
+        - -0.03255473
+        - -0.019844119
+        - -0.18573056
+        - 0.04306044
+        - -0.03164683
+        - 0.0050583044
+        - 0.073150866
+        - 0.0030641651
+        - -0.028663727
+        - 0.053177048
+        - 0.037872434
+        - 0.018287716
+        - -0.19403137
+        - 0.018676817
+        - -0.060440257
+        - -0.018158017
+        - -0.027755825
+        - 0.16394095
+        - 0.051361248
+        - -0.04772964
+        - 0.15875295
+        - 0.035278432
+        - 0.04331984
+        - 0.04435744
+        - 0.07522607
+        - -0.048767246
+        - -0.0031938655
+        - 0.115173705
+        - -0.007846857
+        - 0.035019033
+        - -0.059402652
+        - -0.0066147055
+        - 0.016990716
+        - 0.09027128
+        - -0.011543311
+        - 0.050323643
+        - 0.014396713
+        - -0.03268443
+        - -0.08145167
+        - 0.10842929
+        - 0.007879282
+        - -0.012451212
+        - -0.04513564
+        - -0.050583046
+        - -0.08352687
+        - -0.05525225
+        - -0.02334602
+        - 0.003210078
+        - -0.025550924
+        - -0.067444056
+        - 0.023086622
+        - -0.08975249
+        - -0.06796286
+        - -0.037872434
+        - 0.18158016
+        - 0.06951927
+        - -0.106354095
+        - -0.041244637
+        - 0.041244637
+        - 0.03294383
+        - -0.079376474
+        - 0.018936217
+        - -0.05966205
+        - 0.04669204
+        - -0.09338408
+        - 0.03424083
+        - -0.012451212
+        - 0.028404325
+        - 0.04331984
+        - -0.028015226
+        - 0.06277486
+        - 0.052139446
+        - 0.042541638
+        - 0.02165992
+        - 0.019714417
+        - -0.054733448
+        - -0.01082996
+        - -0.028015226
+        - -0.05680865
+        - 0.038131833
+        - 0.08975249
+        - 0.06407186
+        - 0.038391236
+        - 0.030609228
+        - -0.024902424
+        - 0.006549856
+        - -0.08767728
+        - -0.05499285
+        - -0.016990716
+        - 0.049545445
+        - -0.053436447
+        - -0.019973818
+        - 0.051880047
+        - -0.009468108
+        - -0.030220129
+        - 0.039947636
+        - 0.039169434
+        - -0.0019049704
+        - 0.038910035
+        - -0.005836505
+        - 0.085602075
+        - 0.019065917
+        - -0.040207036
+        - 0.005641955
+        - 0.025680624
+        - -0.028534025
+        - -0.2095954
+        - -0.027755825
+        - -0.04539504
+        - 0.07159446
+        - -0.04772964
+        - -0.016017964
+        - -0.06536886
+        - 0.051361248
+        - 0.064590655
+        - 0.029571628
+        - -0.17327936
+        - 0.018676817
+        - 0.014980364
+        - 0.046173245
+        - -0.10583529
+        - -0.0061607556
+        - -0.1110233
+        - 0.041244637
+        - 0.038131833
+        - 0.006679556
+        - -0.03450023
+        - 0.018676817
+        - 0.04669204
+        - -0.043579243
+        - 0.07989527
+        - 0.035019033
+        - -0.115173705
+        - -0.06510946
+        - -0.010051759
+        - 0.030479526
+        - -0.004344954
+        - 0.04331984
+        - -0.030220129
+        - -0.0036964535
+        - 0.039947636
+        - -0.09338408
+        - 0.050842445
+        - 0.016082816
+        - 0.00554468
+        - 0.05680865
+        - -0.00290204
+    meta:
+      api_version:
+        version: '2'
+      billed_units:
+        input_tokens: 6
+        image_tokens: 0
+    response_type: embeddings_by_type
+  body_bytes: !!binary |
+    eyJpZCI6IjQxNmE3NmQ5LTMxM2YtNGMxZS1iZmE2LWQxZjdiZTM2ZWViMiIsInRleHRzIjpbIldo
+    ZXJlIGRvIHBlbmd1aW5zIGxpdmU/Il0sImVtYmVkZGluZ3MiOnsiZmxvYXQiOltbMC4wMTkzMjUz
+    MTgsLTAuMDEzMzU5MTEyLDAuMDE4Mjg3NzE2LDAuMDUxMzYxMjQ4LC0wLjAwODc1NDc1OCwtMC4w
+    ODE5NzA0NzYsMC4wMzE5MDYyMywwLjAyODQwNDMyNSwtMC4wMzE2NDY4MywtMC4wNzYyNjM2NjYs
+    MC4wMjgxNDQ5MjYsMC4wNjUzNjg4NiwwLjA0MzU3OTI0MywwLjA5NzUzNDQ5LC0wLjA0MTUwNDAz
+    NywwLjA4MjQ4OTI3NCwwLjA1NDIxNDY0NSwtMC4wMjk3MDEzMjYsLTAuMDM3MzUzNjM1LC0wLjE0
+    MTExMzczLC0wLjAwMzA2NDE2NTEsMC4wMzc2MTMwMzQsLTAuMjIyMDQ2NiwtMC4wMjEwMTE0Miwt
+    MC4wNTA4NDI0NDUsMC4xNDgzNzY5MywwLjAxMDMxMTE1OSwwLjAyNjcxODIyMywwLjAyODE0NDky
+    NiwtMC4wMTMxNjQ1NjIsLTAuMDczNjY5NjY1LC0wLjAyNjE5OTQyNSwtMC4xMDc5MTA1LC0wLjA0
+    MjgwMTAzNywwLjA1OTkyMTQ1NSwtMC4wMDQxMzQxOTEsLTAuMTIxOTE4MTA1LC0wLjA0MjU0MTYz
+    OCwwLjEyNDUxMjEwNiwtMC4wMDMzODg0MTUzLDAuMDAwNTgzNjUwNTQsMC4wNzQxODg0NiwtMC4w
+    NTcwNjgwNSwwLjA3MTA3NTY2LDAuMDc4MzM4ODcsMC4wMzkxNjk0MzQsMC4wOTgwNTMyODQsMC4x
+    MTk4NDI5MSwwLjE1OTc5MDU1LC0wLjA4MTQ1MTY3LC0wLjAwNDc2NjQ3OSwwLjA1MDA2NDI0Nywt
+    MC4wMDk5MjIwNTksMC4wNzgzMzg4NywwLjA3ODMzODg3LDAuMDQzODM4NjQsMC4xMzY5NjMzMiwt
+    MC4wNDA0NjY0MzUsMC4wMzU3OTcyMywwLjA2NDA3MTg2LC0wLjAwNTkzMzc4MDcsMC4wMDU5NjYy
+    MDUsLTAuMDUxODgwMDQ3LDAuMDkzMzg0MDgsMC4wMjE3ODk2MjIsMC4wNDg3NjcyNDYsLTAuMDA2
+    OTM4OTU2LDAuMDY1ODg3NjYsLTAuMDA4MDczODMyLC0wLjA5OTYwOTY5NSwtMC4wMTQ4NTA2NjMs
+    LTAuMDEwMzExMTU5LC0wLjA0NDM1NzQ0LC0wLjAxNjIxMjUxNCwtMC4wMTEzNDg3NiwtMC4wMTEw
+    ODkzNiwwLjAwMzU1MDU0MDcsLTAuMDA3NzQ5NTgxNywwLjA2NTM2ODg2LC0wLjAzMjE2NTYzLDAu
+    MDAyNDMxODc3MiwwLjA2Mjc3NDg2LC0wLjAxOTMyNTMxOCwwLjAwMjIwNDkwMiwtMC4wNDIyODIy
+    NCwwLjAzMzQ2MjYzMiwtMC4wODE5NzA0NzYsMC4wMjUxNjE4MjEsLTAuMDIyMzA4NDIsLTAuMDA2
+    MTYwNzU1NiwwLjAyNTQyMTIyMywtMC4wNzA1NTY4NjQsMC4wNzA1NTY4NjQsLTAuMDk4MDUzMjg0
+    LDAuMDE2OTkwNzE2LC0wLjA0NjQzMjY0LDAuMDI2MDY5NzIzLDAuMDIyNjk3NTIsLTAuMDUzNDM2
+    NDQ3LC0wLjAwMTUyMzk3NjQsLTAuMDgyNDg5Mjc0LC0wLjA0MjI4MjI0LC0wLjAzMTY0NjgzLDAu
+    MDMyODE0MTMsLTAuMDMwOTk4MzI3LDAuMDQxNTA0MDM3LC0wLjA5ODU3MjA5LDAuMDYxOTk2NjU0
+    LDAuMDAxNzc1MjcwMywtMC4wMzI1NTQ3MywtMC4wMTk4NDQxMTksLTAuMTg1NzMwNTYsMC4wNDMw
+    NjA0NCwtMC4wMzE2NDY4MywwLjAwNTA1ODMwNDQsMC4wNzMxNTA4NjYsMC4wMDMwNjQxNjUxLC0w
+    LjAyODY2MzcyNywwLjA1MzE3NzA0OCwwLjAzNzg3MjQzNCwwLjAxODI4NzcxNiwtMC4xOTQwMzEz
+    NywwLjAxODY3NjgxNywtMC4wNjA0NDAyNTcsLTAuMDE4MTU4MDE3LC0wLjAyNzc1NTgyNSwwLjE2
+    Mzk0MDk1LDAuMDUxMzYxMjQ4LC0wLjA0NzcyOTY0LDAuMTU4NzUyOTUsMC4wMzUyNzg0MzIsMC4w
+    NDMzMTk4NCwwLjA0NDM1NzQ0LDAuMDc1MjI2MDcsLTAuMDQ4NzY3MjQ2LC0wLjAwMzE5Mzg2NTUs
+    MC4xMTUxNzM3MDUsLTAuMDA3ODQ2ODU3LDAuMDM1MDE5MDMzLC0wLjA1OTQwMjY1MiwtMC4wMDY2
+    MTQ3MDU1LDAuMDE2OTkwNzE2LDAuMDkwMjcxMjgsLTAuMDExNTQzMzExLDAuMDUwMzIzNjQzLDAu
+    MDE0Mzk2NzEzLC0wLjAzMjY4NDQzLC0wLjA4MTQ1MTY3LDAuMTA4NDI5MjksMC4wMDc4NzkyODIs
+    LTAuMDEyNDUxMjEyLC0wLjA0NTEzNTY0LC0wLjA1MDU4MzA0NiwtMC4wODM1MjY4NywtMC4wNTUy
+    NTIyNSwtMC4wMjMzNDYwMiwwLjAwMzIxMDA3OCwtMC4wMjU1NTA5MjQsLTAuMDY3NDQ0MDU2LDAu
+    MDIzMDg2NjIyLC0wLjA4OTc1MjQ5LC0wLjA2Nzk2Mjg2LC0wLjAzNzg3MjQzNCwwLjE4MTU4MDE2
+    LDAuMDY5NTE5MjcsLTAuMTA2MzU0MDk1LC0wLjA0MTI0NDYzNywwLjA0MTI0NDYzNywwLjAzMjk0
+    MzgzLC0wLjA3OTM3NjQ3NCwwLjAxODkzNjIxNywtMC4wNTk2NjIwNSwwLjA0NjY5MjA0LC0wLjA5
+    MzM4NDA4LDAuMDM0MjQwODMsLTAuMDEyNDUxMjEyLDAuMDI4NDA0MzI1LDAuMDQzMzE5ODQsLTAu
+    MDI4MDE1MjI2LDAuMDYyNzc0ODYsMC4wNTIxMzk0NDYsMC4wNDI1NDE2MzgsMC4wMjE2NTk5Miww
+    LjAxOTcxNDQxNywtMC4wNTQ3MzM0NDgsLTAuMDEwODI5OTYsLTAuMDI4MDE1MjI2LC0wLjA1Njgw
+    ODY1LDAuMDM4MTMxODMzLDAuMDg5NzUyNDksMC4wNjQwNzE4NiwwLjAzODM5MTIzNiwwLjAzMDYw
+    OTIyOCwtMC4wMjQ5MDI0MjQsMC4wMDY1NDk4NTYsLTAuMDg3Njc3MjgsLTAuMDU0OTkyODUsLTAu
+    MDE2OTkwNzE2LDAuMDQ5NTQ1NDQ1LC0wLjA1MzQzNjQ0NywtMC4wMTk5NzM4MTgsMC4wNTE4ODAw
+    NDcsLTAuMDA5NDY4MTA4LC0wLjAzMDIyMDEyOSwwLjAzOTk0NzYzNiwwLjAzOTE2OTQzNCwtMC4w
+    MDE5MDQ5NzA0LDAuMDM4OTEwMDM1LC0wLjAwNTgzNjUwNSwwLjA4NTYwMjA3NSwwLjAxOTA2NTkx
+    NywtMC4wNDAyMDcwMzYsMC4wMDU2NDE5NTUsMC4wMjU2ODA2MjQsLTAuMDI4NTM0MDI1LC0wLjIw
+    OTU5NTQsLTAuMDI3NzU1ODI1LC0wLjA0NTM5NTA0LDAuMDcxNTk0NDYsLTAuMDQ3NzI5NjQsLTAu
+    MDE2MDE3OTY0LC0wLjA2NTM2ODg2LDAuMDUxMzYxMjQ4LDAuMDY0NTkwNjU1LDAuMDI5NTcxNjI4
+    LC0wLjE3MzI3OTM2LDAuMDE4Njc2ODE3LDAuMDE0OTgwMzY0LDAuMDQ2MTczMjQ1LC0wLjEwNTgz
+    NTI5LC0wLjAwNjE2MDc1NTYsLTAuMTExMDIzMywwLjA0MTI0NDYzNywwLjAzODEzMTgzMywwLjAw
+    NjY3OTU1NiwtMC4wMzQ1MDAyMywwLjAxODY3NjgxNywwLjA0NjY5MjA0LC0wLjA0MzU3OTI0Myww
+    LjA3OTg5NTI3LDAuMDM1MDE5MDMzLC0wLjExNTE3MzcwNSwtMC4wNjUxMDk0NiwtMC4wMTAwNTE3
+    NTksMC4wMzA0Nzk1MjYsLTAuMDA0MzQ0OTU0LDAuMDQzMzE5ODQsLTAuMDMwMjIwMTI5LC0wLjAw
+    MzY5NjQ1MzUsMC4wMzk5NDc2MzYsLTAuMDkzMzg0MDgsMC4wNTA4NDI0NDUsMC4wMTYwODI4MTYs
+    MC4wMDU1NDQ2OCwwLjA1NjgwODY1LC0wLjAwMjkwMjA0XV19LCJtZXRhIjp7ImFwaV92ZXJzaW9u
+    Ijp7InZlcnNpb24iOiIyIn0sImJpbGxlZF91bml0cyI6eyJpbnB1dF90b2tlbnMiOjYsImltYWdl
+    X3Rva2VucyI6MH19LCJyZXNwb25zZV90eXBlIjoiZW1iZWRkaW5nc19ieV90eXBlIn0=

@@ -1,0 +1,30 @@
+timestamp: '2026-11-03T17:02:25.670767+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input: A small public recording.
+    model: text-embedding-3-small
+    dimensions: 0
+    encoding_format: float
+response:
+  status_code: 400
+  headers:
+    content-type: application/json
+    openai-version: '2020-10-01'
+    x-request-id: req_a177d8855a224db0bee2469001674c08
+  body_bytes: !!binary |
+    ewogICJlcnJvciI6IHsKICAgICJtZXNzYWdlIjogIkludmFsaWQgdmFsdWUgZm9yICdkaW1lbnNp
+    b25zJyA9IDAuIE11c3QgYmUgZ3JlYXRlciB0aGFuIDAuIiwKICAgICJ0eXBlIjogImludmFsaWRf
+    cmVxdWVzdF9lcnJvciIsCiAgICAicGFyYW0iOiBudWxsLAogICAgImNvZGUiOiBudWxsCiAgfQp9
+  body:
+    error:
+      message: Invalid value for 'dimensions' = 0. Must be greater than 0.
+      type: invalid_request_error
+      param: null
+      code: null

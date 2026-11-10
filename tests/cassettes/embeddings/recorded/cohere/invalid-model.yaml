@@ -1,0 +1,29 @@
+timestamp: '2026-11-03T17:02:24.477349+00:00'
+request:
+  method: POST
+  url: https://api.cohere.com/v2/embed
+  path: /v2/embed
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+  body:
+    model: molto-invalid-embedding-model
+    texts:
+    - Hello
+    input_type: search_query
+    embedding_types:
+    - float
+response:
+  status_code: 404
+  headers:
+    content-type: application/json
+  body:
+    id: a6591f25-7776-4c2b-b9ac-e0734c2eb7e1
+    message: model 'molto-invalid-embedding-model' not found, make sure the correct
+      model ID was used and that you have access to the model.
+  body_bytes: !!binary |
+    eyJpZCI6ImE2NTkxZjI1LTc3NzYtNGMyYi1iOWFjLWUwNzM0YzJlYjdlMSIsIm1lc3NhZ2UiOiJt
+    b2RlbCAnbW9sdG8taW52YWxpZC1lbWJlZGRpbmctbW9kZWwnIG5vdCBmb3VuZCwgbWFrZSBzdXJl
+    IHRoZSBjb3JyZWN0IG1vZGVsIElEIHdhcyB1c2VkIGFuZCB0aGF0IHlvdSBoYXZlIGFjY2VzcyB0
+    byB0aGUgbW9kZWwuIn0=

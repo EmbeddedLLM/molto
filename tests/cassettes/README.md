@@ -19,6 +19,14 @@ Each additional matched upstream provider runs against the canonical downstream 
 
 Malformed filenames, duplicate numeric identities, missing turns or required counterparts, unsupported scenarios/modes, and incompatible registered capability profiles fail collection with the affected identity. Matched scenarios retain their required two-turn conversations, three-turn sequential tool exchanges, and single-turn unknown-error cases. A new error category or unsupported scenario still needs explicit assertions. Raw reasoning requires the raw profile; encrypted matched fixtures retain the single-issuer assumption described below, including the existing `anthropic` Messages filename label. Filenames select replay behavior; they do not establish live provider support or provenance.
 
+## Embedding evidence
+
+`embeddings/recorded/{openai,cohere,voyageai}/` contains independent native HTTP captures made outside pytest on 2026-11-03. Each manifest identifies the driver, API/SDK version or schema reference, request parameters, status, and fixture hashes. Authentication is masked and headers are whitelisted; `response.body_bytes` retains the decoded original HTTP response bytes. Tests replay those bytes and compare exact request bodies. No vector values are matched across independently generated models.
+
+OpenAI captures include text and token-ID inputs, single inputs and batches, omitted/float/base64 encoding, explicit/default dimensions, and real request errors. Public native replay compares against the parsed pinned OpenAI SDK on the same evidence. Cohere v2 captures cover query/document/classification/clustering tasks, dimensions, float/base64, and a missing-model error. The VoyageAI captures are real authentication failures, not successful embeddings.
+
+`embeddings/synthetic/` contains explicitly hand-authored schema fixtures. Infinity and vLLM manifests pin the reviewed server source versions; these fixtures establish local request/response and SDK parity, not live server/model compatibility. VoyageAI synthetic success cases likewise do not substitute for a successful live capture. The [support matrix](../../docs/provider-embeddings.md) records the remaining access and deployment gaps. Existing conversational cassettes are unchanged.
+
 ## Recorded cassettes
 
 Faithful originals live under `native/`, `upstream_ir/`, or `errors/`, according to their test purpose. Preserve each original separately from any deliberately edited matched companion. Authorization values are masked, and only selected headers are retained so the fixtures remain safe and deterministic. Review request bodies for secrets before retaining recordings.

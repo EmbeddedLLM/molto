@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/embeddings",
+    "body": {
+      "model": "schema-test-model",
+      "input": ["one", "two"],
+      "encoding_format": "float"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "object": "list",
+      "data": [
+        {
+          "object": "embedding",
+          "index": 0,
+          "embedding": [0.125, 0.25, 0.375]
+        },
+        {
+          "object": "embedding",
+          "index": 1,
+          "embedding": [0.25, 0.5, 0.75]
+        }
+      ],
+      "model": "schema-test-model",
+      "usage": {
+        "prompt_tokens": 4,
+        "total_tokens": 4,
+        "completion_tokens": 0
+      },
+      "id": "embd-schema-test",
+      "created": 1793664000
+    }
+  }
+}

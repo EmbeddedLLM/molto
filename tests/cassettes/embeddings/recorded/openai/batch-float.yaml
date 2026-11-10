@@ -1,0 +1,61 @@
+timestamp: '2026-11-03T17:02:23.359257+00:00'
+request:
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  headers:
+    authorization: Bearer ***
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  body:
+    input:
+    - A query about documents.
+    - Documents answer the query.
+    model: text-embedding-3-small
+    user: molto-public-embedding-fixture
+    dimensions: 8
+    encoding_format: float
+response:
+  status_code: 200
+  headers:
+    content-type: application/json
+    openai-version: '2020-10-01'
+    x-request-id: req_7ee7673b9b1d4371ac904b51d46c0eb2
+  body_bytes: !!binary |
+    eyJvYmplY3QiOiJsaXN0IiwiZGF0YSI6W3sib2JqZWN0IjoiZW1iZWRkaW5nIiwiZW1iZWRkaW5n
+    IjpbLTAuMTU1NzYxNzE4NzUsMC42OTM4NDc2NTYyNSwwLjUwNDg4MjgxMjUsLTAuMDA2NTA0MDU4
+    ODM3ODkwNjI1LDAuMzQ1OTQ3MjY1NjI1LDAuMjIwMDkyNzczNDM3NSwtMC4yMDI1MTQ2NDg0Mzc1
+    LDAuMTczMzM5ODQzNzVdLCJpbmRleCI6MH0seyJvYmplY3QiOiJlbWJlZGRpbmciLCJlbWJlZGRp
+    bmciOlstMC4yNzU4Nzg5MDYyNSwwLjc2NDE2MDE1NjI1LDAuMjkyNDgwNDY4NzUsMC4xNDAyNTg3
+    ODkwNjI1LDAuNDYyODkwNjI1LDAuMTI3Njg1NTQ2ODc1LC0wLjA2MTc2NzU3ODEyNSwtMC4wMjM2
+    OTY4OTk0MTQwNjI1XSwiaW5kZXgiOjF9XSwibW9kZWwiOiJ0ZXh0LWVtYmVkZGluZy0zLXNtYWxs
+    IiwidXNhZ2UiOnsicHJvbXB0X3Rva2VucyI6MTAsInRvdGFsX3Rva2VucyI6MTB9fQ==
+  body:
+    object: list
+    data:
+    - object: embedding
+      embedding:
+      - -0.15576171875
+      - 0.69384765625
+      - 0.5048828125
+      - -0.006504058837890625
+      - 0.345947265625
+      - 0.2200927734375
+      - -0.2025146484375
+      - 0.17333984375
+      index: 0
+    - object: embedding
+      embedding:
+      - -0.27587890625
+      - 0.76416015625
+      - 0.29248046875
+      - 0.1402587890625
+      - 0.462890625
+      - 0.127685546875
+      - -0.061767578125
+      - -0.0236968994140625
+      index: 1
+    model: text-embedding-3-small
+    usage:
+      prompt_tokens: 10
+      total_tokens: 10

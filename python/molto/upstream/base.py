@@ -8,6 +8,7 @@ from openai import AsyncOpenAI, omit
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
+from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -16,27 +17,26 @@ from molto.types.normalized import (
 )
 
 
-class BaseClient[
-    NativeRequestT: BaseModel,
-    NativeEventT,
-    NativeResponseT: BaseModel,
-](ABC):
+class BaseHTTPClient:
+    """Request-scoped transport borrowing the facade's shared HTTP client."""
+
     DEFAULT_BASE_URL: str
+    REQUIRES_BASE_URL = False
 
     def __init__(
         self,
         http_client: AsyncClient,
         *,
-        capabilities: ProviderCapabilities,
         api_key: str | None = None,
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
     ) -> None:
+        if self.REQUIRES_BASE_URL and not base_url:
+            raise UnsupportedInput(f"{type(self).__name__} requires an explicit base_url.")
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url
-        self._capabilities = capabilities
         self._extra_body = extra_body
         self._extra_headers = extra_headers
         self.response_headers = Headers()
@@ -70,6 +70,33 @@ class BaseClient[
         if not raw_path.endswith(b"/"):
             raw_path += b"/"
         return Request("POST", base_url.copy_with(raw_path=raw_path + path.encode()))
+
+
+class BaseClient[
+    NativeRequestT: BaseModel,
+    NativeEventT,
+    NativeResponseT: BaseModel,
+](BaseHTTPClient, ABC):
+    """Conversational transport and normalized event lifecycle."""
+
+    def __init__(
+        self,
+        http_client: AsyncClient,
+        *,
+        capabilities: ProviderCapabilities,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        extra_body: Mapping[str, Any] | None = None,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> None:
+        super().__init__(
+            http_client,
+            api_key=api_key,
+            base_url=base_url,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+        )
+        self._capabilities = capabilities
 
     def _classify_thinking(self, text: str, *, signature: str | None = None) -> Thinking:
         """Place a protocol's ambiguous reasoning text in the provider's representation.
