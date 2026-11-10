@@ -174,14 +174,8 @@ def _reasoning_part(item: Any) -> Thinking:
         content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
         summary="".join(part.text for part in item.summary if part.type == "summary_text"),
         id=item.id,
-        signature=item.encrypted_content,
+        signature=item.encrypted_content or None,
     )
-
-
-def _validate_completed_responses_reasoning(part: Thinking) -> Thinking:
-    if part.summary and not part.signature:
-        raise ValueError("A Responses reasoning summary requires a signature.")
-    return part
 
 
 def _validate_responses_reasoning_capability(
@@ -208,7 +202,7 @@ def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
 def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     """Project a completed Responses output item into its normalized part."""
     if item.type == "reasoning":
-        return _validate_completed_responses_reasoning(_reasoning_part(item))
+        return _reasoning_part(item)
     if item.type == "message":
         text = ""
         citations = []

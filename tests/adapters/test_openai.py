@@ -1041,38 +1041,68 @@ async def test_responses_projection_rejects_reasoning_outside_capability(
         ]
 
 
-def test_responses_normalization_rejects_unsigned_summary_history() -> None:
+@pytest.mark.parametrize(
+    "signature_fields", [{}, {"encrypted_content": ""}, {"encrypted_content": "state"}]
+)
+def test_responses_normalization_preserves_summary_history(
+    signature_fields: dict[str, str],
+) -> None:
+    """Ensures Responses normalization leaves summary-signature requirements to the destination."""
     request = OpenAIResponsesCreateRequest(
         input=[
             {
                 "type": "reasoning",
                 "content": [],
                 "summary": [{"type": "summary_text", "text": "Summary"}],
+                **signature_fields,
             }
         ],
         model="m",
     )
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    assert normalized.input == [
+        Thinking(
+            content="",
+            summary="Summary",
+            signature=signature_fields.get("encrypted_content") or None,
+        )
+    ]
 
 
-async def test_responses_projection_rejects_unsigned_summary_completion() -> None:
+@pytest.mark.parametrize("signature", [None, ""])
+async def test_responses_projection_preserves_unsigned_summary_completion(
+    signature: str | None,
+) -> None:
+    """Ensures Responses completes unsigned reasoning summaries without inventing opaque state."""
     adapter, request = _responses_adapter(_CAPABILITIES)
 
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _RESPONSE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
-                    PartEndEvent(index=0, part=Thinking(content="", summary="Summary")),
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(
+                    index=0, part=Thinking(content="", summary="", signature=signature)
                 ),
-                request,
-            )
-        ]
+                PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="Summary")),
+                PartEndEvent(
+                    index=0, part=Thinking(content="", summary="Summary", signature=signature)
+                ),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+
+    assert [
+        event.delta for event in events if event.type == "response.reasoning_summary_text.delta"
+    ] == ["Summary"]
+    completed = next(event.item for event in events if event.type == "response.output_item.done")
+    assert completed.summary[0].text == "Summary"
+    assert completed.encrypted_content is None
+    assert events[-1].type == "response.completed"
+    assert events[-1].response.output[0] == completed
 
 
 async def test_responses_projection_rejects_thinking_part_with_content_and_summary() -> None:

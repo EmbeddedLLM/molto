@@ -6,6 +6,7 @@ import pytest
 from openai import AsyncOpenAI
 
 from molto import Molto
+from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
 from tests.core.test_interface import (
     PROTOCOLS,
     Protocol,
@@ -14,7 +15,6 @@ from tests.core.test_interface import (
     _matched_cassette_path,
     _read_cassette,
 )
-from tests.core.test_web_search import _assert_lifecycle, _collect
 
 
 @pytest.mark.parametrize("upstream", PROTOCOLS)
@@ -43,8 +43,8 @@ async def test_opaque_extensions_preserve_sdk_output(upstream: Protocol, stream:
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle(downstream, events)
-            result = _collect(downstream, events)
+            assert_stream_lifecycle(downstream, events)
+            result = collect_sdk_response(downstream, events)
     assert extra_body == original
 
     # Replay the unchanged matched Responses recording through the SDK; the
@@ -54,7 +54,9 @@ async def test_opaque_extensions_preserve_sdk_output(upstream: Protocol, stream:
     async with _get_http_client([reference_path]) as http_client:
         sdk = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
         async with await sdk.responses.create(**reference_body) as reference_stream:
-            reference = _collect("responses", [event async for event in reference_stream])
+            reference = collect_sdk_response(
+                "responses", [event async for event in reference_stream]
+            )
 
     text = (
         "".join(block.text for block in result.content if block.type == "text")

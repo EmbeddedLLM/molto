@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import lru_cache
-from itertools import pairwise, product
+from itertools import product
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -28,6 +28,7 @@ from molto.types.openai_responses import OpenAIResponsesResponse
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
+    assert_responses_stream_invariants,
     reconstructable_anthropic_event,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
@@ -494,73 +495,6 @@ def _expect_responses_search_usage(events: list[dict[str, Any]], upstream_path: 
                 }
 
 
-def _assert_responses_stream_invariants(sse_events: list[str], *, native: bool = False) -> None:
-    events = [load_sse(sse) for sse in sse_events]
-    sequence_numbers = [event["sequence_number"] for event in events]
-    assert all(current == previous + 1 for previous, current in pairwise(sequence_numbers)), (
-        f"Non-contiguous sequence numbers: {sequence_numbers}"
-    )
-
-    started: dict[int, dict[str, Any]] = {}
-    completed: dict[int, dict[str, Any]] = {}
-    item_ids: set[str] = set()
-    for event in events:
-        event_type = event["type"]
-        if "output_index" in event or "item_id" in event:
-            index = event["output_index"]
-            if event_type == "response.output_item.added":
-                assert index not in started, f"Output item {index} started twice"
-                item = event["item"]
-                assert item["id"] and item["id"] not in item_ids, "Duplicate or empty item ID"
-                item_ids.add(item["id"])
-                started[index] = item
-            else:
-                assert index in started, f"Update before output item {index} started"
-                assert index not in completed, f"Update after output item {index} completed"
-                if event_type == "response.output_item.done":
-                    item = event["item"]
-                    assert item["id"] == started[index]["id"], "Completed item ID changed"
-                    assert item["type"] == started[index]["type"], "Completed item type changed"
-                    if item["type"] == "function_call":
-                        assert item["call_id"] == started[index]["call_id"]
-                    completed[index] = item
-                else:
-                    assert event["item_id"] == started[index]["id"], "Update targets another item"
-        elif event_type in {"response.completed", "response.incomplete"}:
-            assert event is events[-1], "Events after terminal response"
-            output = event["response"]["output"]
-            assert started.keys() == completed.keys() == set(range(len(output))), (
-                "Unbalanced output item starts, completions, or terminal output"
-            )
-            for index, item in enumerate(output):
-                done = completed[index]
-                if (
-                    native
-                    and item["type"] == "reasoning"
-                    and done.get("encrypted_content")
-                    and item.get("encrypted_content")
-                ):
-                    # Native Responses may expose a third opaque snapshot. A
-                    # translated terminal item must reuse its done snapshot.
-                    done = {**done, "encrypted_content": item["encrypted_content"]}
-                if (
-                    native
-                    and item["type"] == "web_search_call"
-                    and item["action"]["type"] == "search"
-                    and "sources" in item["action"]
-                ):
-                    # Native search may report more sources in its terminal
-                    # snapshot. Translated output retains the done snapshot.
-                    done = {
-                        **done,
-                        "action": {**done["action"], "sources": item["action"]["sources"]},
-                    }
-                assert item == done, f"Terminal output differs from completed item {index}"
-    assert events[-1]["type"] in {"response.completed", "response.incomplete"}, (
-        "Missing terminal response"
-    )
-
-
 @pytest.mark.parametrize(
     "scenario", ["reasoning_raw", "reasoning_encrypted", "tool_call_with_reasoning_encrypted"]
 )
@@ -568,7 +502,7 @@ def test_responses_stream_updates_require_the_started_item_id(scenario: str) -> 
     """Ensures every text, reasoning, summary, and argument update retains its item's identity."""
     path = _matched_cassette_path(scenario, "responses", "stream-00.yaml")
     records = _sse_records(_read_cassette(path), "responses")
-    _assert_responses_stream_invariants(records)
+    assert_responses_stream_invariants(records)
     events = [load_sse(record) for record in records]
     item_ids = [
         event["item"]["id"] for event in events if event["type"] == "response.output_item.added"
@@ -580,7 +514,7 @@ def test_responses_stream_updates_require_the_started_item_id(scenario: str) -> 
         update = next(event for event in changed if event["type"] == event_type)
         update["item_id"] = next(item_id for item_id in item_ids if item_id != update["item_id"])
         with pytest.raises(AssertionError, match="Update targets another item"):
-            _assert_responses_stream_invariants([dumps_sse(event) for event in changed])
+            assert_responses_stream_invariants([dumps_sse(event) for event in changed])
 
 
 @pytest.mark.parametrize(
@@ -602,7 +536,7 @@ def test_responses_stream_invariants_reject_invalid_item_lifecycles(defect: str)
         "tool_call_with_reasoning_encrypted", "responses", "stream-00.yaml"
     )
     records = _sse_records(_read_cassette(path), "responses")
-    _assert_responses_stream_invariants(records)
+    assert_responses_stream_invariants(records)
     events = [load_sse(record) for record in records]
     update_index = next(i for i, event in enumerate(events) if "item_id" in event)
     output_index = events[update_index]["output_index"]
@@ -636,20 +570,20 @@ def test_responses_stream_invariants_reject_invalid_item_lifecycles(defect: str)
     for index, event in enumerate(events):
         event["sequence_number"] = index
     with pytest.raises(AssertionError):
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+        assert_responses_stream_invariants([dumps_sse(event) for event in events])
 
 
 def test_incomplete_responses_stream_requires_completed_items() -> None:
     """Ensures incomplete terminal responses also require a done event for each partial item."""
     path = CASSETTE_DIR / "errors/incomplete_response/openai-responses-stream-00.yaml"
     records = _sse_records(_read_cassette(path), "responses")
-    _assert_responses_stream_invariants(records)
+    assert_responses_stream_invariants(records)
     events = [load_sse(record) for record in records]
     events = [event for event in events if event["type"] != "response.output_item.done"]
     for index, event in enumerate(events):
         event["sequence_number"] = index
     with pytest.raises(AssertionError, match="Unbalanced output item"):
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events])
+        assert_responses_stream_invariants([dumps_sse(event) for event in events])
 
 
 def test_responses_terminal_encrypted_snapshot_policy() -> None:
@@ -658,9 +592,9 @@ def test_responses_terminal_encrypted_snapshot_policy() -> None:
     events = [load_sse(record) for record in _sse_records(_read_cassette(path), "responses")]
     events[-1]["response"]["output"][0]["encrypted_content"] = "separate-terminal-snapshot"
     records = [dumps_sse(event) for event in events]
-    _assert_responses_stream_invariants(records, native=True)
+    assert_responses_stream_invariants(records, native=True)
     with pytest.raises(AssertionError, match="Terminal output differs"):
-        _assert_responses_stream_invariants(records)
+        assert_responses_stream_invariants(records)
 
 
 @pytest.mark.parametrize("field", ["id", "status", "query"])
@@ -675,9 +609,9 @@ def test_responses_terminal_search_snapshot_policy(field: str) -> None:
             # terminal reasoning snapshot in this recording.
             output[event["output_index"]] = deepcopy(event["item"])
     records = [dumps_sse(event) for event in events]
-    _assert_responses_stream_invariants(records, native=True)
+    assert_responses_stream_invariants(records, native=True)
     with pytest.raises(AssertionError, match="Terminal output differs"):
-        _assert_responses_stream_invariants(records)
+        assert_responses_stream_invariants(records)
 
     search = next(item for item in output if item["type"] == "web_search_call")
     if field == "query":
@@ -685,7 +619,7 @@ def test_responses_terminal_search_snapshot_policy(field: str) -> None:
     else:
         search[field] = "changed"
     with pytest.raises(AssertionError, match="Terminal output differs"):
-        _assert_responses_stream_invariants([dumps_sse(event) for event in events], native=True)
+        assert_responses_stream_invariants([dumps_sse(event) for event in events], native=True)
 
 
 async def test_extra_inputs():
@@ -1207,7 +1141,7 @@ async def test_native_incomplete_responses_preserve_text_and_usage(stream: bool)
             assert [event.model_dump() for event in actual_events] == [
                 event.model_dump() for event in expected_events
             ]
-            _assert_responses_stream_invariants([dumps_sse(event) for event in actual_events])
+            assert_responses_stream_invariants([dumps_sse(event) for event in actual_events])
             actual = actual_events[-1].response
             assert (
                 "".join(
@@ -1571,7 +1505,7 @@ async def _assert_stream_events(
                 actual_sse_events.append(dumps_sse(event))
             if downstream == "responses":
                 assert len(events) == len(expected_sse_events)
-                _assert_responses_stream_invariants(
+                assert_responses_stream_invariants(
                     actual_sse_events, native=upstream == "responses"
                 )
                 if scenario in PROMPT_CACHE_SCENARIOS:
@@ -2531,7 +2465,7 @@ async def _assert_request_parity(
     # reconstructible fields rather than treating its request metadata as a fresh result.
     recorded_body = _read_cassette(downstream_path)["request"]["body"]
     if downstream == "responses":
-        _assert_responses_stream_invariants(actual_sse)
+        assert_responses_stream_invariants(actual_sse)
         actual = [reconstructable_responses_event(sse, body=recorded_body) for sse in actual_sse]
         expected = [
             reconstructable_responses_event(sse, body=recorded_body) for sse in expected_sse
