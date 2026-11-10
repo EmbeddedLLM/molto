@@ -1,0 +1,73 @@
+request:
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '407'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.30.0
+  body:
+    messages:
+    - role: user
+      content: What number am I thinking of?
+    model: gpt-4.1-nano
+    stream: false
+    tool_choice: required
+    tools:
+    - type: function
+      function:
+        name: guess_number
+        description: Guess a number.
+        parameters:
+          type: object
+          properties:
+            number:
+              type: integer
+              description: The guessed number.
+          required:
+          - number
+          additionalProperties: false
+        strict: true
+response:
+  status_code: 200
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  body:
+    id: chatcmpl-E3zFoignUF43zLHhfXJzQQ4FmzIr8
+    object: chat.completion
+    created: 1784619152
+    model: gpt-4.1-nano-2025-04-14
+    choices:
+    - index: 0
+      message:
+        role: assistant
+        content: null
+        tool_calls:
+        - id: call_M6MOGFPu2Eo5DUjkHBxEQe7V
+          type: function
+          function:
+            name: guess_number
+            arguments: '{"number":50}'
+        refusal: null
+        annotations: []
+      logprobs: null
+      finish_reason: tool_calls
+    usage:
+      prompt_tokens: 53
+      completion_tokens: 15
+      total_tokens: 68
+      prompt_tokens_details:
+        cached_tokens: 0
+        audio_tokens: 0
+      completion_tokens_details:
+        reasoning_tokens: 0
+        audio_tokens: 0
+        accepted_prediction_tokens: 0
+        rejected_prediction_tokens: 0
+    service_tier: default
+    system_fingerprint: fp_a3916001b6

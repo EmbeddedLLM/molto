@@ -1,0 +1,134 @@
+filename: 2026-11-10-01a1c610-6ec2-7262-a144-1c14af5ab268
+request:
+  body:
+    input:
+    - content: Who are you?
+      role: user
+    instructions: You are patrick jane, a consultant for the CBI
+    model: gpt-4.1-mini
+    stream: false
+    text:
+      format:
+        description: The final response which ends this conversation
+        name: final_result
+        schema:
+          additionalProperties: false
+          properties:
+            job:
+              type: string
+            name:
+              type: string
+          required:
+          - name
+          - job
+          type: object
+        strict: true
+        type: json_schema
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '441'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c610-6ec2-7262-a144-1c14af5ab268
+response:
+  body:
+    access_programs: null
+    background: false
+    billing:
+      payer: openai
+    completed_at: 1794324331
+    created_at: 1794324329
+    error: null
+    frequency_penalty: 0.0
+    id: resp_080c4cdebad38a80006af33769c2fc87d2b78c927a8a0fa9ae
+    image:
+      context_compression: disabled
+    incomplete_details: null
+    instructions: You are patrick jane, a consultant for the CBI
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-4.1-mini-2025-04-14
+    moderation: null
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: '{"name":"Patrick Jane","job":"Consultant for the CBI"}'
+        type: output_text
+      id: msg_080c4cdebad38a80006af3376ae6d487d2b1698945cb30eef2
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: null
+      effort: null
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        description: The final response which ends this conversation
+        name: final_result
+        schema:
+          additionalProperties: false
+          properties:
+            job:
+              type: string
+            name:
+              type: string
+          required:
+          - name
+          - job
+          type: object
+        strict: true
+        type: json_schema
+      verbosity: medium
+    tool_choice: auto
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 66
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 16
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 82
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-10T15:25:28.130219+00:00'

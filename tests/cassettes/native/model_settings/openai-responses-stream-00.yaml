@@ -1,0 +1,762 @@
+filename: 2026-11-10-01a1c610-a707-7f51-8597-8f739c549759
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    - code_interpreter_call.outputs
+    - web_search_call.action.sources
+    - message.output_text.logprobs
+    input:
+    - content: Who are you?
+      role: user
+    instructions: The user would like to know about the weather in Taiwan today.
+    max_output_tokens: 400
+    max_tool_calls: 1
+    model: gpt-5.1
+    parallel_tool_calls: true
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    safety_identifier: safety
+    service_tier: flex
+    store: false
+    stream: true
+    temperature: 0.45
+    tool_choice: required
+    tools:
+    - search_context_size: medium
+      type: web_search
+    - container:
+        type: auto
+      type: code_interpreter
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '719'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c610-a707-7f51-8597-8f739c549759
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_07572961a1f71903016af33777883c87d2a34bfd9124c52f54","object":"response","created_at":1794324343,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_07572961a1f71903016af33777883c87d2a34bfd9124c52f54","object":"response","created_at":1794324343,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","type":"web_search_call","status":"in_progress"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.in_progress
+
+    '
+  - 'data: {"type":"response.web_search_call.in_progress","item_id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.searching
+
+    '
+  - 'data: {"type":"response.web_search_call.searching","item_id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.completed
+
+    '
+  - 'data: {"type":"response.web_search_call.completed","item_id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+    Taiwan"],"query":"weather: Taiwan","sources":[{"type":"api","name":"oai-weather"}]}},"output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"I’m an
+    AI assistant created by Open","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[73],"logprob":-0.000041961669921875,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.000041961669921875,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.0000152587890625,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.0000152587890625,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.00579833984375,"token":"
+    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.00579833984375,"token":"
+    an"}]},{"bytes":[32,65,73],"logprob":3.814697265625e-6,"token":" AI","top_logprobs":[{"bytes":[32,65,73],"logprob":3.814697265625e-6,"token":"
+    AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.0000457763671875,"token":"
+    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.0000457763671875,"token":"
+    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000125885009765625,"token":"
+    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000125885009765625,"token":"
+    created"}]},{"bytes":[32,98,121],"logprob":-0.000019073486328125,"token":" by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.000019073486328125,"token":"
+    by"}]},{"bytes":[32,79,112,101,110],"logprob":0.000026702880859375,"token":" Open","top_logprobs":[{"bytes":[32,79,112,101,110],"logprob":0.000026702880859375,"token":"
+    Open"}]}],"obfuscation":"LXhnmSuBmOwyZ","output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"AI. I can
+    help you","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[65,73],"logprob":7.62939453125e-6,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":7.62939453125e-6,"token":"AI"}]},{"bytes":[46],"logprob":-0.01073455810546875,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.01073455810546875,"token":"."}]},{"bytes":[32,73],"logprob":-0.016590118408203125,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.016590118408203125,"token":"
+    I"}]},{"bytes":[32,99,97,110],"logprob":-0.01818084716796875,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.01818084716796875,"token":"
+    can"}]},{"bytes":[32,104,101,108,112],"logprob":-0.3308067321777344,"token":"
+    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.3308067321777344,"token":"
+    help"}]},{"bytes":[32,121,111,117],"logprob":-0.04571533203125,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.04571533203125,"token":"
+    you"}]}],"obfuscation":"DL0WvbTC9zIkAD","output_index":1,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" with information,
+    explanations, planning,","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,119,105,116,104],"logprob":-1.0907669067382812,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-1.0907669067382812,"token":"
+    with"}]},{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.15686798095703125,"token":"
+    information","top_logprobs":[{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.15686798095703125,"token":"
+    information"}]},{"bytes":[44],"logprob":-0.000019073486328125,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019073486328125,"token":","}]},{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.1200103759765625,"token":"
+    explanations","top_logprobs":[{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.1200103759765625,"token":"
+    explanations"}]},{"bytes":[44],"logprob":0.000030517578125,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.000030517578125,"token":","}]},{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.18396759033203125,"token":"
+    planning","top_logprobs":[{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.18396759033203125,"token":"
+    planning"}]},{"bytes":[44],"logprob":7.62939453125e-6,"token":",","top_logprobs":[{"bytes":[44],"logprob":7.62939453125e-6,"token":","}]}],"obfuscation":"wJTyW2","output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" writing,
+    coding","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.09838104248046875,"token":"
+    writing","top_logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.09838104248046875,"token":"
+    writing"}]},{"bytes":[44],"logprob":-0.000102996826171875,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000102996826171875,"token":","}]},{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592041015625,"token":"
+    coding","top_logprobs":[{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592041015625,"token":"
+    coding"}]}],"obfuscation":"","output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":", and more—basically
+    anything","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[44],"logprob":-0.0011444091796875,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0011444091796875,"token":","}]},{"bytes":[32,97,110,100],"logprob":-0.0019989013671875,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.0019989013671875,"token":"
+    and"}]},{"bytes":[32,109,111,114,101],"logprob":-0.0005950927734375,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.0005950927734375,"token":"
+    more"}]},{"bytes":[226,128,148],"logprob":-0.71087646484375,"token":"—","top_logprobs":[{"bytes":[226,128,148],"logprob":-0.71087646484375,"token":"—"}]},{"bytes":[98,97,115],"logprob":-0.0262603759765625,"token":"bas","top_logprobs":[{"bytes":[98,97,115],"logprob":-0.0262603759765625,"token":"bas"}]},{"bytes":[105,99,97,108,108,121],"logprob":7.62939453125e-6,"token":"ically","top_logprobs":[{"bytes":[105,99,97,108,108,121],"logprob":7.62939453125e-6,"token":"ically"}]},{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.0173492431640625,"token":"
+    anything","top_logprobs":[{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.0173492431640625,"token":"
+    anything"}]}],"obfuscation":"Coi","output_index":1,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" that can
+    be done with text","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,116,104,97,116],"logprob":-0.000164031982421875,"token":"
+    that","top_logprobs":[{"bytes":[32,116,104,97,116],"logprob":-0.000164031982421875,"token":"
+    that"}]},{"bytes":[32,99,97,110],"logprob":-0.1174774169921875,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.1174774169921875,"token":"
+    can"}]},{"bytes":[32,98,101],"logprob":0.000030517578125,"token":" be","top_logprobs":[{"bytes":[32,98,101],"logprob":0.000030517578125,"token":"
+    be"}]},{"bytes":[32,100,111,110,101],"logprob":-0.09627151489257812,"token":"
+    done","top_logprobs":[{"bytes":[32,100,111,110,101],"logprob":-0.09627151489257812,"token":"
+    done"}]},{"bytes":[32,119,105,116,104],"logprob":-0.00226593017578125,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.00226593017578125,"token":"
+    with"}]},{"bytes":[32,116,101,120,116],"logprob":-0.01371002197265625,"token":"
+    text","top_logprobs":[{"bytes":[32,116,101,120,116],"logprob":-0.01371002197265625,"token":"
+    text"}]}],"obfuscation":"qZL5x","output_index":1,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" and data.\n\n","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,97,110,100],"logprob":-0.5427474975585938,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.5427474975585938,"token":"
+    and"}]},{"bytes":[32,100,97,116,97],"logprob":-0.000705718994140625,"token":"
+    data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.000705718994140625,"token":"
+    data"}]},{"bytes":[46,10,10],"logprob":-0.036834716796875,"token":".\n\n","top_logprobs":[{"bytes":[46,10,10],"logprob":-0.036834716796875,"token":".\n\n"}]}],"obfuscation":"HswA","output_index":1,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"You (","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[89,111,117],"logprob":-0.06353378295898438,"token":"You","top_logprobs":[{"bytes":[89,111,117],"logprob":-0.06353378295898438,"token":"You"}]},{"bytes":[32,40],"logprob":-0.1965789794921875,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.1965789794921875,"token":" ("}]}],"obfuscation":"Wuoo1tBsdz5","output_index":1,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"through
+    the system message) also asked about","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[116,104,114,111,117,103,104],"logprob":-0.6614990234375,"token":"through","top_logprobs":[{"bytes":[116,104,114,111,117,103,104],"logprob":-0.6614990234375,"token":"through"}]},{"bytes":[32,116,104,101],"logprob":-0.15279388427734375,"token":"
+    the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.15279388427734375,"token":"
+    the"}]},{"bytes":[32,115,121,115,116,101,109],"logprob":-0.0533294677734375,"token":"
+    system","top_logprobs":[{"bytes":[32,115,121,115,116,101,109],"logprob":-0.0533294677734375,"token":"
+    system"}]},{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.2239532470703125,"token":"
+    message","top_logprobs":[{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.2239532470703125,"token":"
+    message"}]},{"bytes":[41],"logprob":0.0000152587890625,"token":")","top_logprobs":[{"bytes":[41],"logprob":0.0000152587890625,"token":")"}]},{"bytes":[32,97,108,115,111],"logprob":-0.000026702880859375,"token":"
+    also","top_logprobs":[{"bytes":[32,97,108,115,111],"logprob":-0.000026702880859375,"token":"
+    also"}]},{"bytes":[32,97,115,107,101,100],"logprob":-0.020050048828125,"token":"
+    asked","top_logprobs":[{"bytes":[32,97,115,107,101,100],"logprob":-0.020050048828125,"token":"
+    asked"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.000087738037109375,"token":"
+    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.000087738037109375,"token":"
+    about"}]}],"obfuscation":"RWnE","output_index":1,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the weather
+    in Taiwan today:","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,116,104,101],"logprob":-0.30023193359375,"token":"
+    the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.30023193359375,"token":"
+    the"}]},{"bytes":[32,119,101,97,116,104,101,114],"logprob":-7.62939453125e-6,"token":"
+    weather","top_logprobs":[{"bytes":[32,119,101,97,116,104,101,114],"logprob":-7.62939453125e-6,"token":"
+    weather"}]},{"bytes":[32,105,110],"logprob":0.0000152587890625,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":0.0000152587890625,"token":"
+    in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":-7.62939453125e-6,"token":"
+    Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":-7.62939453125e-6,"token":"
+    Taiwan"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.00002288818359375,"token":"
+    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.00002288818359375,"token":"
+    today"}]},{"bytes":[58],"logprob":-1.030853271484375,"token":":","top_logprobs":[{"bytes":[58],"logprob":-1.030853271484375,"token":":"}]}],"obfuscation":"pDN","output_index":1,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" it’s currently
+    cloudy and cool","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,105,116],"logprob":-0.0844268798828125,"token":"
+    it","top_logprobs":[{"bytes":[32,105,116],"logprob":-0.0844268798828125,"token":"
+    it"}]},{"bytes":[226,128,153,115],"logprob":-0.000072479248046875,"token":"’s","top_logprobs":[{"bytes":[226,128,153,115],"logprob":-0.000072479248046875,"token":"’s"}]},{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951446533203125,"token":"
+    currently","top_logprobs":[{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951446533203125,"token":"
+    currently"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":-0.6937026977539062,"token":"
+    cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":-0.6937026977539062,"token":"
+    cloudy"}]},{"bytes":[32,97,110,100],"logprob":-0.20413970947265625,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.20413970947265625,"token":"
+    and"}]},{"bytes":[32,99,111,111,108],"logprob":-0.023578643798828125,"token":"
+    cool","top_logprobs":[{"bytes":[32,99,111,111,108],"logprob":-0.023578643798828125,"token":"
+    cool"}]}],"obfuscation":"r","output_index":1,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":", around
+    60°F (","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[44],"logprob":-0.00141143798828125,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.00141143798828125,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448272705078125,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448272705078125,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.00006103515625,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00006103515625,"token":"
+    "}]},{"bytes":[54,48],"logprob":-0.000026702880859375,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.000026702880859375,"token":"60"}]},{"bytes":[194,176,70],"logprob":-0.000011444091796875,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-0.000011444091796875,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000034332275390625,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000034332275390625,"token":"
+    ("}]}],"obfuscation":"O","output_index":1,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"16°C),
+    with skies","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[49,54],"logprob":-0.000823974609375,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000823974609375,"token":"16"}]},{"bytes":[194,176,67],"logprob":-3.814697265625e-6,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":-3.814697265625e-6,"token":"°C"}]},{"bytes":[41,44],"logprob":-0.009288787841796875,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.009288787841796875,"token":"),"}]},{"bytes":[32,119,105,116,104],"logprob":-0.00608062744140625,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.00608062744140625,"token":"
+    with"}]},{"bytes":[32,115,107,105,101,115],"logprob":-0.06659698486328125,"token":"
+    skies","top_logprobs":[{"bytes":[32,115,107,105,101,115],"logprob":-0.06659698486328125,"token":"
+    skies"}]}],"obfuscation":"hVESgPplfXBZu6L","output_index":1,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" becoming
+    mostly sunny","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.3173675537109375,"token":"
+    becoming","top_logprobs":[{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.3173675537109375,"token":"
+    becoming"}]},{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353118896484375,"token":"
+    mostly","top_logprobs":[{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353118896484375,"token":"
+    mostly"}]},{"bytes":[32,115,117,110,110,121],"logprob":0.000019073486328125,"token":"
+    sunny","top_logprobs":[{"bytes":[32,115,117,110,110,121],"logprob":0.000019073486328125,"token":"
+    sunny"}]}],"obfuscation":"pUvi2ZwPb8","output_index":1,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" later
+    in the morning and","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,108,97,116,101,114],"logprob":-0.3689689636230469,"token":"
+    later","top_logprobs":[{"bytes":[32,108,97,116,101,114],"logprob":-0.3689689636230469,"token":"
+    later"}]},{"bytes":[32,105,110],"logprob":-0.00292205810546875,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.00292205810546875,"token":"
+    in"}]},{"bytes":[32,116,104,101],"logprob":-0.000026702880859375,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.000026702880859375,"token":"
+    the"}]},{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.00005340576171875,"token":"
+    morning","top_logprobs":[{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.00005340576171875,"token":"
+    morning"}]},{"bytes":[32,97,110,100],"logprob":-0.020168304443359375,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.020168304443359375,"token":"
+    and"}]}],"obfuscation":"UrWol57","output_index":1,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" temperatures
+    rising","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.00911712646484375,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.00911712646484375,"token":"
+    temperatures"}]},{"bytes":[32,114,105,115,105,110,103],"logprob":-0.00446319580078125,"token":"
+    rising","top_logprobs":[{"bytes":[32,114,105,115,105,110,103],"logprob":-0.00446319580078125,"token":"
+    rising"}]}],"obfuscation":"kw1kR5djm33A","output_index":1,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" to about
+    69°F (","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[32,116,111],"logprob":-0.016582489013671875,"token":"
+    to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.016582489013671875,"token":"
+    to"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.21335220336914062,"token":"
+    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.21335220336914062,"token":"
+    about"}]},{"bytes":[32],"logprob":-0.00214385986328125,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00214385986328125,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0000457763671875,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0000457763671875,"token":"69"}]},{"bytes":[194,176,70],"logprob":0.000019073486328125,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.000019073486328125,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000026702880859375,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000026702880859375,"token":"
+    ("}]}],"obfuscation":"","output_index":1,"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"21°C).","item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[50,49],"logprob":-0.000026702880859375,"token":"21","top_logprobs":[{"bytes":[50,49],"logprob":-0.000026702880859375,"token":"21"}]},{"bytes":[194,176,67],"logprob":0.0000152587890625,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0000152587890625,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.00542449951171875,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.00542449951171875,"token":")."}]}],"obfuscation":"jFLc0ckbTX","output_index":1,"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","logprobs":[{"bytes":[73],"logprob":-0.000041961669921875,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.000041961669921875,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.0000152587890625,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.0000152587890625,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.00579833984375,"token":"
+    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.00579833984375,"token":"
+    an"}]},{"bytes":[32,65,73],"logprob":3.814697265625e-6,"token":" AI","top_logprobs":[{"bytes":[32,65,73],"logprob":3.814697265625e-6,"token":"
+    AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.0000457763671875,"token":"
+    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.0000457763671875,"token":"
+    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000125885009765625,"token":"
+    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000125885009765625,"token":"
+    created"}]},{"bytes":[32,98,121],"logprob":-0.000019073486328125,"token":" by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.000019073486328125,"token":"
+    by"}]},{"bytes":[32,79,112,101,110],"logprob":0.000026702880859375,"token":" Open","top_logprobs":[{"bytes":[32,79,112,101,110],"logprob":0.000026702880859375,"token":"
+    Open"}]},{"bytes":[65,73],"logprob":7.62939453125e-6,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":7.62939453125e-6,"token":"AI"}]},{"bytes":[46],"logprob":-0.01073455810546875,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.01073455810546875,"token":"."}]},{"bytes":[32,73],"logprob":-0.016590118408203125,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.016590118408203125,"token":"
+    I"}]},{"bytes":[32,99,97,110],"logprob":-0.01818084716796875,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.01818084716796875,"token":"
+    can"}]},{"bytes":[32,104,101,108,112],"logprob":-0.3308067321777344,"token":"
+    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.3308067321777344,"token":"
+    help"}]},{"bytes":[32,121,111,117],"logprob":-0.04571533203125,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.04571533203125,"token":"
+    you"}]},{"bytes":[32,119,105,116,104],"logprob":-1.0907669067382812,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-1.0907669067382812,"token":"
+    with"}]},{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.15686798095703125,"token":"
+    information","top_logprobs":[{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.15686798095703125,"token":"
+    information"}]},{"bytes":[44],"logprob":-0.000019073486328125,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019073486328125,"token":","}]},{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.1200103759765625,"token":"
+    explanations","top_logprobs":[{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.1200103759765625,"token":"
+    explanations"}]},{"bytes":[44],"logprob":0.000030517578125,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.000030517578125,"token":","}]},{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.18396759033203125,"token":"
+    planning","top_logprobs":[{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.18396759033203125,"token":"
+    planning"}]},{"bytes":[44],"logprob":7.62939453125e-6,"token":",","top_logprobs":[{"bytes":[44],"logprob":7.62939453125e-6,"token":","}]},{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.09838104248046875,"token":"
+    writing","top_logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.09838104248046875,"token":"
+    writing"}]},{"bytes":[44],"logprob":-0.000102996826171875,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000102996826171875,"token":","}]},{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592041015625,"token":"
+    coding","top_logprobs":[{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592041015625,"token":"
+    coding"}]},{"bytes":[44],"logprob":-0.0011444091796875,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.0011444091796875,"token":","}]},{"bytes":[32,97,110,100],"logprob":-0.0019989013671875,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.0019989013671875,"token":"
+    and"}]},{"bytes":[32,109,111,114,101],"logprob":-0.0005950927734375,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.0005950927734375,"token":"
+    more"}]},{"bytes":[226,128,148],"logprob":-0.71087646484375,"token":"—","top_logprobs":[{"bytes":[226,128,148],"logprob":-0.71087646484375,"token":"—"}]},{"bytes":[98,97,115],"logprob":-0.0262603759765625,"token":"bas","top_logprobs":[{"bytes":[98,97,115],"logprob":-0.0262603759765625,"token":"bas"}]},{"bytes":[105,99,97,108,108,121],"logprob":7.62939453125e-6,"token":"ically","top_logprobs":[{"bytes":[105,99,97,108,108,121],"logprob":7.62939453125e-6,"token":"ically"}]},{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.0173492431640625,"token":"
+    anything","top_logprobs":[{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.0173492431640625,"token":"
+    anything"}]},{"bytes":[32,116,104,97,116],"logprob":-0.000164031982421875,"token":"
+    that","top_logprobs":[{"bytes":[32,116,104,97,116],"logprob":-0.000164031982421875,"token":"
+    that"}]},{"bytes":[32,99,97,110],"logprob":-0.1174774169921875,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.1174774169921875,"token":"
+    can"}]},{"bytes":[32,98,101],"logprob":0.000030517578125,"token":" be","top_logprobs":[{"bytes":[32,98,101],"logprob":0.000030517578125,"token":"
+    be"}]},{"bytes":[32,100,111,110,101],"logprob":-0.09627151489257812,"token":"
+    done","top_logprobs":[{"bytes":[32,100,111,110,101],"logprob":-0.09627151489257812,"token":"
+    done"}]},{"bytes":[32,119,105,116,104],"logprob":-0.00226593017578125,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.00226593017578125,"token":"
+    with"}]},{"bytes":[32,116,101,120,116],"logprob":-0.01371002197265625,"token":"
+    text","top_logprobs":[{"bytes":[32,116,101,120,116],"logprob":-0.01371002197265625,"token":"
+    text"}]},{"bytes":[32,97,110,100],"logprob":-0.5427474975585938,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.5427474975585938,"token":"
+    and"}]},{"bytes":[32,100,97,116,97],"logprob":-0.000705718994140625,"token":"
+    data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.000705718994140625,"token":"
+    data"}]},{"bytes":[46,10,10],"logprob":-0.036834716796875,"token":".\n\n","top_logprobs":[{"bytes":[46,10,10],"logprob":-0.036834716796875,"token":".\n\n"}]},{"bytes":[89,111,117],"logprob":-0.06353378295898438,"token":"You","top_logprobs":[{"bytes":[89,111,117],"logprob":-0.06353378295898438,"token":"You"}]},{"bytes":[32,40],"logprob":-0.1965789794921875,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.1965789794921875,"token":" ("}]},{"bytes":[116,104,114,111,117,103,104],"logprob":-0.6614990234375,"token":"through","top_logprobs":[{"bytes":[116,104,114,111,117,103,104],"logprob":-0.6614990234375,"token":"through"}]},{"bytes":[32,116,104,101],"logprob":-0.15279388427734375,"token":"
+    the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.15279388427734375,"token":"
+    the"}]},{"bytes":[32,115,121,115,116,101,109],"logprob":-0.0533294677734375,"token":"
+    system","top_logprobs":[{"bytes":[32,115,121,115,116,101,109],"logprob":-0.0533294677734375,"token":"
+    system"}]},{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.2239532470703125,"token":"
+    message","top_logprobs":[{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.2239532470703125,"token":"
+    message"}]},{"bytes":[41],"logprob":0.0000152587890625,"token":")","top_logprobs":[{"bytes":[41],"logprob":0.0000152587890625,"token":")"}]},{"bytes":[32,97,108,115,111],"logprob":-0.000026702880859375,"token":"
+    also","top_logprobs":[{"bytes":[32,97,108,115,111],"logprob":-0.000026702880859375,"token":"
+    also"}]},{"bytes":[32,97,115,107,101,100],"logprob":-0.020050048828125,"token":"
+    asked","top_logprobs":[{"bytes":[32,97,115,107,101,100],"logprob":-0.020050048828125,"token":"
+    asked"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.000087738037109375,"token":"
+    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.000087738037109375,"token":"
+    about"}]},{"bytes":[32,116,104,101],"logprob":-0.30023193359375,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.30023193359375,"token":"
+    the"}]},{"bytes":[32,119,101,97,116,104,101,114],"logprob":-7.62939453125e-6,"token":"
+    weather","top_logprobs":[{"bytes":[32,119,101,97,116,104,101,114],"logprob":-7.62939453125e-6,"token":"
+    weather"}]},{"bytes":[32,105,110],"logprob":0.0000152587890625,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":0.0000152587890625,"token":"
+    in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":-7.62939453125e-6,"token":"
+    Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":-7.62939453125e-6,"token":"
+    Taiwan"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.00002288818359375,"token":"
+    today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.00002288818359375,"token":"
+    today"}]},{"bytes":[58],"logprob":-1.030853271484375,"token":":","top_logprobs":[{"bytes":[58],"logprob":-1.030853271484375,"token":":"}]},{"bytes":[32,105,116],"logprob":-0.0844268798828125,"token":"
+    it","top_logprobs":[{"bytes":[32,105,116],"logprob":-0.0844268798828125,"token":"
+    it"}]},{"bytes":[226,128,153,115],"logprob":-0.000072479248046875,"token":"’s","top_logprobs":[{"bytes":[226,128,153,115],"logprob":-0.000072479248046875,"token":"’s"}]},{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951446533203125,"token":"
+    currently","top_logprobs":[{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951446533203125,"token":"
+    currently"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":-0.6937026977539062,"token":"
+    cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":-0.6937026977539062,"token":"
+    cloudy"}]},{"bytes":[32,97,110,100],"logprob":-0.20413970947265625,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.20413970947265625,"token":"
+    and"}]},{"bytes":[32,99,111,111,108],"logprob":-0.023578643798828125,"token":"
+    cool","top_logprobs":[{"bytes":[32,99,111,111,108],"logprob":-0.023578643798828125,"token":"
+    cool"}]},{"bytes":[44],"logprob":-0.00141143798828125,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.00141143798828125,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448272705078125,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448272705078125,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.00006103515625,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00006103515625,"token":"
+    "}]},{"bytes":[54,48],"logprob":-0.000026702880859375,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.000026702880859375,"token":"60"}]},{"bytes":[194,176,70],"logprob":-0.000011444091796875,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-0.000011444091796875,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000034332275390625,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000034332275390625,"token":"
+    ("}]},{"bytes":[49,54],"logprob":-0.000823974609375,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000823974609375,"token":"16"}]},{"bytes":[194,176,67],"logprob":-3.814697265625e-6,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":-3.814697265625e-6,"token":"°C"}]},{"bytes":[41,44],"logprob":-0.009288787841796875,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.009288787841796875,"token":"),"}]},{"bytes":[32,119,105,116,104],"logprob":-0.00608062744140625,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.00608062744140625,"token":"
+    with"}]},{"bytes":[32,115,107,105,101,115],"logprob":-0.06659698486328125,"token":"
+    skies","top_logprobs":[{"bytes":[32,115,107,105,101,115],"logprob":-0.06659698486328125,"token":"
+    skies"}]},{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.3173675537109375,"token":"
+    becoming","top_logprobs":[{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.3173675537109375,"token":"
+    becoming"}]},{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353118896484375,"token":"
+    mostly","top_logprobs":[{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353118896484375,"token":"
+    mostly"}]},{"bytes":[32,115,117,110,110,121],"logprob":0.000019073486328125,"token":"
+    sunny","top_logprobs":[{"bytes":[32,115,117,110,110,121],"logprob":0.000019073486328125,"token":"
+    sunny"}]},{"bytes":[32,108,97,116,101,114],"logprob":-0.3689689636230469,"token":"
+    later","top_logprobs":[{"bytes":[32,108,97,116,101,114],"logprob":-0.3689689636230469,"token":"
+    later"}]},{"bytes":[32,105,110],"logprob":-0.00292205810546875,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.00292205810546875,"token":"
+    in"}]},{"bytes":[32,116,104,101],"logprob":-0.000026702880859375,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.000026702880859375,"token":"
+    the"}]},{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.00005340576171875,"token":"
+    morning","top_logprobs":[{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.00005340576171875,"token":"
+    morning"}]},{"bytes":[32,97,110,100],"logprob":-0.020168304443359375,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.020168304443359375,"token":"
+    and"}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.00911712646484375,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.00911712646484375,"token":"
+    temperatures"}]},{"bytes":[32,114,105,115,105,110,103],"logprob":-0.00446319580078125,"token":"
+    rising","top_logprobs":[{"bytes":[32,114,105,115,105,110,103],"logprob":-0.00446319580078125,"token":"
+    rising"}]},{"bytes":[32,116,111],"logprob":-0.016582489013671875,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.016582489013671875,"token":"
+    to"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.21335220336914062,"token":"
+    about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.21335220336914062,"token":"
+    about"}]},{"bytes":[32],"logprob":-0.00214385986328125,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.00214385986328125,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.0000457763671875,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.0000457763671875,"token":"69"}]},{"bytes":[194,176,70],"logprob":0.000019073486328125,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.000019073486328125,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000026702880859375,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000026702880859375,"token":"
+    ("}]},{"bytes":[50,49],"logprob":-0.000026702880859375,"token":"21","top_logprobs":[{"bytes":[50,49],"logprob":-0.000026702880859375,"token":"21"}]},{"bytes":[194,176,67],"logprob":0.0000152587890625,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.0000152587890625,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.00542449951171875,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.00542449951171875,"token":")."}]}],"output_index":1,"sequence_number":27,"text":"I’m
+    an AI assistant created by OpenAI. I can help you with information, explanations,
+    planning, writing, coding, and more—basically anything that can be done with text
+    and data.\n\nYou (through the system message) also asked about the weather in
+    Taiwan today: it’s currently cloudy and cool, around 60°F (16°C), with skies becoming
+    mostly sunny later in the morning and temperatures rising to about 69°F (21°C)."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"I’m
+    an AI assistant created by OpenAI. I can help you with information, explanations,
+    planning, writing, coding, and more—basically anything that can be done with text
+    and data.\n\nYou (through the system message) also asked about the weather in
+    Taiwan today: it’s currently cloudy and cool, around 60°F (16°C), with skies becoming
+    mostly sunny later in the morning and temperatures rising to about 69°F (21°C)."},"sequence_number":28}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[73],"logprob":-0.000042,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.000042,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.000015,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.000015,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.005798,"token":"
+    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.005798,"token":" an"}]},{"bytes":[32,65,73],"logprob":4e-6,"token":"
+    AI","top_logprobs":[{"bytes":[32,65,73],"logprob":4e-6,"token":" AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.000046,"token":"
+    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.000046,"token":"
+    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000126,"token":"
+    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000126,"token":"
+    created"}]},{"bytes":[32,98,121],"logprob":-0.000019,"token":" by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.000019,"token":"
+    by"}]},{"bytes":[32,79,112,101,110],"logprob":0.000027,"token":" Open","top_logprobs":[{"bytes":[32,79,112,101,110],"logprob":0.000027,"token":"
+    Open"}]},{"bytes":[65,73],"logprob":8e-6,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":8e-6,"token":"AI"}]},{"bytes":[46],"logprob":-0.010735,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.010735,"token":"."}]},{"bytes":[32,73],"logprob":-0.01659,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.01659,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-0.018181,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.018181,"token":" can"}]},{"bytes":[32,104,101,108,112],"logprob":-0.330807,"token":"
+    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.330807,"token":"
+    help"}]},{"bytes":[32,121,111,117],"logprob":-0.045715,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.045715,"token":"
+    you"}]},{"bytes":[32,119,105,116,104],"logprob":-1.090767,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-1.090767,"token":"
+    with"}]},{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.156868,"token":"
+    information","top_logprobs":[{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.156868,"token":"
+    information"}]},{"bytes":[44],"logprob":-0.000019,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019,"token":","}]},{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.12001,"token":"
+    explanations","top_logprobs":[{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.12001,"token":"
+    explanations"}]},{"bytes":[44],"logprob":0.000031,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.000031,"token":","}]},{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.183968,"token":"
+    planning","top_logprobs":[{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.183968,"token":"
+    planning"}]},{"bytes":[44],"logprob":8e-6,"token":",","top_logprobs":[{"bytes":[44],"logprob":8e-6,"token":","}]},{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.098381,"token":"
+    writing","top_logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.098381,"token":"
+    writing"}]},{"bytes":[44],"logprob":-0.000103,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000103,"token":","}]},{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592,"token":"
+    coding","top_logprobs":[{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592,"token":"
+    coding"}]},{"bytes":[44],"logprob":-0.001144,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.001144,"token":","}]},{"bytes":[32,97,110,100],"logprob":-0.001999,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.001999,"token":" and"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000595,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000595,"token":"
+    more"}]},{"bytes":[226,128,148],"logprob":-0.710876,"token":"—","top_logprobs":[{"bytes":[226,128,148],"logprob":-0.710876,"token":"—"}]},{"bytes":[98,97,115],"logprob":-0.02626,"token":"bas","top_logprobs":[{"bytes":[98,97,115],"logprob":-0.02626,"token":"bas"}]},{"bytes":[105,99,97,108,108,121],"logprob":8e-6,"token":"ically","top_logprobs":[{"bytes":[105,99,97,108,108,121],"logprob":8e-6,"token":"ically"}]},{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.017349,"token":"
+    anything","top_logprobs":[{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.017349,"token":"
+    anything"}]},{"bytes":[32,116,104,97,116],"logprob":-0.000164,"token":" that","top_logprobs":[{"bytes":[32,116,104,97,116],"logprob":-0.000164,"token":"
+    that"}]},{"bytes":[32,99,97,110],"logprob":-0.117477,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.117477,"token":"
+    can"}]},{"bytes":[32,98,101],"logprob":0.000031,"token":" be","top_logprobs":[{"bytes":[32,98,101],"logprob":0.000031,"token":"
+    be"}]},{"bytes":[32,100,111,110,101],"logprob":-0.096272,"token":" done","top_logprobs":[{"bytes":[32,100,111,110,101],"logprob":-0.096272,"token":"
+    done"}]},{"bytes":[32,119,105,116,104],"logprob":-0.002266,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.002266,"token":"
+    with"}]},{"bytes":[32,116,101,120,116],"logprob":-0.01371,"token":" text","top_logprobs":[{"bytes":[32,116,101,120,116],"logprob":-0.01371,"token":"
+    text"}]},{"bytes":[32,97,110,100],"logprob":-0.542747,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.542747,"token":"
+    and"}]},{"bytes":[32,100,97,116,97],"logprob":-0.000706,"token":" data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.000706,"token":"
+    data"}]},{"bytes":[46,10,10],"logprob":-0.036835,"token":".\n\n","top_logprobs":[{"bytes":[46,10,10],"logprob":-0.036835,"token":".\n\n"}]},{"bytes":[89,111,117],"logprob":-0.063534,"token":"You","top_logprobs":[{"bytes":[89,111,117],"logprob":-0.063534,"token":"You"}]},{"bytes":[32,40],"logprob":-0.196579,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.196579,"token":" ("}]},{"bytes":[116,104,114,111,117,103,104],"logprob":-0.661499,"token":"through","top_logprobs":[{"bytes":[116,104,114,111,117,103,104],"logprob":-0.661499,"token":"through"}]},{"bytes":[32,116,104,101],"logprob":-0.152794,"token":"
+    the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.152794,"token":" the"}]},{"bytes":[32,115,121,115,116,101,109],"logprob":-0.053329,"token":"
+    system","top_logprobs":[{"bytes":[32,115,121,115,116,101,109],"logprob":-0.053329,"token":"
+    system"}]},{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.223953,"token":"
+    message","top_logprobs":[{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.223953,"token":"
+    message"}]},{"bytes":[41],"logprob":0.000015,"token":")","top_logprobs":[{"bytes":[41],"logprob":0.000015,"token":")"}]},{"bytes":[32,97,108,115,111],"logprob":-0.000027,"token":"
+    also","top_logprobs":[{"bytes":[32,97,108,115,111],"logprob":-0.000027,"token":"
+    also"}]},{"bytes":[32,97,115,107,101,100],"logprob":-0.02005,"token":" asked","top_logprobs":[{"bytes":[32,97,115,107,101,100],"logprob":-0.02005,"token":"
+    asked"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.000088,"token":" about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.000088,"token":"
+    about"}]},{"bytes":[32,116,104,101],"logprob":-0.300232,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.300232,"token":"
+    the"}]},{"bytes":[32,119,101,97,116,104,101,114],"logprob":-8e-6,"token":" weather","top_logprobs":[{"bytes":[32,119,101,97,116,104,101,114],"logprob":-8e-6,"token":"
+    weather"}]},{"bytes":[32,105,110],"logprob":0.000015,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":0.000015,"token":"
+    in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":-8e-6,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":-8e-6,"token":"
+    Taiwan"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.000023,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.000023,"token":"
+    today"}]},{"bytes":[58],"logprob":-1.030853,"token":":","top_logprobs":[{"bytes":[58],"logprob":-1.030853,"token":":"}]},{"bytes":[32,105,116],"logprob":-0.084427,"token":"
+    it","top_logprobs":[{"bytes":[32,105,116],"logprob":-0.084427,"token":" it"}]},{"bytes":[226,128,153,115],"logprob":-0.000072,"token":"’s","top_logprobs":[{"bytes":[226,128,153,115],"logprob":-0.000072,"token":"’s"}]},{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951,"token":"
+    currently","top_logprobs":[{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951,"token":"
+    currently"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":-0.693703,"token":"
+    cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":-0.693703,"token":"
+    cloudy"}]},{"bytes":[32,97,110,100],"logprob":-0.20414,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.20414,"token":"
+    and"}]},{"bytes":[32,99,111,111,108],"logprob":-0.023579,"token":" cool","top_logprobs":[{"bytes":[32,99,111,111,108],"logprob":-0.023579,"token":"
+    cool"}]},{"bytes":[44],"logprob":-0.001411,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.001411,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000061,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000061,"token":"
+    "}]},{"bytes":[54,48],"logprob":-0.000027,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.000027,"token":"60"}]},{"bytes":[194,176,70],"logprob":-0.000011,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-0.000011,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000034,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000034,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000824,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000824,"token":"16"}]},{"bytes":[194,176,67],"logprob":-4e-6,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":-4e-6,"token":"°C"}]},{"bytes":[41,44],"logprob":-0.009289,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.009289,"token":"),"}]},{"bytes":[32,119,105,116,104],"logprob":-0.006081,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.006081,"token":"
+    with"}]},{"bytes":[32,115,107,105,101,115],"logprob":-0.066597,"token":" skies","top_logprobs":[{"bytes":[32,115,107,105,101,115],"logprob":-0.066597,"token":"
+    skies"}]},{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.317368,"token":"
+    becoming","top_logprobs":[{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.317368,"token":"
+    becoming"}]},{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353,"token":"
+    mostly","top_logprobs":[{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353,"token":"
+    mostly"}]},{"bytes":[32,115,117,110,110,121],"logprob":0.000019,"token":" sunny","top_logprobs":[{"bytes":[32,115,117,110,110,121],"logprob":0.000019,"token":"
+    sunny"}]},{"bytes":[32,108,97,116,101,114],"logprob":-0.368969,"token":" later","top_logprobs":[{"bytes":[32,108,97,116,101,114],"logprob":-0.368969,"token":"
+    later"}]},{"bytes":[32,105,110],"logprob":-0.002922,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.002922,"token":"
+    in"}]},{"bytes":[32,116,104,101],"logprob":-0.000027,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.000027,"token":"
+    the"}]},{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.000053,"token":"
+    morning","top_logprobs":[{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.000053,"token":"
+    morning"}]},{"bytes":[32,97,110,100],"logprob":-0.020168,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.020168,"token":"
+    and"}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.009117,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.009117,"token":"
+    temperatures"}]},{"bytes":[32,114,105,115,105,110,103],"logprob":-0.004463,"token":"
+    rising","top_logprobs":[{"bytes":[32,114,105,115,105,110,103],"logprob":-0.004463,"token":"
+    rising"}]},{"bytes":[32,116,111],"logprob":-0.016582,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.016582,"token":"
+    to"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.213352,"token":" about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.213352,"token":"
+    about"}]},{"bytes":[32],"logprob":-0.002144,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.002144,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.000046,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.000046,"token":"69"}]},{"bytes":[194,176,70],"logprob":0.000019,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.000019,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000027,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000027,"token":" ("}]},{"bytes":[50,49],"logprob":-0.000027,"token":"21","top_logprobs":[{"bytes":[50,49],"logprob":-0.000027,"token":"21"}]},{"bytes":[194,176,67],"logprob":0.000015,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.000015,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.005424,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.005424,"token":")."}]}],"text":"I’m
+    an AI assistant created by OpenAI. I can help you with information, explanations,
+    planning, writing, coding, and more—basically anything that can be done with text
+    and data.\n\nYou (through the system message) also asked about the weather in
+    Taiwan today: it’s currently cloudy and cool, around 60°F (16°C), with skies becoming
+    mostly sunny later in the morning and temperatures rising to about 69°F (21°C)."}],"role":"assistant"},"output_index":1,"sequence_number":29}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_07572961a1f71903016af33777883c87d2a34bfd9124c52f54","object":"response","created_at":1794324343,"status":"completed","access_programs":null,"background":false,"completed_at":1794324347,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"The
+    user would like to know about the weather in Taiwan today.","max_output_tokens":400,"max_tool_calls":1,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[{"id":"ws_07572961a1f71903016af33779060887d2a0b25649bb10d89e","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+    Taiwan"],"query":"weather: Taiwan","sources":[{"type":"api","name":"oai-weather"}]}},{"id":"msg_07572961a1f71903016af33779e3fc87d292f7f8b111c30e0f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[{"bytes":[73],"logprob":-0.000042,"token":"I","top_logprobs":[{"bytes":[73],"logprob":-0.000042,"token":"I"}]},{"bytes":[226,128,153,109],"logprob":0.000015,"token":"’m","top_logprobs":[{"bytes":[226,128,153,109],"logprob":0.000015,"token":"’m"}]},{"bytes":[32,97,110],"logprob":-0.005798,"token":"
+    an","top_logprobs":[{"bytes":[32,97,110],"logprob":-0.005798,"token":" an"}]},{"bytes":[32,65,73],"logprob":4e-6,"token":"
+    AI","top_logprobs":[{"bytes":[32,65,73],"logprob":4e-6,"token":" AI"}]},{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.000046,"token":"
+    assistant","top_logprobs":[{"bytes":[32,97,115,115,105,115,116,97,110,116],"logprob":-0.000046,"token":"
+    assistant"}]},{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000126,"token":"
+    created","top_logprobs":[{"bytes":[32,99,114,101,97,116,101,100],"logprob":-0.000126,"token":"
+    created"}]},{"bytes":[32,98,121],"logprob":-0.000019,"token":" by","top_logprobs":[{"bytes":[32,98,121],"logprob":-0.000019,"token":"
+    by"}]},{"bytes":[32,79,112,101,110],"logprob":0.000027,"token":" Open","top_logprobs":[{"bytes":[32,79,112,101,110],"logprob":0.000027,"token":"
+    Open"}]},{"bytes":[65,73],"logprob":8e-6,"token":"AI","top_logprobs":[{"bytes":[65,73],"logprob":8e-6,"token":"AI"}]},{"bytes":[46],"logprob":-0.010735,"token":".","top_logprobs":[{"bytes":[46],"logprob":-0.010735,"token":"."}]},{"bytes":[32,73],"logprob":-0.01659,"token":"
+    I","top_logprobs":[{"bytes":[32,73],"logprob":-0.01659,"token":" I"}]},{"bytes":[32,99,97,110],"logprob":-0.018181,"token":"
+    can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.018181,"token":" can"}]},{"bytes":[32,104,101,108,112],"logprob":-0.330807,"token":"
+    help","top_logprobs":[{"bytes":[32,104,101,108,112],"logprob":-0.330807,"token":"
+    help"}]},{"bytes":[32,121,111,117],"logprob":-0.045715,"token":" you","top_logprobs":[{"bytes":[32,121,111,117],"logprob":-0.045715,"token":"
+    you"}]},{"bytes":[32,119,105,116,104],"logprob":-1.090767,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-1.090767,"token":"
+    with"}]},{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.156868,"token":"
+    information","top_logprobs":[{"bytes":[32,105,110,102,111,114,109,97,116,105,111,110],"logprob":-0.156868,"token":"
+    information"}]},{"bytes":[44],"logprob":-0.000019,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000019,"token":","}]},{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.12001,"token":"
+    explanations","top_logprobs":[{"bytes":[32,101,120,112,108,97,110,97,116,105,111,110,115],"logprob":-0.12001,"token":"
+    explanations"}]},{"bytes":[44],"logprob":0.000031,"token":",","top_logprobs":[{"bytes":[44],"logprob":0.000031,"token":","}]},{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.183968,"token":"
+    planning","top_logprobs":[{"bytes":[32,112,108,97,110,110,105,110,103],"logprob":-0.183968,"token":"
+    planning"}]},{"bytes":[44],"logprob":8e-6,"token":",","top_logprobs":[{"bytes":[44],"logprob":8e-6,"token":","}]},{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.098381,"token":"
+    writing","top_logprobs":[{"bytes":[32,119,114,105,116,105,110,103],"logprob":-0.098381,"token":"
+    writing"}]},{"bytes":[44],"logprob":-0.000103,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.000103,"token":","}]},{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592,"token":"
+    coding","top_logprobs":[{"bytes":[32,99,111,100,105,110,103],"logprob":-0.700592,"token":"
+    coding"}]},{"bytes":[44],"logprob":-0.001144,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.001144,"token":","}]},{"bytes":[32,97,110,100],"logprob":-0.001999,"token":"
+    and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.001999,"token":" and"}]},{"bytes":[32,109,111,114,101],"logprob":-0.000595,"token":"
+    more","top_logprobs":[{"bytes":[32,109,111,114,101],"logprob":-0.000595,"token":"
+    more"}]},{"bytes":[226,128,148],"logprob":-0.710876,"token":"—","top_logprobs":[{"bytes":[226,128,148],"logprob":-0.710876,"token":"—"}]},{"bytes":[98,97,115],"logprob":-0.02626,"token":"bas","top_logprobs":[{"bytes":[98,97,115],"logprob":-0.02626,"token":"bas"}]},{"bytes":[105,99,97,108,108,121],"logprob":8e-6,"token":"ically","top_logprobs":[{"bytes":[105,99,97,108,108,121],"logprob":8e-6,"token":"ically"}]},{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.017349,"token":"
+    anything","top_logprobs":[{"bytes":[32,97,110,121,116,104,105,110,103],"logprob":-0.017349,"token":"
+    anything"}]},{"bytes":[32,116,104,97,116],"logprob":-0.000164,"token":" that","top_logprobs":[{"bytes":[32,116,104,97,116],"logprob":-0.000164,"token":"
+    that"}]},{"bytes":[32,99,97,110],"logprob":-0.117477,"token":" can","top_logprobs":[{"bytes":[32,99,97,110],"logprob":-0.117477,"token":"
+    can"}]},{"bytes":[32,98,101],"logprob":0.000031,"token":" be","top_logprobs":[{"bytes":[32,98,101],"logprob":0.000031,"token":"
+    be"}]},{"bytes":[32,100,111,110,101],"logprob":-0.096272,"token":" done","top_logprobs":[{"bytes":[32,100,111,110,101],"logprob":-0.096272,"token":"
+    done"}]},{"bytes":[32,119,105,116,104],"logprob":-0.002266,"token":" with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.002266,"token":"
+    with"}]},{"bytes":[32,116,101,120,116],"logprob":-0.01371,"token":" text","top_logprobs":[{"bytes":[32,116,101,120,116],"logprob":-0.01371,"token":"
+    text"}]},{"bytes":[32,97,110,100],"logprob":-0.542747,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.542747,"token":"
+    and"}]},{"bytes":[32,100,97,116,97],"logprob":-0.000706,"token":" data","top_logprobs":[{"bytes":[32,100,97,116,97],"logprob":-0.000706,"token":"
+    data"}]},{"bytes":[46,10,10],"logprob":-0.036835,"token":".\n\n","top_logprobs":[{"bytes":[46,10,10],"logprob":-0.036835,"token":".\n\n"}]},{"bytes":[89,111,117],"logprob":-0.063534,"token":"You","top_logprobs":[{"bytes":[89,111,117],"logprob":-0.063534,"token":"You"}]},{"bytes":[32,40],"logprob":-0.196579,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.196579,"token":" ("}]},{"bytes":[116,104,114,111,117,103,104],"logprob":-0.661499,"token":"through","top_logprobs":[{"bytes":[116,104,114,111,117,103,104],"logprob":-0.661499,"token":"through"}]},{"bytes":[32,116,104,101],"logprob":-0.152794,"token":"
+    the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.152794,"token":" the"}]},{"bytes":[32,115,121,115,116,101,109],"logprob":-0.053329,"token":"
+    system","top_logprobs":[{"bytes":[32,115,121,115,116,101,109],"logprob":-0.053329,"token":"
+    system"}]},{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.223953,"token":"
+    message","top_logprobs":[{"bytes":[32,109,101,115,115,97,103,101],"logprob":-0.223953,"token":"
+    message"}]},{"bytes":[41],"logprob":0.000015,"token":")","top_logprobs":[{"bytes":[41],"logprob":0.000015,"token":")"}]},{"bytes":[32,97,108,115,111],"logprob":-0.000027,"token":"
+    also","top_logprobs":[{"bytes":[32,97,108,115,111],"logprob":-0.000027,"token":"
+    also"}]},{"bytes":[32,97,115,107,101,100],"logprob":-0.02005,"token":" asked","top_logprobs":[{"bytes":[32,97,115,107,101,100],"logprob":-0.02005,"token":"
+    asked"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.000088,"token":" about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.000088,"token":"
+    about"}]},{"bytes":[32,116,104,101],"logprob":-0.300232,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.300232,"token":"
+    the"}]},{"bytes":[32,119,101,97,116,104,101,114],"logprob":-8e-6,"token":" weather","top_logprobs":[{"bytes":[32,119,101,97,116,104,101,114],"logprob":-8e-6,"token":"
+    weather"}]},{"bytes":[32,105,110],"logprob":0.000015,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":0.000015,"token":"
+    in"}]},{"bytes":[32,84,97,105,119,97,110],"logprob":-8e-6,"token":" Taiwan","top_logprobs":[{"bytes":[32,84,97,105,119,97,110],"logprob":-8e-6,"token":"
+    Taiwan"}]},{"bytes":[32,116,111,100,97,121],"logprob":-0.000023,"token":" today","top_logprobs":[{"bytes":[32,116,111,100,97,121],"logprob":-0.000023,"token":"
+    today"}]},{"bytes":[58],"logprob":-1.030853,"token":":","top_logprobs":[{"bytes":[58],"logprob":-1.030853,"token":":"}]},{"bytes":[32,105,116],"logprob":-0.084427,"token":"
+    it","top_logprobs":[{"bytes":[32,105,116],"logprob":-0.084427,"token":" it"}]},{"bytes":[226,128,153,115],"logprob":-0.000072,"token":"’s","top_logprobs":[{"bytes":[226,128,153,115],"logprob":-0.000072,"token":"’s"}]},{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951,"token":"
+    currently","top_logprobs":[{"bytes":[32,99,117,114,114,101,110,116,108,121],"logprob":-0.011951,"token":"
+    currently"}]},{"bytes":[32,99,108,111,117,100,121],"logprob":-0.693703,"token":"
+    cloudy","top_logprobs":[{"bytes":[32,99,108,111,117,100,121],"logprob":-0.693703,"token":"
+    cloudy"}]},{"bytes":[32,97,110,100],"logprob":-0.20414,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.20414,"token":"
+    and"}]},{"bytes":[32,99,111,111,108],"logprob":-0.023579,"token":" cool","top_logprobs":[{"bytes":[32,99,111,111,108],"logprob":-0.023579,"token":"
+    cool"}]},{"bytes":[44],"logprob":-0.001411,"token":",","top_logprobs":[{"bytes":[44],"logprob":-0.001411,"token":","}]},{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448,"token":"
+    around","top_logprobs":[{"bytes":[32,97,114,111,117,110,100],"logprob":-0.052448,"token":"
+    around"}]},{"bytes":[32],"logprob":-0.000061,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.000061,"token":"
+    "}]},{"bytes":[54,48],"logprob":-0.000027,"token":"60","top_logprobs":[{"bytes":[54,48],"logprob":-0.000027,"token":"60"}]},{"bytes":[194,176,70],"logprob":-0.000011,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":-0.000011,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000034,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000034,"token":" ("}]},{"bytes":[49,54],"logprob":-0.000824,"token":"16","top_logprobs":[{"bytes":[49,54],"logprob":-0.000824,"token":"16"}]},{"bytes":[194,176,67],"logprob":-4e-6,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":-4e-6,"token":"°C"}]},{"bytes":[41,44],"logprob":-0.009289,"token":"),","top_logprobs":[{"bytes":[41,44],"logprob":-0.009289,"token":"),"}]},{"bytes":[32,119,105,116,104],"logprob":-0.006081,"token":"
+    with","top_logprobs":[{"bytes":[32,119,105,116,104],"logprob":-0.006081,"token":"
+    with"}]},{"bytes":[32,115,107,105,101,115],"logprob":-0.066597,"token":" skies","top_logprobs":[{"bytes":[32,115,107,105,101,115],"logprob":-0.066597,"token":"
+    skies"}]},{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.317368,"token":"
+    becoming","top_logprobs":[{"bytes":[32,98,101,99,111,109,105,110,103],"logprob":-0.317368,"token":"
+    becoming"}]},{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353,"token":"
+    mostly","top_logprobs":[{"bytes":[32,109,111,115,116,108,121],"logprob":-0.003353,"token":"
+    mostly"}]},{"bytes":[32,115,117,110,110,121],"logprob":0.000019,"token":" sunny","top_logprobs":[{"bytes":[32,115,117,110,110,121],"logprob":0.000019,"token":"
+    sunny"}]},{"bytes":[32,108,97,116,101,114],"logprob":-0.368969,"token":" later","top_logprobs":[{"bytes":[32,108,97,116,101,114],"logprob":-0.368969,"token":"
+    later"}]},{"bytes":[32,105,110],"logprob":-0.002922,"token":" in","top_logprobs":[{"bytes":[32,105,110],"logprob":-0.002922,"token":"
+    in"}]},{"bytes":[32,116,104,101],"logprob":-0.000027,"token":" the","top_logprobs":[{"bytes":[32,116,104,101],"logprob":-0.000027,"token":"
+    the"}]},{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.000053,"token":"
+    morning","top_logprobs":[{"bytes":[32,109,111,114,110,105,110,103],"logprob":-0.000053,"token":"
+    morning"}]},{"bytes":[32,97,110,100],"logprob":-0.020168,"token":" and","top_logprobs":[{"bytes":[32,97,110,100],"logprob":-0.020168,"token":"
+    and"}]},{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.009117,"token":"
+    temperatures","top_logprobs":[{"bytes":[32,116,101,109,112,101,114,97,116,117,114,101,115],"logprob":-0.009117,"token":"
+    temperatures"}]},{"bytes":[32,114,105,115,105,110,103],"logprob":-0.004463,"token":"
+    rising","top_logprobs":[{"bytes":[32,114,105,115,105,110,103],"logprob":-0.004463,"token":"
+    rising"}]},{"bytes":[32,116,111],"logprob":-0.016582,"token":" to","top_logprobs":[{"bytes":[32,116,111],"logprob":-0.016582,"token":"
+    to"}]},{"bytes":[32,97,98,111,117,116],"logprob":-0.213352,"token":" about","top_logprobs":[{"bytes":[32,97,98,111,117,116],"logprob":-0.213352,"token":"
+    about"}]},{"bytes":[32],"logprob":-0.002144,"token":" ","top_logprobs":[{"bytes":[32],"logprob":-0.002144,"token":"
+    "}]},{"bytes":[54,57],"logprob":0.000046,"token":"69","top_logprobs":[{"bytes":[54,57],"logprob":0.000046,"token":"69"}]},{"bytes":[194,176,70],"logprob":0.000019,"token":"°F","top_logprobs":[{"bytes":[194,176,70],"logprob":0.000019,"token":"°F"}]},{"bytes":[32,40],"logprob":-0.000027,"token":"
+    (","top_logprobs":[{"bytes":[32,40],"logprob":-0.000027,"token":" ("}]},{"bytes":[50,49],"logprob":-0.000027,"token":"21","top_logprobs":[{"bytes":[50,49],"logprob":-0.000027,"token":"21"}]},{"bytes":[194,176,67],"logprob":0.000015,"token":"°C","top_logprobs":[{"bytes":[194,176,67],"logprob":0.000015,"token":"°C"}]},{"bytes":[41,46],"logprob":-0.005424,"token":").","top_logprobs":[{"bytes":[41,46],"logprob":-0.005424,"token":")."}]}],"text":"I’m
+    an AI assistant created by OpenAI. I can help you with information, explanations,
+    planning, writing, coding, and more—basically anything that can be done with text
+    and data.\n\nYou (through the system message) also asked about the weather in
+    Taiwan today: it’s currently cloudy and cool, around 60°F (16°C), with skies becoming
+    mostly sunny later in the morning and temperatures rising to about 69°F (21°C)."}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":"my_cache_key","prompt_cache_retention":"24h","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":"safety","service_tier":"flex","store":false,"temperature":0.45,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":1}},"tools":[{"type":"code_interpreter","container":{"type":"auto"}},{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":1,"top_p":0.55,"truncation":"disabled","usage":{"input_tokens":5313,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":134,"output_tokens_details":{"reasoning_tokens":34},"total_tokens":5447},"user":null,"metadata":{}},"sequence_number":30}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-11-10T15:25:42.535984+00:00'

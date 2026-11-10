@@ -36,6 +36,17 @@ SCENARIO_PROTOCOLS = dict.fromkeys(
     PROTOCOLS,
 )
 SCENARIO_PROTOCOLS.update(dict.fromkeys(ENCRYPTED_SCENARIOS, ("responses", "messages")))
+# Provider features without a translation contract. Their recordings may only
+# prove native passthrough, so they are rejected anywhere outside `native/`.
+NATIVE_SCENARIO_PROTOCOLS: dict[str, tuple[Endpoint, ...]] = {
+    "response_format_json_object": ("chat/completions",),
+    "response_format_json_schema": ("chat/completions",),
+    "text_format_json_schema": ("responses",),
+    "model_settings": ("chat/completions", "responses"),
+    "tool_choice_required": ("chat/completions", "responses"),
+    "web_search_tool_options": ("responses",),
+    "conversation_id": ("responses",),
+}
 _FILENAME = re.compile(
     r"(?P<provider>[a-z0-9_]+)-(?P<endpoint>responses|chat_completions|messages)-"
     r"(?P<mode>stream|non_stream)-(?P<turn>[0-9]+)\.yaml"
@@ -202,15 +213,17 @@ def route_cases(
 
 def public_conversations(root: Path) -> tuple[Conversation, ...]:
     conversations = discover_conversations(root)
+    native = root.name == "native"
+    scenario_protocols = SCENARIO_PROTOCOLS | (NATIVE_SCENARIO_PROTOCOLS if native else {})
     for conversation in conversations:
         scenario = conversation.scenario
-        if scenario not in SCENARIO_PROTOCOLS:
+        if scenario not in scenario_protocols:
             raise ValueError(
                 f"Unsupported scenario {scenario!r} in {root}; add scenario assertions before replay"
             )
-        if root.name == "native" and scenario == "error-invalid_request_error":
+        if native and scenario == "error-invalid_request_error":
             raise ValueError(f"Error scenario in {root}; use matched error assertions instead")
-        if conversation.endpoint not in SCENARIO_PROTOCOLS[scenario]:
+        if conversation.endpoint not in scenario_protocols[scenario]:
             raise ValueError(f"Unsupported endpoint in {conversation.id}")
         thinking = PROVIDER_CAPABILITIES[conversation.provider].thinking
         if (scenario == "reasoning_raw" and thinking != "raw") or (

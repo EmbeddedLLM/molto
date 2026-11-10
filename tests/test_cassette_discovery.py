@@ -343,6 +343,24 @@ def test_matched_conversation_preserves_required_scenario_turns(
         public_conversations(root)
 
 
+def test_native_only_scenario_is_rejected_outside_native(tmp_path: Path) -> None:
+    """Ensures native-only features cannot appear as matched cross-protocol evidence."""
+    root = tmp_path / "matched"
+    _recordings(root, "response_format_json_object", "openai-chat_completions-stream")
+
+    with pytest.raises(ValueError, match="Unsupported scenario 'response_format_json_object'"):
+        public_conversations(root)
+
+
+def test_native_only_scenario_keeps_its_endpoint_restriction(tmp_path: Path) -> None:
+    """Ensures a native-only Chat feature cannot be filed under another endpoint."""
+    root = tmp_path / "native"
+    _recordings(root, "response_format_json_object", "openai-responses-stream", (0,))
+
+    with pytest.raises(ValueError, match="Unsupported endpoint.*response_format_json_object"):
+        public_conversations(root)
+
+
 def test_native_deviation_can_reproduce_in_a_single_turn(tmp_path: Path) -> None:
     """Ensures native SDK evidence does not require unrelated continuation recordings."""
     root = tmp_path / "native"
