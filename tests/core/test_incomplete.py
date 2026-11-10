@@ -9,16 +9,15 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.utils.io import dumps_sse, json_loads, load_sse
+from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
 from tests.core.test_interface import (
     PROTOCOLS,
     Protocol,
-    _collect,
     _coordinator,
     _matched_cassette_path,
     _read_cassette,
     _sse_records,
 )
-from tests.core.test_web_search import _assert_lifecycle
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
@@ -114,8 +113,19 @@ async def test_synthetic_incomplete_responses_preserve_sdk_text_usage_and_reason
         if stream:
             async with actual:
                 actual_events = [event async for event in actual]
-            _assert_lifecycle(downstream, actual_events)
-            actual = _collect(downstream, actual_events)
+            assert_stream_lifecycle(downstream, actual_events)
+            if downstream == "chat/completions":
+                assert all(
+                    not choice.delta.tool_calls
+                    for event in actual_events
+                    for choice in event.choices
+                )
+                assert all(
+                    not getattr(choice.delta, "annotations", None)
+                    for event in actual_events
+                    for choice in event.choices
+                )
+            actual = collect_sdk_response(downstream, actual_events)
             if downstream == "responses":
                 assert [event.model_dump() for event in actual_events] == [
                     event.model_dump() for event in reference_events

@@ -6,14 +6,9 @@ from httpx import AsyncClient, MockTransport, Response
 
 from molto import Molto
 from molto.utils.io import dumps_sse
-from tests.core.test_interface import _collect, _get_http_client
-from tests.core.test_web_search import (
-    _assert_lifecycle,
-    _messages_semantics,
-    _path,
-    _request_pair,
-    _sdk_result,
-)
+from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
+from tests.core.test_interface import _get_http_client
+from tests.core.test_web_search import _messages_semantics, _path, _request_pair, _sdk_result
 
 
 @pytest.mark.parametrize("citation_policy", [None, "drop", "buffer", "auto"])
@@ -29,7 +24,9 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
         extra_body = {"tools": [{"type": "web_search"}], "tool_choice": "required"}
         expected_request.pop("include")
         expected_request.update(extra_body)
-    expected = _messages_semantics(_collect("messages", await _sdk_result("messages", True)))
+    expected = _messages_semantics(
+        collect_sdk_response("messages", await _sdk_result("messages", True))
+    )
     sdk_events = await _sdk_result("responses", True)
     buffer_text = citation_policy == "buffer" or (
         citation_policy == "auto" and not tools_in_extra_body
@@ -57,8 +54,8 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("messages", events)
-            actual = _collect("messages", events)
+            assert_stream_lifecycle("messages", events)
+            actual = collect_sdk_response("messages", events)
             if not buffer_text:
                 assert [
                     event.delta.text
@@ -78,7 +75,7 @@ async def test_messages_citation_policy_matches_sdk(citation_policy, stream, too
 async def test_buffered_citations_preserve_sdk_text_stream(citation_policy):
     """Ensures SDK text iteration exposes the recorded answer without losing citation blocks."""
     body, expected_request = _request_pair("messages", "responses", True)
-    reference = _collect("responses", await _sdk_result("responses", True))
+    reference = collect_sdk_response("responses", await _sdk_result("responses", True))
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request
     ) as http_client:
@@ -105,7 +102,7 @@ async def test_buffered_citations_preserve_sdk_text_stream(citation_policy):
     assert "".join(text_chunks) == reference.output_text
     text_blocks = [block for block in message.content if block.type == "text"]
     assert text_chunks == [block.text for block in text_blocks]
-    expected = _collect("messages", await _sdk_result("messages", True))
+    expected = collect_sdk_response("messages", await _sdk_result("messages", True))
     assert [block.model_dump() for block in text_blocks] == [
         block.model_dump() for block in expected.content if block.type == "text"
     ]

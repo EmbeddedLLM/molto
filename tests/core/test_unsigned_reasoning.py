@@ -10,11 +10,10 @@ from openai import AsyncOpenAI
 from molto import Molto
 from molto.types.exceptions import UnsupportedInput
 from molto.utils.io import dumps_sse, json_loads, load_sse
+from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
 from tests.core.test_interface import (
     PROTOCOLS,
     Protocol,
-    _assert_lifecycle,
-    _collect,
     _coordinator,
     _matched_cassette_path,
     _read_cassette,
@@ -129,7 +128,7 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
                 sdk.responses.create if upstream == "responses" else sdk.chat.completions.create
             )
         async with await create(**expected_request) as sdk_stream:
-            reference = _collect(upstream, [event async for event in sdk_stream])
+            reference = collect_sdk_response(upstream, [event async for event in sdk_stream])
 
         client = Molto(http_client=http_client)
         result = await _coordinator(client, downstream)(
@@ -140,8 +139,8 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         )
         if stream:
             projected = [event async for event in result]
-            _assert_lifecycle(downstream, projected)
-            result = _collect(downstream, projected)
+            assert_stream_lifecycle(downstream, projected)
+            result = collect_sdk_response(downstream, projected)
 
         expected = _reasoning_and_text(upstream, reference)
         assert all(expected)
@@ -192,14 +191,14 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
             ]
         )
         async with await create(**expected_request) as sdk_stream:
-            reference = _collect(upstream, [event async for event in sdk_stream])
+            reference = collect_sdk_response(upstream, [event async for event in sdk_stream])
         followup = await _coordinator(client, downstream)(
             body=history_body, endpoint=upstream, provider="openai", api_key="test-api-key"
         )
         if stream:
             projected = [event async for event in followup]
-            _assert_lifecycle(downstream, projected)
-            followup = _collect(downstream, projected)
+            assert_stream_lifecycle(downstream, projected)
+            followup = collect_sdk_response(downstream, projected)
         assert _reasoning_and_text(downstream, followup) == _reasoning_and_text(
             upstream, reference
         )

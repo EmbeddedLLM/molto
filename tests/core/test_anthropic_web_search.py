@@ -16,9 +16,9 @@ from molto.types.normalized import PartEndEvent, ResponseEndEvent, SearchCall, T
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.utils.io import json_loads
-from tests.core.test_interface import _collect, _get_http_client, _read_cassette
+from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
+from tests.core.test_interface import _get_http_client, _read_cassette
 from tests.core.test_web_search import (
-    _assert_lifecycle,
     _history,
     _messages_semantics,
     _path,
@@ -73,7 +73,7 @@ async def test_recorded_anthropic_search_preserves_native_sdk_events():
             api_key="test-api-key",
         )
         actual = [event async for event in stream]
-    _assert_lifecycle("messages", actual)
+    assert_stream_lifecycle("messages", actual)
     assert [type(event) for event in actual] == [type(event) for event in expected]
     assert [event.model_dump(exclude_unset=True) for event in actual] == [
         event.model_dump(exclude_unset=True) for event in expected
@@ -102,15 +102,15 @@ async def test_recorded_anthropic_search_preserves_native_sdk_events():
 @pytest.mark.parametrize("stream", [True, False])
 async def test_recorded_anthropic_search_translates_sdk_semantics(stream: bool):
     """Ensures both Responses modes preserve observed search inputs, citations, sources, and usage."""
-    reference = _collect("messages", await _sdk_events())
+    reference = collect_sdk_response("messages", await _sdk_events())
     async with _get_http_client([SEARCH], "messages") as http_client:
         result = await Molto(http_client=http_client).responses(
             body=_responses_body(stream), endpoint="messages", api_key="test-api-key"
         )
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("responses", events)
-            result = _collect("responses", events)
+            assert_stream_lifecycle("responses", events)
+            result = collect_sdk_response("responses", events)
 
     native_text = [block for block in reference.content if block.type == "text"]
     text_parts = [
@@ -196,7 +196,7 @@ async def test_recorded_anthropic_search_translates_sdk_semantics(stream: bool):
 
 async def test_recorded_anthropic_search_preserves_ir_usage_and_citation_state():
     """Ensures native search counts and opaque citation state remain available before reduction."""
-    reference = _collect("messages", await _sdk_events())
+    reference = collect_sdk_response("messages", await _sdk_events())
     capabilities = PROVIDER_CAPABILITIES["anthropic"]
     request = OpenAIResponsesAdapter(capabilities).normalize_request(
         OpenAIResponsesCreateRequest(**_responses_body(True))
@@ -242,7 +242,7 @@ async def test_recorded_history_rejects_missing_search_state_before_transport(
         molto = Molto(http_client=http_client)
         result = await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
         if stream:
-            result = _collect("responses", [event async for event in result])
+            result = collect_sdk_response("responses", [event async for event in result])
         restored = OpenAIResponse.model_validate_json(result.model_dump_json(exclude_none=True))
         history = [item.model_dump(exclude_none=True) for item in restored.output]
         if part_kind == "source":
@@ -279,8 +279,10 @@ async def test_recorded_history_rejects_missing_search_state_before_transport(
 @pytest.mark.parametrize("stream", [True, False])
 async def test_recorded_search_history_preserves_provider_state(stream: bool):
     """Ensures SDK-serialized Responses history restores the exact native blocks and accepted continuation."""
-    native_reference = _collect("messages", await _sdk_events())
-    followup_reference = _collect("messages", await _sdk_events(PRESERVED_CONTINUATION))
+    native_reference = collect_sdk_response("messages", await _sdk_events())
+    followup_reference = collect_sdk_response(
+        "messages", await _sdk_events(PRESERVED_CONTINUATION)
+    )
     native_followup = _read_cassette(PRESERVED_CONTINUATION)["request"]["body"]
     requests = []
     body = _responses_body(stream)
@@ -290,7 +292,7 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
         molto = Molto(http_client=http_client)
         result = await molto.responses(body=body, endpoint="messages", api_key="test-api-key")
         if stream:
-            result = _collect("responses", [event async for event in result])
+            result = collect_sdk_response("responses", [event async for event in result])
         # A caller can persist the SDK response as JSON and append its output
         # later; both SDK loading and Molto request validation must retain state.
         restored = OpenAIResponse.model_validate_json(result.model_dump_json(exclude_none=True))
@@ -316,8 +318,8 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
         result = await molto.responses(body=validated, endpoint="messages", api_key="test-api-key")
         if stream:
             events = [event async for event in result]
-            _assert_lifecycle("responses", events)
-            result = _collect("responses", events)
+            assert_stream_lifecycle("responses", events)
+            result = collect_sdk_response("responses", events)
 
     assert body == original_body
     assert len(requests) == 2
@@ -423,7 +425,7 @@ async def test_messages_search_history_does_not_extend_openai_requests(stream: b
     citation.update(encrypted_index="original-provider-index", cited_text="Original excerpt")
     body["messages"].extend(history)
     expected_request["input"].extend(_history("responses", True))
-    reference = _collect("messages", await _sdk_result("messages", True))
+    reference = collect_sdk_response("messages", await _sdk_result("messages", True))
     requests = []
     async with _get_http_client(
         [_path("responses")], "responses", expected_body=expected_request, requests=requests
@@ -432,7 +434,7 @@ async def test_messages_search_history_does_not_extend_openai_requests(stream: b
             body=body, endpoint="responses", api_key="test-api-key", citation_policy="buffer"
         )
         if stream:
-            result = _collect("messages", [event async for event in result])
+            result = collect_sdk_response("messages", [event async for event in result])
     assert len(requests) == 1
     assert json_loads(requests[0].content) == expected_request
     assert b"extra_content" not in requests[0].content
