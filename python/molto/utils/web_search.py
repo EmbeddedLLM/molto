@@ -250,10 +250,13 @@ def is_translatable_responses_source(source: dict[str, Any]) -> bool:
     Native passthrough leaves source validation to the upstream, but translated input is
     lossless-or-rejected. Only a URL source carrying no fields beyond those converted by
     `search_source_from_responses` qualifies. `type` may be omitted, as compatible
-    providers do.
+    providers do. That converter prefers Anthropic metadata, so a top-level `title` or
+    `page_age` it would override is rejected rather than dropped.
     """
+    metadata = (source.get("extra_content") or {}).get("anthropic") or {}
+    converted = {"type", "url", "extra_content", *({"title", "page_age"} - metadata.keys())}
     return (
-        source.keys() <= {"type", "url", "title", "page_age", "extra_content"}
+        source.keys() <= converted
         and source.get("type", "url") == "url"
         and isinstance(source.get("url"), str)
     )

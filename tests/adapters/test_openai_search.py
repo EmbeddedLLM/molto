@@ -191,6 +191,12 @@ def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_
         {"type": "url"},
         {"type": "url", "url": 1},
         {"type": "url", "url": "https://example.com", "provider_field": True},
+        {
+            "type": "url",
+            "url": "https://example.com",
+            "title": "Overridden",
+            "extra_content": {"anthropic": {"encrypted_content": "x", "title": "Kept"}},
+        },
         {"name": "untyped"},
     ],
 )
@@ -198,8 +204,9 @@ def test_responses_search_history_rejects_untranslatable_sources(source):
     """Ensures translated history rejects sources it cannot convert losslessly.
 
     Native passthrough leaves source validation to the upstream, but translated input is
-    lossless-or-rejected. A non-URL type, a missing or malformed URL, or an unconverted
-    field would otherwise be dropped or misreported, so each raises `UnsupportedInput`.
+    lossless-or-rejected. A non-URL type, a missing or malformed URL, an unconverted
+    field, or a top-level title that Anthropic metadata overrides would otherwise be
+    dropped or misreported, so each raises `UnsupportedInput`.
     """
     request = OpenAIResponsesCreateRequest(
         model="m",

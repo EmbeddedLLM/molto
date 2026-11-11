@@ -406,7 +406,11 @@ class OpenAIResponsesAdapter(
             if call.action == "search" and call.status in {"completed", "failed"}:
                 sources = (message.get("action") or {}).get("sources") or []
                 if not all(is_translatable_responses_source(source) for source in sources):
-                    raise UnsupportedInput("Only URL web search sources can be translated.")
+                    raise UnsupportedInput(
+                        "Only URL web search sources can be translated, with a string `url` "
+                        "and no fields other than `type`, `title`, `page_age`, and "
+                        "`extra_content`."
+                    )
                 parts.append(search_result_from_responses(message))
             return parts
         if message_type == "reasoning":

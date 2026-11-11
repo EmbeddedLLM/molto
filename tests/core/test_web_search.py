@@ -39,6 +39,7 @@ from tests.core.test_interface import (
     _get_http_client,
     _matched_cassette_path,
     _read_cassette,
+    _recorded_responses_output,
     _sse_records,
 )
 
@@ -326,10 +327,10 @@ async def test_translated_search_tolerates_recorded_api_source(downstream: Proto
     """
     upstream_path = CASSETTE_DIR / "native/web_search_api_source/openai-responses-stream-00.yaml"
     upstream = _read_cassette(upstream_path)
-    terminal = load_sse(_sse_records(upstream, "responses")[-1])["response"]
-    (search,) = [item for item in terminal["output"] if item["type"] == "web_search_call"]
+    output = _recorded_responses_output(upstream)
+    (search,) = [item for item in output if item["type"] == "web_search_call"]
     assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
-    (message,) = [item for item in terminal["output"] if item["type"] == "message"]
+    (message,) = [item for item in output if item["type"] == "message"]
     (answer,) = message["content"]
 
     prompt = "What's the weather in Kuala Lumpur today?"

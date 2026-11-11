@@ -1026,37 +1026,31 @@ def _recorded_responses_output(cassette: dict[str, Any]) -> list[dict[str, Any]]
 
 
 @pytest.mark.parametrize("mode", ["stream", "non_stream"])
-async def test_native_responses_replay_api_search_source_history(mode: Mode) -> None:
-    """Ensures OpenAI's non-URL `api` search source survives native passthrough and history.
+def test_native_responses_api_search_source_history_is_recorded(mode: Mode) -> None:
+    """Ensures the `api` source scenario records that source and its replay as history.
 
     OpenAI answers a weather search with `{"type": "api", "name": "oai-weather"}`, which
-    the pinned SDK does not declare. The second recorded turn sends that output back as
-    history; the replay transport rejects any body Molto alters, and OpenAI accepted it.
+    the pinned SDK does not declare. The second turn sends that output back as history,
+    and OpenAI accepted it. The generic native runners replay both turns through Molto
+    with exact request-body and SDK parity checks.
     """
     conversation = select_conversation(
         NATIVE_CONVERSATIONS, "web_search_api_source", "responses", mode
     )
     first, second = (_read_cassette(path) for path in conversation.paths)
-    output = _recorded_responses_output(first)
-    (search,) = [item for item in output if item["type"] == "web_search_call"]
-    assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
-    body = deepcopy(second["request"]["body"])
-    assert body["input"] == [
+    for cassette in (first, second):
+        (search,) = [
+            item
+            for item in _recorded_responses_output(cassette)
+            if item["type"] == "web_search_call"
+        ]
+        assert search["status"] == "completed"
+        assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
+    assert second["request"]["body"]["input"] == [
         *first["request"]["body"]["input"],
-        *output,
+        *_recorded_responses_output(first),
         {"role": "user", "content": "And tomorrow?"},
     ]
-
-    async with _get_http_client([conversation.paths[1]], "responses") as http_client:
-        result = await Molto(http_client=http_client).responses(
-            body=body, endpoint="responses", api_key="test-api-key"
-        )
-        if mode == "stream":
-            result = [event async for event in result][-1].response
-
-    assert result.status == "completed"
-    (search,) = [item for item in result.output if item.type == "web_search_call"]
-    assert [source.type for source in search.action.sources] == ["api"]
 
 
 @pytest.mark.parametrize("mode", ["stream", "non_stream"])
