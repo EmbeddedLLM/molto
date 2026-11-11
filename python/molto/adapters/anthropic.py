@@ -690,7 +690,9 @@ class AnthropicMessagesAdapter(
                     # in the block instead of waiting for deltas that may not exist.
                     if isinstance(normalized_event.part, Thinking):
                         part = normalized_event.part
-                        if self._capabilities.thinking == "raw":
+                        if self._capabilities.thinking == "raw" or (
+                            self._capabilities.responses_reasoning == "wire" and part.content
+                        ):
                             if part.summary or part.signature:
                                 raise ValueError(
                                     "A raw Anthropic thinking block cannot contain a summary "
@@ -749,7 +751,10 @@ class AnthropicMessagesAdapter(
                         delta = normalized_event.delta
                         if index not in thinking_parts:
                             raise ValueError("Received a thinking delta before its block started.")
-                        if self._capabilities.thinking == "raw":
+                        if self._capabilities.thinking == "raw" or (
+                            self._capabilities.responses_reasoning == "wire"
+                            and delta.content_delta
+                        ):
                             if delta.summary_delta or delta.signature_delta:
                                 raise ValueError(
                                     "A raw Anthropic thinking block cannot contain a summary "
@@ -868,7 +873,9 @@ class AnthropicMessagesAdapter(
                         part = normalized_event.part
                         if index not in thinking_parts:
                             raise ValueError("Received a thinking end before its block started.")
-                        if self._capabilities.thinking == "raw":
+                        if self._capabilities.thinking == "raw" or (
+                            self._capabilities.responses_reasoning == "wire" and part.content
+                        ):
                             if part.summary or part.signature:
                                 raise ValueError(
                                     "A raw Anthropic thinking block cannot contain a summary "

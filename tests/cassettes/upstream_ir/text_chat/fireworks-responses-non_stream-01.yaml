@@ -1,0 +1,113 @@
+filename: 2026-11-04-01a1a478-46c0-7dd2-99f7-90e04e730096
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        text: blue lantern
+        type: output_text
+      id: msg_2983636b54054819927fe8546d5b1264
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Repeat the phrase
+        type: input_text
+      - text: ' exactly, preserving its spaces.'
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '627'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a478-46c0-7dd2-99f7-90e04e730096
+response:
+  body:
+    background: null
+    created_at: 1793760708
+    error: null
+    id: resp_62ee9308fa5f4ef5a44ddecf8ef45c20
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: blue lantern
+        type: output_text
+      id: msg_9aa4fd46af65433bbcba01eb85336aa2
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    previous_response_id: null
+    reasoning:
+      effort: none
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice: auto
+    tools: []
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 53
+      input_tokens_details:
+        cached_tokens: 27
+      output_tokens: 3
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 56
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfNjJlZTkzMDhmYTVmNGVmNWE0NGRkZWNmOGVmNDVjMjAiLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3MDgsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoibXNnXzlhYTRmZDQ2YWY2NTQzM2JiY2JhMDFlYjg1MzM2
+    YWEyIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlw
+    ZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6ImJsdWUgbGFudGVybiIsImFubm90YXRpb25zIjpbXX1d
+    LCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJ1c2Fn
+    ZSI6eyJpbnB1dF90b2tlbnMiOjUzLCJvdXRwdXRfdG9rZW5zIjozLCJ0b3RhbF90b2tlbnMiOjU2
+    LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjoyN30sIm91dHB1dF90b2tl
+    bnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowfX0sImVycm9yIjpudWxsLCJpbmNvbXBs
+    ZXRlX2RldGFpbHMiOm51bGwsImluc3RydWN0aW9ucyI6bnVsbCwibWF4X291dHB1dF90b2tlbnMi
+    OjIwNDgsIm1heF90b29sX2NhbGxzIjpudWxsLCJwYXJhbGxlbF90b29sX2NhbGxzIjp0cnVlLCJy
+    ZWFzb25pbmciOnsiZWZmb3J0Ijoibm9uZSJ9LCJzdG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjox
+    LjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In19LCJ0b29sX2Nob2ljZSI6ImF1dG8i
+    LCJ0b29scyI6W10sInRvcF9wIjowLjk1LCJ0b3BfbG9ncHJvYnMiOm51bGwsInRydW5jYXRpb24i
+    OiJkaXNhYmxlZCIsInVzZXIiOm51bGwsImJhY2tncm91bmQiOm51bGwsIm1ldGFkYXRhIjp7fX0=
+  headers:
+    connection: keep-alive
+    content-length: '911'
+    content-type: application/json
+    x-request-id: 1314e4df-c0e7-4fc3-8c31-034c9098c995
+  status_code: 200
+timestamp: '2026-11-04T02:51:48.288316+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

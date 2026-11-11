@@ -999,10 +999,12 @@ def test_uses_default_service_tier_for_translated_chat_completions() -> None:
 
 
 def test_request_only_matching_preserves_recorded_error(tmp_path: Path) -> None:
+    """Ensures request alignment preserves recorded error bytes, status, and headers."""
     cassette_dir = Path(__file__).parent / "cassettes" / "errors" / "context_length_exceeded"
     expected = read_yaml(str(cassette_dir / "openai-chat_completions-stream-00.yaml"))
     responses_path = cassette_dir / "openai-responses-stream-00.yaml"
     original_responses = responses_path.read_bytes()
+    expected["response"]["body_bytes"] = b'{ "error": "original bytes" }\n'
     unmatched = deepcopy(expected)
     unmatched["request"]["body"]["model"] = "unmatched-model"
     unmatched["request"]["body"]["messages"] = [{"role": "user", "content": "Unmatched input"}]

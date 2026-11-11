@@ -17,7 +17,15 @@ from openai.types.chat.chat_completion_assistant_message_param import (
     ChatCompletionAssistantMessageParam,
 )
 from openai.types.chat.chat_completion_audio_param import ChatCompletionAudioParam
-from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
+from openai.types.chat.chat_completion_content_part_image_param import (
+    ChatCompletionContentPartImageParam,
+)
+from openai.types.chat.chat_completion_content_part_input_audio_param import (
+    ChatCompletionContentPartInputAudioParam,
+)
+from openai.types.chat.chat_completion_content_part_param import (
+    File as ChatCompletionContentPartFileParam,
+)
 from openai.types.chat.chat_completion_content_part_refusal_param import (
     ChatCompletionContentPartRefusalParam,
 )
@@ -26,6 +34,12 @@ from openai.types.chat.chat_completion_content_part_text_param import (
 )
 from openai.types.chat.chat_completion_developer_message_param import (
     ChatCompletionDeveloperMessageParam,
+)
+from openai.types.chat.chat_completion_message_custom_tool_call_param import (
+    ChatCompletionMessageCustomToolCallParam,
+)
+from openai.types.chat.chat_completion_message_function_tool_call_param import (
+    ChatCompletionMessageFunctionToolCallParam,
 )
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_prediction_content_param import (
@@ -52,53 +66,109 @@ from openai.types.chat.completion_create_params import (
 from openai.types.shared.chat_model import ChatModel
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning_effort import ReasoningEffort
-from pydantic import Field
+from pydantic import Field, JsonValue, SerializationInfo, TypeAdapter, field_serializer
 from typing_extensions import NotRequired, Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
+
+
+class GoogleExtraContent(TypedDict):
+    """Opaque Google continuation state, retained at its original attachment."""
+
+    google: Required[dict[str, JsonValue]]
+
+
+class ChatCompletionTextPartParam(ChatCompletionContentPartTextParam):
+    """Text content with Google's per-part continuation extension."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+class ChatCompletionImagePartParam(ChatCompletionContentPartImageParam):
+    """Image content with Google's per-part continuation extension."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+class ChatCompletionAudioPartParam(ChatCompletionContentPartInputAudioParam):
+    """Audio content with Google's per-part continuation extension."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+class ChatCompletionFilePartParam(ChatCompletionContentPartFileParam):
+    """File content with Google's per-part continuation extension."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+class ChatCompletionRefusalPartParam(ChatCompletionContentPartRefusalParam):
+    """Refusal content with Google's per-part continuation extension."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+class ChatCompletionFunctionToolCallParam(ChatCompletionMessageFunctionToolCallParam):
+    """A function call retaining provider continuation fields."""
+
+    extra_content: NotRequired[GoogleExtraContent]
+
+
+OpenAIChatCompletionContentPartParam: TypeAlias = Union[
+    ChatCompletionTextPartParam,
+    ChatCompletionImagePartParam,
+    ChatCompletionAudioPartParam,
+    ChatCompletionFilePartParam,
+]
 
 
 class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMessageParam):
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
+    extra_content: NotRequired[GoogleExtraContent]
+    tool_calls: NotRequired[
+        list[ChatCompletionFunctionToolCallParam | ChatCompletionMessageCustomToolCallParam]
+    ]
     content: NotRequired[
-        str
-        | list[ChatCompletionContentPartTextParam | ChatCompletionContentPartRefusalParam]
-        | None
+        str | list[ChatCompletionTextPartParam | ChatCompletionRefusalPartParam] | None
     ]
 
 
 class ChatCompletionUserMessageListParam(TypedDict):
     """User message with eagerly validated, repeatable content parts."""
 
-    content: Required[str | list[ChatCompletionContentPartParam]]
+    content: Required[str | list[OpenAIChatCompletionContentPartParam]]
     role: Required[Literal["user"]]
     name: NotRequired[str]
+    extra_content: NotRequired[GoogleExtraContent]
 
 
 class ChatCompletionSystemMessageListParam(TypedDict):
     """System message with eagerly validated, repeatable content parts."""
 
-    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    content: Required[str | list[ChatCompletionTextPartParam]]
     role: Required[Literal["system"]]
     name: NotRequired[str]
+    extra_content: NotRequired[GoogleExtraContent]
 
 
 class ChatCompletionDeveloperMessageListParam(TypedDict):
     """Developer message with eagerly validated, repeatable content parts."""
 
-    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    content: Required[str | list[ChatCompletionTextPartParam]]
     role: Required[Literal["developer"]]
     name: NotRequired[str]
+    extra_content: NotRequired[GoogleExtraContent]
 
 
 class ChatCompletionToolMessageListParam(TypedDict):
     """Tool message with eagerly validated, repeatable text content parts."""
 
-    content: Required[str | list[ChatCompletionContentPartTextParam]]
+    content: Required[str | list[ChatCompletionTextPartParam]]
     role: Required[Literal["tool"]]
     tool_call_id: Required[str]
+    extra_content: NotRequired[GoogleExtraContent]
 
 
 _RETAINED_CHAT_MESSAGE_PARAMS = tuple(
@@ -121,6 +191,7 @@ OpenAIChatCompletionMessageParam: TypeAlias = Union[
     ChatCompletionAssistantMessageWithReasoningParam,
     *_RETAINED_CHAT_MESSAGE_PARAMS,  # pyright: ignore[reportInvalidTypeForm]
 ]
+_CHAT_MESSAGES_ADAPTER = TypeAdapter(list[OpenAIChatCompletionMessageParam])
 
 
 class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
@@ -274,6 +345,21 @@ class OpenAIChatCompletionsCreateRequest(ExcludeNoneModel):
         WebSearchOptions | None,
         Field(description="Configuration for the web search tool."),
     ] = None
+
+    @field_serializer("messages")
+    def serialize_messages(self, messages, info: SerializationInfo):
+        # Explicit native history nulls are wire values, unlike unset optional
+        # request parameters. In particular, tool-only assistant content is null.
+        return _CHAT_MESSAGES_ADAPTER.dump_python(
+            messages,
+            mode=info.mode,
+            include=info.include,
+            exclude=info.exclude,
+            by_alias=info.by_alias,
+            exclude_unset=info.exclude_unset,
+            exclude_defaults=info.exclude_defaults,
+            exclude_none=False,
+        )
 
 
 # The SDK's response classes are already Pydantic models generated from the

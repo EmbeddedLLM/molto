@@ -1,0 +1,86 @@
+filename: 2026-11-05-01a1ac2f-f33a-7363-867d-6ab8b11a7a3a
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    model: Qwen/Qwen3.5-9B
+    parallel_tool_calls: false
+    reasoning:
+      enabled: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '589'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-f33a-7363-867d-6ab8b11a7a3a
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      matched_stop: 248046
+      message:
+        reasoning_content: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"path":"index.txt"}'
+            name: read_file
+          id: call_01a1ac2ff5767011ac9a00e7
+          type: function
+    created: 1793890186
+    id: 6eb500e9-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 26
+      prompt_tokens: 308
+      prompt_tokens_details:
+        cached_tokens: 256
+      total_tokens: 334
+  body_bytes: !!binary |
+    eyJpZCI6IjZlYjUwMGU5LWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzODkwMTg2LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJ0b29sX2NhbGxzIjpbeyJpZCI6
+    ImNhbGxfMDFhMWFjMmZmNTc2NzAxMWFjOWEwMGU3IiwidHlwZSI6ImZ1bmN0aW9uIiwiZnVuY3Rp
+    b24iOnsibmFtZSI6InJlYWRfZmlsZSIsImFyZ3VtZW50cyI6IntcInBhdGhcIjpcImluZGV4LnR4
+    dFwifSJ9fV0sInJlYXNvbmluZ19jb250ZW50IjpudWxsfSwiZmluaXNoX3JlYXNvbiI6InRvb2xf
+    Y2FsbHMiLCJtYXRjaGVkX3N0b3AiOjI0ODA0Nn1dLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5zIjoz
+    MDgsImNvbXBsZXRpb25fdG9rZW5zIjoyNiwidG90YWxfdG9rZW5zIjozMzQsInByb21wdF90b2tl
+    bnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjoyNTZ9fSwic3lzdGVtX2ZpbmdlcnByaW50Ijoi
+    ZGVmYXVsdCJ9
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 6eb500e9-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T14:49:46.042564+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

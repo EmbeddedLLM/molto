@@ -377,9 +377,9 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
     ("endpoint", "provider"),
     [
         ("responses", None),
-        ("responses", "anthropic"),
+        ("responses", "vllm"),
         ("chat/completions", None),
-        ("messages", "openai"),
+        ("chat/completions", "vllm"),
         ("messages", "vllm"),
     ],
 )

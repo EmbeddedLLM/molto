@@ -1,0 +1,127 @@
+filename: 2026-11-05-01a1ac2f-c399-7763-a293-098c1af77e02
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path": "index.txt"}'
+          name: read_file
+        id: chatcmpl-tool-9e4b1d2fe8c72961
+        index: 0
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: chatcmpl-tool-9e4b1d2fe8c72961
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '928'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-c399-7763-a293-098c1af77e02
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: chatcmpl-9683ed81783f432c9a2ed0bd96bbde04
+  sse:
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"chatcmpl-tool-bffccb6cb252e0d8","type":"function","function":{"name":"read_file","arguments":""}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":
+    \""}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"g"}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"arden"}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":".txt"}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"}"}}]},"finish_reason":null,"raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls","raw_output":null}],"usage":null}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"chatcmpl-9683ed81783f432c9a2ed0bd96bbde04","object":"chat.completion.chunk","created":1793890174,"model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","choices":[],"usage":{"prompt_tokens":350,"total_tokens":377,"completion_tokens":27,"prompt_tokens_details":{"cached_tokens":303},"completion_tokens_details":{"reasoning_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T14:49:33.849520+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

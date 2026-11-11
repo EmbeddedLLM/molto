@@ -1,0 +1,95 @@
+filename: 2026-11-06-01a1af0d-4876-7922-81cb-450444ee4f5c
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0T6SCCimkhPCQSO5eGtVGq6G0HBFdCkpxca5AjDbs/sFSD7U3o8+a/X8pqjYGmKKt8xyDbUSYDuM0kK8NjfiRpNCSJaDQwOBtCNM/nZ9A+dKGlA0QGyK9PGXKu2LyJQ0PVis6NAYn1eiiq6dt0
+        function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_14462867661861740233
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_14462867661861740233
+    model: gemini-3.1-flash-lite
+    parallel_tool_calls: false
+    reasoning_effort: minimal
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1044'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-4876-7922-81cb-450444ee4f5c
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        role: assistant
+        tool_calls:
+        - extra_content:
+            google:
+              thought_signature: EnMKcQFpFH0TBTxFH37SuNO5TucmgeOU0UnuKRqRa1izfZY5KYP+PRvZMLE/tW3Nl6gmiIS0rWAUuYqCOIYgzFsXmnSIlAqZtCt/xn2dYriFlMhGSn5XirTmVOEnFBhJwqVVWeTVJ6nruuAGJfyMurHG8fht
+          function:
+            arguments: '{"path":"garden.txt"}'
+            name: read_file
+          id: call_10396871796320240256
+          type: function
+    created: 1793938246
+    id: RVPtaqyJN5bfytMPrcuRuAI
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 18
+      prompt_tokens: 109
+      total_tokens: 127
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJtZXNz
+    YWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJ0b29sX2NhbGxzIjpbeyJleHRyYV9jb250ZW50Ijp7
+    Imdvb2dsZSI6eyJ0aG91Z2h0X3NpZ25hdHVyZSI6IkVuTUtjUUZwRkgwVEJUeEZIMzdTdU5PNVR1
+    Y21nZU9VMFVudUtScVJhMWl6ZlpZNUtZUCtQUnZaTUxFL3RXM05sNmdtaUlTMHJXQVV1WXFDT0lZ
+    Z3pGc1htblNJbEFxWnRDdC94bjJkWXJpRmxNaEdTbjVYaXJUbVZPRW5GQmhKd3FWVldlVFZKNm5y
+    dXVBR0pmeU11ckhHOGZodCJ9fSwiZnVuY3Rpb24iOnsiYXJndW1lbnRzIjoie1wicGF0aFwiOlwi
+    Z2FyZGVuLnR4dFwifSIsIm5hbWUiOiJyZWFkX2ZpbGUifSwiaWQiOiJjYWxsXzEwMzk2ODcxNzk2
+    MzIwMjQwMjU2IiwidHlwZSI6ImZ1bmN0aW9uIn1dfX1dLCJjcmVhdGVkIjoxNzkzOTM4MjQ2LCJp
+    ZCI6IlJWUHRhcXlKTjViZnl0TVByY3VSdUFJIiwibW9kZWwiOiJnZW1pbmktMy4xLWZsYXNoLWxp
+    dGUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJ1c2FnZSI6eyJjb21wbGV0aW9uX3Rva2Vu
+    cyI6MTgsInByb21wdF90b2tlbnMiOjEwOSwidG90YWxfdG9rZW5zIjoxMjd9fQ==
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-06T04:10:45.750785+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

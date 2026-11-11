@@ -1,0 +1,104 @@
+filename: 2026-11-06-01a1af0d-4b37-7f81-a427-c507e25db9f7
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0T6SCCimkhPCQSO5eGtVGq6G0HBFdCkpxca5AjDbs/sFSD7U3o8+a/X8pqjYGmKKt8xyDbUSYDuM0kK8NjfiRpNCSJaDQwOBtCNM/nZ9A+dKGlA0QGyK9PGXKu2LyJQ0PVis6NAYn1eiiq6dt0
+        function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_14462867661861740233
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_14462867661861740233
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0TBTxFH37SuNO5TucmgeOU0UnuKRqRa1izfZY5KYP+PRvZMLE/tW3Nl6gmiIS0rWAUuYqCOIYgzFsXmnSIlAqZtCt/xn2dYriFlMhGSn5XirTmVOEnFBhJwqVVWeTVJ6nruuAGJfyMurHG8fht
+        function:
+          arguments: '{"path":"garden.txt"}'
+          name: read_file
+        id: call_10396871796320240256
+        type: function
+    - content: Water the tomatoes every morning and harvest ripe fruit.
+      role: tool
+      tool_call_id: call_10396871796320240256
+    model: gemini-3.1-flash-lite
+    parallel_tool_calls: false
+    reasoning_effort: minimal
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1541'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-4b37-7f81-a427-c507e25db9f7
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: The document provides instructions to water tomato plants every morning
+          and harvest the fruit once ripe.
+        extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0T76NfxMGqIgbHIghfsbt7w9NQ3tIJ7cb05DnQY5DyayumFeZzlo60tV4okEXZOhI9Bj3kPraJ34hIyQnw2ZC2ddSGS+n/2FJUt1EeffyVEULJAc4yBs6vG/mcECoNjnNdefcji99kEfBqfSve
+        role: assistant
+    created: 1793938247
+    id: RlPtapWuJeThytMPteOWwAE
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 17
+      prompt_tokens: 150
+      total_tokens: 167
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImNvbnRlbnQiOiJUaGUgZG9jdW1lbnQgcHJvdmlkZXMgaW5zdHJ1Y3Rpb25zIHRvIHdhdGVyIHRv
+    bWF0byBwbGFudHMgZXZlcnkgbW9ybmluZyBhbmQgaGFydmVzdCB0aGUgZnJ1aXQgb25jZSByaXBl
+    LiIsImV4dHJhX2NvbnRlbnQiOnsiZ29vZ2xlIjp7InRob3VnaHRfc2lnbmF0dXJlIjoiRW5NS2NR
+    RnBGSDBUNzZOZnhNR3FJZ2JISWdoZnNidDd3OU5RM3RJSjdjYjA1RG5RWTVEeWF5dW1GZVp6bG82
+    MHRWNG9rRVhaT2hJOUJqM2tQcmFKMzRoSXlRbncyWkMyZGRTR1Mrbi8yRkpVdDFFZWZmeVZFVUxK
+    QWM0eUJzNnZHL21jRUNvTmpuTmRlZmNqaTk5a0VmQnFmU3ZlIn19LCJyb2xlIjoiYXNzaXN0YW50
+    In19XSwiY3JlYXRlZCI6MTc5MzkzODI0NywiaWQiOiJSbFB0YXBXdUplVGh5dE1QdGVPV3dBRSIs
+    Im1vZGVsIjoiZ2VtaW5pLTMuMS1mbGFzaC1saXRlIiwib2JqZWN0IjoiY2hhdC5jb21wbGV0aW9u
+    IiwidXNhZ2UiOnsiY29tcGxldGlvbl90b2tlbnMiOjE3LCJwcm9tcHRfdG9rZW5zIjoxNTAsInRv
+    dGFsX3Rva2VucyI6MTY3fX0=
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-06T04:10:46.455825+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

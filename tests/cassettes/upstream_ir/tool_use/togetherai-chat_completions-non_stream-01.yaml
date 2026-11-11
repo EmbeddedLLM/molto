@@ -1,0 +1,97 @@
+filename: 2026-11-05-01a1ac2f-f5de-7a50-91e5-91c3595d8a6b
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - reasoning_content: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path":"index.txt"}'
+          name: read_file
+        id: call_01a1ac2ff5767011ac9a00e7
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_01a1ac2ff5767011ac9a00e7
+    model: Qwen/Qwen3.5-9B
+    parallel_tool_calls: false
+    reasoning:
+      enabled: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '864'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-f5de-7a50-91e5-91c3595d8a6b
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      matched_stop: 248046
+      message:
+        reasoning_content: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"path":"garden.txt"}'
+            name: read_file
+          id: call_01a1ac2ff7357f11a7334c0b
+          type: function
+    created: 1793890186
+    id: 07ec4dd2-aws_as1
+    model: Qwen/Qwen3.5-9B
+    object: chat.completion
+    system_fingerprint: default
+    usage:
+      completion_tokens: 27
+      prompt_tokens: 354
+      prompt_tokens_details:
+        cached_tokens: 0
+      total_tokens: 381
+  body_bytes: !!binary |
+    eyJpZCI6IjA3ZWM0ZGQyLWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
+    dGVkIjoxNzkzODkwMTg2LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
+    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJ0b29sX2NhbGxzIjpbeyJpZCI6
+    ImNhbGxfMDFhMWFjMmZmNzM1N2YxMWE3MzM0YzBiIiwidHlwZSI6ImZ1bmN0aW9uIiwiZnVuY3Rp
+    b24iOnsibmFtZSI6InJlYWRfZmlsZSIsImFyZ3VtZW50cyI6IntcInBhdGhcIjpcImdhcmRlbi50
+    eHRcIn0ifX1dLCJyZWFzb25pbmdfY29udGVudCI6bnVsbH0sImZpbmlzaF9yZWFzb24iOiJ0b29s
+    X2NhbGxzIiwibWF0Y2hlZF9zdG9wIjoyNDgwNDZ9XSwidXNhZ2UiOnsicHJvbXB0X3Rva2VucyI6
+    MzU0LCJjb21wbGV0aW9uX3Rva2VucyI6MjcsInRvdGFsX3Rva2VucyI6MzgxLCJwcm9tcHRfdG9r
+    ZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MH19LCJzeXN0ZW1fZmluZ2VycHJpbnQiOiJk
+    ZWZhdWx0In0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 07ec4dd2-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T14:49:46.718723+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

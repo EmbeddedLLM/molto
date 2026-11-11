@@ -1,0 +1,143 @@
+filename: 2026-11-04-01a1a479-3ca7-7e32-84aa-5ca8ec32ac30
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-b5fe5a18789bed43
+      id: fc_a41631b60d3748b3877834672cfd85fb
+      name: add
+      status: completed
+      type: function_call
+    - call_id: chatcmpl-tool-b5fe5a18789bed43
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '856'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-3ca7-7e32-84aa-5ca8ec32ac30
+response:
+  body:
+    background: null
+    created_at: 1793760771
+    error: null
+    id: resp_f59dba79b3a24d17a4e016d2de882bbe
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - arguments: '{"a": 5, "b": 4}'
+      call_id: chatcmpl-tool-bb94cf4a6795034f
+      id: fc_6e9d59f1a9f94f57a826f8ee13d97f35
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    previous_response_id: null
+    reasoning:
+      effort: none
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 375
+      input_tokens_details:
+        cached_tokens: 324
+      output_tokens: 31
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 406
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfZjU5ZGJhNzliM2EyNGQxN2E0ZTAxNmQyZGU4ODJiYmUiLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3NzEsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoiZmNfNmU5ZDU5ZjFhOWY5NGY1N2E4MjZmOGVlMTNkOTdm
+    MzUiLCJ0eXBlIjoiZnVuY3Rpb25fY2FsbCIsImNhbGxfaWQiOiJjaGF0Y21wbC10b29sLWJiOTRj
+    ZjRhNjc5NTAzNGYiLCJuYW1lIjoiYWRkIiwiYXJndW1lbnRzIjoie1wiYVwiOiA1LCBcImJcIjog
+    NH0iLCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJ1
+    c2FnZSI6eyJpbnB1dF90b2tlbnMiOjM3NSwib3V0cHV0X3Rva2VucyI6MzEsInRvdGFsX3Rva2Vu
+    cyI6NDA2LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjozMjR9LCJvdXRw
+    dXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH19LCJlcnJvciI6bnVsbCwi
+    aW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRwdXRf
+    dG9rZW5zIjoyMDQ4LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwicGFyYWxsZWxfdG9vbF9jYWxscyI6
+    ZmFsc2UsInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInN0b3JlIjpmYWxzZSwidGVtcGVy
+    YXR1cmUiOjEuMCwidGV4dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifX0sInRvb2xfY2hvaWNl
+    Ijp7InR5cGUiOiJmdW5jdGlvbiIsIm5hbWUiOiJhZGQifSwidG9vbHMiOlt7InR5cGUiOiJmdW5j
+    dGlvbiIsIm5hbWUiOiJhZGQiLCJkZXNjcmlwdGlvbiI6IkFkZCB0d28gaW50ZWdlcnMuIiwicGFy
+    YW1ldGVycyI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJhIjp7InR5cGUiOiJpbnRl
+    Z2VyIn0sImIiOnsidHlwZSI6ImludGVnZXIifX0sInJlcXVpcmVkIjpbImEiLCJiIl0sImFkZGl0
+    aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX19XSwidG9wX3AiOjAuOTUsInRvcF9sb2dwcm9icyI6bnVs
+    bCwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwidXNlciI6bnVsbCwiYmFja2dyb3VuZCI6bnVsbCwi
+    bWV0YWRhdGEiOnt9fQ==
+  headers:
+    connection: keep-alive
+    content-length: '1153'
+    content-type: application/json
+    x-request-id: d065ff0e-6d9b-470b-b3e0-302b4826357d
+  status_code: 200
+timestamp: '2026-11-04T02:52:51.239960+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

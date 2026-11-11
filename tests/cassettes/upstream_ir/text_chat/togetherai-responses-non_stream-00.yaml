@@ -1,0 +1,161 @@
+filename: 2026-11-05-01a1a9c9-a113-77e1-b1e0-826cbff9b63a
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '220'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9c9-a113-77e1-b1e0-826cbff9b63a
+response:
+  body:
+    background: false
+    completed_at: 1793849928
+    created_at: 1793849926
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9c9-a27b-7162-8c19-affa897ead99
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: "Here are several name suggestions for a robot gardener, broken down\
+          \ by the \"vibe\" you might be going for:\n\n**Botanical & Mechanical (Punny\
+          \ & Clever)**\n*   **Mechanibloom**\n*   **Robo-Rooter**\n*   **Sproutnik**\n\
+          *   **Bot-anical**\n*   **Turflink**\n*   **Metalleaf**\n*   **Thornbot**\n\
+          *   **Circuit-Sprout**\n\n**Cute & Friendly (Great for a home garden)**\n\
+          *   **BloomBot**\n*   **Sprig**\n*   **Pip**\n*   **Dewey**\n*   **Flora**\n\
+          *   **Sunny**\n*   **Bud-E** (Buddy)\n*   **Petal**\n\n**Nature & Mythology\
+          \ Inspired (Elegant or poetic)**\n*   **Sylvia** (Derived from *Silva*,\
+          \ Latin for forest)\n*   **Demeter** (Greek goddess of the harvest)\n* \
+          \  **Flora** (Roman goddess of flowers)\n*   **Ceres** (Roman goddess of\
+          \ agriculture)\n*   **Verdant**\n*   **Gaia**\n\n**Sci-Fi & Futuristic (Sleek\
+          \ and professional)**\n*   **CultiBot**\n*   **Green-Drive**\n*   **TerraDroid**\n\
+          *   **Aero-G**\n*   **VegiTech**\n*   **Sentinel-Sprout**\n*   **Bio-Mech**\n\
+          \n**Specific Task Names (If it does one thing really well)**\n*   **Clipper**\
+          \ (For a pruning/hedge-trimming robot)\n*   **Digger** (For planting/bulbing)\n\
+          *   **Sprinkles** (For a watering robot)\n*   **Weeder**\n*   **Harvestor**\n\
+          \n**My Top 3 Recommendations:**\n1.  **Sproutnik** – It’s memorable, fun\
+          \ to say, and perfectly blends the idea of a new plant sprout with Sputnik\
+          \ (the famous robot/satellite). \n2.  **BloomBot** – Classic, alliterative,\
+          \ and immediately tells you exactly what the robot does.\n3.  **Sylvia**\
+          \ – A great name if you want something that sounds like a helpful companion\
+          \ rather than a machine. \n\nWhat kind of vibe are you going for with your\
+          \ robot?"
+        type: output_text
+      id: msg_8d272d0e-aws_as1-01a1a9c9-a27b-7162-8c19-b00a4cc7a324
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 16
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 498
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 514
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMDFhMWE5YzktYTI3Yi03MTYyLThjMTktYWZmYTg5N2VhZDk5Iiwib2JqZWN0
+    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzODQ5OTI2LCJjb21wbGV0ZWRfYXQiOjE3OTM4
+    NDk5MjgsImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
+    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
+    dXRfdG9rZW5zIjoxMDI0LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
+    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJtZXNzYWdlIiwiaWQiOiJtc2dfOGQyNzJkMGUtYXdz
+    X2FzMS0wMWExYTljOS1hMjdiLTcxNjItOGMxOS1iMDBhNGNjN2EzMjQiLCJyb2xlIjoiYXNzaXN0
+    YW50IiwiY29udGVudCI6W3sidHlwZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6IkhlcmUgYXJlIHNl
+    dmVyYWwgbmFtZSBzdWdnZXN0aW9ucyBmb3IgYSByb2JvdCBnYXJkZW5lciwgYnJva2VuIGRvd24g
+    YnkgdGhlIFwidmliZVwiIHlvdSBtaWdodCBiZSBnb2luZyBmb3I6XG5cbioqQm90YW5pY2FsICYg
+    TWVjaGFuaWNhbCAoUHVubnkgJiBDbGV2ZXIpKipcbiogICAqKk1lY2hhbmlibG9vbSoqXG4qICAg
+    KipSb2JvLVJvb3RlcioqXG4qICAgKipTcHJvdXRuaWsqKlxuKiAgICoqQm90LWFuaWNhbCoqXG4q
+    ICAgKipUdXJmbGluayoqXG4qICAgKipNZXRhbGxlYWYqKlxuKiAgICoqVGhvcm5ib3QqKlxuKiAg
+    ICoqQ2lyY3VpdC1TcHJvdXQqKlxuXG4qKkN1dGUgJiBGcmllbmRseSAoR3JlYXQgZm9yIGEgaG9t
+    ZSBnYXJkZW4pKipcbiogICAqKkJsb29tQm90KipcbiogICAqKlNwcmlnKipcbiogICAqKlBpcCoq
+    XG4qICAgKipEZXdleSoqXG4qICAgKipGbG9yYSoqXG4qICAgKipTdW5ueSoqXG4qICAgKipCdWQt
+    RSoqIChCdWRkeSlcbiogICAqKlBldGFsKipcblxuKipOYXR1cmUgJiBNeXRob2xvZ3kgSW5zcGly
+    ZWQgKEVsZWdhbnQgb3IgcG9ldGljKSoqXG4qICAgKipTeWx2aWEqKiAoRGVyaXZlZCBmcm9tICpT
+    aWx2YSosIExhdGluIGZvciBmb3Jlc3QpXG4qICAgKipEZW1ldGVyKiogKEdyZWVrIGdvZGRlc3Mg
+    b2YgdGhlIGhhcnZlc3QpXG4qICAgKipGbG9yYSoqIChSb21hbiBnb2RkZXNzIG9mIGZsb3dlcnMp
+    XG4qICAgKipDZXJlcyoqIChSb21hbiBnb2RkZXNzIG9mIGFncmljdWx0dXJlKVxuKiAgICoqVmVy
+    ZGFudCoqXG4qICAgKipHYWlhKipcblxuKipTY2ktRmkgJiBGdXR1cmlzdGljIChTbGVlayBhbmQg
+    cHJvZmVzc2lvbmFsKSoqXG4qICAgKipDdWx0aUJvdCoqXG4qICAgKipHcmVlbi1Ecml2ZSoqXG4q
+    ICAgKipUZXJyYURyb2lkKipcbiogICAqKkFlcm8tRyoqXG4qICAgKipWZWdpVGVjaCoqXG4qICAg
+    KipTZW50aW5lbC1TcHJvdXQqKlxuKiAgICoqQmlvLU1lY2gqKlxuXG4qKlNwZWNpZmljIFRhc2sg
+    TmFtZXMgKElmIGl0IGRvZXMgb25lIHRoaW5nIHJlYWxseSB3ZWxsKSoqXG4qICAgKipDbGlwcGVy
+    KiogKEZvciBhIHBydW5pbmcvaGVkZ2UtdHJpbW1pbmcgcm9ib3QpXG4qICAgKipEaWdnZXIqKiAo
+    Rm9yIHBsYW50aW5nL2J1bGJpbmcpXG4qICAgKipTcHJpbmtsZXMqKiAoRm9yIGEgd2F0ZXJpbmcg
+    cm9ib3QpXG4qICAgKipXZWVkZXIqKlxuKiAgICoqSGFydmVzdG9yKipcblxuKipNeSBUb3AgMyBS
+    ZWNvbW1lbmRhdGlvbnM6KipcbjEuICAqKlNwcm91dG5payoqIOKAkyBJdOKAmXMgbWVtb3JhYmxl
+    LCBmdW4gdG8gc2F5LCBhbmQgcGVyZmVjdGx5IGJsZW5kcyB0aGUgaWRlYSBvZiBhIG5ldyBwbGFu
+    dCBzcHJvdXQgd2l0aCBTcHV0bmlrICh0aGUgZmFtb3VzIHJvYm90L3NhdGVsbGl0ZSkuIFxuMi4g
+    ICoqQmxvb21Cb3QqKiDigJMgQ2xhc3NpYywgYWxsaXRlcmF0aXZlLCBhbmQgaW1tZWRpYXRlbHkg
+    dGVsbHMgeW91IGV4YWN0bHkgd2hhdCB0aGUgcm9ib3QgZG9lcy5cbjMuICAqKlN5bHZpYSoqIOKA
+    kyBBIGdyZWF0IG5hbWUgaWYgeW91IHdhbnQgc29tZXRoaW5nIHRoYXQgc291bmRzIGxpa2UgYSBo
+    ZWxwZnVsIGNvbXBhbmlvbiByYXRoZXIgdGhhbiBhIG1hY2hpbmUuIFxuXG5XaGF0IGtpbmQgb2Yg
+    dmliZSBhcmUgeW91IGdvaW5nIGZvciB3aXRoIHlvdXIgcm9ib3Q/IiwiYW5ub3RhdGlvbnMiOltd
+    fV0sInN0YXR1cyI6ImNvbXBsZXRlZCJ9XSwicGFyYWxsZWxfdG9vbF9jYWxscyI6dHJ1ZSwicHJl
+    dmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInByb21wdF9jYWNoZV9rZXkiOm51bGwsInByb21wdF9j
+    YWNoZV9yZXRlbnRpb24iOm51bGwsInJlYXNvbmluZyI6eyJlZmZvcnQiOiJtaW5pbWFsIiwic3Vt
+    bWFyeSI6bnVsbH0sInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJzdG9yZSI6ZmFsc2UsInRlbXBl
+    cmF0dXJlIjoxLjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In0sInZlcmJvc2l0eSI6
+    Im1lZGl1bSJ9LCJ0b29sX2Nob2ljZSI6ImF1dG8iLCJ0b29scyI6W10sInRvcF9sb2dwcm9icyI6
+    MCwidG9wX3AiOjEuMCwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwidXNhZ2UiOnsiaW5wdXRfdG9r
+    ZW5zIjoxNiwib3V0cHV0X3Rva2VucyI6NDk4LCJ0b3RhbF90b2tlbnMiOjUxNCwiaW5wdXRfdG9r
+    ZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MCwiY2FjaGVfd3JpdGVfdG9rZW5zIjowfSwi
+    b3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9fSwidXNlciI6bnVs
+    bCwic2FmZXR5X2lkZW50aWZpZXIiOm51bGwsImZyZXF1ZW5jeV9wZW5hbHR5IjowLjAsInByZXNl
+    bmNlX3BlbmFsdHkiOjAuMCwibWV0YWRhdGEiOnt9fQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 8d272d0e-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:38:45.907749+00:00'
+upstream_url: https://api.together.ai/v1/responses

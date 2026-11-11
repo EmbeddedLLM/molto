@@ -1,0 +1,2217 @@
+filename: 2026-11-05-01a1a9c7-4e6b-7d13-88d0-84ff5c0a64e4
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    reasoning:
+      effort: minimal
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '219'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9c7-4e6b-7d13-88d0-84ff5c0a64e4
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: b096134a-aws_as1
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_01a1a9c7-9d8b-7310-83e0-42b18fbda1f0","object":"response","created_at":1793849793,"completed_at":null,"background":false,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_01a1a9c7-9d8b-7310-83e0-42b18fbda1f0","object":"response","created_at":1793849793,"completed_at":null,"background":false,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_01a1a9c79dda7060afc2980080dc45ba","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":3,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":4,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"Here","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":5,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    are several","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":6,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    name suggestions","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":7,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    for a robot gardener,","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":8,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    broken down by the \"","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":9,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"vibe\"
+    you might be","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":10,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    going for:\n\n**C","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":11,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ute
+    & Friendly**\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":12,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*   **Spr","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":13,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"out:**
+    Simple","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":14,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    friendly","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":15,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    and perfect","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":16,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    for a robot","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":17,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    that helps things","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":18,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    grow.\n*   **B","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":19,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"loomie","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":20,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Sounds","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":21,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    like a helpful","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":22,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    happy","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":23,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    little companion.\n*   **","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":24,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"P","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":25,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"etal","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":26,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Gentle","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":27,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    and sweet","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":28,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    great","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":29,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    for a robot","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":30,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    that tends","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":31,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    to flowers.\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":32,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*   **Leaf","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":33,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"y:**
+    A playful","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":34,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":35,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    approach","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":36,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"able
+    name.","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":37,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    \n*   **D","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":38,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"andy","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":39,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Inspired","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":40,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    by the d","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":41,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"andelion,
+    giving","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":42,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    it","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":43,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a whims","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":44,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ical
+    feel","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":45,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":46,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*   **Bud","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":47,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Short","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":48,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    classic","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":49,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    and implies","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":50,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a growing","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":51,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    friendship","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":52,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".\n\n**Botanical
+    & Scientific","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":53,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"**\n*   **Ch","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":54,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"loris","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":55,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Named","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":56,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    after the Greek goddess of flowers","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":57,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    (","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":58,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"also","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":59,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    where","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":60,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    the","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":61,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    word chlor","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":62,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ophyll
+    comes","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":63,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    from).\n*   **Fl","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":64,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"orig","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":65,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"en","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":66,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Named","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":67,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    after the hormone","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":68,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    in","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":69,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    plants that tells","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":70,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    them to flower","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":71,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":72,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    Sounds","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":73,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    very high","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":74,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-tech.\n*   **A","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":75,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ero:**
+    A nod","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":76,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    to aerop","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":77,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"onics
+    and","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":78,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    aer","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":79,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"odynamics.
+    \n*   **","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":80,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"F","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":81,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"olia","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":82,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Derived","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":83,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    from *","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":84,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"foliage*
+    (le","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":85,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"aves).\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":86,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*   **Ar","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":87,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"bor:**
+    A classic","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":88,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    word","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":89,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    for trees","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":90,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    giving","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":91,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    the","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":92,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot a sturdy","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":93,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    reliable feel.\n\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":94,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"**Tech
+    & Mechanical","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":95,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"**\n*   **Green","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":96,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-B","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":97,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ot:**
+    Straight","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":98,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"forward
+    and classic.\n*  ","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":99,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    **Rob","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":100,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"o-","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":101,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"We","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":102,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ed","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":103,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Great","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":104,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    if","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":105,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    the robot''s","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":106,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    primary job is pulling","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":107,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    weeds.\n*   **V","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":108,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ine","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":109,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-O","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":110,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    A pun","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":111,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    on \"","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":112,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"D","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":113,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ino,\"","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":114,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    but referencing","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":115,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    creeping","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":116,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    vines.\n*   **M","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":117,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"echa","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":118,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-S","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":119,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"prout:**
+    For","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":120,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a slightly","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":121,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    more heavy","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":122,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-duty
+    gardening","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":123,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot.\n*   **T","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":124,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"erra","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":125,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-D","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":126,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"roid:**
+    \"","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":127,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"Terra\"
+    meaning","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":128,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    earth/","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":129,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"soil,","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":130,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    combined","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":131,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    with a robotic","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":132,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    suffix.\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":133,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*   **Root","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":134,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-R","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":135,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"over","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":136,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Sounds","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":137,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    like a rover","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":138,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    exploring","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":139,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":140,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    garden planet","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":141,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".\n\n**P","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":142,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"uns","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":143,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    & Play","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":144,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ful**\n*   **R","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":145,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"2","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":146,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":147,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"Seed2","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":148,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    The","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":149,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    ultimate Star Wars-inspired","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":150,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    gard","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":151,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ener
+    pun","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":152,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".\n*   **Wall","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":153,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-Eed","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":154,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    A play on Wall","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":155,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-E
+    and weed","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":156,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-p","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":157,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ulling.\n*   **Opt","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":158,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"imus","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":159,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    Rh","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":160,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"iz","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":161,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ome:**
+    A botanical","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":162,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    take","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":163,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    on Optim","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":164,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"us
+    Prime (","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":165,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"rhizomes
+    are underground","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":166,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    plant stems).\n*   **","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":167,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"T","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":168,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"rowel","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":169,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-Tron:**
+    A classic","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":170,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot name merged","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":171,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    with a gardening","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":172,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    tool.\n*   **Mul","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":173,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ch-O","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":174,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":":**
+    Sounds","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":175,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    like a friendly","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":176,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",
+    mud","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":177,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-loving","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":178,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot.\n\n**How","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":179,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    to choose the","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":180,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    best one:**\n*  ","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":181,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    If it''s","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":182,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a **small","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":183,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    indoor","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":184,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot** that","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":185,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    potted","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":186,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    plants, go","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":187,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    with something","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":188,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    cute like *","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":189,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"Sprout*
+    or *B","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":190,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"ud*.\n*   If","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":191,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    it''s a **large outdoor","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":192,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    farming","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":193,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot**,","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":194,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    go with something stronger","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":195,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    like *Terra-Droid","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":196,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"*
+    or *Arbor*","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":197,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".\n*   If
+    it''s","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":198,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a **smart","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":199,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":",","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":200,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    app","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":201,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"-controlled","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":202,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    robot**,","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":203,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    a","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":204,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    sleek","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":205,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    name","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":206,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"
+    like *Fl","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":207,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"origen*
+    or *F","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":208,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":"olia*
+    works beautifully","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":209,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"delta":".","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":210,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"text":"Here
+    are several name suggestions for a robot gardener, broken down by the \"vibe\"
+    you might be going for:\n\n**Cute & Friendly**\n*   **Sprout:** Simple, friendly,
+    and perfect for a robot that helps things grow.\n*   **Bloomie:** Sounds like
+    a helpful, happy little companion.\n*   **Petal:** Gentle and sweet, great for
+    a robot that tends to flowers.\n*   **Leafy:** A playful, approachable name. \n*   **Dandy:**
+    Inspired by the dandelion, giving it a whimsical feel.\n*   **Bud:** Short, classic,
+    and implies a growing friendship.\n\n**Botanical & Scientific**\n*   **Chloris:**
+    Named after the Greek goddess of flowers (also where the word chlorophyll comes
+    from).\n*   **Florigen:** Named after the hormone in plants that tells them to
+    flower. Sounds very high-tech.\n*   **Aero:** A nod to aeroponics and aerodynamics.
+    \n*   **Folia:** Derived from *foliage* (leaves).\n*   **Arbor:** A classic word
+    for trees, giving the robot a sturdy, reliable feel.\n\n**Tech & Mechanical**\n*   **Green-Bot:**
+    Straightforward and classic.\n*   **Robo-Weed:** Great if the robot''s primary
+    job is pulling weeds.\n*   **Vine-O:** A pun on \"Dino,\" but referencing creeping
+    vines.\n*   **Mecha-Sprout:** For a slightly more heavy-duty gardening robot.\n*   **Terra-Droid:**
+    \"Terra\" meaning earth/soil, combined with a robotic suffix.\n*   **Root-Rover:**
+    Sounds like a rover exploring a garden planet.\n\n**Puns & Playful**\n*   **R2-Seed2:**
+    The ultimate Star Wars-inspired gardener pun.\n*   **Wall-Eed:** A play on Wall-E
+    and weed-pulling.\n*   **Optimus Rhizome:** A botanical take on Optimus Prime
+    (rhizomes are underground plant stems).\n*   **Trowel-Tron:** A classic robot
+    name merged with a gardening tool.\n*   **Mulch-O:** Sounds like a friendly, mud-loving
+    robot.\n\n**How to choose the best one:**\n*   If it''s a **small indoor robot**
+    that potted plants, go with something cute like *Sprout* or *Bud*.\n*   If it''s
+    a **large outdoor farming robot**, go with something stronger like *Terra-Droid*
+    or *Arbor*.\n*   If it''s a **smart, app-controlled robot**, a sleek name like
+    *Florigen* or *Folia* works beautifully.","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":211,"output_index":0,"item_id":"msg_01a1a9c79dda7060afc2980080dc45ba","content_index":0,"part":{"type":"output_text","text":"Here
+    are several name suggestions for a robot gardener, broken down by the \"vibe\"
+    you might be going for:\n\n**Cute & Friendly**\n*   **Sprout:** Simple, friendly,
+    and perfect for a robot that helps things grow.\n*   **Bloomie:** Sounds like
+    a helpful, happy little companion.\n*   **Petal:** Gentle and sweet, great for
+    a robot that tends to flowers.\n*   **Leafy:** A playful, approachable name. \n*   **Dandy:**
+    Inspired by the dandelion, giving it a whimsical feel.\n*   **Bud:** Short, classic,
+    and implies a growing friendship.\n\n**Botanical & Scientific**\n*   **Chloris:**
+    Named after the Greek goddess of flowers (also where the word chlorophyll comes
+    from).\n*   **Florigen:** Named after the hormone in plants that tells them to
+    flower. Sounds very high-tech.\n*   **Aero:** A nod to aeroponics and aerodynamics.
+    \n*   **Folia:** Derived from *foliage* (leaves).\n*   **Arbor:** A classic word
+    for trees, giving the robot a sturdy, reliable feel.\n\n**Tech & Mechanical**\n*   **Green-Bot:**
+    Straightforward and classic.\n*   **Robo-Weed:** Great if the robot''s primary
+    job is pulling weeds.\n*   **Vine-O:** A pun on \"Dino,\" but referencing creeping
+    vines.\n*   **Mecha-Sprout:** For a slightly more heavy-duty gardening robot.\n*   **Terra-Droid:**
+    \"Terra\" meaning earth/soil, combined with a robotic suffix.\n*   **Root-Rover:**
+    Sounds like a rover exploring a garden planet.\n\n**Puns & Playful**\n*   **R2-Seed2:**
+    The ultimate Star Wars-inspired gardener pun.\n*   **Wall-Eed:** A play on Wall-E
+    and weed-pulling.\n*   **Optimus Rhizome:** A botanical take on Optimus Prime
+    (rhizomes are underground plant stems).\n*   **Trowel-Tron:** A classic robot
+    name merged with a gardening tool.\n*   **Mulch-O:** Sounds like a friendly, mud-loving
+    robot.\n\n**How to choose the best one:**\n*   If it''s a **small indoor robot**
+    that potted plants, go with something cute like *Sprout* or *Bud*.\n*   If it''s
+    a **large outdoor farming robot**, go with something stronger like *Terra-Droid*
+    or *Arbor*.\n*   If it''s a **smart, app-controlled robot**, a sleek name like
+    *Florigen* or *Folia* works beautifully.","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":212,"output_index":0,"item":{"id":"msg_01a1a9c79dda7060afc2980080dc45ba","type":"message","role":"assistant","content":[{"type":"output_text","text":"Here
+    are several name suggestions for a robot gardener, broken down by the \"vibe\"
+    you might be going for:\n\n**Cute & Friendly**\n*   **Sprout:** Simple, friendly,
+    and perfect for a robot that helps things grow.\n*   **Bloomie:** Sounds like
+    a helpful, happy little companion.\n*   **Petal:** Gentle and sweet, great for
+    a robot that tends to flowers.\n*   **Leafy:** A playful, approachable name. \n*   **Dandy:**
+    Inspired by the dandelion, giving it a whimsical feel.\n*   **Bud:** Short, classic,
+    and implies a growing friendship.\n\n**Botanical & Scientific**\n*   **Chloris:**
+    Named after the Greek goddess of flowers (also where the word chlorophyll comes
+    from).\n*   **Florigen:** Named after the hormone in plants that tells them to
+    flower. Sounds very high-tech.\n*   **Aero:** A nod to aeroponics and aerodynamics.
+    \n*   **Folia:** Derived from *foliage* (leaves).\n*   **Arbor:** A classic word
+    for trees, giving the robot a sturdy, reliable feel.\n\n**Tech & Mechanical**\n*   **Green-Bot:**
+    Straightforward and classic.\n*   **Robo-Weed:** Great if the robot''s primary
+    job is pulling weeds.\n*   **Vine-O:** A pun on \"Dino,\" but referencing creeping
+    vines.\n*   **Mecha-Sprout:** For a slightly more heavy-duty gardening robot.\n*   **Terra-Droid:**
+    \"Terra\" meaning earth/soil, combined with a robotic suffix.\n*   **Root-Rover:**
+    Sounds like a rover exploring a garden planet.\n\n**Puns & Playful**\n*   **R2-Seed2:**
+    The ultimate Star Wars-inspired gardener pun.\n*   **Wall-Eed:** A play on Wall-E
+    and weed-pulling.\n*   **Optimus Rhizome:** A botanical take on Optimus Prime
+    (rhizomes are underground plant stems).\n*   **Trowel-Tron:** A classic robot
+    name merged with a gardening tool.\n*   **Mulch-O:** Sounds like a friendly, mud-loving
+    robot.\n\n**How to choose the best one:**\n*   If it''s a **small indoor robot**
+    that potted plants, go with something cute like *Sprout* or *Bud*.\n*   If it''s
+    a **large outdoor farming robot**, go with something stronger like *Terra-Droid*
+    or *Arbor*.\n*   If it''s a **smart, app-controlled robot**, a sleek name like
+    *Florigen* or *Folia* works beautifully.","annotations":[]}],"status":"completed"}}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":213,"response":{"id":"resp_01a1a9c7-9d8b-7310-83e0-42b18fbda1f0","object":"response","created_at":1793849793,"completed_at":1793849796,"background":false,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"model":"zai-org/GLM-5.2","output":[{"id":"msg_01a1a9c79dda7060afc2980080dc45ba","type":"message","role":"assistant","content":[{"type":"output_text","text":"Here
+    are several name suggestions for a robot gardener, broken down by the \"vibe\"
+    you might be going for:\n\n**Cute & Friendly**\n*   **Sprout:** Simple, friendly,
+    and perfect for a robot that helps things grow.\n*   **Bloomie:** Sounds like
+    a helpful, happy little companion.\n*   **Petal:** Gentle and sweet, great for
+    a robot that tends to flowers.\n*   **Leafy:** A playful, approachable name. \n*   **Dandy:**
+    Inspired by the dandelion, giving it a whimsical feel.\n*   **Bud:** Short, classic,
+    and implies a growing friendship.\n\n**Botanical & Scientific**\n*   **Chloris:**
+    Named after the Greek goddess of flowers (also where the word chlorophyll comes
+    from).\n*   **Florigen:** Named after the hormone in plants that tells them to
+    flower. Sounds very high-tech.\n*   **Aero:** A nod to aeroponics and aerodynamics.
+    \n*   **Folia:** Derived from *foliage* (leaves).\n*   **Arbor:** A classic word
+    for trees, giving the robot a sturdy, reliable feel.\n\n**Tech & Mechanical**\n*   **Green-Bot:**
+    Straightforward and classic.\n*   **Robo-Weed:** Great if the robot''s primary
+    job is pulling weeds.\n*   **Vine-O:** A pun on \"Dino,\" but referencing creeping
+    vines.\n*   **Mecha-Sprout:** For a slightly more heavy-duty gardening robot.\n*   **Terra-Droid:**
+    \"Terra\" meaning earth/soil, combined with a robotic suffix.\n*   **Root-Rover:**
+    Sounds like a rover exploring a garden planet.\n\n**Puns & Playful**\n*   **R2-Seed2:**
+    The ultimate Star Wars-inspired gardener pun.\n*   **Wall-Eed:** A play on Wall-E
+    and weed-pulling.\n*   **Optimus Rhizome:** A botanical take on Optimus Prime
+    (rhizomes are underground plant stems).\n*   **Trowel-Tron:** A classic robot
+    name merged with a gardening tool.\n*   **Mulch-O:** Sounds like a friendly, mud-loving
+    robot.\n\n**How to choose the best one:**\n*   If it''s a **small indoor robot**
+    that potted plants, go with something cute like *Sprout* or *Bud*.\n*   If it''s
+    a **large outdoor farming robot**, go with something stronger like *Terra-Droid*
+    or *Arbor*.\n*   If it''s a **smart, app-controlled robot**, a sleek name like
+    *Florigen* or *Folia* works beautifully.","annotations":[]}],"status":"completed"}],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"minimal","summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":16,"output_tokens":561,"total_tokens":577,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens_details":{"reasoning_tokens":0}},"user":null,"safety_identifier":null,"frequency_penalty":0.0,"presence_penalty":0.0,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: response.completed
+timestamp: '2026-11-05T03:36:13.675202+00:00'
+upstream_url: https://api.together.ai/v1/responses

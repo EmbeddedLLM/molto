@@ -30,6 +30,25 @@ from molto.types.openai_responses import (
 )
 
 
+@pytest.mark.parametrize("strictness", [{}, {"strict": False}, {"strict": True}, {"strict": None}])
+def test_function_tool_preserves_optional_strictness(strictness):
+    """Ensures omitted strictness stays omitted and explicit values retain existing serialization."""
+    tool = {"type": "function", "name": "add", "parameters": {}, **strictness}
+    request = OpenAIResponsesCreateRequest(model="m", tools=[tool])
+    expected = {key: value for key, value in tool.items() if value is not None}
+    assert request.model_dump()["tools"] == [expected]
+    assert request.model_dump()["tools"] == [expected]
+
+
+@pytest.mark.parametrize("field", ["type", "name", "parameters"])
+def test_function_tool_still_requires_sdk_identity_and_schema(field):
+    """Ensures optional strictness does not loosen other required function definition fields."""
+    tool = {"type": "function", "name": "add", "parameters": {}}
+    del tool[field]
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(model="m", tools=[tool])
+
+
 def test_request_fields_match_responses_create_body_parameters():
     signature = inspect.signature(AsyncResponses.create)
     transport_parameters = {"self", "extra_headers", "extra_query", "extra_body", "timeout"}

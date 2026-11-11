@@ -4,7 +4,7 @@ from contextlib import aclosing
 from typing import Any, NoReturn
 
 from httpx import URL, AsyncClient, Headers, Request
-from openai import AsyncOpenAI, omit
+from openai import AsyncOpenAI, OpenAIError, omit
 from pydantic import BaseModel
 
 from molto.providers import ProviderCapabilities
@@ -22,6 +22,13 @@ class BaseClient[
     NativeResponseT: BaseModel,
 ](ABC):
     DEFAULT_BASE_URL: str
+    REQUIRED_API_KEY: str | None = None
+    REQUIRES_BASE_URL = False
+
+    @classmethod
+    def resolve_capabilities(cls, capabilities: ProviderCapabilities) -> ProviderCapabilities:
+        """Apply protocol-specific provider policy to the shared provider profile."""
+        return capabilities
 
     def __init__(
         self,
@@ -33,10 +40,12 @@ class BaseClient[
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
     ) -> None:
+        if self.REQUIRES_BASE_URL and not base_url:
+            raise ValueError(f"{type(self).__name__} requires an explicit base_url.")
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url
-        self._capabilities = capabilities
+        self._capabilities = self.resolve_capabilities(capabilities)
         self._extra_body = extra_body
         self._extra_headers = extra_headers
         self.response_headers = Headers()
@@ -46,6 +55,8 @@ class BaseClient[
         self.response_headers.update(headers)
 
     def _make_sdk_client(self) -> AsyncOpenAI:
+        if self.REQUIRED_API_KEY and not self._api_key:
+            raise OpenAIError(f"Missing credentials. Set {self.REQUIRED_API_KEY} or pass api_key.")
         return AsyncOpenAI(
             api_key=self._api_key,
             base_url=self._base_url or self.DEFAULT_BASE_URL,

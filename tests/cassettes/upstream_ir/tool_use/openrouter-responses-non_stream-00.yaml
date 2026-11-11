@@ -1,0 +1,157 @@
+filename: 2026-11-04-01a1a489-c140-7c31-aaf2-46a14bcfd428
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    max_output_tokens: 1024
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: false
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '655'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a489-c140-7c31-aaf2-46a14bcfd428
+response:
+  body:
+    access_programs: null
+    background: false
+    completed_at: 1793761854
+    created_at: 1793761853
+    error: null
+    frequency_penalty: 0
+    id: gen-1793761853-OkSXGYRZKQ9cjET5sYIr
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: nvidia/nemotron-3.5-lightning:free
+    object: response
+    output:
+    - arguments: "{\n  \"a\": 2,\n  \"b\": 3\n}"
+      call_id: call-8c844a23-0c02-41a4-977b-449244714607
+      id: fc_tmp_gkvflek9nk4
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_options: null
+    reasoning:
+      effort: none
+    safety_identifier: null
+    service_tier: auto
+    status: completed
+    store: false
+    temperature: 1
+    text:
+      format:
+        type: text
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      strict: null
+      type: function
+    top_logprobs: 0
+    top_p: 1
+    truncation: disabled
+    usage:
+      cost: 0
+      cost_details:
+        upstream_inference_cost: 0
+        upstream_inference_input_cost: 0
+        upstream_inference_output_cost: 0
+      input_tokens: 324
+      input_tokens_details:
+        cached_tokens: 0
+      is_byok: false
+      output_tokens: 17
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 341
+  body_bytes: !!binary |
+    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE4NTMtT2tTWEdZUlpLUTljakVUNXNZSXIiLCJv
+    YmplY3QiOiJyZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjE4NTMsIm1vZGVsIjoibnZpZGlh
+    L25lbW90cm9uLTMuNS1saWdodG5pbmc6ZnJlZSIsInN0YXR1cyI6ImNvbXBsZXRlZCIsImNvbXBs
+    ZXRlZF9hdCI6MTc5Mzc2MTg1NCwib3V0cHV0IjpbeyJpZCI6ImZjX3RtcF9na3ZmbGVrOW5rNCIs
+    InR5cGUiOiJmdW5jdGlvbl9jYWxsIiwic3RhdHVzIjoiY29tcGxldGVkIiwiY2FsbF9pZCI6ImNh
+    bGwtOGM4NDRhMjMtMGMwMi00MWE0LTk3N2ItNDQ5MjQ0NzE0NjA3IiwibmFtZSI6ImFkZCIsImFy
+    Z3VtZW50cyI6IntcbiAgXCJhXCI6IDIsXG4gIFwiYlwiOiAzXG59In1dLCJlcnJvciI6bnVsbCwi
+    aW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJhY2Nlc3NfcHJvZ3JhbXMiOm51bGwsInRvb2xzIjpb
+    eyJ0eXBlIjoiZnVuY3Rpb24iLCJuYW1lIjoiYWRkIiwiZGVzY3JpcHRpb24iOiJBZGQgdHdvIGlu
+    dGVnZXJzLiIsInBhcmFtZXRlcnMiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYSI6
+    eyJ0eXBlIjoiaW50ZWdlciJ9LCJiIjp7InR5cGUiOiJpbnRlZ2VyIn19LCJyZXF1aXJlZCI6WyJh
+    IiwiYiJdLCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9LCJzdHJpY3QiOm51bGx9XSwidG9v
+    bF9jaG9pY2UiOnsidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFkZCJ9LCJwYXJhbGxlbF90b29s
+    X2NhbGxzIjpmYWxzZSwibWF4X291dHB1dF90b2tlbnMiOjEwMjQsInRlbXBlcmF0dXJlIjoxLCJ0
+    b3BfcCI6MSwicHJlc2VuY2VfcGVuYWx0eSI6MCwiZnJlcXVlbmN5X3BlbmFsdHkiOjAsInRvcF9s
+    b2dwcm9icyI6MCwibWF4X3Rvb2xfY2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwiYmFja2dyb3Vu
+    ZCI6ZmFsc2UsInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJzZXJ2aWNlX3RpZXIiOiJhdXRv
+    IiwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwic3RvcmUiOmZhbHNlLCJpbnN0cnVjdGlvbnMiOm51
+    bGwsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In19LCJyZWFzb25pbmciOnsiZWZmb3J0
+    Ijoibm9uZSJ9LCJzYWZldHlfaWRlbnRpZmllciI6bnVsbCwicHJvbXB0X2NhY2hlX2tleSI6bnVs
+    bCwicHJvbXB0X2NhY2hlX29wdGlvbnMiOm51bGwsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6MzI0
+    LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowfSwib3V0cHV0X3Rva2Vu
+    cyI6MTcsIm91dHB1dF90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowfSwidG90
+    YWxfdG9rZW5zIjozNDEsImNvc3QiOjAsImlzX2J5b2siOmZhbHNlLCJjb3N0X2RldGFpbHMiOnsi
+    dXBzdHJlYW1faW5mZXJlbmNlX2Nvc3QiOjAsInVwc3RyZWFtX2luZmVyZW5jZV9pbnB1dF9jb3N0
+    IjowLCJ1cHN0cmVhbV9pbmZlcmVuY2Vfb3V0cHV0X2Nvc3QiOjB9fX0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:10:53.761005+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

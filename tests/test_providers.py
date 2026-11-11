@@ -18,7 +18,12 @@ def test_provider_capabilities_are_explicit_and_immutable() -> None:
     """Ensures provider-specific requirements are explicit and cannot be mutated."""
     assert PROVIDER_CAPABILITIES == {
         "anthropic": ProviderCapabilities(thinking="summary", requires_search_history_state=True),
+        "bedrock": ProviderCapabilities(thinking="summary"),
+        "fireworks": ProviderCapabilities(thinking="summary"),
         "openai": ProviderCapabilities(thinking="summary"),
+        "gemini": ProviderCapabilities(thinking="summary"),
+        "openrouter": ProviderCapabilities(thinking="summary"),
+        "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),
     }
     with pytest.raises(FrozenInstanceError):
@@ -36,7 +41,7 @@ def test_default_provider_is_separate_from_endpoint_selection() -> None:
 @pytest.mark.parametrize(
     ("provider", "base_url"),
     [
-        ("openai", "https://vllm.example"),
+        ("anthropic", "https://vllm.example"),
         ("vllm", "https://api.anthropic.com"),
     ],
 )
@@ -45,6 +50,7 @@ async def test_provider_selects_capabilities_independently_of_endpoint_and_base_
     provider: str,
     base_url: str,
 ) -> None:
+    """Ensures a supported provider selects capabilities independently of the destination."""
     captured: dict[str, object] = {}
 
     def stub_events(

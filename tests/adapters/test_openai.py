@@ -814,6 +814,46 @@ async def test_chat_response_projection_handles_completion_without_content() -> 
     assert choice.message.content is None
 
 
+@pytest.mark.parametrize("provider", ["openai", "vllm", "openrouter"])
+@pytest.mark.parametrize(
+    ("part", "deltas", "expected"),
+    [
+        (Thinking(content="", summary=""), [ThinkingDelta(content_delta="raw")], "raw"),
+        (Thinking(content="", summary=""), [ThinkingDelta(summary_delta="summary")], "summary"),
+        (Thinking(content="raw", summary=""), [], "raw"),
+        (Thinking(content="", summary="summary"), [], "summary"),
+    ],
+    ids=["raw-delta", "summary-delta", "raw-start", "summary-start"],
+)
+async def test_chat_projection_carries_either_reasoning_representation(
+    provider, part, deltas, expected
+) -> None:
+    """Ensures Chat reasoning carries raw text or a summary whatever the provider profile."""
+    adapter, request = _chat_adapter(PROVIDER_CAPABILITIES[provider])
+    completed = Thinking(
+        content=part.content + "".join(delta.content_delta or "" for delta in deltas),
+        summary=part.summary + "".join(delta.summary_delta or "" for delta in deltas),
+    )
+
+    response = await adapter.project_response(
+        adapter.project_events(
+            _stream(
+                _CHAT_START,
+                PartStartEvent(index=0, part=part),
+                *(PartDeltaEvent(index=0, delta=delta) for delta in deltas),
+                PartEndEvent(index=0, part=completed),
+                ResponseEndEvent(
+                    id="chatcmpl_123", created_at=1, model="m", termination_reason="stop"
+                ),
+            ),
+            request,
+        ),
+        request,
+    )
+
+    assert response.choices[0].message.reasoning_content == expected
+
+
 async def test_chat_response_projection_rejects_missing_finish_reason() -> None:
     adapter, request = _chat_adapter(_CAPABILITIES)
 

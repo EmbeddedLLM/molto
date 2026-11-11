@@ -1,0 +1,197 @@
+filename: 2026-11-05-01a1aab8-f7a9-7140-ba69-93624ea286ab
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_c80a312cdcb9565ba95378477b5a66cc
+      id: fc_952eccd443bc551ea316b2dfc89f16af
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_c80a312cdcb9565ba95378477b5a66cc
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_832dd15bb178544bbaf5f59cb6c66241
+      id: fc_cabb51fd142754369edc77b439734db5
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_832dd15bb178544bbaf5f59cb6c66241
+      output:
+      - text: Water the tomatoes every morning and harvest ripe fruit.
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1310'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-f7a9-7140-ba69-93624ea286ab
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: d79dad9a-9a51-40da-b844-ba3aaf1aff0c
+  sse:
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865611,"error":null,"frequency_penalty":0.0,"id":"resp_jdxo56t7dvjd4rto2ebrnpapecby25y3vu4y5uvd377g4lk24dgq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":0,"type":"response.created"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865611,"error":null,"frequency_penalty":0.0,"id":"resp_jdxo56t7dvjd4rto2ebrnpapecby25y3vu4y5uvd377g4lk24dgq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":1,"type":"response.in_progress"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[],"id":"msg_b97e18ab57da56d89a6008b7604beea8","phase":"final_answer","role":"assistant","status":"in_progress","type":"message"},"output_index":0,"sequence_number":2,"type":"response.output_item.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_b97e18ab57da56d89a6008b7604beea8","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"","type":"output_text"},"sequence_number":3,"type":"response.content_part.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":"Water","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDE","output_index":0,"sequence_number":4,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" the","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJ","output_index":0,"sequence_number":5,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" tomatoes","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefgh","output_index":0,"sequence_number":6,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" every","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDE","output_index":0,"sequence_number":7,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" morning","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY","output_index":0,"sequence_number":8,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" and","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO","output_index":0,"sequence_number":9,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" harvest","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012","output_index":0,"sequence_number":10,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" ripe","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijk","output_index":0,"sequence_number":11,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":" fruit","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklm","output_index":0,"sequence_number":12,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"delta":".","item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU","output_index":0,"sequence_number":13,"type":"response.output_text.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_b97e18ab57da56d89a6008b7604beea8","logprobs":[],"output_index":0,"sequence_number":14,"text":"Water
+    the tomatoes every morning and harvest ripe fruit.","type":"response.output_text.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"content_index":0,"item_id":"msg_b97e18ab57da56d89a6008b7604beea8","output_index":0,"part":{"annotations":[],"logprobs":[],"text":"Water
+    the tomatoes every morning and harvest ripe fruit.","type":"output_text"},"sequence_number":15,"type":"response.content_part.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"content":[{"annotations":[],"logprobs":[],"text":"Water the tomatoes
+    every morning and harvest ripe fruit.","type":"output_text"}],"id":"msg_b97e18ab57da56d89a6008b7604beea8","phase":"final_answer","role":"assistant","status":"completed","type":"message"},"output_index":0,"sequence_number":16,"type":"response.output_item.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":1793865611,"created_at":1793865611,"error":null,"frequency_penalty":0.0,"id":"resp_jdxo56t7dvjd4rto2ebrnpapecby25y3vu4y5uvd377g4lk24dgq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[{"content":[{"annotations":[],"logprobs":[],"text":"Water
+    the tomatoes every morning and harvest ripe fruit.","type":"output_text"}],"id":"msg_b97e18ab57da56d89a6008b7604beea8","phase":"final_answer","role":"assistant","status":"completed","type":"message"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"default","status":"completed","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":221,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":235},"user":null,"moderation":null},"sequence_number":17,"type":"response.completed"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T08:00:11.177722+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

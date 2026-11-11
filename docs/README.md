@@ -83,6 +83,8 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
+See [hosted provider compatibility](provider-compatibility.md) for provider keys, exact destinations, history constraints, and the recorded/matched/synthetic evidence matrix.
+
 Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
 
 Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.
@@ -232,7 +234,7 @@ Responses events label those representations explicitly and must agree with the 
 
 A Responses reasoning output lifecycle contains raw reasoning without a summary or signature, a summary with an optional signature and no raw reasoning, or a signature without reasoning text. A Messages thinking output lifecycle follows the same rule. A completely empty start may be deferred until its representation is known, and a lifecycle must not switch representations.
 
-Output processing preserves unsigned summaries rather than rejecting a response because its signature is missing. Chat can carry unsigned raw reasoning or summaries according to the provider profile, but rejects present signatures because it has no signature field. Request normalization preserves unsigned summary history. Upstream Chat request construction accepts that summary text; upstream Responses and Messages request construction still requires its original signature. Receiving unsigned reasoning output does not establish opaque continuation state. Native passthrough is unchanged.
+Output processing preserves unsigned summaries rather than rejecting a response because its signature is missing. Chat output carries whichever unsigned representation a reasoning part holds, but rejects present signatures because it has no signature field. Request normalization preserves unsigned summary history. Upstream Chat request construction accepts that summary text; upstream Responses and Messages request construction still requires its original signature. Receiving unsigned reasoning output does not establish opaque continuation state. Native passthrough is unchanged. The [Gemini client](provider-compatibility.md#provider-differences) additionally translates its Google thought-signature extension into Responses `encrypted_content` or Messages `signature` and restores the original text/tool attachment on continuation.
 
 ### Opaque continuation state
 

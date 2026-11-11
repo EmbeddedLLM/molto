@@ -1,0 +1,146 @@
+filename: 2026-11-05-01a1ac2f-b626-7822-abab-43d0a0994999
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning_effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '241'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-b626-7822-abab-43d0a0994999
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: 'Here are a few suggestions for a robot gardener, categorized by
+          the "vibe" you might be going for:
+
+
+          **Playful & Punny**
+
+          *   **Herbie** (A classic robot name, or a nod to the Love Bug car, but
+          for plants)
+
+          *   **Botany** (Simple, descriptive, and cute)
+
+          *   **Claudia** (Plays on "claws" – great for pruning shears)
+
+          *   **Sprout** (Small, cute, and implies growth)
+
+          *   **Green Bean** (A double entendre for a robot and a vegetable)
+
+
+          **Technical & Functional**
+
+          *   **Terra** (Latin for Earth/Earth-rover)
+
+          *   **Aeris** (Latin for air/flowers)
+
+          *   **Verdant** (Meaning green and lush)
+
+          *   **Nomad** (If it roams the garden)
+
+          *   **Sensus** (Latin for sense/perception – good for a robot that "feels"
+          the soil)
+
+
+          **Descriptive & Strong**
+
+          *   **The GardenBot** (The literal name)
+
+          *   **Harvest** (Focuses on the end goal)
+
+          *   **Mowbot** (If it does the lawn too)
+
+          *   **Root** (Solid, grounded, essential)
+
+          *   **Gyrus** (Scientific sounding, relates to the brain/control)
+
+
+          **Sci-Fi & Elegant**
+
+          *   **A.R.I.A.** (Autonomous Robot for Intelligent Agriculture)
+
+          *   **Eden** (A hopeful, classic name)
+
+          *   **Viridium** (A fancy word for greenery)
+
+          *   **Silas** (Sounds gentle and steady)
+
+
+          **My top pick:** **"Terra"** – it sounds professional, has a nice ring to
+          it, and fits the theme of earth and gardening perfectly.'
+        role: assistant
+        tools: null
+    created: 1793890171
+    id: chatcmpl-2f8afb23159442b082b0f7e1c6ad9f5b
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 390
+      completion_tokens_details:
+        reasoning_tokens: 0
+      output_tokens_details:
+        reasoning_tokens: 0
+      prompt_tokens: 26
+      prompt_tokens_details:
+        cached_tokens: 25
+      total_tokens: 416
+  body_bytes: !!binary |
+    eyJpZCI6ImNoYXRjbXBsLTJmOGFmYjIzMTU5NDQyYjA4MmIwZjdlMWM2YWQ5ZjViIiwib2JqZWN0
+    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5Mzg5MDE3MSwibW9kZWwiOiJhY2NvdW50
+    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
+    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
+    SGVyZSBhcmUgYSBmZXcgc3VnZ2VzdGlvbnMgZm9yIGEgcm9ib3QgZ2FyZGVuZXIsIGNhdGVnb3Jp
+    emVkIGJ5IHRoZSBcInZpYmVcIiB5b3UgbWlnaHQgYmUgZ29pbmcgZm9yOlxuXG4qKlBsYXlmdWwg
+    JiBQdW5ueSoqXG4qICAgKipIZXJiaWUqKiAoQSBjbGFzc2ljIHJvYm90IG5hbWUsIG9yIGEgbm9k
+    IHRvIHRoZSBMb3ZlIEJ1ZyBjYXIsIGJ1dCBmb3IgcGxhbnRzKVxuKiAgICoqQm90YW55KiogKFNp
+    bXBsZSwgZGVzY3JpcHRpdmUsIGFuZCBjdXRlKVxuKiAgICoqQ2xhdWRpYSoqIChQbGF5cyBvbiBc
+    ImNsYXdzXCIg4oCTIGdyZWF0IGZvciBwcnVuaW5nIHNoZWFycylcbiogICAqKlNwcm91dCoqIChT
+    bWFsbCwgY3V0ZSwgYW5kIGltcGxpZXMgZ3Jvd3RoKVxuKiAgICoqR3JlZW4gQmVhbioqIChBIGRv
+    dWJsZSBlbnRlbmRyZSBmb3IgYSByb2JvdCBhbmQgYSB2ZWdldGFibGUpXG5cbioqVGVjaG5pY2Fs
+    ICYgRnVuY3Rpb25hbCoqXG4qICAgKipUZXJyYSoqIChMYXRpbiBmb3IgRWFydGgvRWFydGgtcm92
+    ZXIpXG4qICAgKipBZXJpcyoqIChMYXRpbiBmb3IgYWlyL2Zsb3dlcnMpXG4qICAgKipWZXJkYW50
+    KiogKE1lYW5pbmcgZ3JlZW4gYW5kIGx1c2gpXG4qICAgKipOb21hZCoqIChJZiBpdCByb2FtcyB0
+    aGUgZ2FyZGVuKVxuKiAgICoqU2Vuc3VzKiogKExhdGluIGZvciBzZW5zZS9wZXJjZXB0aW9uIOKA
+    kyBnb29kIGZvciBhIHJvYm90IHRoYXQgXCJmZWVsc1wiIHRoZSBzb2lsKVxuXG4qKkRlc2NyaXB0
+    aXZlICYgU3Ryb25nKipcbiogICAqKlRoZSBHYXJkZW5Cb3QqKiAoVGhlIGxpdGVyYWwgbmFtZSlc
+    biogICAqKkhhcnZlc3QqKiAoRm9jdXNlcyBvbiB0aGUgZW5kIGdvYWwpXG4qICAgKipNb3dib3Qq
+    KiAoSWYgaXQgZG9lcyB0aGUgbGF3biB0b28pXG4qICAgKipSb290KiogKFNvbGlkLCBncm91bmRl
+    ZCwgZXNzZW50aWFsKVxuKiAgICoqR3lydXMqKiAoU2NpZW50aWZpYyBzb3VuZGluZywgcmVsYXRl
+    cyB0byB0aGUgYnJhaW4vY29udHJvbClcblxuKipTY2ktRmkgJiBFbGVnYW50KipcbiogICAqKkEu
+    Ui5JLkEuKiogKEF1dG9ub21vdXMgUm9ib3QgZm9yIEludGVsbGlnZW50IEFncmljdWx0dXJlKVxu
+    KiAgICoqRWRlbioqIChBIGhvcGVmdWwsIGNsYXNzaWMgbmFtZSlcbiogICAqKlZpcmlkaXVtKiog
+    KEEgZmFuY3kgd29yZCBmb3IgZ3JlZW5lcnkpXG4qICAgKipTaWxhcyoqIChTb3VuZHMgZ2VudGxl
+    IGFuZCBzdGVhZHkpXG5cbioqTXkgdG9wIHBpY2s6KiogKipcIlRlcnJhXCIqKiDigJMgaXQgc291
+    bmRzIHByb2Zlc3Npb25hbCwgaGFzIGEgbmljZSByaW5nIHRvIGl0LCBhbmQgZml0cyB0aGUgdGhl
+    bWUgb2YgZWFydGggYW5kIGdhcmRlbmluZyBwZXJmZWN0bHkuIiwidG9vbHMiOm51bGx9LCJmaW5p
+    c2hfcmVhc29uIjoic3RvcCJ9XSwidXNhZ2UiOnsicHJvbXB0X3Rva2VucyI6MjYsInRvdGFsX3Rv
+    a2VucyI6NDE2LCJjb21wbGV0aW9uX3Rva2VucyI6MzkwLCJwcm9tcHRfdG9rZW5zX2RldGFpbHMi
+    OnsiY2FjaGVkX3Rva2VucyI6MjV9LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRhaWxzIjp7InJlYXNv
+    bmluZ190b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2Vu
+    cyI6MH19fQ==
+  headers:
+    connection: keep-alive
+    content-length: '1831'
+    content-type: application/json
+    x-request-id: chatcmpl-2f8afb23159442b082b0f7e1c6ad9f5b
+  status_code: 200
+timestamp: '2026-11-05T14:49:30.406159+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

@@ -96,16 +96,21 @@ def _reasoning_and_text(protocol: Protocol, response) -> tuple[str, str]:
 
 
 @pytest.mark.parametrize(
-    ("downstream", "upstream", "ciphertext"),
+    ("downstream", "upstream", "ciphertext", "provider"),
     [
-        (downstream, upstream, ciphertext)
+        (downstream, upstream, ciphertext, provider)
         for downstream, upstream in permutations(PROTOCOLS, 2)
         for ciphertext in ((None, "") if upstream == "responses" else (None,))
+        for provider in {
+            "responses": ("openai", "openrouter"),
+            "messages": ("anthropic",),
+            "chat/completions": ("openai",),
+        }[upstream]
     ],
 )
 @pytest.mark.parametrize("stream", [True, False])
 async def test_unsigned_reasoning_output_and_history_match_sdk(
-    downstream: Protocol, upstream: Protocol, ciphertext: str | None, stream: bool
+    downstream: Protocol, upstream: Protocol, ciphertext: str | None, provider: str, stream: bool
 ):
     """Ensures unsigned output matches the SDK and history is validated by its destination."""
     events = _unsigned_events(upstream, ciphertext)
@@ -134,7 +139,7 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         result = await _coordinator(client, downstream)(
             body=_body(downstream, stream),
             endpoint=upstream,
-            provider="openai",
+            provider=provider,
             api_key="test-api-key",
         )
         if stream:
@@ -174,7 +179,7 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
                 await _coordinator(client, downstream)(
                     body=history_body,
                     endpoint=upstream,
-                    provider="openai",
+                    provider=provider,
                     api_key="test-api-key",
                 )
             assert len(requests) == 2
@@ -193,7 +198,7 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         async with await create(**expected_request) as sdk_stream:
             reference = collect_sdk_response(upstream, [event async for event in sdk_stream])
         followup = await _coordinator(client, downstream)(
-            body=history_body, endpoint=upstream, provider="openai", api_key="test-api-key"
+            body=history_body, endpoint=upstream, provider=provider, api_key="test-api-key"
         )
         if stream:
             projected = [event async for event in followup]
@@ -215,6 +220,6 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
             thinking["signature"] = "opaque-state"
         with pytest.raises(UnsupportedInput, match="cannot represent thinking signatures"):
             await _coordinator(client, downstream)(
-                body=history_body, endpoint=upstream, provider="openai", api_key="test-api-key"
+                body=history_body, endpoint=upstream, provider=provider, api_key="test-api-key"
             )
         assert len(requests) == 4

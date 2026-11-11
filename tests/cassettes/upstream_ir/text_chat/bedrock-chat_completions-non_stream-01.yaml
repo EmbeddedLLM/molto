@@ -1,0 +1,87 @@
+filename: 2026-11-05-01a1ac2f-97e2-7b03-8cc0-0fcb5982ca23
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    - annotations: []
+      content: SproutBot.
+      refusal: null
+      role: assistant
+    - content:
+      - text: Explain why that name fits.
+        type: text
+      role: user
+    model: global.openai.gpt-5.6-luna
+    reasoning_effort: none
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '367'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-97e2-7b03-8cc0-0fcb5982ca23
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        annotations: []
+        content: “SproutBot” fits because it combines **“sprout,”** a symbol of new
+          plant growth, with **“Bot,”** signaling a helpful robot. It sounds friendly,
+          memorable, and clearly suggests a machine designed to nurture gardens.
+        refusal: null
+        role: assistant
+    created: 1793890163
+    id: chatcmpl-665j4euh2xd77u34imsnfv6awpkqazcfkl4tufifqkum3ns54k4q
+    model: global.openai.gpt-5.6-luna
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: null
+    usage:
+      completion_tokens: 53
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 0
+        rejected_prediction_tokens: 0
+      prompt_tokens: 34
+      prompt_tokens_details:
+        audio_tokens: 0
+        cache_write_tokens: 0
+        cached_tokens: 0
+      total_tokens: 87
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImFubm90YXRpb25zIjpbXSwiY29udGVudCI6IuKAnFNwcm91dEJvdOKAnSBmaXRzIGJlY2F1c2Ug
+    aXQgY29tYmluZXMgKirigJxzcHJvdXQs4oCdKiogYSBzeW1ib2wgb2YgbmV3IHBsYW50IGdyb3d0
+    aCwgd2l0aCAqKuKAnEJvdCzigJ0qKiBzaWduYWxpbmcgYSBoZWxwZnVsIHJvYm90LiBJdCBzb3Vu
+    ZHMgZnJpZW5kbHksIG1lbW9yYWJsZSwgYW5kIGNsZWFybHkgc3VnZ2VzdHMgYSBtYWNoaW5lIGRl
+    c2lnbmVkIHRvIG51cnR1cmUgZ2FyZGVucy4iLCJyZWZ1c2FsIjpudWxsLCJyb2xlIjoiYXNzaXN0
+    YW50In19XSwiY3JlYXRlZCI6MTc5Mzg5MDE2MywiaWQiOiJjaGF0Y21wbC02NjVqNGV1aDJ4ZDc3
+    dTM0aW1zbmZ2NmF3cGtxYXpjZmtsNHR1ZmlmcWt1bTNuczU0azRxIiwibW9kZWwiOiJnbG9iYWwu
+    b3BlbmFpLmdwdC01LjYtbHVuYSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbiIsInNlcnZpY2Vf
+    dGllciI6ImRlZmF1bHQiLCJ1c2FnZSI6eyJjb21wbGV0aW9uX3Rva2VucyI6NTMsImNvbXBsZXRp
+    b25fdG9rZW5zX2RldGFpbHMiOnsiYWNjZXB0ZWRfcHJlZGljdGlvbl90b2tlbnMiOjAsImF1ZGlv
+    X3Rva2VucyI6MCwicmVhc29uaW5nX3Rva2VucyI6MCwicmVqZWN0ZWRfcHJlZGljdGlvbl90b2tl
+    bnMiOjB9LCJwcm9tcHRfdG9rZW5zIjozNCwicHJvbXB0X3Rva2Vuc19kZXRhaWxzIjp7ImF1ZGlv
+    X3Rva2VucyI6MCwiY2FjaGVfd3JpdGVfdG9rZW5zIjowLCJjYWNoZWRfdG9rZW5zIjowfSwidG90
+    YWxfdG9rZW5zIjo4N30sInN5c3RlbV9maW5nZXJwcmludCI6bnVsbH0=
+  headers:
+    connection: keep-alive
+    content-length: '839'
+    content-type: application/json
+    x-request-id: 4f833f06-da63-475d-91b3-a4d6f9407cee
+  status_code: 200
+timestamp: '2026-11-05T14:49:22.658177+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

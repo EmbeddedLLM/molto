@@ -1,0 +1,175 @@
+filename: 2026-11-05-01a1aab9-0245-7e13-9b33-dfdc8dd65069
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_d8cbc14ba1615d1cb00ff5ae0440a064
+      id: fc_97193d754f4b5bb5b859e17c66e15fd6
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_d8cbc14ba1615d1cb00ff5ae0440a064
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_469bebd283a75af8acf30338358f397d
+      id: fc_6ecc9173dc445e26b71fa574fb4bd957
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_469bebd283a75af8acf30338358f397d
+      output:
+      - text: Water the tomatoes every morning and harvest ripe fruit.
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1311'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab9-0245-7e13-9b33-dfdc8dd65069
+response:
+  body:
+    background: false
+    billing:
+      payer: developer
+    completed_at: 1793865614
+    created_at: 1793865614
+    error: null
+    frequency_penalty: 0.0
+    id: resp_vzttezwexrtaxb4nfvyymp2wpk22nfua4ayge4wytrmxcmy3y2ka
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: global.openai.gpt-5.6-luna
+    moderation: null
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: Water the tomatoes every morning and harvest ripe fruit.
+        type: output_text
+      id: msg_377e2b3c3cef5ef19ffccf7854c7839b
+      phase: final_answer
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: all_turns
+      effort: none
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      output_schema: null
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 0.98
+    truncation: disabled
+    usage:
+      input_tokens: 221
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 14
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 235
+    user: null
+  body_bytes: !!binary |
+    eyJiYWNrZ3JvdW5kIjpmYWxzZSwiYmlsbGluZyI6eyJwYXllciI6ImRldmVsb3BlciJ9LCJjb21w
+    bGV0ZWRfYXQiOjE3OTM4NjU2MTQsImNyZWF0ZWRfYXQiOjE3OTM4NjU2MTQsImVycm9yIjpudWxs
+    LCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJpZCI6InJlc3Bfdnp0dGV6d2V4cnRheGI0bmZ2eXlt
+    cDJ3cGsyMm5mdWE0YXlnZTR3eXRybXhjbXkzeTJrYSIsImluY29tcGxldGVfZGV0YWlscyI6bnVs
+    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwibWF4X3Rvb2xf
+    Y2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYt
+    bHVuYSIsIm9iamVjdCI6InJlc3BvbnNlIiwib3V0cHV0IjpbeyJjb250ZW50IjpbeyJhbm5vdGF0
+    aW9ucyI6W10sImxvZ3Byb2JzIjpbXSwidGV4dCI6IldhdGVyIHRoZSB0b21hdG9lcyBldmVyeSBt
+    b3JuaW5nIGFuZCBoYXJ2ZXN0IHJpcGUgZnJ1aXQuIiwidHlwZSI6Im91dHB1dF90ZXh0In1dLCJp
+    ZCI6Im1zZ18zNzdlMmIzYzNjZWY1ZWYxOWZmY2NmNzg1NGM3ODM5YiIsInBoYXNlIjoiZmluYWxf
+    YW5zd2VyIiwicm9sZSI6ImFzc2lzdGFudCIsInN0YXR1cyI6ImNvbXBsZXRlZCIsInR5cGUiOiJt
+    ZXNzYWdlIn1dLCJwYXJhbGxlbF90b29sX2NhbGxzIjpmYWxzZSwicHJlc2VuY2VfcGVuYWx0eSI6
+    MC4wLCJwcmV2aW91c19yZXNwb25zZV9pZCI6bnVsbCwicHJvbXB0X2NhY2hlX2tleSI6bnVsbCwi
+    cHJvbXB0X2NhY2hlX3JldGVudGlvbiI6ImluX21lbW9yeSIsInJlYXNvbmluZyI6eyJzdW1tYXJ5
+    IjpudWxsLCJlZmZvcnQiOiJub25lIiwiY29udGV4dCI6ImFsbF90dXJucyJ9LCJzYWZldHlfaWRl
+    bnRpZmllciI6bnVsbCwic2VydmljZV90aWVyIjoiZGVmYXVsdCIsInN0YXR1cyI6ImNvbXBsZXRl
+    ZCIsInN0b3JlIjpmYWxzZSwidGVtcGVyYXR1cmUiOjEuMCwidGV4dCI6eyJmb3JtYXQiOnsidHlw
+    ZSI6InRleHQifSwidmVyYm9zaXR5IjoibWVkaXVtIn0sInRvb2xfY2hvaWNlIjoiYXV0byIsInRv
+    b2xzIjpbeyJkZXNjcmlwdGlvbiI6IlJlYWQgYSBmaWxlIGJ5IGl0cyBwYXRoLiIsIm5hbWUiOiJy
+    ZWFkX2ZpbGUiLCJvdXRwdXRfc2NoZW1hIjpudWxsLCJwYXJhbWV0ZXJzIjp7ImFkZGl0aW9uYWxQ
+    cm9wZXJ0aWVzIjpmYWxzZSwicHJvcGVydGllcyI6eyJwYXRoIjp7InR5cGUiOiJzdHJpbmcifX0s
+    InJlcXVpcmVkIjpbInBhdGgiXSwidHlwZSI6Im9iamVjdCJ9LCJzdHJpY3QiOmZhbHNlLCJ0eXBl
+    IjoiZnVuY3Rpb24ifV0sInRvcF9sb2dwcm9icyI6MCwidG9wX3AiOjAuOTgsInRydW5jYXRpb24i
+    OiJkaXNhYmxlZCIsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6MjIxLCJpbnB1dF90b2tlbnNfZGV0
+    YWlscyI6eyJjYWNoZV93cml0ZV90b2tlbnMiOjAsImNhY2hlZF90b2tlbnMiOjB9LCJvdXRwdXRf
+    dG9rZW5zIjoxNCwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9
+    LCJ0b3RhbF90b2tlbnMiOjIzNX0sInVzZXIiOm51bGwsIm1vZGVyYXRpb24iOm51bGx9
+  headers:
+    connection: keep-alive
+    content-length: '1533'
+    content-type: application/json
+    x-request-id: cec737a5-3d2c-4ebd-a386-a7d51eda1f5d
+  status_code: 200
+timestamp: '2026-11-05T08:00:13.893057+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

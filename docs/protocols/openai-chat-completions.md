@@ -226,7 +226,7 @@ The provider or model renderer can still merge, move, or reinterpret accepted wi
 
 ### Reasoning and continuation state
 
-Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. Translated output supports unsigned raw reasoning and summaries. Responses and Messages output projection accepts a Chat summary without inventing a signature; in the reverse direction, Chat projection rejects any present signature rather than silently discarding it. Request normalization preserves unsigned summary history, and the Chat upstream builder accepts it as `reasoning_content`. Responses and Messages upstream builders still reject unsigned summaries before transport. Accepting summary text does not restore opaque continuation state; native passthrough is unchanged.
+Chat's single `reasoning_content` extension can be classified as either the normalized raw reasoning field or summary field according to the provider profile. Chat has no reasoning signature or encrypted continuation slot. Translated output supports unsigned raw reasoning and summaries, writing whichever representation a reasoning part holds into `reasoning_content`. Responses and Messages output projection accepts a Chat summary without inventing a signature; in the reverse direction, Chat projection rejects any present signature rather than silently discarding it. Request normalization preserves unsigned summary history, and the Chat upstream builder accepts it as `reasoning_content`. Responses and Messages upstream builders still reject unsigned summaries before transport. Accepting summary text does not restore opaque continuation state; native passthrough is unchanged. The Gemini upstream client additionally supports signature-only state: it maps `extra_content.google.thought_signature` through Responses or Messages and restores its original attachment on continuation. This does not add signed reasoning support to generic downstream Chat projection.
 
 ### Tools and tool results
 
@@ -307,7 +307,7 @@ For representable output, translated Chat retains answer text and inline links w
 These are implementation gaps rather than inherent claims about the Chat protocol:
 
 - An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
-- Chat cannot carry signed reasoning output or history. Unsigned summary output and history are supported, but Responses and Messages upstream builders still require signatures when replaying summary history.
+- Chat cannot carry signed reasoning output or history. Unsigned summary output and history are supported, but Responses and Messages upstream builders still require signatures when replaying summary history. Gemini additionally supports signature-only continuation through Responses and Messages; reasoning-text translation is unverified.
 - Refusals, hosted tools other than basic web search, moderation, non-web annotations, audio, prediction output, and log probabilities are not carried through the normalized path. Hosted-search structured annotations are deliberately omitted from translated Chat output.
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and pauses map to `finish_reason="length"`; other terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
@@ -338,3 +338,7 @@ External protocol references:
 
 - [OpenAI Chat Completions create reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 - [vLLM OpenAI-compatible server](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/)
+
+## Hosted extensions
+
+See [provider compatibility](../provider-compatibility.md) for Google `extra_content` at message/part/call attachments, Gemini missing index repair, and native history preservation. Native acceptance does not establish translated portability. On translated input, populated opaque state rejects where there is no lossless mapping; on output, only a client that models an extension validates it.

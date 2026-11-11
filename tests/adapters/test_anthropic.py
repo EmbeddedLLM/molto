@@ -60,8 +60,11 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
     return AnthropicMessagesAdapter(capabilities).normalize_request(request)
 
 
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
 @pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}, {"signature": "state"}])
-def test_normalization_preserves_summary_history(signature_fields: dict[str, str]) -> None:
+def test_normalization_preserves_summary_history(
+    signature_fields: dict[str, str], responses_reasoning
+) -> None:
     """Ensures normalization preserves summary history for destination-owned validation."""
     request = _request(
         messages=[
@@ -72,7 +75,9 @@ def test_normalization_preserves_summary_history(signature_fields: dict[str, str
         ]
     )
 
-    normalized = _normalize(request, _CAPABILITIES)
+    normalized = _normalize(
+        request, ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
     assert normalized.input == [
         AssistantInput(
             content=[
@@ -536,8 +541,12 @@ async def test_projection_skips_empty_thinking_delta() -> None:
     assert [event.type for event in events] == ["message_start", "content_block_start"]
 
 
-async def test_projection_supports_official_empty_summary_start() -> None:
-    adapter, request = _adapter()
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
+async def test_projection_supports_official_empty_summary_start(responses_reasoning) -> None:
+    """Ensures signed summaries preserve their text and signature under both output policies."""
+    adapter, request = _adapter(
+        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
 
     events = [
         event
@@ -579,10 +588,15 @@ async def test_projection_rejects_reasoning_outside_capability() -> None:
         ]
 
 
+@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
 @pytest.mark.parametrize("signature", [None, ""])
-async def test_projection_preserves_unsigned_summary_completion(signature: str | None) -> None:
+async def test_projection_preserves_unsigned_summary_completion(
+    signature: str | None, responses_reasoning
+) -> None:
     """Ensures missing output signatures do not discard streamed reasoning summaries."""
-    adapter, request = _adapter()
+    adapter, request = _adapter(
+        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    )
 
     events = [
         event

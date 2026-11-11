@@ -1,0 +1,166 @@
+filename: 2026-11-04-01a1a489-c48d-7883-9d54-8123763449aa
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - arguments: "{\n  \"a\": 2,\n  \"b\": 3\n}"
+      call_id: call-8c844a23-0c02-41a4-977b-449244714607
+      id: fc_tmp_gkvflek9nk4
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-8c844a23-0c02-41a4-977b-449244714607
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 1024
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: false
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '937'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a489-c48d-7883-9d54-8123763449aa
+response:
+  body:
+    access_programs: null
+    background: false
+    completed_at: 1793761855
+    created_at: 1793761854
+    error: null
+    frequency_penalty: 0
+    id: gen-1793761854-6ITQQDAOFYotfXztJ2hy
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: nvidia/nemotron-3.5-lightning:free
+    object: response
+    output:
+    - arguments: '{ "a": 5, "b": 4 }'
+      call_id: call-4cf2492f-dc77-4855-a424-e9a5c45fb859
+      id: fc_tmp_wcw53tswhdb
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_options: null
+    reasoning:
+      effort: none
+    safety_identifier: null
+    service_tier: auto
+    status: completed
+    store: false
+    temperature: 1
+    text:
+      format:
+        type: text
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      strict: null
+      type: function
+    top_logprobs: 0
+    top_p: 1
+    truncation: disabled
+    usage:
+      cost: 0
+      cost_details:
+        upstream_inference_cost: 0
+        upstream_inference_input_cost: 0
+        upstream_inference_output_cost: 0
+      input_tokens: 374
+      input_tokens_details:
+        cached_tokens: 0
+      is_byok: false
+      output_tokens: 14
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 388
+  body_bytes: !!binary |
+    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE4NTQtNklUUVFEQU9GWW90Zlh6dEoyaHkiLCJv
+    YmplY3QiOiJyZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjE4NTQsIm1vZGVsIjoibnZpZGlh
+    L25lbW90cm9uLTMuNS1saWdodG5pbmc6ZnJlZSIsInN0YXR1cyI6ImNvbXBsZXRlZCIsImNvbXBs
+    ZXRlZF9hdCI6MTc5Mzc2MTg1NSwib3V0cHV0IjpbeyJpZCI6ImZjX3RtcF93Y3c1M3Rzd2hkYiIs
+    InR5cGUiOiJmdW5jdGlvbl9jYWxsIiwic3RhdHVzIjoiY29tcGxldGVkIiwiY2FsbF9pZCI6ImNh
+    bGwtNGNmMjQ5MmYtZGM3Ny00ODU1LWE0MjQtZTlhNWM0NWZiODU5IiwibmFtZSI6ImFkZCIsImFy
+    Z3VtZW50cyI6InsgXCJhXCI6IDUsIFwiYlwiOiA0IH0ifV0sImVycm9yIjpudWxsLCJpbmNvbXBs
+    ZXRlX2RldGFpbHMiOm51bGwsImFjY2Vzc19wcm9ncmFtcyI6bnVsbCwidG9vbHMiOlt7InR5cGUi
+    OiJmdW5jdGlvbiIsIm5hbWUiOiJhZGQiLCJkZXNjcmlwdGlvbiI6IkFkZCB0d28gaW50ZWdlcnMu
+    IiwicGFyYW1ldGVycyI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJhIjp7InR5cGUi
+    OiJpbnRlZ2VyIn0sImIiOnsidHlwZSI6ImludGVnZXIifX0sInJlcXVpcmVkIjpbImEiLCJiIl0s
+    ImFkZGl0aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX0sInN0cmljdCI6bnVsbH1dLCJ0b29sX2Nob2lj
+    ZSI6eyJ0eXBlIjoiZnVuY3Rpb24iLCJuYW1lIjoiYWRkIn0sInBhcmFsbGVsX3Rvb2xfY2FsbHMi
+    OmZhbHNlLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwidGVtcGVyYXR1cmUiOjEsInRvcF9wIjox
+    LCJwcmVzZW5jZV9wZW5hbHR5IjowLCJmcmVxdWVuY3lfcGVuYWx0eSI6MCwidG9wX2xvZ3Byb2Jz
+    IjowLCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibWV0YWRhdGEiOnt9LCJiYWNrZ3JvdW5kIjpmYWxz
+    ZSwicHJldmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInNlcnZpY2VfdGllciI6ImF1dG8iLCJ0cnVu
+    Y2F0aW9uIjoiZGlzYWJsZWQiLCJzdG9yZSI6ZmFsc2UsImluc3RydWN0aW9ucyI6bnVsbCwidGV4
+    dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifX0sInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25l
+    In0sInNhZmV0eV9pZGVudGlmaWVyIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9t
+    cHRfY2FjaGVfb3B0aW9ucyI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjozNzQsImlucHV0
+    X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zIjoxNCwi
+    b3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9LCJ0b3RhbF90b2tl
+    bnMiOjM4OCwiY29zdCI6MCwiaXNfYnlvayI6ZmFsc2UsImNvc3RfZGV0YWlscyI6eyJ1cHN0cmVh
+    bV9pbmZlcmVuY2VfY29zdCI6MCwidXBzdHJlYW1faW5mZXJlbmNlX2lucHV0X2Nvc3QiOjAsInVw
+    c3RyZWFtX2luZmVyZW5jZV9vdXRwdXRfY29zdCI6MH19fQ==
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:10:54.605734+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

@@ -1,0 +1,174 @@
+filename: 2026-11-04-01a1a489-c7b3-7de1-8fdf-32558b93a45f
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - arguments: "{\n  \"a\": 2,\n  \"b\": 3\n}"
+      call_id: call-8c844a23-0c02-41a4-977b-449244714607
+      id: fc_tmp_gkvflek9nk4
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-8c844a23-0c02-41a4-977b-449244714607
+      output: '5'
+      type: function_call_output
+    - arguments: '{ "a": 5, "b": 4 }'
+      call_id: call-4cf2492f-dc77-4855-a424-e9a5c45fb859
+      id: fc_tmp_wcw53tswhdb
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-4cf2492f-dc77-4855-a424-e9a5c45fb859
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 1024
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: false
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1186'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a489-c7b3-7de1-8fdf-32558b93a45f
+response:
+  body:
+    access_programs: null
+    background: false
+    completed_at: 1793761855
+    created_at: 1793761855
+    error: null
+    frequency_penalty: 0
+    id: gen-1793761855-Lzd1WrGruzJRPaaph72s
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: nvidia/nemotron-3.5-lightning:free
+    object: response
+    output:
+    - content:
+      - annotations: []
+        logprobs: []
+        text: The final answer is 9.
+        type: output_text
+      id: msg_tmp_jpnts83gb0l
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    presence_penalty: 0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_options: null
+    reasoning:
+      effort: none
+    safety_identifier: null
+    service_tier: auto
+    status: completed
+    store: false
+    temperature: 1
+    text:
+      format:
+        type: text
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      strict: null
+      type: function
+    top_logprobs: 0
+    top_p: 1
+    truncation: disabled
+    usage:
+      cost: 0
+      cost_details:
+        upstream_inference_cost: 0
+        upstream_inference_input_cost: 0
+        upstream_inference_output_cost: 0
+      input_tokens: 146
+      input_tokens_details:
+        cached_tokens: 0
+      is_byok: false
+      output_tokens: 8
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 154
+  body_bytes: !!binary |
+    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE4NTUtTHpkMVdyR3J1ekpSUGFhcGg3MnMiLCJv
+    YmplY3QiOiJyZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjE4NTUsIm1vZGVsIjoibnZpZGlh
+    L25lbW90cm9uLTMuNS1saWdodG5pbmc6ZnJlZSIsInN0YXR1cyI6ImNvbXBsZXRlZCIsImNvbXBs
+    ZXRlZF9hdCI6MTc5Mzc2MTg1NSwib3V0cHV0IjpbeyJpZCI6Im1zZ190bXBfanBudHM4M2diMGwi
+    LCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJzdGF0dXMiOiJjb21wbGV0ZWQi
+    LCJjb250ZW50IjpbeyJ0eXBlIjoib3V0cHV0X3RleHQiLCJ0ZXh0IjoiVGhlIGZpbmFsIGFuc3dl
+    ciBpcyA5LiIsImFubm90YXRpb25zIjpbXSwibG9ncHJvYnMiOltdfV19XSwiZXJyb3IiOm51bGws
+    ImluY29tcGxldGVfZGV0YWlscyI6bnVsbCwiYWNjZXNzX3Byb2dyYW1zIjpudWxsLCJ0b29scyI6
+    W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFkZCIsImRlc2NyaXB0aW9uIjoiQWRkIHR3byBp
+    bnRlZ2Vycy4iLCJwYXJhbWV0ZXJzIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImEi
+    OnsidHlwZSI6ImludGVnZXIifSwiYiI6eyJ0eXBlIjoiaW50ZWdlciJ9fSwicmVxdWlyZWQiOlsi
+    YSIsImIiXSwiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlfSwic3RyaWN0IjpudWxsfV0sInRv
+    b2xfY2hvaWNlIjoibm9uZSIsInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZhbHNlLCJtYXhfb3V0cHV0
+    X3Rva2VucyI6MTAyNCwidGVtcGVyYXR1cmUiOjEsInRvcF9wIjoxLCJwcmVzZW5jZV9wZW5hbHR5
+    IjowLCJmcmVxdWVuY3lfcGVuYWx0eSI6MCwidG9wX2xvZ3Byb2JzIjowLCJtYXhfdG9vbF9jYWxs
+    cyI6bnVsbCwibWV0YWRhdGEiOnt9LCJiYWNrZ3JvdW5kIjpmYWxzZSwicHJldmlvdXNfcmVzcG9u
+    c2VfaWQiOm51bGwsInNlcnZpY2VfdGllciI6ImF1dG8iLCJ0cnVuY2F0aW9uIjoiZGlzYWJsZWQi
+    LCJzdG9yZSI6ZmFsc2UsImluc3RydWN0aW9ucyI6bnVsbCwidGV4dCI6eyJmb3JtYXQiOnsidHlw
+    ZSI6InRleHQifX0sInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInNhZmV0eV9pZGVudGlm
+    aWVyIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9tcHRfY2FjaGVfb3B0aW9ucyI6
+    bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNDYsImlucHV0X3Rva2Vuc19kZXRhaWxzIjp7
+    ImNhY2hlZF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zIjo4LCJvdXRwdXRfdG9rZW5zX2RldGFp
+    bHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH0sInRvdGFsX3Rva2VucyI6MTU0LCJjb3N0IjowLCJp
+    c19ieW9rIjpmYWxzZSwiY29zdF9kZXRhaWxzIjp7InVwc3RyZWFtX2luZmVyZW5jZV9jb3N0Ijow
+    LCJ1cHN0cmVhbV9pbmZlcmVuY2VfaW5wdXRfY29zdCI6MCwidXBzdHJlYW1faW5mZXJlbmNlX291
+    dHB1dF9jb3N0IjowfX19
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-04T03:10:55.411275+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

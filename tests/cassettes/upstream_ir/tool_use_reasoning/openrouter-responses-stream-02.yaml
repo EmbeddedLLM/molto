@@ -1,0 +1,426 @@
+filename: 2026-11-04-01a1a48b-a0be-7993-81b5-557817530d8b
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - text: 'The user wants: Use add to add 2 and 3. Then use add to add that result
+          and 4. Then give final answer.
+
+
+          We need to call add function twice: first add 2 and 3 => result 5. Then
+          add that result (5) and 4 => 9. Then answer final answer 9.
+
+
+          We need to use the functions tool. So first call functions.add with a=2,
+          b=3. Then call again with a= result, b=4. Then respond.'
+        type: reasoning_text
+      format: unknown
+      id: rs_tmp_jz24fy2z9lc
+      status: completed
+      summary: []
+      type: reasoning
+    - arguments: "{\n  \"a\": 2,\n  \"b\": 3\n}"
+      call_id: call-d2207b2b-33a6-4c81-a9ae-92419f3fb3bf
+      id: fc_tmp_yqc49bd84p
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-d2207b2b-33a6-4c81-a9ae-92419f3fb3bf
+      output: '5'
+      type: function_call_output
+    - content:
+      - text: We got result 5. Now add 5 and 4.
+        type: reasoning_text
+      format: unknown
+      id: rs_tmp_id1ci0csjjo
+      status: completed
+      summary: []
+      type: reasoning
+    - arguments: "{\n  \"a\": 5,\n  \"b\": 4\n}"
+      call_id: call-b0e8c803-f561-4c2a-8bef-ea30c661e3c1
+      id: fc_tmp_6gspjedt008
+      name: add
+      status: completed
+      type: function_call
+    - call_id: call-b0e8c803-f561-4c2a-8bef-ea30c661e3c1
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: nvidia/nemotron-3.5-lightning:free
+    parallel_tool_calls: false
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: low
+    store: false
+    stream: true
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1888'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a48b-a0be-7993-81b5-557817530d8b
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'data: {"type":"response.created","response":{"id":"gen-1793761976-4t7frtBJSVhrYwFWz7he","object":"response","created_at":1793761976,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":"none","parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"gen-1793761976-4t7frtBJSVhrYwFWz7he","object":"response","created_at":1793761976,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":"none","parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_tmp_wr7i22tl0rb","type":"reasoning","status":"in_progress","summary":[]},"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"part":{"type":"reasoning_text","text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"delta":"Now","sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"delta":"
+    final","sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"delta":"
+    answer","sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"delta":"
+    9","sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.delta","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"delta":".","sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_text.done","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"text":"Now
+    final answer 9.","sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","output_index":0,"item_id":"rs_tmp_wr7i22tl0rb","content_index":0,"part":{"type":"reasoning_text","text":"Now
+    final answer 9."},"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_tmp_wr7i22tl0rb","type":"reasoning","status":"completed","content":[{"type":"reasoning_text","text":"Now
+    final answer 9."}],"summary":[],"format":"unknown"},"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","output_index":1,"item":{"id":"msg_tmp_7wwbo2awzu","type":"message","status":"in_progress","role":"assistant","content":[]},"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"part":{"type":"output_text","text":"","annotations":[],"logprobs":[]},"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"The","logprobs":[],"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    final","logprobs":[],"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    result","logprobs":[],"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    after","logprobs":[],"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    adding","logprobs":[],"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    ","logprobs":[],"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"2","logprobs":[],"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"+","logprobs":[],"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"3","logprobs":[],"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":25}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"=","logprobs":[],"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"5","logprobs":[],"sequence_number":28}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":",","logprobs":[],"sequence_number":29}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    then","logprobs":[],"sequence_number":30}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    ","logprobs":[],"sequence_number":31}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"5","logprobs":[],"sequence_number":32}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":33}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"+","logprobs":[],"sequence_number":34}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":35}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"4","logprobs":[],"sequence_number":36}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":37}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"=","logprobs":[],"sequence_number":38}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":" ","logprobs":[],"sequence_number":39}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"9","logprobs":[],"sequence_number":40}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    is","logprobs":[],"sequence_number":41}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"
+    **","logprobs":[],"sequence_number":42}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"9","logprobs":[],"sequence_number":43}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"delta":"**.","logprobs":[],"sequence_number":44}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"text":"The
+    final result after adding 2 + 3 = 5, then 5 + 4 = 9 is **9**.","logprobs":[],"sequence_number":45}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","output_index":1,"item_id":"msg_tmp_7wwbo2awzu","content_index":0,"part":{"type":"output_text","text":"The
+    final result after adding 2 + 3 = 5, then 5 + 4 = 9 is **9**.","annotations":[],"logprobs":[]},"sequence_number":46}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","output_index":1,"item":{"id":"msg_tmp_7wwbo2awzu","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"The
+    final result after adding 2 + 3 = 5, then 5 + 4 = 9 is **9**.","annotations":[],"logprobs":[]}]},"sequence_number":47}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"gen-1793761976-4t7frtBJSVhrYwFWz7he","object":"response","created_at":1793761976,"model":"nvidia/nemotron-3.5-lightning:free","status":"completed","completed_at":1793761977,"output":[{"id":"rs_tmp_wr7i22tl0rb","type":"reasoning","status":"completed","content":[{"type":"reasoning_text","text":"Now
+    final answer 9."}],"summary":[],"format":"unknown"},{"id":"msg_tmp_7wwbo2awzu","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"The
+    final result after adding 2 + 3 = 5, then 5 + 4 = 9 is **9**.","annotations":[],"logprobs":[]}]}],"error":null,"incomplete_details":null,"access_programs":null,"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false},"strict":null}],"tool_choice":"none","parallel_tool_calls":false,"max_output_tokens":2048,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"low"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":{"input_tokens":270,"input_tokens_details":{"cached_tokens":0},"output_tokens":39,"output_tokens_details":{"reasoning_tokens":6},"total_tokens":309,"cost":0,"is_byok":false,"cost_details":{"upstream_inference_cost":0,"upstream_inference_input_cost":0,"upstream_inference_output_cost":0}}},"sequence_number":48}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T03:12:56.510408+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses
