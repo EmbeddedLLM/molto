@@ -28,14 +28,6 @@ PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {
     "vllm": ProviderCapabilities(thinking="raw"),
 }
 
-PROVIDER_KEY_NAMES = {
-    "bedrock": "AWS_BEARER_TOKEN_BEDROCK",
-    "fireworks": "FIREWORKS_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-    "togetherai": "TOGETHER_AI_API_KEY",
-}
-
 DEFAULT_PROVIDER_BY_ENDPOINT: dict[Endpoint, Provider] = {
     "responses": "openai",
     "chat/completions": "openai",

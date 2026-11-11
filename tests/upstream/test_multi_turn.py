@@ -39,7 +39,7 @@ from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.upstream.openrouter import OpenRouterResponsesClient
 from molto.upstream.together import TogetherAIChatCompletionsClient, TogetherAIResponsesClient
-from molto.utils.io import json_loads, read_yaml
+from molto.utils.io import json_dumps, json_loads, read_yaml
 
 CLIENTS = {
     OpenAIResponsesClient: ("openai", "responses"),
@@ -490,6 +490,26 @@ def _recorded_response(cassette):
     )
 
 
+def _with_unmodelled_output_extensions(cassette):
+    """Add synthetic extension fields to an in-memory copy of recorded stream evidence."""
+    cassette = deepcopy(cassette)
+    for index, line in enumerate(cassette["response"]["sse"]):
+        if not line.startswith("data: ") or line.strip() == "data: [DONE]":
+            continue
+        event = json_loads(line[6:])
+        for choice in event.get("choices", []):
+            delta = choice["delta"]
+            delta["extra_content"] = {"vendor": {"extension": True}}
+            for call in delta.get("tool_calls") or []:
+                call["extra_content"] = {"vendor": {"extension": True}}
+        items = [event.get("item", {}), *event.get("response", {}).get("output", [])]
+        for item in items:
+            if item.get("type") == "reasoning":
+                item["format"] = "vendor-format"
+        cassette["response"]["sse"][index] = f"data: {json_dumps(event)}\n"
+    return cassette
+
+
 async def _collect_responses(result, stream):
     if not stream:
         return result, None
@@ -609,9 +629,21 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
         async with Molto(
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
         ) as molto:
+            molto_body = deepcopy(body)
+            if not responses and provider in {"gemini", "fireworks"}:
+                # These providers reject SDK-shaped null history and OpenAI's
+                # padding option. Compare the adjusted wire and output to the SDK.
+                for message in molto_body["messages"]:
+                    if message["role"] == "assistant":
+                        for field in ("audio", "function_call", "refusal"):
+                            message[field] = None
+                        message.setdefault("content", None)
+                if stream:
+                    molto_body.setdefault("stream_options", {})["include_obfuscation"] = False
+            before = deepcopy(molto_body)
             actual, actual_events = await collect(
                 await getattr(molto, endpoint)(
-                    body,
+                    molto_body,
                     provider=provider,
                     api_key="test-key",
                     base_url=base_url,
@@ -619,6 +651,7 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
                 ),
                 stream,
             )
+            assert molto_body == before
         if stream and responses:
             # Native streaming documents only this omitted-usage normalization.
             for event in expected_events:
@@ -907,22 +940,38 @@ def _google_signatures(message):
 
 
 @pytest.mark.parametrize(
-    ("provider", "endpoint", "scenario", "mode", "downstream"),
+    ("provider", "endpoint", "scenario", "mode", "downstream", "unknown_extensions"),
     [
-        pytest.param(*case.values, downstream, id=f"{case.id}-{downstream}")
+        pytest.param(*case.values, downstream, False, id=f"{case.id}-{downstream}")
         for case in PROVIDER_NATIVE_CONVERSATIONS
         if case.values[1] == "chat_completions" and case.values[3] == "stream"
         for downstream in (
-            ("responses", "messages") if case.values[0] == "gemini" else ("responses",)
+            ("responses", "messages")
+            if case.values[0] in {"gemini", "fireworks"}
+            else ("responses",)
         )
+    ]
+    + [
+        pytest.param(
+            "fireworks",
+            "chat_completions",
+            "tool_use",
+            "stream",
+            downstream,
+            True,
+            id=f"fireworks-unknown-extensions-{downstream}",
+        )
+        for downstream in ("responses", "messages")
     ],
 )
 @pytest.mark.parametrize("stream", [False, True])
 async def test_provider_chat_translated_conversation(
-    provider, endpoint, scenario, mode, downstream, stream
+    provider, endpoint, scenario, mode, downstream, unknown_extensions, stream
 ):
     """Ensures translated text, calls and Gemini signatures survive SDK-backed continuation."""
     cassettes = _provider_turns(provider, scenario, mode, endpoint)
+    if unknown_extensions:
+        cassettes = [_with_unmodelled_output_extensions(cassette) for cassette in cassettes]
     first = cassettes[0]["request"]["body"]
     responses = downstream == "responses"
     history_key = "input" if responses else "messages"
@@ -958,14 +1007,25 @@ async def test_provider_chat_translated_conversation(
             sdk = AsyncOpenAI(
                 api_key="test-key", base_url=base_url, http_client=transport, max_retries=0
             )
-            reference, _ = await _collect_chat(
+            reference, reference_events = await _collect_chat(
                 await sdk.chat.completions.create(**sdk_body, extra_body=extras),
                 True,
                 repair_single_call_index=provider == "gemini",
             )
+        if unknown_extensions:
+            assert any(
+                choice["delta"].get("extra_content")
+                for event in reference_events
+                for choice in event["choices"]
+            )
         expected = _expected_chat_wire(recorded)
         if not responses:
-            expected["stream_options"]["include_obfuscation"] = False
+            # Messages returns object-valued tool input, so continuation cannot
+            # retain the original JSON argument whitespace.
+            for message in expected["messages"]:
+                for call in message.get("tool_calls", []):
+                    function = call["function"]
+                    function["arguments"] = json_dumps(json_loads(function["arguments"]))
         calls = []
 
         def handle(request, cassette=cassette, expected=expected, calls=calls):
@@ -1022,7 +1082,7 @@ async def test_provider_chat_translated_conversation(
             )
             usage = (actual.usage.input_tokens, actual.usage.output_tokens)
         else:
-            assert actual.stop_reason == "end_turn"
+            assert actual.stop_reason == ("tool_use" if message.tool_calls else "end_turn")
             text = "".join(block.text for block in actual.content if block.type == "text")
             tool_calls = [
                 (block.id, block.name, block.input)
@@ -1045,7 +1105,7 @@ async def test_provider_chat_translated_conversation(
             for call in message.tool_calls or []
         ]
         assert not getattr(message, "reasoning_content", None)
-        assert signatures == _google_signatures(message)
+        assert signatures == (_google_signatures(message) if provider == "gemini" else [])
         assert usage == (reference.usage.prompt_tokens, reference.usage.completion_tokens)
         if turn + 1 < len(cassettes):
             if responses:
@@ -1124,7 +1184,6 @@ async def test_gemini_normalized_signature_conversation(scenario):
         parts = _assert_ir(
             events,
             tool_name=request.tools[0].name if request.tools else "read_file",
-            termination_reason="stop",
         )
         message = reference.choices[0].message
         assert (events[0].id, events[0].model, events[0].created_at) == (
@@ -1167,12 +1226,19 @@ async def test_gemini_normalized_signature_conversation(scenario):
             request.input.extend(_caller_input(_responses_caller_input(suffix)))
 
 
-@pytest.mark.parametrize("provider", ["openrouter", "fireworks"])
+@pytest.mark.parametrize(
+    ("provider", "unknown_extensions"),
+    [("openrouter", False), ("fireworks", False), ("fireworks", True)],
+)
 @pytest.mark.parametrize("downstream", ["chat_completions", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_provider_reasoning_public_projection(provider, downstream, stream):
+async def test_provider_reasoning_public_projection(
+    provider, unknown_extensions, downstream, stream
+):
     """Ensures public projections preserve raw reasoning and unsigned summaries from SDK evidence."""
     cassette = _provider_turns(provider, "tool_use_reasoning", "stream")[0]
+    if unknown_extensions:
+        cassette = _with_unmodelled_output_extensions(cassette)
     recorded = cassette["request"]["body"]
     base_url = cassette["upstream_url"].removesuffix("/responses")
     sdk_body, extras = _sdk_body(recorded)
@@ -1184,6 +1250,11 @@ async def test_provider_reasoning_public_projection(provider, downstream, stream
         )
         reference, _ = await _collect_responses(
             await sdk.responses.create(**sdk_body, extra_body=extras), True
+        )
+    if unknown_extensions:
+        assert any(
+            item.type == "reasoning" and item.format == "vendor-format"
+            for item in reference.output
         )
     expected = _expected_responses_wire(recorded)
     body = {

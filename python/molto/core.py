@@ -10,9 +10,9 @@ from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_PROVIDER_BY_ENDPOINT,
     PROVIDER_CAPABILITIES,
-    PROVIDER_KEY_NAMES,
     Endpoint,
     Provider,
+    ProviderCapabilities,
 )
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
@@ -30,6 +30,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
 )
+from molto.upstream.base import BaseClient
 from molto.upstream.registry import CLIENTS
 
 VLLM_DUMMY_API_KEY = "EMPTY"
@@ -165,16 +166,20 @@ class Molto:
         await self._http_client.aclose()
 
     @staticmethod
-    def _resolve_api_key(provider: Provider, api_key: str | None) -> str | None:
-        if api_key is None and provider == "openai":
+    def _resolve_api_key(
+        client_type: type[BaseClient], provider: Provider, api_key: str | None
+    ) -> str | None:
+        if api_key is not None:
+            return api_key
+        if client_type.REQUIRED_API_KEY:
+            return getattr(ENV_CONFIG, client_type.REQUIRED_API_KEY.lower()).get_secret_value()
+        if provider == "openai":
             return ENV_CONFIG.openai_api_key_plain
-        if api_key is None and provider == "anthropic":
+        if provider == "anthropic":
             return ENV_CONFIG.anthropic_api_key_plain
-        if api_key is None and provider in PROVIDER_KEY_NAMES:
-            return getattr(ENV_CONFIG, PROVIDER_KEY_NAMES[provider].lower()).get_secret_value()
-        if api_key is None and provider == "vllm":
+        if provider == "vllm":
             return VLLM_DUMMY_API_KEY
-        return api_key
+        return None
 
     @staticmethod
     def _resolve_provider(endpoint: Endpoint, provider: Provider | None) -> Provider:
@@ -185,11 +190,47 @@ class Molto:
         if provider is not None and provider not in PROVIDER_CAPABILITIES:
             raise ValueError(f"Unsupported provider: {provider!r}.")
         resolved_provider = provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
-        if (resolved_provider, endpoint) not in CLIENTS:
-            raise ValueError(
-                f"Unsupported upstream endpoint {endpoint!r} for provider {resolved_provider!r}."
-            )
         return resolved_provider
+
+    def _upstream_client(
+        self,
+        endpoint: Endpoint,
+        provider: Provider,
+        *,
+        native: bool,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+    ) -> tuple[BaseClient, ProviderCapabilities]:
+        """Select a translator or attempt the requested native protocol at the provider."""
+        client_type = CLIENTS.get((provider, endpoint))
+        provider_client = client_type
+        if client_type is None:
+            if not native:
+                raise ValueError(
+                    f"Unsupported upstream endpoint {endpoint!r} for provider {provider!r}."
+                )
+            # Native attempts need protocol transport, not a registered translator.
+            # Reuse provider-owned defaults so fallback never sends its key to
+            # the canonical protocol provider's destination.
+            provider_client = next(
+                client for (name, _), client in CLIENTS.items() if name == provider
+            )
+            if provider_client.REQUIRES_BASE_URL and not base_url:
+                raise ValueError(f"Provider {provider!r} requires an explicit base_url.")
+            base_url = base_url or provider_client.DEFAULT_BASE_URL
+            client_type = CLIENTS[DEFAULT_PROVIDER_BY_ENDPOINT[endpoint], endpoint]
+        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider])
+        upstream = client_type(
+            self._http_client,
+            api_key=self._resolve_api_key(provider_client, provider, api_key),
+            base_url=base_url,
+            capabilities=capabilities,
+            extra_body=extra_body,
+            extra_headers=_upstream_headers(extra_headers),
+        )
+        return upstream, capabilities
 
     async def responses(
         self,
@@ -225,17 +266,14 @@ class Molto:
                 "Anthropic search extra_content requires endpoint='messages' "
                 "and provider='anthropic'."
             )
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        client_type = CLIENTS[resolved_provider, endpoint]
-        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
-        upstream_headers = _upstream_headers(extra_headers)
-        upstream = client_type(
-            self._http_client,
-            api_key=resolved_api_key,
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            native=endpoint == "responses",
+            api_key=api_key,
             base_url=base_url,
-            capabilities=capabilities,
             extra_body=extra_body,
-            extra_headers=upstream_headers,
+            extra_headers=extra_headers,
         )
 
         if endpoint == "responses":
@@ -277,17 +315,14 @@ class Molto:
         """
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        client_type = CLIENTS[resolved_provider, endpoint]
-        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
-        upstream_headers = _upstream_headers(extra_headers)
-        upstream = client_type(
-            self._http_client,
-            api_key=resolved_api_key,
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            native=endpoint == "chat/completions",
+            api_key=api_key,
             base_url=base_url,
-            capabilities=capabilities,
             extra_body=extra_body,
-            extra_headers=upstream_headers,
+            extra_headers=extra_headers,
         )
         if endpoint == "chat/completions":
             adapter = OpenAIChatCompletionsAdapter(capabilities)
@@ -332,17 +367,14 @@ class Molto:
         """
         request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        client_type = CLIENTS[resolved_provider, endpoint]
-        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[resolved_provider])
-        upstream_headers = _upstream_headers(extra_headers)
-        upstream = client_type(
-            self._http_client,
-            api_key=resolved_api_key,
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            native=endpoint == "messages",
+            api_key=api_key,
             base_url=base_url,
-            capabilities=capabilities,
             extra_body=extra_body,
-            extra_headers=upstream_headers,
+            extra_headers=extra_headers,
         )
         if endpoint == "messages":
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)

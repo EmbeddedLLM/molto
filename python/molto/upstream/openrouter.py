@@ -5,13 +5,10 @@ from typing import Any
 
 from molto.providers import ProviderCapabilities
 from molto.types.normalized import Thinking
-from molto.upstream.openai import (
-    OpenAIResponsesClient,
-    _reasoning_part,
-)
+from molto.upstream.openai import ResponsesClient, _reasoning_part
 
 
-class OpenRouterResponsesClient(OpenAIResponsesClient):
+class OpenRouterResponsesClient(ResponsesClient):
     DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
     REQUIRED_API_KEY = "OPENROUTER_API_KEY"
 

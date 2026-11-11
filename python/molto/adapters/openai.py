@@ -406,10 +406,15 @@ class OpenAIResponsesAdapter(
                 parts.append(search_result_from_responses(message))
             return parts
         if message_type == "reasoning":
-            if message.get("format") is not None:
-                raise UnsupportedInput("Responses reasoning format cannot be translated.")
             content = message.get("content") or []
             summary = message.get("summary") or []
+            format = message.get("format")
+            # OpenRouter labels raw text "unknown", which names no encoding and
+            # is omitted. Any other format describes opaque state that would be lost.
+            if format is not None and (
+                format != "unknown" or summary or message.get("encrypted_content")
+            ):
+                raise UnsupportedInput("Responses reasoning format cannot be translated.")
             if not all(part.get("type") == "reasoning_text" for part in content):
                 raise UnsupportedInput("Reasoning content should only contain `reasoning_text`.")
             if not all(part.get("type") == "summary_text" for part in summary):
@@ -1398,10 +1403,6 @@ class OpenAIChatCompletionsAdapter(
         response_start: ResponseStartEvent | None = None
         initial_chunk_sent = False
         tool_indices: dict[int, int] = {}
-        raw_reasoning = (
-            self._capabilities.thinking == "raw"
-            or self._capabilities.responses_reasoning == "wire"
-        )
 
         def chunk(
             metadata: ResponseStartEvent | ResponseEndEvent,
@@ -1454,18 +1455,10 @@ class OpenAIChatCompletionsAdapter(
                     part = normalized_event.part
                     if part.signature:
                         raise ValueError("Chat Completions cannot preserve reasoning signatures.")
-                    if raw_reasoning:
-                        if part.summary:
-                            raise ValueError(
-                                "Raw Chat Completions reasoning cannot contain a summary."
-                            )
-                        start_text = part.content
-                    else:
-                        if part.content:
-                            raise ValueError(
-                                "Summarized Chat Completions reasoning cannot contain raw text."
-                            )
-                        start_text = part.summary
+                    # Chat has one unlabeled reasoning field, so it carries
+                    # whichever representation the part holds; a part never
+                    # holds both.
+                    start_text = part.content or part.summary
                 elif isinstance(normalized_event.part, TextOutput):
                     start_text = normalized_event.part.content
                 else:
@@ -1520,18 +1513,11 @@ class OpenAIChatCompletionsAdapter(
                     thinking_delta = normalized_event.delta
                     if thinking_delta.signature_delta:
                         raise ValueError("Chat Completions cannot preserve reasoning signatures.")
-                    if raw_reasoning:
-                        if thinking_delta.summary_delta:
-                            raise ValueError(
-                                "Raw Chat Completions reasoning cannot contain a summary."
-                            )
-                        reasoning_delta = thinking_delta.content_delta
-                    else:
-                        if thinking_delta.content_delta:
-                            raise ValueError(
-                                "Summarized Chat Completions reasoning cannot contain raw text."
-                            )
-                        reasoning_delta = thinking_delta.summary_delta
+                    reasoning_delta = (
+                        thinking_delta.content_delta
+                        if thinking_delta.content_delta is not None
+                        else thinking_delta.summary_delta
+                    )
                     if reasoning_delta is None:
                         continue
                     if not initial_chunk_sent:
@@ -1576,14 +1562,6 @@ class OpenAIChatCompletionsAdapter(
                     part = normalized_event.part
                     if part.signature:
                         raise ValueError("Chat Completions cannot preserve reasoning signatures.")
-                    if raw_reasoning and part.summary:
-                        raise ValueError(
-                            "Raw Chat Completions reasoning cannot contain a summary."
-                        )
-                    if not raw_reasoning and part.content:
-                        raise ValueError(
-                            "Summarized Chat Completions reasoning cannot contain raw text."
-                        )
 
             elif isinstance(normalized_event, ResponseEndEvent):
                 finish_reason = _CHAT_FINISH_REASONS.get(

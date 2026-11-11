@@ -385,10 +385,15 @@ class _ChatToolCallState:
     signature: str | None = None
 
 
-class OpenAIResponsesClient(
+class ResponsesClient(
     BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent, OpenAIResponsesResponse]
 ):
-    """OpenAI Responses transport for native and normalized streaming paths."""
+    """Shared Responses transport for native and normalized streaming paths.
+
+    Every Responses provider client inherits this implementation. It ignores
+    output extension fields it does not model; a provider client that knows an
+    extension owns its extraction and validation.
+    """
 
     @staticmethod
     def _translate_tool(tool: FunctionTool | WebSearchTool) -> dict[str, Any]:
@@ -411,8 +416,6 @@ class OpenAIResponsesClient(
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
     def _reasoning_part(self, item: Any) -> Thinking:
-        if getattr(item, "format", None) is not None:
-            raise ValueError("Responses reasoning format cannot be translated.")
         return _reasoning_part(item)
 
     def _validate_reasoning(self, part: Thinking) -> None:
@@ -588,11 +591,9 @@ class OpenAIResponsesClient(
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, AssistantInput):
-                OpenAIResponsesClient._append_assistant_items(
-                    items, item.content, message_id=item.id
-                )
+                ResponsesClient._append_assistant_items(items, item.content, message_id=item.id)
             elif isinstance(item, (Thinking, ToolCall, SearchCall)):
-                OpenAIResponsesClient._append_assistant_items(items, [item])
+                ResponsesClient._append_assistant_items(items, [item])
             elif isinstance(item, SearchResult):
                 _merge_search_result(items, item)
             elif isinstance(item, ToolReturn):
@@ -992,14 +993,30 @@ class OpenAIResponsesClient(
         raise error
 
 
-class OpenAIChatCompletionsClient(
+class OpenAIResponsesClient(ResponsesClient):
+    """OpenAI's own Responses API, which defines no reasoning `format`."""
+
+    def _reasoning_part(self, item: Any) -> Thinking:
+        # OpenAI never labels reasoning with a format, so one here is opaque
+        # state from another implementation that translation would lose.
+        if getattr(item, "format", None) is not None:
+            raise ValueError("Responses reasoning format cannot be translated.")
+        return super()._reasoning_part(item)
+
+
+class ChatCompletionsClient(
     BaseClient[
         OpenAIChatCompletionsCreateRequest,
         OpenAIChatCompletionsStreamChunk,
         OpenAIChatCompletionsResponse,
     ]
 ):
-    """OpenAI Chat Completions transport for native and normalized streaming paths."""
+    """Shared Chat Completions transport for native and normalized streaming paths.
+
+    Every Chat Completions provider client inherits this implementation. It
+    ignores output extension fields it does not model; a provider client that
+    knows an extension owns its extraction and validation.
+    """
 
     @staticmethod
     def _translate_tool(tool: FunctionTool) -> dict[str, Any]:
@@ -1007,6 +1024,22 @@ class OpenAIChatCompletionsClient(
         return {"type": "function", "function": _function_tool_payload(tool)}
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+    # History nulls are wire values and are forwarded as sent. A provider whose
+    # input endpoint rejects them, although its own SDK output carries them, opts in.
+    OMIT_NULL_MESSAGE_FIELDS = False
+    OMIT_INCLUDE_OBFUSCATION = False
+
+    def _request_body(self, request: OpenAIChatCompletionsCreateRequest) -> dict[str, Any]:
+        body = request.model_dump()
+        if self.OMIT_NULL_MESSAGE_FIELDS:
+            # Nested values, such as opaque provider state, are left unchanged.
+            body["messages"] = [
+                {name: value for name, value in message.items() if value is not None}
+                for message in body["messages"]
+            ]
+        if self.OMIT_INCLUDE_OBFUSCATION and "stream_options" in body:
+            body["stream_options"].pop("include_obfuscation", None)
+        return body
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest
@@ -1014,7 +1047,7 @@ class OpenAIChatCompletionsClient(
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.chat.completions.create(
-                **request.model_dump(),
+                **self._request_body(request),
                 extra_body=self._extra_body,
                 extra_headers=self._extra_headers,
             )
@@ -1035,7 +1068,7 @@ class OpenAIChatCompletionsClient(
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.chat.completions.create(
-                **request.model_dump(),
+                **self._request_body(request),
                 extra_body=self._extra_body,
                 extra_headers=self._extra_headers,
             )
@@ -1313,9 +1346,20 @@ class OpenAIChatCompletionsClient(
 
     @staticmethod
     def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
-        if extra_content:
-            raise ValueError("Chat Completions extra_content cannot be translated.")
+        """Return the opaque continuation state attached to a message or tool call.
+
+        The shared protocol defines none, so `extra_content` is ignored here.
+        """
         return None
+
+    @staticmethod
+    def _termination_reason(finish_reason: str, *, has_tool_calls: bool) -> TerminationReason:
+        try:
+            return _CHAT_TERMINATION_REASONS[finish_reason]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unsupported Chat Completions finish reason: {finish_reason}"
+            ) from exc
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         response_metadata: ResponseStartEvent | None = None
@@ -1327,6 +1371,7 @@ class OpenAIChatCompletionsClient(
         active_part_index = 0
         next_part_index = 0
         tool_calls: dict[int, _ChatToolCallState] = {}
+        last_part_was_unsigned_tool = False
         # Chat has no per-call stop event. Calls are treated as contiguous, so a
         # new index closes the active call and a later return to that index is invalid.
         active_tool_call_index: int | None = None
@@ -1339,22 +1384,27 @@ class OpenAIChatCompletionsClient(
             part_text = ""
             return PartStartEvent(index=active_part_index, part=part)
 
+        def signature_part(signature: str) -> list[ModelResponseStreamEvent]:
+            nonlocal next_part_index, last_part_was_unsigned_tool
+            last_part_was_unsigned_tool = False
+            thinking = Thinking(content="", summary="", signature=signature)
+            index = next_part_index
+            next_part_index += 1
+            return [
+                PartStartEvent(index=index, part=thinking),
+                PartEndEvent(index=index, part=thinking),
+            ]
+
         def end_part(
             index: int, part: Thinking | TextOutput | ToolCall, signature: str | None = None
         ) -> list[ModelResponseStreamEvent]:
-            nonlocal next_part_index
+            nonlocal last_part_was_unsigned_tool
+            last_part_was_unsigned_tool = isinstance(part, ToolCall) and signature is None
             events: list[ModelResponseStreamEvent] = [PartEndEvent(index=index, part=part)]
             if signature is not None:
                 # Attachment state follows its content so text can stream before
                 # providers supply the signature in their final chunk.
-                thinking = Thinking(content="", summary="", signature=signature)
-                events.extend(
-                    [
-                        PartStartEvent(index=next_part_index, part=thinking),
-                        PartEndEvent(index=next_part_index, part=thinking),
-                    ]
-                )
-                next_part_index += 1
+                events.extend(signature_part(signature))
             return events
 
         def end_active_part() -> list[ModelResponseStreamEvent]:
@@ -1436,11 +1486,27 @@ class OpenAIChatCompletionsClient(
                         )
 
                     if signature is not None:
-                        if active_part != "text":
-                            raise ValueError(
-                                "A Chat message thought signature requires an associated text part."
-                            )
-                        text_signature = signature
+                        if active_part == "text":
+                            text_signature = signature
+                        else:
+                            # Message state without text still has to reach the
+                            # next request, so it becomes its own part once the
+                            # parts before it are closed.
+                            if active_tool_call_index is not None:
+                                for event in end_tool_call(active_tool_call_index):
+                                    yield event
+                                active_tool_call_index = None
+                            for event in end_active_part():
+                                yield event
+                            if last_part_was_unsigned_tool:
+                                # Position alone would replay this message-level
+                                # state onto the preceding unsigned tool call.
+                                raise ValueError(
+                                    "A message thought signature after an unsigned tool call "
+                                    "cannot preserve its attachment during translation."
+                                )
+                            for event in signature_part(signature):
+                                yield event
 
                     if choice.delta.tool_calls:
                         for event in end_active_part():
@@ -1522,12 +1588,9 @@ class OpenAIChatCompletionsClient(
                             )
 
                     if choice.finish_reason is not None:
-                        try:
-                            termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
-                        except KeyError as exc:
-                            raise ValueError(
-                                f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
-                            ) from exc
+                        termination_reason = self._termination_reason(
+                            choice.finish_reason, has_tool_calls=bool(tool_calls)
+                        )
                         for event in end_active_part():
                             yield event
                         if active_tool_call_index is not None:
@@ -1595,3 +1658,15 @@ class OpenAIChatCompletionsClient(
                     body=error.body,
                 ) from error
         raise error
+
+
+class OpenAIChatCompletionsClient(ChatCompletionsClient):
+    """OpenAI's own Chat Completions API, which defines no `extra_content`."""
+
+    @staticmethod
+    def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
+        # OpenAI never sends this field, so one here is opaque state from
+        # another implementation that translation would lose.
+        if extra_content:
+            raise ValueError("Chat Completions extra_content cannot be translated.")
+        return None

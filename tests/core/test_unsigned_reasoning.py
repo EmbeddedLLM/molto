@@ -96,19 +96,23 @@ def _reasoning_and_text(protocol: Protocol, response) -> tuple[str, str]:
 
 
 @pytest.mark.parametrize(
-    ("downstream", "upstream", "ciphertext"),
+    ("downstream", "upstream", "ciphertext", "provider"),
     [
-        (downstream, upstream, ciphertext)
+        (downstream, upstream, ciphertext, provider)
         for downstream, upstream in permutations(PROTOCOLS, 2)
         for ciphertext in ((None, "") if upstream == "responses" else (None,))
+        for provider in {
+            "responses": ("openai", "openrouter"),
+            "messages": ("anthropic",),
+            "chat/completions": ("openai",),
+        }[upstream]
     ],
 )
 @pytest.mark.parametrize("stream", [True, False])
 async def test_unsigned_reasoning_output_and_history_match_sdk(
-    downstream: Protocol, upstream: Protocol, ciphertext: str | None, stream: bool
+    downstream: Protocol, upstream: Protocol, ciphertext: str | None, provider: str, stream: bool
 ):
     """Ensures unsigned output matches the SDK and history is validated by its destination."""
-    provider = "anthropic" if upstream == "messages" else "openai"
     events = _unsigned_events(upstream, ciphertext)
     payload = "".join(dumps_sse(event, event.get("type", "")) for event in events)
     expected_request = _expected_request(downstream, upstream)

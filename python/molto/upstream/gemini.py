@@ -5,12 +5,12 @@ from contextlib import aclosing
 from typing import Any
 
 from molto.types.exceptions import UnsupportedInput
-from molto.types.normalized import TextOutput, Thinking, ToolCall
+from molto.types.normalized import TerminationReason, TextOutput, Thinking, ToolCall
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsStreamChunk,
 )
-from molto.upstream.openai import OpenAIChatCompletionsClient
+from molto.upstream.openai import ChatCompletionsClient
 
 
 def _register_call(calls: dict[int, str | None], index: int, call_id: str | None) -> None:
@@ -22,27 +22,38 @@ def _register_call(calls: dict[int, str | None], index: int, call_id: str | None
     calls[index] = call_id or previous
 
 
-class GeminiChatCompletionsClient(OpenAIChatCompletionsClient):
+class GeminiChatCompletionsClient(ChatCompletionsClient):
     DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
     REQUIRED_API_KEY = "GEMINI_API_KEY"
+    OMIT_NULL_MESSAGE_FIELDS = True
+    OMIT_INCLUDE_OBFUSCATION = True
+
+    @staticmethod
+    def _termination_reason(finish_reason: str, *, has_tool_calls: bool) -> TerminationReason:
+        # Gemini ends completed tool calls with "stop" on its native Chat API.
+        if finish_reason == "stop" and has_tool_calls:
+            return "tool_call"
+        return ChatCompletionsClient._termination_reason(
+            finish_reason, has_tool_calls=has_tool_calls
+        )
 
     @staticmethod
     def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
         if not extra_content:
             return None
-        google = extra_content.get("google") if isinstance(extra_content, dict) else None
-        if (
-            not isinstance(extra_content, dict)
-            or set(extra_content) != {"google"}
-            or not isinstance(google, dict)
-            or set(google) != {"thought_signature"}
-            or not isinstance(google["thought_signature"], str)
-            or not google["thought_signature"]
-        ):
+        google = extra_content.get("google", {}) if isinstance(extra_content, dict) else None
+        if not isinstance(google, dict):
+            raise ValueError("Gemini extra_content.google must be an object.")
+        # Other keys are extensions this client does not model; only the
+        # signature is continuation state that the next request must carry.
+        if "thought_signature" not in google:
+            return None
+        signature = google["thought_signature"]
+        if not isinstance(signature, str) or not signature:
             raise ValueError(
-                "Gemini extra_content must contain only a nonempty thought_signature."
+                "Gemini extra_content.google.thought_signature must be a nonempty string."
             )
-        return google["thought_signature"]
+        return signature
 
     @staticmethod
     def _starts_assistant_message(part: Thinking) -> bool:
@@ -51,7 +62,7 @@ class GeminiChatCompletionsClient(OpenAIChatCompletionsClient):
 
     @staticmethod
     def _assistant_message(parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
-        message = OpenAIChatCompletionsClient._assistant_message(
+        message = ChatCompletionsClient._assistant_message(
             [part for part in parts if not isinstance(part, Thinking) or not part.signature]
         )
         target: dict[str, Any] | None = None
@@ -63,10 +74,13 @@ class GeminiChatCompletionsClient(OpenAIChatCompletionsClient):
                 target = message["tool_calls"][tool_index]
                 tool_index += 1
             elif part.signature:
-                if part.content or part.summary or target is None or "extra_content" in target:
+                # A signature that follows no text or call was attached to the
+                # message itself, which Gemini sends when a turn has no text.
+                target = message if target is None else target
+                if part.content or part.summary or "extra_content" in target:
                     raise UnsupportedInput(
-                        "Gemini requires each signature-only thinking part immediately after "
-                        "its text or tool call."
+                        "Gemini requires signature-only thinking parts, at most one for the "
+                        "message and one for each tool call."
                     )
                 target["extra_content"] = {"google": {"thought_signature": part.signature}}
                 target = None
@@ -82,8 +96,15 @@ class GeminiChatCompletionsClient(OpenAIChatCompletionsClient):
         identities: dict[int, dict[int, str | None]] = {}
         announced_ids: dict[int, set[str]] = {}
         async with aclosing(super().native_events(request)) as source:
-            async for original in source:
-                chunk = original.model_copy(deep=True)
+            async for chunk in source:
+                # Only an unindexed call is rewritten, so other chunks pass
+                # through without the per-chunk cost of a copy.
+                if any(
+                    tool.index is None
+                    for choice in chunk.choices
+                    for tool in choice.delta.tool_calls or []
+                ):
+                    chunk = chunk.model_copy(deep=True)
                 for choice in chunk.choices:
                     calls = identities.setdefault(choice.index, {})
                     announced = announced_ids.setdefault(choice.index, set())

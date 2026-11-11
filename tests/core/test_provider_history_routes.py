@@ -8,6 +8,17 @@ from openai import AsyncOpenAI
 from openai.lib.streaming.chat import ChatCompletionStreamState
 
 from molto import Molto
+from molto.providers import PROVIDER_CAPABILITIES
+from molto.types.exceptions import UnsupportedInput
+from molto.types.normalized import (
+    AssistantInput,
+    NormalizedRequest,
+    PartEndEvent,
+    TextOutput,
+    Thinking,
+    ToolCall,
+)
+from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.utils.io import dumps_sse, json_loads
 from molto.utils.test import collect_sdk_response
 
@@ -273,11 +284,26 @@ async def test_openrouter_native_reasoning_format_history(stream):
     assert requests == [body, body, {**body, "input": [item]}]
 
 
+@pytest.mark.parametrize(
+    "item",
+    [
+        {
+            "summary": [],
+            "content": [{"type": "reasoning_text", "text": "Think"}],
+            "format": "named-v1",
+        },
+        {
+            "summary": [{"type": "summary_text", "text": "Think"}],
+            "format": "unknown",
+        },
+        {"summary": [], "encrypted_content": "opaque", "format": "unknown"},
+    ],
+    ids=["named", "formatted-summary", "formatted-state"],
+)
 @pytest.mark.parametrize("endpoint", ["chat/completions", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_reasoning_format_cannot_be_silently_translated(endpoint, stream):
-    """Ensures opaque provider reasoning format is rejected before translated transport."""
-    from molto.types.exceptions import UnsupportedInput
+async def test_reasoning_format_cannot_be_silently_translated(item, endpoint, stream):
+    """Ensures a reasoning format describing opaque state is rejected before translated transport."""
 
     def handler(request):
         raise AssertionError("Unsupported history must fail before transport")
@@ -285,30 +311,40 @@ async def test_reasoning_format_cannot_be_silently_translated(endpoint, stream):
     async with Molto(
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
     ) as molto:
-        with pytest.raises(UnsupportedInput, match="format"):
+        with pytest.raises(UnsupportedInput, match="format cannot be translated"):
             await molto.responses(
-                {
-                    "model": "model",
-                    "stream": stream,
-                    "input": [
-                        {
-                            "type": "reasoning",
-                            "summary": [],
-                            "content": [{"type": "reasoning_text", "text": "Think"}],
-                            "format": "unknown",
-                        }
-                    ],
-                },
+                {"model": "model", "stream": stream, "input": [{"type": "reasoning", **item}]},
                 endpoint=endpoint,
                 provider="vllm",
                 api_key="test-key",
             )
 
 
+def test_unknown_reasoning_format_on_raw_history_is_omitted():
+    """Ensures OpenRouter's raw reasoning history can leave its native route without the label."""
+    from molto.adapters.openai import OpenAIResponsesAdapter
+    from molto.types.openai_responses import OpenAIResponsesCreateRequest
+
+    request = OpenAIResponsesCreateRequest(
+        model="model",
+        input=[
+            {
+                "id": "rs_1",
+                "type": "reasoning",
+                "summary": [],
+                "content": [{"type": "reasoning_text", "text": " Think\n"}],
+                "format": "unknown",
+            }
+        ],
+    )
+    normalized = OpenAIResponsesAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(request)
+    assert normalized.input == [Thinking(id="rs_1", content=" Think\n", summary="")]
+
+
 @pytest.mark.parametrize("coordinator", ["chat_completions", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
 async def test_reasoning_format_output_rejects_unsupported_translation(coordinator, stream):
-    """Ensures source reasoning format cannot disappear when projecting provider output."""
+    """Ensures OpenAI output cannot lose a reasoning format its own API never defines."""
     event = {
         "type": "response.output_item.added",
         "sequence_number": 0,
@@ -348,10 +384,61 @@ async def test_reasoning_format_output_rejects_unsupported_translation(coordinat
     ) as molto:
         with pytest.raises(ValueError, match="format"):
             result = await getattr(molto, coordinator)(
-                body, endpoint="responses", provider="vllm", api_key="test-key"
+                body, endpoint="responses", provider="openai", api_key="test-key"
             )
             if stream:
                 [event async for event in result]
+
+
+@pytest.mark.parametrize("coordinator", ["chat_completions", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_shared_responses_client_ignores_reasoning_format(coordinator, stream):
+    """Ensures a shared protocol client completes output carrying a format it does not model."""
+    item = {
+        "id": "rs_1",
+        "type": "reasoning",
+        "summary": [],
+        "content": [{"type": "reasoning_text", "text": "Think"}],
+        "format": "named-v1",
+    }
+    response = {"id": "resp_1", "created_at": 1, "model": "model", "output": []}
+    events = [
+        {"type": "response.created", "response": {**response, "status": "in_progress"}},
+        {"type": "response.output_item.added", "output_index": 0, "item": item},
+        {"type": "response.output_item.done", "output_index": 0, "item": item},
+        {
+            "type": "response.completed",
+            "response": {**response, "status": "completed", "output": [item]},
+        },
+    ]
+    sse = "".join(dumps_sse({**event, "sequence_number": i}) for i, event in enumerate(events))
+    body = {"model": "model", "messages": [{"role": "user", "content": "Think"}], "stream": stream}
+    if coordinator == "messages":
+        body["max_tokens"] = 32
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200, text=sse, headers={"content-type": "text/event-stream"}
+                )
+            )
+        )
+    ) as molto:
+        result = await getattr(molto, coordinator)(
+            body, endpoint="responses", provider="vllm", api_key="test-key"
+        )
+        if stream:
+            async with result:
+                result = collect_sdk_response(
+                    "chat/completions" if coordinator == "chat_completions" else coordinator,
+                    [event async for event in result],
+                )
+    if coordinator == "chat_completions":
+        assert result.choices[0].message.reasoning_content == "Think"
+    else:
+        assert [(block.type, block.thinking) for block in result.content] == [
+            ("thinking", "Think")
+        ]
 
 
 def _google_stream(deltas):
@@ -507,7 +594,6 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
         {"google": {"thought_signature": ""}},
         {"google": {"thought_signature": None}},
         {"google": {"thought_signature": 7}},
-        {"google": {"thought_signature": "state", "unknown": True}},
         {"google": "invalid"},
         "invalid",
     ],
@@ -548,3 +634,404 @@ async def test_google_malformed_signature_closes_stream(extra_content, placement
             async with result:
                 [event async for event in result]
         assert len(responses) == 1 and responses[0].is_closed
+
+
+@pytest.mark.parametrize(
+    ("extra_content", "signatures"),
+    [
+        ({"google": {"thought_signature": "state", "unknown": True}, "other": {}}, ["state"]),
+        ({"google": {"unknown": True}}, []),
+        ({"other": {}}, []),
+    ],
+    ids=["beside-signature", "without-signature", "without-google"],
+)
+async def test_google_signature_ignores_unmodelled_keys(extra_content, signatures):
+    """Ensures extra Google keys neither fail the response nor hide its signature."""
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: _google_stream([{"content": "Text", "extra_content": extra_content}])
+            )
+        )
+    ) as molto:
+        result = await molto.responses(
+            {"model": "model", "input": "Hello"},
+            endpoint="chat/completions",
+            provider="gemini",
+            api_key="test-key",
+        )
+    assert result.output_text == "Text"
+    assert [
+        item.encrypted_content for item in result.output if item.type == "reasoning"
+    ] == signatures
+
+
+def _google_call(i):
+    return {
+        "id": f"call_{i}",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": f'{{"n":{i}}}'},
+        "extra_content": {"google": {"thought_signature": f"call-{i}"}},
+    }
+
+
+@pytest.mark.parametrize("text", [True, False])
+async def test_google_signatures_normalize_to_ordered_parts(text):
+    """Ensures each signature in one response becomes its own part and restores its attachment."""
+    state = {"google": {"thought_signature": " message\n"}}
+    calls = [_google_call(i) for i in range(2)]
+    deltas = [{"content": "Checking."}] if text else []
+    deltas.append({"role": "assistant", "extra_content": state})
+    deltas.extend({"tool_calls": [{**call, "index": i}]} for i, call in enumerate(calls))
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _google_stream(deltas))
+    ) as transport:
+        client = GeminiChatCompletionsClient(
+            transport, api_key="test-key", capabilities=PROVIDER_CAPABILITIES["gemini"]
+        )
+        events = [
+            event async for event in client.events(NormalizedRequest(model="model", stream=True))
+        ]
+    ends = [event for event in events if isinstance(event, PartEndEvent)]
+    parts = [event.part for event in ends]
+    assert [event.index for event in ends] == list(range(len(ends)))
+    assert parts == [
+        *([TextOutput(content="Checking.")] if text else []),
+        Thinking(content="", summary="", signature=" message\n"),
+        ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
+        Thinking(content="", summary="", signature="call-0"),
+        ToolCall(tool_call_id="call_1", tool_name="lookup", args='{"n":1}'),
+        Thinking(content="", summary="", signature="call-1"),
+    ]
+    history = NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+    assert GeminiChatCompletionsClient._native_request(history).model_dump()["messages"] == [
+        {
+            "role": "assistant",
+            **({"content": "Checking."} if text else {}),
+            "extra_content": state,
+            "tool_calls": calls,
+        }
+    ]
+
+
+def test_google_history_rejects_a_second_signature_for_one_attachment():
+    """Ensures a signature Gemini has no place for is rejected instead of dropped."""
+    parts = [
+        TextOutput(content="Text"),
+        Thinking(content="", summary="", signature="first"),
+        Thinking(content="", summary="", signature="second"),
+    ]
+    with pytest.raises(UnsupportedInput, match="at most one"):
+        GeminiChatCompletionsClient._native_request(
+            NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+        )
+
+
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_google_message_signature_without_text_round_trips(coordinator, stream):
+    """Ensures a message signature that arrives without text is retained and restored."""
+    state = {"google": {"thought_signature": " message\n"}}
+    call = _google_call(0)
+    deltas = [
+        {"tool_calls": [{**call, "index": 0}]},
+        {"role": "assistant", "extra_content": state},
+    ]
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        return _google_stream(deltas)
+
+    body = {"model": "model", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = [{"role": "user", "content": "Check."}]
+    else:
+        body.update(messages=[{"role": "user", "content": "Check."}], max_tokens=32)
+
+    async def collect(result):
+        if not stream:
+            return result
+        async with result:
+            return collect_sdk_response(coordinator, [event async for event in result])
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        create = getattr(molto, coordinator)
+        result = await collect(
+            await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
+        )
+        if coordinator == "responses":
+            assert [
+                (item.type, getattr(item, "encrypted_content", None)) for item in result.output
+            ] == [("function_call", None), ("reasoning", "call-0"), ("reasoning", " message\n")]
+            body["input"].extend(item.model_dump(exclude_unset=True) for item in result.output)
+            body["input"].append(
+                {"type": "function_call_output", "call_id": call["id"], "output": "ok"}
+            )
+        else:
+            assert [(item.type, getattr(item, "signature", None)) for item in result.content] == [
+                ("tool_use", None),
+                ("thinking", "call-0"),
+                ("thinking", " message\n"),
+            ]
+            body["messages"].extend(
+                [
+                    {
+                        "role": "assistant",
+                        "content": [item.model_dump() for item in result.content],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": call["id"], "content": "ok"}
+                        ],
+                    },
+                ]
+            )
+        await collect(
+            await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
+        )
+    assert requests[1]["messages"] == [
+        {"role": "user", "content": [{"type": "text", "text": "Check."}]},
+        {"role": "assistant", "extra_content": state, "tool_calls": [call]},
+        {"role": "tool", "tool_call_id": call["id"], "content": [{"type": "text", "text": "ok"}]},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("provider", "omits_nulls"),
+    [
+        ("openai", False),
+        ("vllm", False),
+        ("togetherai", False),
+        ("bedrock", False),
+        ("fireworks", True),
+        ("gemini", True),
+    ],
+)
+@pytest.mark.parametrize("stream", [False, True])
+async def test_native_history_nulls_reach_only_providers_that_accept_them(
+    provider, omits_nulls, stream
+):
+    """Ensures echoed null message fields are forwarded faithfully except where a provider rejects them."""
+    call = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": "{}"},
+        "extra_content": {"google": {"thought_signature": "state", "nested": None}},
+    }
+    assistant = {
+        "role": "assistant",
+        "content": None,
+        "refusal": None,
+        "audio": None,
+        "function_call": None,
+        "tool_calls": [call],
+    }
+    body = {
+        "model": "model",
+        "stream": stream,
+        "messages": [
+            {"role": "user", "content": "Look it up."},
+            assistant,
+            {"role": "tool", "tool_call_id": "call_1", "content": "ok"},
+        ],
+    }
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        if stream:
+            return _google_stream([{"content": "Done."}])
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl_1",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Done."},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        result = await molto.chat_completions(
+            deepcopy(body),
+            provider=provider,
+            api_key="test-key",
+            base_url="https://example.test/v1",
+        )
+        if stream:
+            async with result:
+                [event async for event in result]
+    assert requests[0]["messages"][1] == (
+        {"role": "assistant", "tool_calls": [call]} if omits_nulls else assistant
+    )
+
+
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_google_message_signature_after_unsigned_call_is_rejected(coordinator, stream):
+    """Ensures message state cannot silently become tool state on translated continuation."""
+    call = _google_call(0)
+    call.pop("extra_content")
+    deltas = [
+        {"tool_calls": [{**call, "index": 0}]},
+        {"extra_content": {"google": {"thought_signature": "message-state"}}},
+    ]
+    responses = []
+
+    def handler(_):
+        response = _google_stream(deltas)
+        responses.append(response)
+        return response
+
+    body = {"model": "model", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = "Check."
+    else:
+        body.update(messages=[{"role": "user", "content": "Check."}], max_tokens=32)
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        with pytest.raises(ValueError, match="cannot preserve its attachment"):
+            result = await getattr(molto, coordinator)(
+                body, endpoint="chat/completions", provider="gemini", api_key="test-key"
+            )
+            if stream:
+                async with result:
+                    [event async for event in result]
+    assert len(responses) == 1 and responses[0].is_closed
+
+
+@pytest.mark.parametrize("reasoning", [False, True])
+async def test_google_message_signature_without_text_or_calls(reasoning):
+    """Ensures standalone message state survives an empty or reasoning-only response."""
+    deltas = [{"reasoning_content": "Think"}] if reasoning else []
+    deltas.append({"extra_content": {"google": {"thought_signature": "message-state"}}})
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _google_stream(deltas))
+    ) as transport:
+        client = GeminiChatCompletionsClient(
+            transport, api_key="test-key", capabilities=PROVIDER_CAPABILITIES["gemini"]
+        )
+        parts = [
+            event.part
+            async for event in client.events(NormalizedRequest(model="model", stream=True))
+            if isinstance(event, PartEndEvent)
+        ]
+    assert parts == [
+        *([Thinking(content="", summary="Think")] if reasoning else []),
+        Thinking(content="", summary="", signature="message-state"),
+    ]
+    history = GeminiChatCompletionsClient._native_request(
+        NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+    )
+    assert history.model_dump()["messages"] == [
+        {
+            "role": "assistant",
+            **({"reasoning_content": "Think"} if reasoning else {"content": []}),
+            "extra_content": {"google": {"thought_signature": "message-state"}},
+        }
+    ]
+
+
+@pytest.mark.parametrize("endpoint", ["chat/completions", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_raw_unknown_format_history_translates_with_recorded_sdk_output(endpoint, stream):
+    """Ensures raw OpenRouter history reaches both protocols and preserves recorded SDK text."""
+    from pathlib import Path
+
+    from anthropic import AsyncAnthropic
+
+    from molto.utils.io import read_yaml
+
+    provider = "openai" if endpoint == "chat/completions" else "anthropic"
+    cassette = read_yaml(
+        Path(__file__).parents[1]
+        / "cassettes"
+        / "upstream_ir"
+        / "text_chat"
+        / f"{provider}-{endpoint.replace('/', '_')}-stream-00.yaml"
+    )
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        return httpx.Response(
+            200,
+            text="".join(cassette["response"]["sse"]),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as transport:
+        sdk = (AsyncOpenAI if endpoint == "chat/completions" else AsyncAnthropic)(
+            api_key="test-key", http_client=transport, max_retries=0
+        )
+        create = (
+            sdk.chat.completions.create if endpoint == "chat/completions" else sdk.messages.create
+        )
+        async with await create(**cassette["request"]["body"]) as result:
+            expected = collect_sdk_response(endpoint, [event async for event in result])
+    body = {
+        "model": cassette["request"]["body"]["model"],
+        "stream": stream,
+        "max_output_tokens": 32,
+        "input": [
+            {
+                "type": "reasoning",
+                "summary": [],
+                "content": [{"type": "reasoning_text", "text": " Think\n"}],
+                "format": "unknown",
+            },
+            {"role": "user", "content": "Continue."},
+        ],
+    }
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        actual = await molto.responses(
+            body, endpoint=endpoint, provider="vllm", api_key="test-key"
+        )
+        if stream:
+            async with actual:
+                actual = collect_sdk_response("responses", [event async for event in actual])
+    assert requests[1] == {
+        "model": body["model"],
+        "stream": True,
+        "max_completion_tokens" if endpoint == "chat/completions" else "max_tokens": 32,
+        "messages": [
+            {
+                "role": "assistant",
+                **(
+                    {"reasoning_content": " Think\n"}
+                    if endpoint == "chat/completions"
+                    else {"content": [{"type": "thinking", "thinking": " Think\n"}]}
+                ),
+            },
+            {"role": "user", "content": [{"type": "text", "text": "Continue."}]},
+        ],
+        **(
+            {"stream_options": {"include_usage": True}}
+            if endpoint == "chat/completions"
+            else {
+                "thinking": {"type": "adaptive", "display": "summarized"},
+                "output_config": {"effort": "high"},
+            }
+        ),
+    }
+    assert actual.output_text == (
+        expected.choices[0].message.content
+        if endpoint == "chat/completions"
+        else "".join(block.text for block in expected.content if block.type == "text")
+    )

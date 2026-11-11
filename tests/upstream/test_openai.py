@@ -58,6 +58,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEventAdapter,
 )
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.utils.test import collect_sdk_response
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
@@ -4057,16 +4058,50 @@ def test_translated_history_rejects_google_state(placement):
     assert message == original
 
 
-@pytest.mark.parametrize(
-    ("provider", "placement"),
-    [("openai", "message"), ("openai", "call"), ("gemini", "message")],
-)
+@pytest.mark.parametrize("placement", ["message", "call"])
 @pytest.mark.parametrize("coordinator", ["responses", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_translated_output_rejects_google_state_and_closes(
-    provider, placement, coordinator, stream
-):
-    """Ensures unsupported output state fails explicitly and releases the upstream stream."""
+async def test_shared_chat_client_ignores_unknown_extra_content(placement, coordinator, stream):
+    """Ensures a shared protocol client completes output carrying an extension it does not model."""
+    delta = {
+        "tool_calls": [
+            {"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+        ]
+    }
+    target = delta if placement == "message" else delta["tool_calls"][0]
+    target["extra_content"] = {"google": {"thought_signature": "opaque"}}
+    body = {"model": "synthetic", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = "Hello"
+    else:
+        body.update(messages=[{"role": "user", "content": "Hello"}], max_tokens=32)
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: _provider_stream(
+                    _provider_chunk(delta), _provider_chunk({}, "tool_calls")
+                )
+            )
+        )
+    ) as client:
+        result = await getattr(client, coordinator)(
+            body=body, endpoint="chat/completions", provider="vllm", api_key="test"
+        )
+        if stream:
+            async with result:
+                result = collect_sdk_response(coordinator, [event async for event in result])
+    items = result.output if coordinator == "responses" else result.content
+    assert [item.type for item in items] == [
+        "function_call" if coordinator == "responses" else "tool_use"
+    ]
+
+
+@pytest.mark.parametrize("placement", ["message", "call"])
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_translated_output_rejects_google_state_and_closes(placement, coordinator, stream):
+    """Ensures OpenAI output state it cannot translate fails explicitly and releases the stream."""
+    provider = "openai"
     delta = {
         "tool_calls": [
             {"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}

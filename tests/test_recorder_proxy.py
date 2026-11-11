@@ -209,7 +209,13 @@ async def test_failed_stream_propagates_and_retains_partial_evidence(monkeypatch
     assert source.closed
 
 
-async def test_credentials_are_masked_in_recordings_only(monkeypatch, recording_dir):
+@pytest.mark.parametrize(
+    ("header_secret", "api_secret", "query_secret"),
+    [("header-secret", "api-secret", "query-secret"), ("hdrK", "apiK", "qryK")],
+)
+async def test_credentials_are_masked_in_recordings_only(
+    monkeypatch, recording_dir, header_secret, api_secret, query_secret
+):
     """Ensures echoed credentials are masked while continuation state and actual traffic survive."""
     payload = {
         "extra_content": {"google": {"thought_signature": "opaque-state"}},
@@ -217,11 +223,13 @@ async def test_credentials_are_masked_in_recordings_only(monkeypatch, recording_
     }
 
     def handler(request):
-        assert request.headers["authorization"] == "Bearer header-secret"
-        assert request.headers["x-api-key"] == "api-secret"
-        assert request.url.params["key"] == "query-secret"
+        assert request.headers["authorization"] == f"Bearer {header_secret}"
+        assert request.headers["x-api-key"] == api_secret
+        assert request.url.params["key"] == query_secret
         assert json.loads(request.content) == payload
-        return httpx.Response(400, text="header-secret api-secret query-secret opaque-state")
+        return httpx.Response(
+            400, text=f"{header_secret} {api_secret} {query_secret} opaque-state"
+        )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as upstream:
         monkeypatch.setattr(recorder_proxy, "HTTP_CLIENT", upstream)
@@ -229,18 +237,60 @@ async def test_credentials_are_masked_in_recordings_only(monkeypatch, recording_
             transport=httpx.ASGITransport(app=recorder_proxy.app), base_url="http://proxy.test"
         ) as client:
             response = await client.post(
-                "/v1/responses?key=query-secret",
+                f"/v1/responses?key={query_secret}",
                 json=payload,
-                headers={"authorization": "Bearer header-secret", "x-api-key": "api-secret"},
+                headers={"authorization": f"Bearer {header_secret}", "x-api-key": api_secret},
             )
 
-    assert response.text == "header-secret api-secret query-secret opaque-state"
+    assert response.text == f"{header_secret} {api_secret} {query_secret} opaque-state"
     captured = read_recording(recording_dir)
     assert captured["request"]["body"] == payload
     assert captured["request"]["query_params"]["key"] == "***"
     assert captured["request"]["headers"]["authorization"] == "Bearer ***"
     assert captured["response"]["body_bytes"] == b"*** *** *** opaque-state"
-    assert "secret" not in next(recording_dir.glob("*.yaml")).read_text()
+    recorded = next(recording_dir.glob("*.yaml")).read_text()
+    assert all(secret not in recorded for secret in (header_secret, api_secret, query_secret))
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_placeholder_credentials_do_not_rewrite_recorded_content(
+    monkeypatch, recording_dir, stream
+):
+    """Ensures the known dummy key is masked in credential fields without altering content."""
+    payload = {"input": "Reply EMPTY or Bearer EMPTY when the list is EMPTY.", "stream": stream}
+    response_text = "The list is EMPTY. Bearer EMPTY is a placeholder."
+    response_body = (
+        f'data: {{"text": "{response_text}"}}\n\ndata: [DONE]\n\n' if stream else response_text
+    )
+
+    def handler(request):
+        assert request.headers["authorization"] == "Bearer EMPTY"
+        return httpx.Response(
+            200,
+            text=response_body,
+            headers={"content-type": "text/event-stream" if stream else "text/plain"},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as upstream:
+        monkeypatch.setattr(recorder_proxy, "HTTP_CLIENT", upstream)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=recorder_proxy.app), base_url="http://proxy.test"
+        ) as client:
+            response = await client.post(
+                "/v1/responses?key=EMPTY",
+                json=payload,
+                headers={"authorization": "Bearer EMPTY"},
+            )
+
+    assert response.text == response_body
+    captured = read_recording(recording_dir)
+    assert captured["request"]["body"] == payload
+    assert captured["request"]["query_params"]["key"] == "***"
+    assert captured["request"]["headers"]["authorization"] == "Bearer ***"
+    if stream:
+        assert "".join(captured["response"]["sse"]) == response_body
+    else:
+        assert captured["response"]["body_bytes"] == response_body.encode()
 
 
 @pytest.mark.parametrize("content_type", ["application/json", "text/html"])

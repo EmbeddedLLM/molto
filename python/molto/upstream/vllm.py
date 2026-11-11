@@ -1,14 +1,14 @@
 """vLLM protocol clients sharing the canonical wire implementations."""
 
 from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.openai import ChatCompletionsClient, ResponsesClient
 
 
-class VLLMResponsesClient(OpenAIResponsesClient):
+class VLLMResponsesClient(ResponsesClient):
     """vLLM Responses transport and normalization."""
 
 
-class VLLMChatCompletionsClient(OpenAIChatCompletionsClient):
+class VLLMChatCompletionsClient(ChatCompletionsClient):
     """vLLM Chat Completions transport and normalization."""
 
 
