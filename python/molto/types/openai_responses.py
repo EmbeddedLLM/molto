@@ -27,7 +27,6 @@ from openai.types.responses.response_function_web_search_param import (
     ActionFind,
     ActionOpenPage,
     ActionSearch,
-    ActionSearchSource,
     ResponseFunctionWebSearchParam,
 )
 from openai.types.responses.response_includable import ResponseIncludable
@@ -59,7 +58,7 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import Discriminator, Field, TypeAdapter, model_validator
+from pydantic import ConfigDict, Discriminator, Field, TypeAdapter, model_validator, with_config
 from typing_extensions import Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
@@ -99,32 +98,31 @@ class AnthropicSearchSourceMetadataParam(TypedDict, total=False):
     page_age: str | None
 
 
+# Nested TypedDicts inherit the enclosing open source's `extra="allow"`. Molto's own
+# continuation state forbids unknown keys explicitly, and its nested types inherit that.
+@with_config(ConfigDict(extra="forbid"))
 class ResponseSearchSourceExtraContentParam(TypedDict):
     anthropic: AnthropicSearchSourceMetadataParam
 
 
-class ResponseWebSearchSourceParam(ActionSearchSource, total=False):
+@with_config(ConfigDict(extra="allow"))
+class ResponseWebSearchSourceParam(TypedDict, total=False):
+    """A search source of any type, such as a URL or OpenAI's `oai-weather` `api` source.
+
+    The SDK declares only URL sources, but OpenAI returns others, so source types and
+    fields are left for the upstream to validate. Only Molto's own `extra_content` is
+    checked, because Molto consumes it and no upstream can.
+    """
+
     extra_content: ResponseSearchSourceExtraContentParam
 
 
-class ResponseWebSearchAPISourceParam(TypedDict):
-    """A non-URL source, such as `oai-weather`, that OpenAI returns but the SDK omits."""
-
-    type: Required[Literal["api"]]
-    name: Required[str]
-
-
 class ResponseWebSearchActionSearchParam(ActionSearch, total=False):
-    sources: list[
-        Annotated[
-            ResponseWebSearchSourceParam | ResponseWebSearchAPISourceParam,
-            Discriminator("type"),
-        ]
-    ]
+    sources: list[ResponseWebSearchSourceParam]
 
 
 class ResponseFunctionWebSearchHistoryParam(ResponseFunctionWebSearchParam):
-    """Search history carrying original provider state alongside native URL sources."""
+    """Search history carrying original provider state alongside native sources."""
 
     action: Required[ResponseWebSearchActionSearchParam | ActionOpenPage | ActionFind]
 

@@ -1,0 +1,336 @@
+filename: 2026-11-11-01a1ca5d-bc1e-7400-96ec-7d6f9836bf92
+request:
+  body:
+    include:
+    - web_search_call.action.sources
+    input:
+    - content:
+      - text: What's the weather in Kuala Lumpur today?
+        type: input_text
+      role: user
+    max_output_tokens: 4096
+    model: gpt-5.1
+    stream: true
+    stream_options:
+      include_obfuscation: false
+    tool_choice:
+      mode: required
+      tools:
+      - type: web_search
+      type: allowed_tools
+    tools:
+    - type: web_search
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '382'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1ca5d-bc1e-7400-96ec-7d6f9836bf92
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_063c182e4163033d006af451589d4887d299b7551783a3589b","object":"response","created_at":1794396504,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"allowed_tools","mode":"required","tools":[{"type":"web_search_preview"}]},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_063c182e4163033d006af451589d4887d299b7551783a3589b","object":"response","created_at":1794396504,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"allowed_tools","mode":"required","tools":[{"type":"web_search_preview"}]},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","type":"web_search_call","status":"in_progress"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.in_progress
+
+    '
+  - 'data: {"type":"response.web_search_call.in_progress","item_id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.searching
+
+    '
+  - 'data: {"type":"response.web_search_call.searching","item_id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.web_search_call.completed
+
+    '
+  - 'data: {"type":"response.web_search_call.completed","item_id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+    Kuala Lumpur, Malaysia"],"query":"weather: Kuala Lumpur, Malaysia","sources":[{"type":"api","name":"oai-weather"}]}},"output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":1,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Here’s
+    the weather in Kuala","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Lumpur
+    today (November 11, 2026):\n\n-","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" **Current
+    conditions:** Thunderstorm, around **84","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"°F (29°C)**  \n-
+    **Evening","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" & overnight:**  \n  -
+    ","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"8–9 PM:
+    Thunderstorms easing","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" to cloudy,
+    **82–80°F","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" (28–27°C)**  \n  -
+    Late night","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" toward","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" early
+    morning: Mostly cloudy with","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" periods
+    of thunderstorms, **77–","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":19}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"75°F (25–24°C)**  \n\nYou","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" can expect
+    it to stay **warm, humid, and storm","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"y","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":22}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" at times**
+    through","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":23}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" tonight.","item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":24}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","logprobs":[],"output_index":1,"sequence_number":25,"text":"Here’s
+    the weather in Kuala Lumpur today (November 11, 2026):\n\n- **Current conditions:**
+    Thunderstorm, around **84°F (29°C)**  \n- **Evening & overnight:**  \n  - 8–9
+    PM: Thunderstorms easing to cloudy, **82–80°F (28–27°C)**  \n  - Late night toward
+    early morning: Mostly cloudy with periods of thunderstorms, **77–75°F (25–24°C)**  \n\nYou
+    can expect it to stay **warm, humid, and stormy at times** through tonight."}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","output_index":1,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"Here’s
+    the weather in Kuala Lumpur today (November 11, 2026):\n\n- **Current conditions:**
+    Thunderstorm, around **84°F (29°C)**  \n- **Evening & overnight:**  \n  - 8–9
+    PM: Thunderstorms easing to cloudy, **82–80°F (28–27°C)**  \n  - Late night toward
+    early morning: Mostly cloudy with periods of thunderstorms, **77–75°F (25–24°C)**  \n\nYou
+    can expect it to stay **warm, humid, and stormy at times** through tonight."},"sequence_number":26}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Here’s
+    the weather in Kuala Lumpur today (November 11, 2026):\n\n- **Current conditions:**
+    Thunderstorm, around **84°F (29°C)**  \n- **Evening & overnight:**  \n  - 8–9
+    PM: Thunderstorms easing to cloudy, **82–80°F (28–27°C)**  \n  - Late night toward
+    early morning: Mostly cloudy with periods of thunderstorms, **77–75°F (25–24°C)**  \n\nYou
+    can expect it to stay **warm, humid, and stormy at times** through tonight."}],"role":"assistant"},"output_index":1,"sequence_number":27}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_063c182e4163033d006af451589d4887d299b7551783a3589b","object":"response","created_at":1794396504,"status":"completed","access_programs":null,"background":false,"completed_at":1794396508,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":4096,"max_tool_calls":null,"model":"gpt-5.1-2025-11-13","moderation":null,"output":[{"id":"ws_063c182e4163033d006af4515a1ab087d2bc72603d04185a22","type":"web_search_call","status":"completed","action":{"type":"search","queries":["weather:
+    Kuala Lumpur, Malaysia"],"query":"weather: Kuala Lumpur, Malaysia","sources":[{"type":"api","name":"oai-weather"}]}},{"id":"msg_063c182e4163033d006af4515b738087d2a00a704c02544cce","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"Here’s
+    the weather in Kuala Lumpur today (November 11, 2026):\n\n- **Current conditions:**
+    Thunderstorm, around **84°F (29°C)**  \n- **Evening & overnight:**  \n  - 8–9
+    PM: Thunderstorms easing to cloudy, **82–80°F (28–27°C)**  \n  - Late night toward
+    early morning: Mostly cloudy with periods of thunderstorms, **77–75°F (25–24°C)**  \n\nYou
+    can expect it to stay **warm, humid, and stormy at times** through tonight."}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":"current_turn","effort":"none","mode":"standard","summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":{"type":"allowed_tools","mode":"required","tools":[{"type":"web_search_preview"}]},"tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":1}},"tools":[{"type":"web_search","return_token_budget":"default","search_content_types":["text"],"search_context_size":"medium","user_location":{"type":"approximate","city":null,"country":"US","region":null,"timezone":null}}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":4730,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":160,"output_tokens_details":{"reasoning_tokens":37},"total_tokens":4890},"user":null,"metadata":{}},"sequence_number":28}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-11-11T11:28:23.070222+00:00'

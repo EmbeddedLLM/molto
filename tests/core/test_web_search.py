@@ -319,18 +319,32 @@ async def test_translated_search_tolerates_recorded_api_source(downstream: Proto
     OpenAI answered a weather search with only `{"type": "api", "name": "oai-weather"}`.
     Neither downstream can represent it. Messages keeps the search call but omits its
     result, which is unknown rather than empty, and Chat returns the answer text alone.
+    The expected request is the matched `web_search` translation with only the model,
+    prompt, and Chat token limit substituted, so it is independent of the translator.
+    The recording sent exactly that Messages translation; Chat's differs only by
+    leaving stream obfuscation at the provider default.
     """
-    upstream_path = CASSETTE_DIR / "native/model_settings/openai-responses-stream-00.yaml"
-    upstream_events = [
-        load_sse(sse) for sse in _sse_records(_read_cassette(upstream_path), "responses")
-    ]
-    terminal = upstream_events[-1]["response"]
+    upstream_path = CASSETTE_DIR / "native/web_search_api_source/openai-responses-stream-00.yaml"
+    upstream = _read_cassette(upstream_path)
+    terminal = load_sse(_sse_records(upstream, "responses")[-1])["response"]
     (search,) = [item for item in terminal["output"] if item["type"] == "web_search_call"]
     assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
     (message,) = [item for item in terminal["output"] if item["type"] == "message"]
     (answer,) = message["content"]
 
+    prompt = "What's the weather in Kuala Lumpur today?"
     body, expected_request = _request_pair(downstream, "responses", stream)
+    body["model"] = expected_request["model"] = "gpt-5.1"
+    body["messages"] = [{"role": "user", "content": prompt}]
+    expected_request["input"][0]["content"][0]["text"] = prompt
+    if downstream == "chat/completions":
+        body["max_completion_tokens"] = expected_request["max_output_tokens"] = 4096
+    recorded = upstream["request"]["body"]
+    assert expected_request == {
+        key: value
+        for key, value in recorded.items()
+        if downstream == "messages" or key != "stream_options"
+    }
     async with _get_http_client(
         [upstream_path], "responses", expected_body=expected_request
     ) as http_client:

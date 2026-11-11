@@ -427,7 +427,7 @@ Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` di
 
 Request bodies are local Pydantic wrappers because Molto needs one validated model whose fields track the corresponding SDK `create()` signature. Nested parameter types come from the pinned OpenAI SDK.
 
-Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and eagerly validated fields. Assistant `output_text` also accepts `prompt_cache_breakpoint`, which the live OpenAI API supports but the pinned SDK schema omits. It does not use an untyped dictionary fallback for Responses input.
+Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and eagerly validated fields. Assistant `output_text` also accepts `prompt_cache_breakpoint`, which the live OpenAI API supports but the pinned SDK schema omits. It does not use an untyped dictionary fallback for Responses input, with one exception: `web_search_call` sources are open, because OpenAI returns source types the SDK omits, such as `api`, and validates sources itself. Only Molto's own `extra_content` is typed. Translated routes still reject any source they cannot convert losslessly; see [Non-URL sources](../docs/web-search.md#non-url-sources).
 
 Response and stream result types are intentional SDK aliases:
 

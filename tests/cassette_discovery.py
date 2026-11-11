@@ -45,6 +45,7 @@ NATIVE_SCENARIO_PROTOCOLS: dict[str, tuple[Endpoint, ...]] = {
     "model_settings": ("chat/completions", "responses"),
     "tool_choice_required": ("chat/completions", "responses"),
     "web_search_tool_options": ("responses",),
+    "web_search_api_source": ("responses",),
     "conversation_id": ("responses",),
 }
 _FILENAME = re.compile(

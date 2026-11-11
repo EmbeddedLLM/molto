@@ -244,6 +244,21 @@ def search_calls_to_messages(search_call: SearchCall) -> list[dict[str, Any]]:
     ]
 
 
+def is_translatable_responses_source(source: dict[str, Any]) -> bool:
+    """Report whether a Responses history source converts to a search result losslessly.
+
+    Native passthrough leaves source validation to the upstream, but translated input is
+    lossless-or-rejected. Only a URL source carrying no fields beyond those converted by
+    `search_source_from_responses` qualifies. `type` may be omitted, as compatible
+    providers do.
+    """
+    return (
+        source.keys() <= {"type", "url", "title", "page_age", "extra_content"}
+        and source.get("type", "url") == "url"
+        and isinstance(source.get("url"), str)
+    )
+
+
 def search_result_from_responses(item: dict[str, Any]) -> SearchResult:
     """Extract a result after the caller identifies a finished Responses search."""
     sources = (item.get("action") or {}).get("sources")

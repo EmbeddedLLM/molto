@@ -157,37 +157,32 @@ def test_search_history_rejects_invalid_extra_content(location, metadata):
         OpenAIResponsesCreateRequest(input=history, model="claude-sonnet-4-6")
 
 
-def test_search_history_accepts_api_sources():
-    """Ensures OpenAI's non-URL `api` search sources validate and serialize unchanged.
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"type": "api", "name": "oai-weather"},
+        {"type": "api"},
+        {"type": "unknown", "name": 1},
+        {"type": "url", "url": "https://example.com", "provider_field": {"nested": True}},
+        {"url": "https://example.com"},
+    ],
+)
+def test_search_history_leaves_source_validation_to_the_upstream(source):
+    """Ensures search sources of any type and fields validate and serialize unchanged.
 
-    The pinned SDK declares only URL sources, but OpenAI returns `oai-weather` as an
-    `api` source, and native callers replay it as history.
+    The pinned SDK declares only URL sources, but OpenAI returns others, such as the
+    `oai-weather` `api` source that native callers replay as history. The upstream
+    validates source shapes, so Molto must not reject or alter them.
     """
     history = _search_history()
-    history[0]["action"]["sources"].append({"type": "api", "name": "oai-weather"})
+    history[0]["action"]["sources"].append(source)
 
     request = OpenAIResponsesCreateRequest(input=history, model="gpt-5.1")
 
     assert request.model_dump()["input"] == history
     assert request.has_anthropic_search_metadata() is False
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        {"type": "api"},
-        {"type": "api", "name": 1},
-        {"type": "api", "name": "oai-weather", "url": "https://example.com"},
-        {"type": "unknown", "name": "oai-weather"},
-    ],
-)
-def test_search_history_rejects_invalid_api_sources(source):
-    """Ensures `api` source support does not admit malformed or unknown source shapes."""
-    history = _search_history()
-    history[0]["action"]["sources"] = [source]
-
-    with pytest.raises(ValidationError):
-        OpenAIResponsesCreateRequest(input=history, model="gpt-5.1")
+    restored = OpenAIResponsesCreateRequest.model_validate_json(request.model_dump_json())
+    assert restored.model_dump()["input"] == history
 
 
 def test_search_extension_preserves_other_sdk_actions_and_annotations():
