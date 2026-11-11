@@ -233,7 +233,15 @@ def _search_parts(item: Any) -> tuple[SearchCall, SearchResult | None]:
     produce only a call. Missing sources stay None rather than becoming [].
     The caller emits each returned part's start/end events.
     """
-    data = item.model_dump()
+    data = item.model_dump(exclude_unset=True, exclude={"action": {"sources"}})
+    # Interrupted searches may only have their initial snapshot, which lacks an action.
+    sources = getattr(getattr(item, "action", None), "sources", None)
+    if sources is not None:
+        # OpenAI also returns sources the SDK does not declare, such as `api` sources.
+        # Dump them separately so only these expected values skip serializer warnings.
+        data["action"]["sources"] = [
+            source.model_dump(exclude_unset=True, warnings=False) for source in sources
+        ]
     call = search_call_from_responses(data)
     result = None
     if call.action == "search" and call.status in {"completed", "failed"}:
@@ -896,7 +904,9 @@ class OpenAIResponsesClient(
                     usage = _responses_usage(metadata.usage)
                     if usage is not None:
                         # Dump metadata so both SDK-typed fields and extras have the same shape.
-                        tool_usage = metadata.model_dump().get("tool_usage") or {}
+                        tool_usage = (
+                            metadata.model_dump(include={"tool_usage"}).get("tool_usage") or {}
+                        )
                         search_usage = tool_usage.get("web_search") or {}
                         usage.web_search_requests = search_usage.get("num_requests")
                     yield ResponseEndEvent(

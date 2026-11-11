@@ -27,6 +27,8 @@ from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponenti
 from uuid_utils import uuid7
 from yaml import dump as yaml_dump
 
+from molto.utils.test import filter_headers
+
 # Defaults
 OUTPUT_DIR = Path("tests") / "cassettes/matched/tool_call"
 TARGET_HOST = "https://api.openai.com"
@@ -59,20 +61,6 @@ HTTP_CLIENT = AsyncClient(
     ),
 )
 
-# Headers to record (whitelist)
-RECORDED_HEADERS = {
-    "content-type",
-    "content-length",
-    "authorization",
-    "user-agent",
-    "accept",
-    "accept-encoding",
-    "cache-control",
-    "connection",
-    # Helpful for grouping multi-request tool loops into a single "run"
-    "x-run-id",
-}
-
 # Headers to exclude when forwarding response (they're handled by httpx/client)
 EXCLUDED_RESPONSE_HEADERS = {
     "content-encoding",  # Already decoded by httpx
@@ -80,30 +68,6 @@ EXCLUDED_RESPONSE_HEADERS = {
     "transfer-encoding",  # Handled by the server
     "connection",  # Let the server handle this
 }
-
-
-def mask_authorization(value: str) -> str:
-    """
-    Mask Authorization header values in recordings.
-
-    Cassettes are intended to be shareable "golden" artifacts; never write any
-    API key material to disk (even partially).
-    """
-    if not value:
-        return value
-    lower = value.lower()
-    if lower.startswith("bearer "):
-        return "Bearer ***"
-    return "***"
-
-
-def filter_headers(headers) -> dict:
-    """Filter headers to only include whitelisted ones."""
-    return {
-        k: v if k.lower() != "authorization" else mask_authorization(v)
-        for k, v in headers.items()
-        if k.lower() in RECORDED_HEADERS
-    }
 
 
 def filter_response_headers(headers) -> dict:

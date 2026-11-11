@@ -130,6 +130,12 @@ Observed Responses sources become result entries. A URL-only source produces thi
 
 Available titles and `page_age` are preserved; unavailable age is omitted or null. The result placeholder supplies neither retrieved content nor valid continuation state. Native Messages retains original encrypted content. An explicitly empty source list becomes an empty result list. Missing sources remain unknown and are never reconstructed from answer citations. An unfinished invocation gets no invented successful result.
 
+### Non-URL sources
+
+OpenAI can also return sources that are not web pages, such as `{"type": "api", "name": "oai-weather"}` for a weather lookup. The OpenAI SDK declares only `url` sources, so Molto declares `api` sources in its Responses request model. Native Responses history carrying them validates and is forwarded unchanged. Other source types and malformed `api` sources still fail request validation.
+
+Neither Messages nor Chat can represent a source without a URL, so translated output projects only URL sources. A search answered solely by non-URL sources has an unknown result: Messages keeps the `server_tool_use` block but omits its result, rather than reporting an empty result list as if nothing were found. A mixed result lists only its URL sources. Sources without a `type` are classified by their URL. Translated Responses history containing a non-URL source raises `UnsupportedInput` before transport.
+
 Translated Messages omits Responses `open_page` and `find_in_page` operations, retaining the answer and citations.
 
 ## Failures, pauses, and usage

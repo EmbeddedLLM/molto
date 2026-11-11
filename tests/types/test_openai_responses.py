@@ -157,6 +157,39 @@ def test_search_history_rejects_invalid_extra_content(location, metadata):
         OpenAIResponsesCreateRequest(input=history, model="claude-sonnet-4-6")
 
 
+def test_search_history_accepts_api_sources():
+    """Ensures OpenAI's non-URL `api` search sources validate and serialize unchanged.
+
+    The pinned SDK declares only URL sources, but OpenAI returns `oai-weather` as an
+    `api` source, and native callers replay it as history.
+    """
+    history = _search_history()
+    history[0]["action"]["sources"].append({"type": "api", "name": "oai-weather"})
+
+    request = OpenAIResponsesCreateRequest(input=history, model="gpt-5.1")
+
+    assert request.model_dump()["input"] == history
+    assert request.has_anthropic_search_metadata() is False
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"type": "api"},
+        {"type": "api", "name": 1},
+        {"type": "api", "name": "oai-weather", "url": "https://example.com"},
+        {"type": "unknown", "name": "oai-weather"},
+    ],
+)
+def test_search_history_rejects_invalid_api_sources(source):
+    """Ensures `api` source support does not admit malformed or unknown source shapes."""
+    history = _search_history()
+    history[0]["action"]["sources"] = [source]
+
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(input=history, model="gpt-5.1")
+
+
 def test_search_extension_preserves_other_sdk_actions_and_annotations():
     """Ensures search metadata support preserves native browsing and non-URL annotations."""
     history = _search_history()
