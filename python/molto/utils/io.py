@@ -1,9 +1,38 @@
 from typing import Any
 
 import orjson
+from anthropic import BaseModel as AnthropicModel
+from openai import BaseModel as OpenAIModel
 from pydantic import BaseModel
 
+from molto.types.base import ExcludeNoneModel
 from molto.utils.types import JSONInput, JSONOutput
+
+
+def request_to_dict(body: BaseModel | dict[str, Any]) -> dict[str, Any]:
+    """Retain supplied request fields without applying a protocol serializer."""
+
+    def convert(value: Any) -> Any:
+        if isinstance(value, (OpenAIModel, AnthropicModel)):
+            return value.to_dict(mode="json")
+        if isinstance(value, BaseModel):
+            # Schema-based dumps can omit extras accepted by a per-call override,
+            # including keys inside TypedDict fields. Molto wrappers omit unset
+            # defaults; independent caller models retain their attribute values.
+            value = {
+                key: item
+                for key, item in value
+                if not isinstance(value, ExcludeNoneModel)
+                or key in value.model_fields_set
+                or key in (value.model_extra or {})
+            }
+        if isinstance(value, dict):
+            return {key: convert(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [convert(item) for item in value]
+        return value
+
+    return convert(body)
 
 
 def json_loads(data: str) -> JSONOutput:

@@ -383,10 +383,10 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
         ("messages", "vllm"),
     ],
 )
-async def test_search_metadata_rejects_other_upstream_routes(
+async def test_search_metadata_preserves_native_and_rejects_other_translated_routes(
     endpoint: str, provider: str | None, history_type: str, stream: bool
 ):
-    """Ensures either source or citation state fails before transport when its Anthropic route changes."""
+    """Ensures native metadata survives while incompatible translated routes fail before HTTP."""
     body = _responses_body(False)
     async with _get_http_client([SEARCH], "messages") as http_client:
         result = await Molto(http_client=http_client).responses(
@@ -396,6 +396,24 @@ async def test_search_metadata_rejects_other_upstream_routes(
     body["input"].extend(
         item.model_dump(exclude_none=True) for item in result.output if item.type == history_type
     )
+    if endpoint == "responses":
+        expected = await _sdk_result("responses", stream)
+        async with _get_http_client(
+            [_path("responses", stream)], "responses", expected_body=body
+        ) as http_client:
+            actual = await Molto(http_client=http_client).responses(
+                body=body, endpoint=endpoint, provider=provider, api_key="test-api-key"
+            )
+            if stream:
+                actual = [event async for event in actual]
+                assert [type(event) for event in actual] == [type(event) for event in expected]
+                assert [event.model_dump() for event in actual] == [
+                    event.model_dump() for event in expected
+                ]
+            else:
+                assert type(actual) is type(expected)
+                assert actual.model_dump() == expected.model_dump()
+        return
     requests = []
 
     def handle(request: Request) -> Response:

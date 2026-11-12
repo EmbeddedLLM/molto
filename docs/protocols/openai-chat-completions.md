@@ -92,9 +92,11 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 ## Native passthrough
 
-When both sides use Chat Completions, Molto validates the request with `OpenAIChatCompletionsCreateRequest` and calls the OpenAI SDK's `chat.completions.create()`. It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
+When both sides use Chat Completions, Molto preserves the request dictionary and calls the OpenAI SDK's `chat.completions.create()` without local protocol-model validation. Unknown properties, nested extensions, and explicit nulls are retained for SDK and provider validation. It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
 This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, and provider extensions accepted by the pinned SDK. Errors follow the [shared policy](../errors.md). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
+
+Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. The `drop_unknown` option has no effect on native routes. See the [shared input policy](../README.md#cross-protocol-contract).
 
 ## When the application speaks Chat Completions
 
@@ -129,9 +131,9 @@ System and developer messages accept scalar text or ordered text-part lists and 
 
 Each assistant-history message becomes one `AssistantInput` containing ordered reasoning, text, and tool-call parts. Its enclosing message boundary is retained. The adapter accepts assistant scalar text or ordered text-part lists, optional string `reasoning_content`, and function tool calls. Text-part markers remain attached to their normalized assistant text items. When a Chat request carries `reasoning_effort`, Molto requests a detailed summary (`reasoning.summary="detailed"` unless the effort is `none`, which disables reasoning) so a Responses or Messages target receives a completed summarized reasoning value.
 
-Tool messages normalize scalar text or ordered text parts as successful tool results. Native Chat tool messages containing image parts are rejected. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
+Tool messages normalize scalar text or ordered text parts as successful tool results. Chat tool messages containing image parts are rejected on translated routes. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
 
-Fields accepted by the request wrapper but not listed above are not guaranteed to reach a cross-protocol upstream. In particular, accepting a field as extra request data is not evidence that Molto translates it. Native passthrough is the appropriate route when such a field is required.
+Recognized fields outside the implemented translation surface are rejected. Unknown schema properties are also rejected by default; `drop_unknown=True` discards them before translation. It still rejects known unsupported settings such as `seed`, malformed known values, and unknown roles or content types. Native passthrough is the appropriate route when a provider-specific field must be preserved.
 
 ### Projection back to Chat chunks
 

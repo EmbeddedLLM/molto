@@ -60,7 +60,7 @@ from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
 from pydantic import Discriminator, Field, TypeAdapter, model_validator
-from typing_extensions import Required, TypedDict
+from typing_extensions import NotRequired, Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
 
@@ -194,18 +194,23 @@ class ResponseEasyInputMessageParam(EasyInputMessageParam):
     """The SDK easy input message with the detail-optional image content part."""
 
     content: Required[str | list[OpenAIResponsesInputContentParam]]
+    # Both message variants must recognize these fields: otherwise extra="ignore"
+    # can select the other union branch and erase an invalid known value.
+    status: NotRequired[Literal["in_progress", "completed", "incomplete"]]
 
 
 class ResponseInputMessageParam(SDKResponseInputMessageParam):
     """The SDK typed input message with the detail-optional image content part."""
 
     content: Required[list[OpenAIResponsesInputContentParam]]
+    phase: NotRequired[Literal["commentary", "final_answer"] | None]
 
 
-# The SDK input items are retained as-is so native passthrough accepts every
-# variant the SDK models, including `file_id` images and `input_file` parts.
+# The request model retains SDK input variants, including `file_id` images and
+# `input_file` parts. Native passthrough does not require this validation.
 # Only five items are replaced: the two message wrappers re-point their content
-# lists at the detail-optional image, and compatible providers also omit IDs
+# lists at the detail-optional image and share known message metadata fields;
+# compatible providers also omit IDs
 # from reasoning and output-history items. Output history also accepts cache
 # markers supported by the live API and Anthropic citation state; search history
 # retains Anthropic source state. Translatability is enforced by the adapter.

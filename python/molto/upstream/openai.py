@@ -414,15 +414,13 @@ class OpenAIResponsesClient(
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
     async def native_events(
-        self, request: OpenAIResponsesCreateRequest
+        self, request: OpenAIResponsesCreateRequest | dict[str, Any]
     ) -> AsyncIterator[ResponseStreamEvent]:
         upstream_response = None
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.responses.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, OpenAIResponsesCreateRequest),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Responses request did not return a stream.")
@@ -444,14 +442,12 @@ class OpenAIResponsesClient(
             self._handle_error(error, response=upstream_response)
 
     async def native_response(
-        self, request: OpenAIResponsesCreateRequest
+        self, request: OpenAIResponsesCreateRequest | dict[str, Any]
     ) -> OpenAIResponsesResponse:
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.responses.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, OpenAIResponsesCreateRequest),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError("Responses request did not return a non-streaming response.")
@@ -979,14 +975,12 @@ class OpenAIChatCompletionsClient(
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
     async def native_events(
-        self, request: OpenAIChatCompletionsCreateRequest
+        self, request: OpenAIChatCompletionsCreateRequest | dict[str, Any]
     ) -> AsyncIterator[OpenAIChatCompletionsStreamChunk]:
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.chat.completions.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, OpenAIChatCompletionsCreateRequest),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Chat Completions request did not return a stream.")
@@ -1000,14 +994,12 @@ class OpenAIChatCompletionsClient(
             self._handle_error(error)
 
     async def native_response(
-        self, request: OpenAIChatCompletionsCreateRequest
+        self, request: OpenAIChatCompletionsCreateRequest | dict[str, Any]
     ) -> OpenAIChatCompletionsResponse:
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.chat.completions.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, OpenAIChatCompletionsCreateRequest),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError(

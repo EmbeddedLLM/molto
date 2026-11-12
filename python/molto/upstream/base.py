@@ -45,6 +45,21 @@ class BaseClient[
         self.response_headers.clear()
         self.response_headers.update(headers)
 
+    def _request_kwargs(
+        self, request: NativeRequestT | dict[str, Any], model: type[NativeRequestT]
+    ) -> dict[str, Any]:
+        """Separate JSON body extensions from the SDK's named body arguments."""
+        body = request.model_dump() if isinstance(request, BaseModel) else request
+        # Request model fields track SDK body parameters, excluding transport
+        # options. Body keys such as extra_headers must remain JSON properties.
+        parameters = {key: value for key, value in body.items() if key in model.model_fields}
+        extensions = {key: value for key, value in body.items() if key not in model.model_fields}
+        return {
+            **parameters,
+            "extra_body": {**extensions, **(self._extra_body or {})} or None,
+            "extra_headers": self._extra_headers,
+        }
+
     def _make_sdk_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
             api_key=self._api_key,
@@ -93,7 +108,9 @@ class BaseClient[
         )
 
     @abstractmethod
-    def native_events(self, request: NativeRequestT) -> AsyncIterator[NativeEventT]:
+    def native_events(
+        self, request: NativeRequestT | dict[str, Any]
+    ) -> AsyncIterator[NativeEventT]:
         """Stream events using the provider's native protocol.
 
         Implementations must delegate failures to `_handle_error()` so the native
@@ -102,7 +119,7 @@ class BaseClient[
         raise NotImplementedError
 
     @abstractmethod
-    async def native_response(self, request: NativeRequestT) -> NativeResponseT:
+    async def native_response(self, request: NativeRequestT | dict[str, Any]) -> NativeResponseT:
         """Return a native response, delegating failures to `_handle_error()`."""
         raise NotImplementedError
 

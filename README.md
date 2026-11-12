@@ -7,8 +7,8 @@ A Python library for translating between LLM API protocols without giving up nat
 ## Design goals
 
 - **Any protocol to any protocol.** Accept any supported downstream LLM protocol and translate it to any supported upstream LLM protocol through a provider-neutral representation.
-- **Native when no translation is needed.** When the downstream and upstream protocols match, Molto bypasses translation via normalized representation and acts as a thin wrapper around the corresponding native SDK. Requests are still subject to Molto's validated public contract, while returned events remain native SDK classes and objects.
-- **Strict inputs, lenient outputs.** Cross-protocol requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](docs/README.md#prompt-caching), while normalized outputs tolerate provider extensions. Retaining unknown output data does not authorize projecting it into another protocol.
+- **Native when no translation is needed.** When the downstream and upstream protocols match, Molto preserves request dictionaries, including unknown properties and explicit nulls, and leaves request validation to the SDK and provider. Returned events remain native SDK classes and objects.
+- **Strict translation inputs, lenient outputs.** Cross-protocol requests are closed and lossless-or-rejected by default, with documented [cache-lifetime approximations](docs/README.md#prompt-caching). Callers can opt to discard unknown input properties with `drop_unknown=True`. Normalized outputs tolerate provider extensions; retaining unknown output data does not authorize projecting it into another protocol.
 
 Start with the [Molto documentation](docs/README.md) for protocol guides, translation guarantees, and current support. See [Molto Architecture](python/ARCHITECTURE.md) for the internal translation and native-passthrough design.
 
@@ -66,6 +66,7 @@ asyncio.run(main())
 - `base_url` (optional) selects only the HTTP destination.
 - `extra_body` (optional) merges provider extensions into the projected upstream body.
 - `extra_headers` (optional) adds upstream headers after Molto removes client credentials and transport-specific fields.
+- `drop_unknown` (default `False`) discards unrecognized request properties only on translated routes. Unsupported known settings, invalid known values, and unknown content types or roles still raise errors. Native requests and explicit `extra_body` remain unaffected.
 
 These settings are independent. Use the same protocol for the method and `endpoint` to get native SDK passthrough. The returned `MoltoStream.response_headers` retains successful upstream HTTP headers for callers such as proxy servers.
 

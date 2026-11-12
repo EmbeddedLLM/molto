@@ -62,6 +62,27 @@ def test_request_input_replaces_only_sdk_history_types():
     }
 
 
+@pytest.mark.parametrize("field", ["phase", "status"])
+@pytest.mark.parametrize("extra", ["forbid", "ignore"])
+def test_message_union_does_not_drop_invalid_known_fields(field: str, extra: str):
+    """Ensures ignoring extras cannot erase known fields through an alternate message schema."""
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest.model_validate(
+            {
+                "model": "test",
+                "input": [
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": [{"type": "input_text", "text": "hello"}],
+                        field: "invalid",
+                    }
+                ],
+            },
+            extra=extra,
+        )
+
+
 def _search_history():
     return [
         {

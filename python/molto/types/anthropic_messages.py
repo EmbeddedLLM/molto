@@ -17,6 +17,7 @@ from anthropic.types import (
     ThinkingBlockParam,
     ThinkingConfigParam,
     ToolChoiceParam,
+    ToolParam,
     ToolUnionParam,
     WebSearchResultBlockParam,
     WebSearchToolRequestErrorParam,
@@ -70,6 +71,20 @@ class AnthropicMessageParam(ExcludeNoneModel):
         Literal["user", "assistant", "system"],
         Field(description="The role that produced the conversation turn."),
     ]
+
+
+class AnthropicToolParam(ToolParam):
+    """A tool whose JSON Schema keywords remain opaque to protocol validation."""
+
+    # The SDK also accepts arbitrary dictionaries here. Its TypedDict alternative
+    # loses valid JSON Schema keywords when validation overrides extra="ignore".
+    input_schema: Required[dict[str, object]]
+
+
+AnthropicToolUnionParam: TypeAlias = Union[
+    AnthropicToolParam,
+    *(tool for tool in get_args(ToolUnionParam) if tool is not ToolParam),
+]
 
 
 class AnthropicMessagesCreateRequest(ExcludeNoneModel):
@@ -130,7 +145,7 @@ class AnthropicMessagesCreateRequest(ExcludeNoneModel):
         Field(description="How the model should select tools."),
     ] = None
     tools: Annotated[
-        list[ToolUnionParam] | None,
+        list[AnthropicToolUnionParam] | None,
         Field(description="Tools available to the model."),
     ] = None
     top_k: Annotated[int | None, Field(description="Top-k sampling cutoff.")] = None

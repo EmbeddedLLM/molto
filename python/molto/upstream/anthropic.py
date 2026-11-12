@@ -333,14 +333,12 @@ class AnthropicMessagesClient(
         )
 
     async def native_events(
-        self, request: AnthropicMessagesCreateRequest
+        self, request: AnthropicMessagesCreateRequest | dict[str, Any]
     ) -> AsyncIterator[AnthropicMessagesStreamEvent]:
         try:
             sdk_client = self._make_anthropic_client()
             stream = await sdk_client.messages.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, AnthropicMessagesCreateRequest),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Messages request did not return a stream.")
@@ -352,14 +350,12 @@ class AnthropicMessagesClient(
             self._handle_error(error)
 
     async def native_response(
-        self, request: AnthropicMessagesCreateRequest
+        self, request: AnthropicMessagesCreateRequest | dict[str, Any]
     ) -> AnthropicMessagesResponse:
         try:
             sdk_client = self._make_anthropic_client()
             response = await sdk_client.messages.create(
-                **request.model_dump(),
-                extra_body=self._extra_body,
-                extra_headers=self._extra_headers,
+                **self._request_kwargs(request, AnthropicMessagesCreateRequest),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError("Messages request did not return a non-streaming response.")
