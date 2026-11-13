@@ -27,7 +27,7 @@ Use `endpoint="messages"` from any Molto protocol method when the provider expos
 
 ### Native Messages passthrough
 
-With `ANTHROPIC_API_KEY` set, the following request is validated and sent through the Anthropic SDK without protocol translation:
+With `ANTHROPIC_API_KEY` set, the following request is sent through the Anthropic SDK without protocol translation or local protocol-model validation:
 
 ```python
 import asyncio
@@ -143,9 +143,11 @@ The native stream may start a block with content already present in the `content
 
 ## Native passthrough
 
-`Molto.messages(endpoint="messages")` validates the body with `AnthropicMessagesCreateRequest` and calls `AsyncAnthropic.messages.create()`. It yields the Anthropic SDK's native events directly for a streaming request and returns the SDK's native `Message` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
+`Molto.messages(endpoint="messages")` preserves the request dictionary and calls `AsyncAnthropic.messages.create()` without local protocol-model validation. Unknown properties, nested extensions, and explicit nulls are retained for SDK and provider validation. It yields the Anthropic SDK's native events directly for a streaming request and returns the SDK's native `Message` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
-This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. Errors follow the [shared policy](../errors.md). The request is still validated rather than passed through as an untyped HTTP proxy.
+This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. Errors follow the [shared policy](../errors.md).
+
+Request bodies may be dictionaries or `AnthropicMessagesCreateRequest` models. Models use their normal `model_dump()` behavior. Unknown top-level dictionary properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 ## When the application speaks Messages
 
@@ -170,7 +172,7 @@ Within a user message, tool results must precede ordinary user content for the c
 
 `cache_control` on system text, user text/images, assistant text, and nested tool-result text/images becomes a positional `CacheBreakpoint` with optional lifetime. Block-only caching selects normalized explicit mode; top-level `cache_control` selects implicit mode while preserving block markers. Markers on outer `tool_result`, `tool_use`, thinking blocks, and tool definitions are rejected on translated routes because OpenAI has no corresponding content-part marker. Native passthrough preserves these provider-native fields.
 
-The request wrapper also accepts `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are available in native passthrough but are not forwarded across the normalized path. Within `output_config`, only `effort` is normalized.
+The request wrapper also accepts `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are available in native passthrough but are rejected across the normalized path. Within `output_config`, only `effort` is normalized.
 
 ### Messages event projection
 

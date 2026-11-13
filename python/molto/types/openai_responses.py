@@ -7,6 +7,7 @@ while this module provides Pydantic entry points for request bodies and results.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
@@ -59,7 +60,7 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import Discriminator, Field, TypeAdapter, model_validator
+from pydantic import BaseModel, Discriminator, Field, TypeAdapter, field_validator, model_validator
 from typing_extensions import Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
@@ -202,8 +203,8 @@ class ResponseInputMessageParam(SDKResponseInputMessageParam):
     content: Required[list[OpenAIResponsesInputContentParam]]
 
 
-# The SDK input items are retained as-is so native passthrough accepts every
-# variant the SDK models, including `file_id` images and `input_file` parts.
+# The request model retains SDK input variants, including `file_id` images and
+# `input_file` parts. Native passthrough does not require this validation.
 # Only five items are replaced: the two message wrappers re-point their content
 # lists at the detail-optional image, and compatible providers also omit IDs
 # from reasoning and output-history items. Output history also accepts cache
@@ -365,21 +366,56 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         Field(description="A stable identifier for the end user."),
     ] = None
 
+    @field_validator("input", mode="before")
+    @classmethod
+    def _materialize_input(cls, value: Any) -> Any:
+        """Keep union alternatives from consuming another variant's input history."""
+        if isinstance(value, dict):
+            return {key: cls._materialize_input(item) for key, item in value.items()}
+        if isinstance(value, Iterable) and not isinstance(
+            value, (str, bytes, bytearray, BaseModel)
+        ):
+            return [cls._materialize_input(item) for item in value]
+        return value
+
     def has_anthropic_search_metadata(self) -> bool:
         """Report provider-owned search state for upstream route validation."""
-        if not isinstance(self.input, list):
-            return False
-        for item in self.input:
-            if isinstance(item, ResponseOutputMessageOptionalIDParam):
-                for part in item.content:
-                    if part["type"] == "output_text" and any(
-                        "extra_content" in annotation for annotation in part["annotations"]
-                    ):
-                        return True
-            elif isinstance(item, dict) and item.get("type") == "web_search_call":
-                if any("extra_content" in source for source in item["action"].get("sources", [])):
-                    return True
+        return has_anthropic_search_metadata(self.input)
+
+
+def has_anthropic_search_metadata(input: Any) -> bool:
+    """Detect Molto-owned state without validating unrelated native request fields."""
+    if not isinstance(input, list):
         return False
+    for item in input:
+        if isinstance(item, ResponseOutputMessageOptionalIDParam):
+            item = item.model_dump()
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "web_search_call":
+            action = item.get("action")
+            sources = action.get("sources") if isinstance(action, dict) else None
+            if isinstance(sources, list) and any(_has_anthropic_metadata(s) for s in sources):
+                return True
+        content = item.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "output_text":
+                continue
+            annotations = part.get("annotations")
+            if isinstance(annotations, list) and any(
+                _has_anthropic_metadata(annotation) for annotation in annotations
+            ):
+                return True
+    return False
+
+
+def _has_anthropic_metadata(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    extra = value.get("extra_content")
+    return isinstance(extra, dict) and "anthropic" in extra
 
 
 class OpenAIResponseCompletedEvent(ResponseCompletedEvent):

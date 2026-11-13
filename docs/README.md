@@ -21,7 +21,13 @@ Three rules make this principle concrete:
 
 “Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of these exceptions.
 
-Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation at the public protocol boundary continues to use the validation errors provided by its Pydantic request model. Molto's local public request models always reject unknown top-level fields; this behavior is not configurable through environment settings.
+Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation on translated routes uses the validation errors provided by the protocol's Pydantic request model. Molto's local public request models reject unknown top-level fields; nested fields follow their declared schemas.
+
+Native same-protocol routes preserve request dictionaries, including unknown properties, nested extensions, and explicit nulls, without validating them against Molto's protocol models. The SDK and upstream provider own request validation. Explicit `extra_body` overrides take precedence over fields supplied in `body`. Molto still enforces the destination restriction on its own [Anthropic search metadata extension](web-search.md#preserving-anthropic-search-history).
+
+Native coordinators select streaming only when `body["stream"]` is the boolean `True`. Other values are forwarded unchanged for SDK and provider validation; values such as `1` or `"false"` do not select Molto's streaming path.
+
+Each coordinator accepts a dictionary or its corresponding Molto request model. Serialize caller-defined Pydantic models to dictionaries before passing them to Molto. On native routes, Molto request models use their normal `model_dump()` behavior, which omits unset and `None`-valued fields. Model serialization can discard unknown fields, including extras accepted through `extra="allow"`; use a dictionary to preserve unknown fields and explicit nulls. SDK models nested in native request dictionaries retain their SDK serialization behavior.
 
 ## Choose a protocol
 
@@ -121,9 +127,9 @@ downstream protocol adapter
 application protocol events
 ```
 
-The public `Molto` facade validates the downstream body, resolves routing and transport configuration, and composes the adapter and client. Adapters own downstream request normalization, downstream event projection, and collection of projected native events into native responses. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
+The public `Molto` facade resolves routing and transport configuration, validates the downstream body when translation is required, and composes the adapter and client. Adapters own downstream request normalization, downstream event projection, and collection of projected native events into native responses. Upstream clients own provider request construction, SDK transport, and upstream event normalization. Protocol-specific field transformations do not belong in the facade.
 
-When the application and provider protocols match, Molto skips the normalized representation. This native passthrough validates requests and returns the SDK-native event stream or non-streaming response without losing protocol-only structure. Errors follow the [shared policy](errors.md).
+When the application and provider protocols match, Molto skips the normalized representation and local request-schema validation. Native passthrough retains the request's properties and returns the SDK-native event stream or non-streaming response. Errors follow the [shared policy](errors.md).
 
 Streaming is the execution primitive. The normalized event grammar is:
 
@@ -179,7 +185,7 @@ Normalized requests reject unknown fields, including unknown fields nested in re
 
 Normalized output models retain unknown values in `extra_fields` so output from any accepted input set remains tolerable. Request constructors and event projectors still map supported fields explicitly; retained output data is not evidence that another protocol can represent it.
 
-Parsed event parity is also different from raw transport parity. Parsing and serialization may change JSON key order, omitted fields versus explicit null, number spelling, whitespace, SSE framing, and chunk placement. Request models that serialize with `exclude_none=True` cannot preserve omitted-versus-null distinctions unless they retain the original field set separately.
+Parsed event parity is also different from raw transport parity. Parsing and serialization may change JSON key order, number spelling, whitespace, SSE framing, and chunk placement. Native request dictionaries preserve omitted fields versus explicit nulls; translated requests still use request-model serialization that excludes unset and `None` values.
 
 ## Boundaries and ordering
 

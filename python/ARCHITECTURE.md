@@ -78,7 +78,7 @@ Cross-protocol translation follows one governing principle: Molto is strict duri
 
 Documented exceptions allow omission at protocol boundaries. Chat Completions and Messages may omit optional Responses output-item IDs because they have no equivalent and do not affect model behavior. Messages silently drops caller-defined prompt-cache keys because Anthropic computes cache identity implicitly; dropping a key does not enable caching, and remaining cache options are processed independently. Translated Responses routes may ignore `include=["reasoning.encrypted_content"]` because Molto already preserves any encrypted reasoning present in the response, and `store=false` because it requests no provider-side state; `store=true` remains unsupported. Native passthrough forwards these fields unchanged. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
-Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Public protocol schema validation remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields. Output and event validation errors are not `UnsupportedInput`.
+Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Protocol schema validation on translated routes remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields by default. Native routes bypass this validation. Output and event validation errors are not `UnsupportedInput`.
 
 The following design rules continue to guide the implementation:
 
@@ -117,7 +117,7 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 
 `BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` owns the lifecycle of translated downstream requests and preserves the concrete downstream request, event, and response types in its interface. A coordinator creates a fresh adapter for each translated request and calls `normalize_request()` before `project_events()` or `project_response()`. Normalization retains the exact validated downstream model as `native_request`, allowing projection to consult native request fields without adding them to the normalized representation. Projection fails if normalization has not established that state. `project_events()` translates normalized output into downstream-native events; `project_response()` consumes that projected native event stream to build the complete downstream-native response. The public projection paths catch failures raised while consuming or projecting output and delegate them to `_handle_error()` so known IR errors can be expressed as downstream-native exceptions. Same-protocol passthrough skips request and output translation, but composes `project_native_events()` or `project_native_response()` around native output so failures reach the same `_handle_error()` contract.
 
-`BaseClient[NativeRequestT, NativeEventT, NativeResponseT]` preserves the concrete upstream-native types. `native_events()` accepts a validated streaming request in the upstream protocol and yields that protocol's native SDK events, while `native_response()` accepts a validated non-streaming request and returns its native SDK response. Both native paths delegate failures to `_handle_error()`. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to the same `_handle_error()` so native and translated routes share IR error normalization before downstream projection. Concrete clients own these transformations and the provider transport required by those methods.
+`BaseClient[NativeRequestT, NativeEventT, NativeResponseT]` preserves the concrete upstream-native types. `native_events()` accepts a streaming request dictionary or request model in the upstream protocol and yields that protocol's native SDK events, while `native_response()` accepts the corresponding non-streaming request and returns its native SDK response. Both native paths delegate failures to `_handle_error()`. The public `events()` path accepts a `NormalizedRequest`, yields `ModelResponseStreamEvent` values from `_events()`, and delegates failures to the same `_handle_error()` so native and translated routes share IR error normalization before downstream projection. Concrete clients own these transformations and the provider transport required by those methods.
 
 ## Error translation
 
@@ -135,13 +135,13 @@ Molto
   `-- chat()              future dispatcher
 ```
 
-Callers can use a protocol coordinator directly when they need that protocol's native request and SDK-compatible response types. Each coordinator owns its own downstream contract: it validates the native request, selects and composes an upstream client, and projects results back into the same downstream protocol.
+Callers can use a protocol coordinator directly when they need that protocol's native request and SDK-compatible response types. Each coordinator owns its own downstream contract: it selects the route, validates requests requiring translation, composes an upstream client, and projects results back into the same downstream protocol.
 
 A future `Molto.chat()` will be a higher-level dispatcher. It will select one of the underlying protocol coordinators and delegate to it; it should not duplicate their normalization, transport composition, or projection logic. The selection policy may use explicit caller configuration, request type, or capabilities, but that policy is not defined yet.
 
 Each implemented coordinator performs the following work:
 
-1. Validate the public body as its protocol request model.
+1. Select native passthrough or translation from the public method and `endpoint`; validate the public body as its protocol request model only for translation.
 2. For a non-streaming request, return the upstream SDK response directly on a same-protocol route or collect downstream-native projected events on a translated route.
 3. Resolve `provider` and its capability profile independently of `base_url`.
 4. Resolve the API key and injected or default HTTP client.
@@ -166,9 +166,6 @@ When the downstream and upstream protocols match, Molto skips request and respon
 Responses request
       |
       v
-OpenAIResponsesCreateRequest validation
-      |
-      v
 Molto.responses(endpoint="responses")
       |
       v
@@ -185,7 +182,9 @@ Responses SDK event stream
 
 The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or native event fidelity.
 
-Molto validates the request and relies on the SDK's native output models. Passthrough means no IR translation or duplicate model validation, not untyped proxying. Recognized failures still cross the IR on both streaming and non-streaming native paths: the upstream client normalizes the error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
+Coordinator request bodies are dictionaries or the corresponding Molto request model; callers must serialize custom Pydantic models to dictionaries themselves. Molto retains native request dictionaries without protocol-model validation, preserving unknown properties, nested extensions, and explicit nulls. Molto request models use their normal `model_dump()` behavior, omitting unset and `None` fields without recovering extras discarded by serialization. SDK models nested in native request dictionaries retain SDK serialization. The SDK and upstream provider own validation, and the SDK owns native output models. SDK-local argument errors may occur before HTTP and pass through unchanged unless covered by the error translation contract. Recognized failures still cross the IR on both streaming and non-streaming native paths: the upstream client normalizes the error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
+
+Molto still owns its `extra_content.anthropic` search-history extension. Requests containing that metadata require `endpoint="messages"` and `provider="anthropic"`; the coordinator rejects other destinations, including native Responses, before transport.
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
@@ -425,9 +424,9 @@ Projection builds the vendor usage object explicitly. Dumping an `ExtraModel` di
 
 ## OpenAI SDK types
 
-Request bodies are local Pydantic wrappers because Molto needs one validated model whose fields track the corresponding SDK `create()` signature. Nested parameter types come from the pinned OpenAI SDK.
+Translated requests use local Pydantic wrappers whose fields track the corresponding SDK `create()` signature. Nested parameter types come from the pinned OpenAI SDK. Native request dictionaries bypass these wrappers; callers may still construct them explicitly for local validation.
 
-Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and eagerly validated fields. Assistant `output_text` also accepts `prompt_cache_breakpoint`, which the live OpenAI API supports but the pinned SDK schema omits. It does not use an untyped dictionary fallback for Responses input.
+Compatible Responses providers can return reasoning items and assistant output messages without IDs and accept those items as subsequent-turn input. The pinned SDK marks both IDs as required, so Molto uses two narrow Pydantic history models with optional IDs and eagerly validated fields. Assistant `output_text` also accepts `prompt_cache_breakpoint`, which the live OpenAI API supports but the pinned SDK schema omits. The translated Responses input schema has no untyped dictionary fallback.
 
 Response and stream result types are intentional SDK aliases:
 
@@ -456,7 +455,9 @@ An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI o
 
 The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Recognized errors on every route follow the [error translation](../docs/errors.md) contract; unknown SDK errors pass through unchanged. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
 
-Translated clients build one validated upstream-native request model and pass it directly to native transport. Serialization at the SDK boundary retains the request models' unset/`None` exclusions; native passthrough keeps its original validated request.
+Translated clients build one validated upstream-native request model and pass it directly to native transport. Serialization at the SDK boundary retains the translated request models' unset/`None` exclusions. Native passthrough retains the supplied request dictionary, including explicit nulls.
+
+Native transport separates SDK body parameters from unknown top-level properties. It sends unknown properties through the SDK's `extra_body`, with explicit coordinator `extra_body` values taking precedence. Names such as `extra_headers`, `extra_body`, `extra_query`, and `timeout` inside the request body remain body properties; they cannot become SDK transport options. Nested request properties pass through the SDK's native serialization without Molto schema filtering.
 
 SDK streams are context-managed, including when iteration ends early. The short-lived SDK wrapper is not closed because doing so would close Molto's injected HTTP client; `Molto.aclose()` owns that client's lifetime. Adapters do not perform HTTP requests; they use `httpx` only to construct the compatibility response required to project local credential failures as SDK authentication errors.
 

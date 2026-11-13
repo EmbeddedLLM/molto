@@ -11,7 +11,7 @@ This guide describes the Responses wire contract and both directions of translat
 | Application method        | `Molto.responses()`                     |
 | Native upstream endpoint  | `endpoint="responses"`                  |
 | Default upstream provider | `openai`                                |
-| Validated request         | `OpenAIResponsesCreateRequest`          |
+| Translation request model | `OpenAIResponsesCreateRequest`          |
 | Stream items returned     | OpenAI SDK `ResponseStreamEvent` models |
 | Non-stream response       | OpenAI SDK `Response`                   |
 | Implemented modes         | Streaming and non-streaming             |
@@ -53,7 +53,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The matching method and endpoint select native passthrough. The request is validated, but neither it nor the returned SDK events cross Molto's normalized representation.
+The matching method and endpoint select native passthrough. Molto preserves the request dictionary for SDK and provider validation; neither it nor the returned SDK events cross Molto's normalized representation.
 
 ### Responses over another upstream protocol
 
@@ -89,7 +89,7 @@ The pinned SDK accepts `user`, `assistant`, `system`, and `developer` message ro
 
 Top-level `instructions` is separate from `input[]`; it is not a message boundary. Native passthrough preserves this distinction. On translated routes, Molto normalizes it as a leading instruction alongside system and developer messages, so their original source and role identity are not recoverable.
 
-Responses request validation follows the pinned OpenAI SDK schema, with narrow compatibility models for provider history that omits reasoning-item or assistant message IDs and for input images whose default `detail` is omitted. Accepting a field at this boundary does not mean that the normalized path can translate it.
+Translated Responses request validation follows the pinned OpenAI SDK schema, with narrow compatibility models for provider history that omits reasoning-item or assistant message IDs and for input images whose default `detail` is omitted. Accepting a field at this boundary does not mean that the normalized path can translate it. Native request dictionaries bypass this validation.
 
 ### Output and streaming lifecycle
 
@@ -112,14 +112,16 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 
 `Molto.responses(endpoint="responses")` performs these operations:
 
-- validates the body as `OpenAIResponsesCreateRequest`;
+- preserves the request dictionary, including unknown properties, nested extensions, and explicit nulls;
 - delegates request serialization, authentication, HTTP, retries, response parsing, and OpenAI exception construction to `AsyncOpenAI.responses.create()`;
 - yields the SDK's `ResponseStreamEvent` models directly when streaming; and
 - returns the SDK's `Response` directly when non-streaming.
 
-Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. Passthrough is validated SDK transport, not an untyped HTTP proxy. Errors follow the [shared policy](../errors.md).
+Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. The SDK and provider own request validation. Request bodies may be dictionaries or `OpenAIResponsesCreateRequest` models; models use their normal `model_dump()` behavior. Errors follow the [shared policy](../errors.md).
 
 Native passthrough forwards `include` and `store` unchanged. Their behavior-neutral treatment described below applies only when Responses is translated to Chat Completions or Messages.
+
+Unknown top-level body properties reach the SDK through `extra_body`; explicit caller `extra_body` overrides take precedence. Molto's own `extra_content.anthropic` search extension still requires its Anthropic Messages destination and is rejected on native Responses routes. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 There is one narrow compatible-provider normalization: if a completed Responses event includes usage but omits `input_tokens_details.cache_write_tokens` as `null`, Molto sets it to `0` to satisfy the pinned SDK contract. Otherwise it does not revalidate or rewrite each event.
 
@@ -233,7 +235,7 @@ If a normalized request came from Messages, Molto sets `stream_options.include_o
 
 Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools other than basic web search, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
-Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Summary text, item IDs, and encrypted state are preserved. Native passthrough still forwards the caller's validated request unchanged.
+Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Summary text, item IDs, and encrypted state are preserved. Native passthrough still forwards the caller's request for provider validation.
 
 ### Upstream event normalization
 

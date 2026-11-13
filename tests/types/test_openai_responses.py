@@ -14,7 +14,7 @@ from openai.types.responses.response_input_param import ResponseInputItemParam
 from openai.types.responses.response_output_message_param import ResponseOutputMessageParam
 from openai.types.responses.response_reasoning_item_param import ResponseReasoningItemParam
 from openai.types.responses.response_stream_event import ResponseStreamEvent
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError, create_model
 
 from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
@@ -60,6 +60,22 @@ def test_request_input_replaces_only_sdk_history_types():
         ResponseOutputMessageOptionalIDParam,
         ResponseFunctionWebSearchHistoryParam,
     }
+
+
+@pytest.mark.parametrize("model_body", [False, True])
+def test_request_materializes_iterable_history_before_union_validation(model_body):
+    """Ensures trying message variants cannot consume iterator content from the accepted item."""
+    message = {"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
+    body = {"model": "test", "input": iter([{**message, "content": iter(message["content"])}])}
+    request = (
+        create_model("CallerRequest", model=(str, "test"), input=(object, body["input"]))()
+        if model_body
+        else body
+    )
+    validated = OpenAIResponsesCreateRequest.model_validate(request)
+    expected = {"model": "test", "input": [message]}
+    assert validated.model_dump() == expected
+    assert validated.model_dump() == expected
 
 
 def _search_history():

@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator, Mapping
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
-from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
@@ -28,9 +27,11 @@ from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
+    has_anthropic_search_metadata,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.utils.io import request_to_dict
 
 VLLM_DUMMY_API_KEY = "EMPTY"
 
@@ -184,7 +185,7 @@ class Molto:
 
     async def responses(
         self,
-        body: BaseModel | dict[str, Any],
+        body: OpenAIResponsesCreateRequest | dict[str, Any],
         endpoint: Endpoint = "responses",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -198,7 +199,7 @@ class Molto:
         or Anthropic Messages.
 
         Args:
-            body (BaseModel | dict[str, Any]): Request payload.
+            body: Request dictionary or OpenAIResponsesCreateRequest.
             endpoint: Upstream wire protocol. Defaults to "responses".
             provider: Implementation serving the protocol and its capability profile.
                 Defaults to the canonical provider for the endpoint.
@@ -208,19 +209,20 @@ class Molto:
             extra_headers: Additional upstream headers. Client credentials and transport
                 headers are removed before the provider request.
         """
-        request = OpenAIResponsesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
-        preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
-        if request.has_anthropic_search_metadata() and not preserve_search_metadata:
-            raise UnsupportedInput(
-                "Anthropic search extra_content requires endpoint='messages' "
-                "and provider='anthropic'."
-            )
+        if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
+            raise TypeError("body must be a dictionary or OpenAIResponsesCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
 
         if endpoint == "responses":
+            body = request_to_dict(body)
+            if has_anthropic_search_metadata(body.get("input")):
+                raise UnsupportedInput(
+                    "Anthropic search extra_content requires endpoint='messages' "
+                    "and provider='anthropic'."
+                )
             upstream = OpenAIResponsesClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -230,13 +232,20 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            if request.stream is True:
+            if body.get("stream") is True:
                 return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(request)),
+                    adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
                 )
-            return await adapter.project_native_response(upstream.native_response(request))
+            return await adapter.project_native_response(upstream.native_response(body))
 
+        request = OpenAIResponsesCreateRequest.model_validate(body)
+        preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
+        if request.has_anthropic_search_metadata() and not preserve_search_metadata:
+            raise UnsupportedInput(
+                "Anthropic search extra_content requires endpoint='messages' "
+                "and provider='anthropic'."
+            )
         adapter = OpenAIResponsesAdapter(
             capabilities, preserve_anthropic_search_metadata=preserve_search_metadata
         )
@@ -271,7 +280,7 @@ class Molto:
 
     async def chat_completions(
         self,
-        body: BaseModel | dict[str, Any],
+        body: OpenAIChatCompletionsCreateRequest | dict[str, Any],
         endpoint: Endpoint = "chat/completions",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -285,12 +294,14 @@ class Molto:
         implementation and its capabilities, and `base_url` selects only the
         HTTP destination.
         """
-        request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
+        if not isinstance(body, (dict, OpenAIChatCompletionsCreateRequest)):
+            raise TypeError("body must be a dictionary or OpenAIChatCompletionsCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "chat/completions":
+            body = request_to_dict(body)
             upstream = OpenAIChatCompletionsClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -300,13 +311,14 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            if request.stream is True:
+            if body.get("stream") is True:
                 return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(request)),
+                    adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
                 )
-            return await adapter.project_native_response(upstream.native_response(request))
+            return await adapter.project_native_response(upstream.native_response(body))
 
+        request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
@@ -339,7 +351,7 @@ class Molto:
 
     async def messages(
         self,
-        body: BaseModel | dict[str, Any],
+        body: AnthropicMessagesCreateRequest | dict[str, Any],
         endpoint: Endpoint = "messages",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -359,12 +371,14 @@ class Molto:
         always streams text without citations. Transport extensions do not inform
         `"auto"`. The policy has no effect with Chat upstream or native Messages.
         """
-        request = AnthropicMessagesCreateRequest.model_validate(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
+        if not isinstance(body, (dict, AnthropicMessagesCreateRequest)):
+            raise TypeError("body must be a dictionary or AnthropicMessagesCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "messages":
+            body = request_to_dict(body)
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -374,13 +388,14 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
-            if request.stream is True:
+            if body.get("stream") is True:
                 return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(request)),
+                    adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
                 )
-            return await adapter.project_native_response(upstream.native_response(request))
+            return await adapter.project_native_response(upstream.native_response(body))
 
+        request = AnthropicMessagesCreateRequest.model_validate(body)
         # Chat normalization drops annotations, so buffering cannot recover citations.
         adapter = AnthropicMessagesAdapter(
             capabilities,
