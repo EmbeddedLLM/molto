@@ -108,12 +108,19 @@ class ResponseWebSearchSourceParam(ActionSearchSource, total=False):
     extra_content: ResponseSearchSourceExtraContentParam
 
 
+class ResponseWebSearchApiSourceParam(TypedDict):
+    """A non-URL source, such as `oai-weather`, that OpenAI returns but the SDK omits."""
+
+    type: Required[Literal["api"]]
+    name: Required[str]
+
+
 class ResponseWebSearchActionSearchParam(ActionSearch, total=False):
-    sources: list[ResponseWebSearchSourceParam]
+    sources: list[ResponseWebSearchSourceParam | ResponseWebSearchApiSourceParam]
 
 
 class ResponseFunctionWebSearchHistoryParam(ResponseFunctionWebSearchParam):
-    """Search history carrying original provider state alongside native URL sources."""
+    """Search history carrying original provider state alongside native sources."""
 
     action: Required[ResponseWebSearchActionSearchParam | ActionOpenPage | ActionFind]
 

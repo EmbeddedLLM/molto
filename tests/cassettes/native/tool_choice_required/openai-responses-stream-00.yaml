@@ -1,0 +1,147 @@
+filename: 2026-11-10-01a1c617-d801-72d2-b046-c0c699053256
+request:
+  body:
+    input:
+    - content: What number am I thinking of?
+      role: user
+    model: gpt-4.1-mini
+    stream: true
+    tool_choice: required
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      strict: true
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '390'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c617-d801-72d2-b046-c0c699053256
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_0ac9348644648322006af3394ef4d087d29b3d07e13dd9dffe","object":"response","created_at":1794324814,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","output_schema":null,"parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_0ac9348644648322006af3394ef4d087d29b3d07e13dd9dffe","object":"response","created_at":1794324814,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","output_schema":null,"parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","type":"function_call","status":"in_progress","arguments":"","call_id":"call_fv4ebOIK2Yjhq3mN2BnGCpzJ","name":"guess_number"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"{\"","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","obfuscation":"39CUqBa4LJkAM5","output_index":0,"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"number","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","obfuscation":"iB5HNkshG7","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"\":","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","obfuscation":"rP1uYcBoKDr8sC","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"50","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","obfuscation":"RLmfCC4vwvufDv","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.delta
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","delta":"}","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","obfuscation":"rxyGBboL0fjhmB7","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.function_call_arguments.done
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","arguments":"{\"number\":50}","item_id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","type":"function_call","status":"completed","arguments":"{\"number\":50}","call_id":"call_fv4ebOIK2Yjhq3mN2BnGCpzJ","name":"guess_number"},"output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_0ac9348644648322006af3394ef4d087d29b3d07e13dd9dffe","object":"response","created_at":1794324814,"status":"completed","access_programs":null,"background":false,"completed_at":1794324815,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[{"id":"fc_0ac9348644648322006af3394fe9a887d2b142cb800228821f","type":"function_call","status":"completed","arguments":"{\"number\":50}","call_id":"call_fv4ebOIK2Yjhq3mN2BnGCpzJ","name":"guess_number"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"required","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[{"type":"function","description":"Guess
+    a number.","name":"guess_number","output_schema":null,"parameters":{"type":"object","properties":{"number":{"type":"integer","description":"The
+    guessed number."}},"required":["number"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":57,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":6,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":63},"user":null,"metadata":{}},"sequence_number":10}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-11-10T15:33:33.825329+00:00'

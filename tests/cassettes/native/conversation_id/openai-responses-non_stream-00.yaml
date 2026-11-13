@@ -1,0 +1,114 @@
+filename: 2026-11-10-01a1c611-e1ae-7092-b73f-3c7812b5abda
+request:
+  body:
+    conversation: conv_6af337c74f8c8197b4a666d137eed04d02d527e3e795cba5
+    include:
+    - reasoning.encrypted_content
+    input:
+    - content: what joke was previously mentioned?
+      role: user
+    model: gpt-5-nano
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '224'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c611-e1ae-7092-b73f-3c7812b5abda
+response:
+  body:
+    access_programs: null
+    background: false
+    billing:
+      payer: openai
+    completed_at: 1794324428
+    conversation:
+      id: conv_6af337c74f8c8197b4a666d137eed04d02d527e3e795cba5
+    created_at: 1794324424
+    error: null
+    frequency_penalty: 0.0
+    id: resp_02d527e3e795cba5006af337c7b8108197bf752c8ebe2ac570
+    image:
+      context_compression: disabled
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-5-nano-2025-08-07
+    moderation: null
+    object: response
+    output:
+    - content: []
+      encrypted_content: gAAAAABq8zfNAUqPUWMTELepg7IgVKwJLFXOpMxdJeP68FHKSYREsS8JAl0WAZCWRHjFfsuzDxNuv0tnWj-R77i7LTkbLJF2VQBRhpJmBuR44c3BMU4bIoKDMjGHYIMD74d_OlpCE_eOBLEH5Zd8Bu3HkQOB1p-ux6YI9B4mN_fY8iCBWtWJH-2Ud6dgtDtjjXG6Die9IEh_1QeHYEJHHPLIylhrqkirVB1jLXTbkTmPbj5Ltrzaw-Xxfy1pEk4Dvi_d6MPEFalugKtye6HgLCMoI4wi2UlPkYTSH3Sl8aLqJCAAkKvD7cvsp_nqAtg58LjL5xXvFrx4uspkTcQB1Hbnn-qsxOMY3Vd7Evgy5qGHGWOQrZPw7ev_beXoAYS2Sh7K2CiLqL1DRDcdPk2FlmzER_dLGG0KzscostcpIDtPY8Q9rinqb6xPWcydNjnOwGI1TWsZIrLxr3YOQ18JOlA9-XRIRH_yhqYwOEqK1sESjf9HQ3FYLS2oMyUQA4aeU1Lls2Ysq8uyWRmVULTjrdWyjuxwFtUs6l2I19buP1YpuegrWwyR6vfHzTDT41Xt6Qte9f8j0PQ2Gj4p-8xWu6crIPWX3CXWia9YWrCZgsUMH1ZLXzW2L1Dp-0M8cwfQSCqOkXy8oLQVACfRiO5iTIMdwr-8k4L-jTMkG5sjtdUHAlDAVKAs__cA4sK83sR-d5S2KJtrybV81ZTEPIcnQzjVt6HRFtUINwa0BJCZN3Elv6tN4Q114idEW7kI1yvbjIYzHcpZMY70jKWaa1NnaWFpafGIEjZEV5QUosVeFeeIddriJSQqiEjQJcIGOsLNoYKHouNrFAuypFfbIeExRgoEf9kfVV3eU3-MIL5qXihJbTm-c8JwtFBSq9nMjXj2_uIysa21MH6aelLX2TjYg0ucaNDioB1FROY4F3WQmk1f2frPhfVPnpXEZbdgk5rbo-NgPKJxoYLr1b_nH-rFTUmsS_x_pkT2ERXk1Mmkw6KDIANAkecWjufKcXXURpG-cUfMP6yI6DMkaiuWu-i2i_TmwV2R_FSSBQtpBpnR9GBx1S9nWp2RzC1hdFH-UcJjg9AxHrrbGqETn0bZnV0c22ZcNlBhhSenDzh-YTRUO85meVKOJXFxf4C6OCzq9tBc6irCoIZnZp6-XsybTAS3RWduJXMCp6-z1T18F5da3iRs_cJf-_L3scM0sFGC_k3powhJgOElIRVlDqD7XrJ77y8tQl_LjN4j_4H-qWKgfv-O5nQkFmFzj7RSiwO2Hyb_XK1w0oYVFkRgMGR00pr6V2h2SQUVSjK8jR8xesL7yb_C_DBwivxfXKd-EI_YH3hL79XYQXuKfIOKi0iSiKFStAru7VP0wRIeYk5a5x22eMvm-gNL3fL37_l5DEiNhgbkwO91-Q5eQKzQ3s8aRSD6ZPWeSjxJJOGkNO9hXrlZhA_0X-dowWbWDvgiURXCc09Uog9XiU0EkAYXu7i2ddtoJNZFKR9s-aIXrxH9nUhEB5A3RJvZlo510EtWwFVc91Yp07StxHlshwZTCJN7lByvARjrKXkxIIlox4oBlOFb-OcWKT0G07DQTcJICBapdt766I6vlqX1OCI0Z_2vrViSYEBHNsa6lIkytm0KODrlxJ1esl8B1-zgZjTCSWOfZpLEtO64O8YeG5wCMC4d-VZ8f7lqERMDTZwAU_egAHq4JfYf5rWdTnDAaOdoNtf8cQfZqLBx4oI2LFyH6zYysI8gdIjYPrewqZtpYS9tAhLfqDL_DJPJahnvs9hLAWLaKgmH8xYeRM_JsKtsZEqZEaP0GdAWW3wmbJcU1FPLe78UV82WgsVpdqIu-8Hq2LiKuVTow4FSPtq_A4HADNA5ObYsxIZKb5vGAASqCPAbv7ejVTExSVbJkZ0pNxjVX6EdysL4wjG0BuniHrMvEfMDqaspQGyWAaYGIKj_M1Q4wr7ZOdek89I8bJG1J7gYQC-G9Hy9YKVPy-hhOhNMhaMXzRYwCegpP9bYXvPsYb7MQvY1enCYtpIrYBfOkaXiTwevc6mSKLkyxYU5pZ8HV72HmDzMA0XR8d8zjC935m6GjheqORXzk7iZtYaAv-rPdS7sPZcRtqxVT9yesCcafMtE2X94zAJuzb4p7WIahkSjYR_12rKCoX9_is_1GKqQcJhMZNEZcu8zppAnuknKTfJGS6pMKcWoBBZMQTPNXNI1aQl8vi0Gq53JnEKXBXRsugdua-j8UxxvVvOvmhLvoI3IycxSvKQ4v26QQJqx9ya8iauiHIZw5tt0h7wjdfAEUViXG7ANWYGMOnHyALWSMi0vQY-GxkMxV1vCvcSn_M_diLu0K3JGbiES6NxDA5UDZcbcdGVU-g4v5gJldCWbxEVeBgh5aq9z8qRMe_WOJcD-WVn94X_mmS0GG4ucGqZT8vr0L7cUv1pOunqrTduIuaArh1uDWy4vgnqW4deieX_6denliNZOpmsTPAcYmkI3jRlexnZd2C0NfaC6zijnYGuuOWbn0o85bVY02I8asahI7hg-c8brwc7Ef0XKxv_8RgeDnsyNBs_aBhdEta-hYoqO__flXh0WHX30kCWvRRw7q2FckjuoyJWjDWuRMkbO-SyqwtVj2LnpkJ26sjIHMK4tBjUPLO7ZuLyAih9874mx83f4X9oDoMO2I8xoceefAoKQ1tvSsVD3Mzw8J9phsG756DAmbmk8mjdzjmAdIUBHtqqPlHRKbQKXn8sKnjN8m2Pv7Kpqcg3ZlHLn0ayFbt5UrVcibdO2Gd8KLjuw6T251KrtEbqJLMUqacurInE-njAIDt95JtxLfx5eSMQ4XTHw8696v0fLP0NKyPAParpLiwRaNmVJioL-gcso9jJKy-fXfNa08gsowkjCQv1uyW_7R4HVSBNjZuRRnAMwwq-aCFSdoG3B8OmCIRwk8KGDPsw3PcVKNS_MWmCQBWXFe9V9kHW6-IArMqStHqKSTJ8jDKUD7XMPtrLGShQ2eY0YQ84HpZ4oWpirk53LehNtydb25TRjsSy-W8UQWzokE8JMEkFt2lgHCdJrUtHEiaKxFyq-NX54KPVtj6YzxJya6nTwotJuhgoF6C6PQxVO5zwIw1H9b483Vub38Mc0_Ohr6FGweC14Hai9KLqo4c3fXk3W2v1zfFJZKrP5DZpgZN96ULg8IxPXJ5qwUhT8ng6Vb3UrstwoPLAOrjhkC6BIuBWfGOo3VF0GeInpSW-acLgAtLDtXIHPjJEH1D_45h-E4FZez2i3sWUVeuXYk14IgA-9N6NW7utHJGORKg4447onixhdFTIj3EN2p70zduWJeuW-5pOCbdfOSC_tpQ1iru86gt7-YyunOVFQTYHGiZRm2pnFzHr6GOARp2tRXs8dcBWuMERlBHEe36ZRCW1C-kpEXHF03U7dfD7U5s-vqbvT-oKvthOdqdRKG6jr0-MYhGo3_XilltWp30cKjoocLObnp-Bmd4tqsTZddy_Jw1nhLPuC_B_iCyXF_StTRavOQJWYFHSg5ZEBWpAhA-ql5hfAltmP-ldu2XNOUtNFBOBofA8Q5X1DWjpsjZoNPeLh-qjGToa1d86JBtTW3VfsbcsDqBtGQObs7JrgFI4_Pwk9fLSD0TJUZo_zN4vZ1eAQXJAlWBQn0aDGnAxoadopjleOzMTzDwXfAiY10IC7c2ZIsevrODXU1YgjJcf8SK23Rp6HXyo8BzTw1VnEjhpIQt0DO0lvPOy02hCBu5dwv8ZtiUQ-7fGmBMILZ6WVI5VxB6nxjO30cn_c-46a0sa8-lJxZPvORGrPSs6j1y0YnPt2UAkeCHtKODcLUxQkEUkMi5s3bvcD5K_NRUlI-0McVsTaVYUn55FjN0fmTMUCqTHiKBttCkDfDBA14VLnbktbscNhlpl1MBZ64Px0JFEx4oheMfrRi0ZSE7CYEFBLhpoqJraYIOG_x8QvWusze6zOncx7IzpNONncEq0IEXQhWdZu_pGdu0mZ8g3e5mCDfjTa15_MFBmZvEjWNtnh_Bmw5OP79073aUFN0UB_zkdoe6mwVBrlnj9L51rP9P4OqF9KwTWAZsTzXCsXIFwTwmUuK5HU5vD8kbhp3LQWRqvtMT7SUp5jYVBPUK2qZHOwfHH84fHkEIpIeKUcmlruSbK_Z_NoDPjwctzBkft9gB7sIBjBEfK9bbHRPS17iO8opiSre9w2n8GJvBdm4AwC2EHmO0jOg8Prlm_tl0nYITUyQdz9L-guohSoz7F5LnnFJ9TGjmTf0r4WUyS53FOAHq4pZbPlrLIDiqNOyyBEHrM81ZDOJGBNYXIqGZQaXHcKd5NuXxjI5fu7qUuuy-E2hdBl4EgR_x0mChYwE9uz8cAv88m7pwo9RHG-ChZmfPOjdCf4p_T3xEHjMTsKI7XJ8Yx4qNWuzwuw6cjFtWFnESpVxLCy9BwkKfFQI01xVyz4Sp2UujdWBAtKrBB1VYkSMvF-QBDogFsEFNMmMqH7r7y1B56s1UgC-UNKkBa8bRMrsTAF1jLRG3wfNwPMnLNtIwkhx3HU5P3P1yfrifQe3Sc2GmhE4fQh_HjQvqpZEbGoHYteEZtztYkldNFlrfhI3LWnLjhtMNmIwiBTHHFUQFWqxH7Hnx5yF_VrG6r58E37BCS1zQJHMBuHdCMhI-yz-03WEmE3U3hV7xhEYQKtbZQ0eG-oGgRi_NETH37WfrprqxHcTUgqM63TPLPfWHvcIU5c54j2W8L0U7BGDLHSRezTr34NjfItxLtU98gE0uL6e5crNmQLqnQpL7_bhdWgCI3Fki_UTX5CmbTblVqrcOF5oPERA3S71u25T_aesyBMNK6iN7xBLT1wyKjA24mnXUg=
+      id: rs_02d527e3e795cba5006af337c8c6b08197a04efac8dbab7752
+      summary: []
+      type: reasoning
+    - content:
+      - annotations: []
+        logprobs: []
+        text: Why did the scarecrow win an award? Because he was outstanding in his
+          field!
+        type: output_text
+      id: msg_02d527e3e795cba5006af337cbdd208197ac60e2c4b9acd4a4
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: current_turn
+      effort: medium
+      mode: standard
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 49
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 271
+      output_tokens_details:
+        reasoning_tokens: 192
+      total_tokens: 320
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-10T15:27:03.086224+00:00'

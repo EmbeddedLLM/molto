@@ -183,6 +183,36 @@ def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_
     assert body["input"][1]["content"][0]["annotations"][0]["end_index"] == 6
 
 
+@pytest.mark.parametrize("status", ["completed", "failed", "in_progress"])
+def test_responses_search_history_rejects_api_sources(status):
+    """Ensures translated history rejects an `api` source instead of dropping it.
+
+    Translated input is lossless-or-rejected, and neither Messages nor Chat can represent
+    a source without a URL, such as OpenAI's `oai-weather` source.
+    """
+    request = OpenAIResponsesCreateRequest(
+        model="m",
+        input=[
+            {
+                "type": "web_search_call",
+                "id": "ws_1",
+                "status": status,
+                "action": {
+                    "type": "search",
+                    "query": "weather: Taiwan",
+                    "sources": [
+                        {"type": "url", "url": "https://example.com"},
+                        {"type": "api", "name": "oai-weather"},
+                    ],
+                },
+            }
+        ],
+    )
+
+    with pytest.raises(UnsupportedInput, match="Only URL web search sources"):
+        OpenAIResponsesAdapter(CAPABILITIES).normalize_request(request)
+
+
 @pytest.mark.parametrize("error", [None, "max_uses_exceeded", "too_many_requests"])
 async def test_search_result_completes_linked_response_item(error):
     """Ensures hosted results close their invocation with observed success or failure."""

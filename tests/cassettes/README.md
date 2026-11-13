@@ -2,7 +2,7 @@
 
 These YAML files capture sanitized HTTP requests and provider responses for deterministic test playback. Most cassettes are faithful recordings apart from secret masking and the filtering of unstable transport metadata.
 
-Normal test runs are playback-only. Do not record or rewrite cassettes during a test run. Pytest has no recording option or cassette manager; its default async HTTP transport is blocked unconditionally. Approved recordings use standalone tooling such as `scripts/recorder_proxy.py`, which retains its authorization masking and retry policy.
+Normal test runs are playback-only. Do not record or rewrite cassettes during a test run. Pytest has no recording option or cassette manager; its default async HTTP transport is blocked unconditionally. Approved recordings use standalone tooling such as `scripts/recorder_proxy.py`, which retains its authorization masking and retry policy. Its header whitelist and masking live in `molto.utils.test`, so the test suite covers them without the recorder's server dependencies.
 
 ## Conversation discovery
 
@@ -11,7 +11,7 @@ Public-route and matcher tests discover files directly inside scenario directori
 Discovery has separate purposes for each root:
 
 - `matched/` supplies compatible protocol conversations and Responses-referenced translation checks.
-- `native/` optionally holds faithful provider-deviation recordings for native SDK parity in supported scenarios. They do not require matched counterparts or establish translated behavior.
+- `native/` holds [native-only feature recordings](#native-only-feature-recordings) and optionally faithful provider-deviation recordings, for native SDK parity in supported scenarios. They do not require matched counterparts or establish translated behavior.
 - `errors/` supplies only the explicitly registered `ERROR_SCENARIOS`. The Responses-only incomplete-result recordings retain their focused interface tests.
 - `upstream_ir/` retains its separate projection and continuation runner; archives and legacy provider directories do not join generic discovery.
 
@@ -23,7 +23,7 @@ Malformed filenames, duplicate numeric identities, missing turns or required cou
 
 Faithful originals live under `native/`, `upstream_ir/`, or `errors/`, according to their test purpose. Preserve each original separately from any deliberately edited matched companion. Authorization values are masked, and only selected headers are retained so the fixtures remain safe and deterministic. Review request bodies for secrets before retaining recordings.
 
-For each provider deviation, a nearby README must identify the source provider, endpoint, model and server version when available, response mode, purpose, and recording provenance. Retain the complete sanitized conversation. Native tests compare requests and SDK-parsed results with that original, asserting the observed deviation separately from any documented Molto adjustment. If translation is affected, retain the difference in the upstream replay and compare against Responses-referenced expectations; matching must not erase the deviation under test.
+For each provider deviation or native-only feature recording, a nearby README must identify the source provider, endpoint, model and server version when available, response mode, purpose, and recording provenance. Retain the complete sanitized conversation. Native tests compare requests and SDK-parsed results with that original, asserting the observed deviation separately from any documented Molto adjustment. If translation is affected, retain the difference in the upstream replay and compare against Responses-referenced expectations; matching must not erase the deviation under test.
 
 The matched `reasoning_raw` omission regression separately checks that the OpenAI SDK observes `cache_write_tokens` as `None` and Molto adjusts it to zero. It has no verified faithful original establishing the omission's provider provenance. Its filename selects the raw-reasoning profile; this regression does not establish live deployment behavior. Replay verifies the saved wire contract, while live provider acceptance requires approved source evidence.
 
@@ -46,6 +46,38 @@ Preserve the original evidence, continue unaffected work, and report dependent v
 These requests were recorded outside pytest through `scripts/recorder_proxy.py`, forwarding to the official OpenAI and Anthropic APIs. A standalone driver used `httpx.ASGITransport(app=recorder_proxy.app)` to call the recording proxy in process; the proxy's HTTP client performed the live requests. Each response's completed IR parts became assistant history for the next request. Tool results referenced the returned call IDs, and reasoning continuations retained the returned opaque state. The proxy files were renamed without changing their bytes. Authorization is masked, and Anthropic API-key headers are excluded by the recorder's header whitelist.
 
 Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
+
+### Native-only feature recordings
+
+`native/` holds unchanged OpenAI recordings for request features that have no translation contract. `NATIVE_SCENARIO_PROTOCOLS` in `tests/cassette_discovery.py` registers those scenarios for their native endpoint only and rejects them under any other root, so they cannot become matched cross-protocol evidence:
+
+| Scenario | Endpoint | Model | Behavior covered |
+| --- | --- | --- | --- |
+| `response_format_json_object` | Chat | `gpt-4.1-nano` | `response_format: json_object` returns a JSON object |
+| `response_format_json_schema` | Chat | `gpt-4.1-nano` | A strict JSON-schema `response_format` returns exactly the schema's required fields |
+| `text_format_json_schema` | Responses | `gpt-4.1-mini` | A strict JSON-schema `text.format` is echoed with a verbosity and returns exactly the schema's required fields |
+| `model_settings` | Chat | `gpt-4.1-nano` | Explicit penalty, sampling, prompt-cache, storage, and log-probability settings are forwarded; token logprobs return with the requested `top_logprobs` alternatives |
+| `model_settings` | Responses | `gpt-5.1` | Explicit sampling, limit, tool-choice, prompt-cache, safety, service-tier, storage, and truncation settings are echoed; requested text logprobs and URL web search sources are returned |
+| `web_search_tool_options` | Responses | `gpt-5-nano` | Web search context size, domain filters, and user location are echoed; sources are omitted when not requested |
+| `web_search_api_source` | Responses | `gpt-5.1` | A weather search returns only the non-URL source `{"type": "api", "name": "oai-weather"}`, and a second turn replays that output as history |
+| `conversation_id` | Responses | `gpt-5-nano` | A provider-managed `conversation` ID is forwarded and returned, and the reply uses its stored history |
+| `tool_choice_required` | Chat, Responses | `gpt-4.1-nano`, `gpt-4.1-mini` | `tool_choice: required` returns a call to a requested function |
+
+`native/input_image_base64/openai-chat_completions-non_stream-00.yaml` reuses the shared scenario name. It adds a non-streaming native Chat recording with a base64 image input, which the streaming-only matched image scenarios do not provide. `matched/tool_call_choice` covers only a named-function choice and `none`, so `tool_choice_required` adds the `required` choice in both modes.
+
+Every other scenario has one `stream` and one `non_stream` turn per endpoint, except `web_search_api_source`, which has two turns per mode. The generic native runners in `tests/core/test_interface.py` assert the exact outgoing request and SDK-parsed parity for every file, and the `test_native_chat_*` and `test_native_responses_*` tests assert the behavior above. These remain native passthrough features. Streaming image input is already covered by the matched image scenarios.
+
+The Chat files were recorded from the official OpenAI API with `AsyncOpenAI/Python 2.30.0` by the former cassette manager; the server version was not recorded. Authorization is masked, and the retained headers are a subset of the `scripts/recorder_proxy.py` whitelist. They were restored byte-for-byte from `openai/chat_completions/{test_response_format,test_model_settings,test_messages,test_tools}/` at commit `acf4abe`, and renamed by scenario. The former `*-non-stream-sse.yaml` companions are not restored. They captured independent streamed generations that the removed non-streaming implementation consumed internally, and native non-streaming passthrough replays the genuine JSON recording.
+
+The Responses files were recorded on 2026-11-10 from the official OpenAI API with `AsyncOpenAI/Python 2.53.0`, outside pytest, through `scripts/recorder_proxy.py` called in process with `httpx.ASGITransport`; the server version was not recorded. The proxy files were renamed without changing their bytes. Their request bodies are those of the deleted `openai/responses/{test_text_config,test_model_settings,test_tools,test_conversation}/` recordings at `acf4abe`, with three exceptions: `gpt-4.1-nano` is replaced by `gpt-4.1-mini` because the API now rejects the former as deprecated, each `conversation` is the ID of the new setup conversation described below, and `model_settings` replaces the weather `instructions` and the `Who are you?` input. The `model_settings` files were re-recorded the same way on 2026-11-11, so the general settings scenario does not depend on the weather edge case. Its `instructions` are now `Use web search with this exact query: site:python.org Python 3.13.0 release date.` and its input is `When was Python 3.13.0 released?`. In discarded attempts that day with the original input, which were not retained, the required tool call made the model search `calculator: 1+1`, which returned another non-URL source, `{"type": "api", "name": "oai-calculator"}`. The legacy Responses recordings were not restored because they omit the `cache_write_tokens` count required by the pinned SDK.
+
+Each `conversation_id` mode used its own conversation. `native/conversation_id/setup/openai-conversations-{mode}.yaml` keeps the `POST /v1/conversations` recording that created it, with a two-item joke history; its returned ID is the `conversation` sent by the matching response cassette. The setup directory sits below the scenario directory, so discovery does not replay it.
+
+The `web_search_api_source` recordings are a provider deviation kept as an edge case, recorded on 2026-11-11 the same way. Each first turn's `web_search_call` returns only `{"type": "api", "name": "oai-weather"}`, while `openai==2.53.0` declares only `url` sources, so `Response.model_validate` rejects them. This is long-standing provider behavior rather than an API change. A live request on 2026-11-11, not retained as a cassette, replayed a source of type `bogus` and was rejected with `Invalid value: 'bogus'. Supported values are: 'url' and 'api'.` The SDK parses responses without validation and keeps the value, and native passthrough preserves it unchanged. Dumping these parsed responses emits Pydantic serializer warnings for that source. Each second turn sends the first turn's input and output back as history with the follow-up `And tomorrow?`; OpenAI accepted it and searched again. Molto supports the source as a [documented extension](../../docs/web-search.md#non-url-sources).
+
+The streaming first turn is also the upstream for the translated Messages and Chat regressions. Its request is the one Molto sent when translating the Messages weather request in `test_translated_search_tolerates_recorded_api_source`. Chat translates the same prompt to that request without `stream_options.include_obfuscation`, the documented execution-mode difference. The non-streaming first turn sends the same request without `stream_options`. The streaming `web_search_tool_options`, `model_settings`, and `web_search_api_source` recordings also announce the search call without an action at `response.output_item.added`, as described under [Hosted search](#hosted-search).
+
+The streaming Responses `tool_choice_required` recording omits `name` from `response.function_call_arguments.done`, which `openai==2.53.0` requires. Every committed matched Responses tool-call stream has the same omission. The SDK keeps the parsed event without it, the completed response still names the call, and passthrough preserves the event unchanged.
 
 ### Anthropic hosted-search recordings
 

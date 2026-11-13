@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import pairwise
 from typing import Any
 
@@ -41,6 +42,44 @@ _RECONSTRUCTIBLE_CHAT_COMPLETIONS_FIELDS = {
 }
 
 _ANTHROPIC_EVENT_ADAPTER = AnthropicMessagesStreamEventAdapter
+
+# Request and response headers retained in cassette recordings.
+RECORDED_HEADERS = {
+    "content-type",
+    "content-length",
+    "authorization",
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "cache-control",
+    "connection",
+    # Helpful for grouping multi-request tool loops into a single "run"
+    "x-run-id",
+}
+
+
+def mask_authorization(value: str) -> str:
+    """
+    Mask Authorization header values in recordings.
+
+    Cassettes are intended to be shareable "golden" artifacts; never write any
+    API key material to disk (even partially).
+    """
+    if not value:
+        return value
+    lower = value.lower()
+    if lower.startswith("bearer "):
+        return "Bearer ***"
+    return "***"
+
+
+def filter_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Filter headers to only include whitelisted ones."""
+    return {
+        k: v if k.lower() != "authorization" else mask_authorization(v)
+        for k, v in headers.items()
+        if k.lower() in RECORDED_HEADERS
+    }
 
 
 def collect_sdk_response(protocol: Endpoint, events: list[BaseModel]) -> BaseModel:

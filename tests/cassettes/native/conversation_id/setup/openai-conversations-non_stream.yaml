@@ -1,0 +1,32 @@
+filename: 2026-11-10-01a1c611-ddea-7a01-9f39-55e5f8b08dc5
+request:
+  body:
+    items:
+    - content: Tell me a short joke about a scarecrow.
+      role: user
+    - content: Why did the scarecrow win an award? Because he was outstanding in his
+        field!
+      role: assistant
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '189'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/conversations
+  query_params: {}
+request_id: 01a1c611-ddea-7a01-9f39-55e5f8b08dc5
+response:
+  body:
+    created_at: 1794324423
+    id: conv_6af337c74f8c8197b4a666d137eed04d02d527e3e795cba5
+    metadata: {}
+    object: conversation
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-10T15:27:02.122319+00:00'
