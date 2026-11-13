@@ -14,14 +14,17 @@ from anthropic.types import (
     OutputConfigParam,
     RawMessageStreamEvent,
     TextBlockParam,
+    TextCitationParam,
     ThinkingBlockParam,
     ThinkingConfigParam,
     ToolChoiceParam,
+    ToolResultBlockParam,
     ToolUnionParam,
     WebSearchResultBlockParam,
     WebSearchToolRequestErrorParam,
     WebSearchToolResultBlockParam,
 )
+from anthropic.types.tool_result_block_param import Content as ToolResultContent
 from pydantic import Field, TypeAdapter
 from typing_extensions import NotRequired, Required, TypedDict
 
@@ -34,6 +37,24 @@ class AnthropicThinkingBlockParam(TypedDict):
     thinking: Required[str]
     type: Required[Literal["thinking"]]
     signature: NotRequired[str]
+
+
+class AnthropicTextBlockParam(TextBlockParam):
+    """Text history with eagerly validated, repeatable citations."""
+
+    citations: NotRequired[list[TextCitationParam] | None]
+
+
+AnthropicToolResultContent: TypeAlias = Union[
+    AnthropicTextBlockParam,
+    *(part for part in get_args(ToolResultContent) if part is not TextBlockParam),
+]
+
+
+class AnthropicToolResultBlockParam(ToolResultBlockParam):
+    """Tool output with eagerly validated, repeatable content parts."""
+
+    content: NotRequired[str | list[AnthropicToolResultContent]]
 
 
 class AnthropicWebSearchToolResultBlockParam(WebSearchToolResultBlockParam):
@@ -49,10 +70,18 @@ class AnthropicWebSearchToolResultBlockParam(WebSearchToolResultBlockParam):
 _RETAINED_CONTENT_BLOCKS = tuple(
     block
     for block in get_args(ContentBlockParam)
-    if block not in {ThinkingBlockParam, WebSearchToolResultBlockParam}
+    if block
+    not in {
+        TextBlockParam,
+        ThinkingBlockParam,
+        ToolResultBlockParam,
+        WebSearchToolResultBlockParam,
+    }
 )
 AnthropicContentBlockParam: TypeAlias = Union[
+    AnthropicTextBlockParam,
     AnthropicThinkingBlockParam,
+    AnthropicToolResultBlockParam,
     AnthropicWebSearchToolResultBlockParam,
     *_RETAINED_CONTENT_BLOCKS,  # pyright: ignore[reportInvalidTypeForm]
     ContentBlock,
@@ -114,7 +143,7 @@ class AnthropicMessagesCreateRequest(ExcludeNoneModel):
         Field(description="Whether to stream message events."),
     ] = None
     system: Annotated[
-        str | list[TextBlockParam] | None,
+        str | list[AnthropicTextBlockParam] | None,
         Field(description="The system prompt."),
     ] = None
     temperature: Annotated[

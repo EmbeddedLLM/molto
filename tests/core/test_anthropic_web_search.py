@@ -373,6 +373,7 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
 
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("history_type", ["web_search_call", "message"])
+@pytest.mark.parametrize("history_container", [list, tuple, iter])
 @pytest.mark.parametrize(
     ("endpoint", "provider"),
     [
@@ -384,7 +385,7 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
     ],
 )
 async def test_search_metadata_rejects_other_upstream_routes(
-    endpoint: str, provider: str | None, history_type: str, stream: bool
+    endpoint: str, provider: str | None, history_type: str, stream: bool, history_container
 ):
     """Ensures either source or citation state fails before transport when its Anthropic route changes."""
     body = _responses_body(False)
@@ -396,6 +397,18 @@ async def test_search_metadata_rejects_other_upstream_routes(
     body["input"].extend(
         item.model_dump(exclude_none=True) for item in result.output if item.type == history_type
     )
+    if endpoint == "responses":
+        # Native routing checks only Molto-owned metadata, even with provider extensions.
+        body["provider_option"] = True
+    for item in body["input"]:
+        if item.get("type") == "web_search_call":
+            item["action"]["sources"] = history_container(item["action"].get("sources", []))
+        elif item.get("type") == "message":
+            for part in item["content"]:
+                if part["type"] == "output_text":
+                    part["annotations"] = history_container(part["annotations"])
+            item["content"] = history_container(item["content"])
+    body["input"] = history_container(body["input"])
     requests = []
 
     def handle(request: Request) -> Response:

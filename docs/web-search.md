@@ -194,7 +194,7 @@ Streaming annotation events, completed search items, and the terminal response p
 history.extend(item.model_dump(exclude_none=True) for item in response.output)
 ```
 
-On the next request, Molto restores the original Messages source and citation fields without forwarding `extra_content` itself. Keep the upstream destination and provider fixed. History containing this extension is accepted only with `endpoint="messages"` and `provider="anthropic"`; other routes raise `UnsupportedInput` before transport. Unknown metadata keys and malformed values fail request validation. The extension does not recover state discarded by a client or create Anthropic state for a search originally served by OpenAI.
+On the next request, Molto restores the original Messages source and citation fields without forwarding `extra_content` itself. Keep the upstream destination and provider fixed. History containing this extension is accepted only with `endpoint="messages"` and `provider="anthropic"`; other routes, including native Responses, raise `UnsupportedInput` before transport. Unknown metadata keys and malformed values fail request validation. The extension does not recover state discarded by a client or create Anthropic state for a search originally served by OpenAI.
 
 The extension is supported in the typed Responses request body. `extra_body` remains a caller-owned upstream transport override and bypasses this normalization, as it does for other fields. Normal projection to an OpenAI upstream continues to use standard Responses fields only.
 

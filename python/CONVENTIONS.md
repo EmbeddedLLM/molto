@@ -10,7 +10,7 @@
 
 ## Layer ownership
 
-`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each validates its downstream request, selects the upstream path, and composes adapters with clients.
+`Molto` is the public orchestration facade. Protocol-specific methods such as `responses()`, `chat_completions()`, and `messages()` are coordinators: each selects the upstream path, validates its downstream request when translation is required, and composes adapters with clients.
 
 - Adapters translate the downstream protocol to and from normalized types. They must not perform HTTP requests.
 - Upstream clients construct provider requests, invoke provider SDK transport, apply compatibility validation where required, and normalize provider output. They must not format downstream responses.
@@ -42,8 +42,8 @@ Create a fresh `BaseAdapter[NativeRequestT, NativeEventT, NativeResponseT]` subc
 
 Every upstream client must subclass `BaseClient[NativeRequestT, NativeEventT, NativeResponseT]`, specify its concrete native types, and implement its native paths, normalized path, and error translation:
 
-- `native_events()` accepts the validated upstream-native request, yields native SDK events, and delegates failures to `_handle_error()`;
-- `native_response()` accepts the validated upstream-native request, returns a non-streaming SDK response, and delegates failures to `_handle_error()`;
+- `native_events()` accepts an upstream-native request dictionary or request model, yields native SDK events, and delegates failures to `_handle_error()`;
+- `native_response()` accepts an upstream-native request dictionary or request model, returns a non-streaming SDK response, and delegates failures to `_handle_error()`;
 - `_events()` accepts a `NormalizedRequest` and yields normalized events, delegating transport to `native_events()`; and
 - `_handle_error()` translates known upstream-native exceptions into IR exceptions and re-raises errors without an IR equivalent.
 
@@ -79,11 +79,11 @@ The exact OpenAI SDK pin in `pyproject.toml` is the schema source of truth. When
 
 Treat OpenAI Responses as the canonical behavioral reference when matching other protocols. Match their equivalent semantics and lifecycle behavior to Responses wherever the target protocol can represent them, while preserving genuine protocol-specific differences.
 
-When an OpenAI-compatible provider has a documented or cassette-backed extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every Chat message to an untyped dictionary.
+When translation needs a documented or cassette-backed provider extension that the SDK omits, model the narrowest extension possible. For example, extend only assistant messages with `reasoning_content`; do not weaken every translated Chat message to an untyped dictionary. Native request dictionaries retain provider extensions without requiring local schema additions.
 
 Never switch input shapes solely to satisfy SDK or local schema restrictions. Preserve the semantically correct wire representation and supported fields; when verified provider behavior differs from the schema, add a narrow schema extension instead.
 
-Prefer concrete lists over SDK `Iterable` annotations in local compatibility models. Concrete lists validate nested content at request construction time and avoid lazy validation or iterator consumption while Pydantic evaluates union branches.
+Prefer concrete lists over SDK `Iterable` annotations for supported nested request collections. Lists validate content at request construction time and keep repeated serialization from consuming it. Materialize caller-provided iterators before competing union branches can consume them while selecting an input variant.
 
 ## Pydantic field metadata
 
@@ -107,7 +107,7 @@ kind: Annotated[
 
 Keep all field default assignments outside `Annotated`; do not pass defaults such as `default=None` to `Field`.
 
-Models used as API request bodies inherit from `ExcludeNoneModel`, which rejects unknown fields. Call `model_dump()` instead of `BaseModel.model_dump()` so unset and `None` values do not become unintended provider parameters.
+Local protocol request models inherit from `ExcludeNoneModel`, which rejects unknown fields. Native Molto model inputs and translated upstream requests use their `model_dump()` so unset and `None` values do not become unintended provider parameters. Do not recover extras discarded by model serialization. Native request dictionaries bypass these models and retain unknown fields and explicit nulls.
 
 The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
 
@@ -119,7 +119,7 @@ Normalized request-only models inherit from `StrictModel` and reject unknown fie
 
 Raise `UnsupportedInput` for semantic failures encountered while normalizing a downstream request or constructing a translated upstream request. It subclasses `ValueError` for compatibility. Do not use it for malformed provider output, invalid event order, or output projection failures; those remain output-side validation errors.
 
-Never raise `UnsupportedInput` from `native_events()` or `native_response()`: the caller has already validated the exact wire protocol these methods forward.
+Never raise `UnsupportedInput` from `native_events()` or `native_response()`: these methods forward the selected wire protocol for SDK and provider validation without enforcing Molto's translation restrictions.
 
 ## Normalized content and events
 
@@ -149,7 +149,9 @@ Map usage semantically and construct the public usage payload explicitly. This p
 
 When downstream and upstream use the same protocol, preserve the native protocol instead of round-tripping through the normalized IR.
 
-- Validate the request with that protocol's request model.
+- Preserve the request dictionary, including unknown properties, nested extensions, and explicit nulls, without validating it against Molto's protocol model.
+- Accept dictionaries or the corresponding Molto request model as coordinator bodies. Callers must serialize custom Pydantic models themselves. On native routes, use Molto models' normal `model_dump()` and retain SDK serialization for SDK models nested in dictionaries.
+- Enforce the destination restriction on Molto's own Anthropic search-history extension before native transport.
 - Yield the SDK's native event or chunk models directly for streaming requests.
 - Return the SDK's native response model directly for non-streaming requests.
 - Do not route a native event or response through the normalized IR.
@@ -161,6 +163,8 @@ The bypass belongs in the relevant coordinator; transport remains in the matchin
 Construct each short-lived `AsyncOpenAI` wrapper with Molto's injected `httpx.AsyncClient`, the resolved API key, and an explicit supplied or default base URL. Resolve an absent vLLM API key to the fixed non-secret `EMPTY` credential, and suppress OpenAI organization and project environment headers for compatible providers.
 
 Treat coordinator `extra_body` and `extra_headers` as request-scoped upstream transport options, not native protocol body fields or normalized semantics. Strip client credentials, account selectors, connection-specific fields, request framing, and proxy topology headers before passing `extra_headers` to a provider SDK. Capture successful SDK response headers before consuming events and expose a copy on the returned `MoltoStream`; do not filter response headers in the library, because an HTTP adapter must apply filtering for its own downstream transport.
+
+Pass native request properties recognized as SDK body parameters through the corresponding arguments and route unknown top-level properties through SDK `extra_body`. Explicit coordinator `extra_body` takes precedence. Request-body keys named `extra_headers`, `extra_body`, `extra_query`, or `timeout` remain body properties; never expand them as SDK transport options.
 
 Context-manage every returned SDK stream so completion and early termination release its response. Do not close the short-lived SDK wrapper because it borrows Molto's shared HTTP client; only `Molto.aclose()` closes that client.
 
