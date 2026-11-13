@@ -147,7 +147,7 @@ The native stream may start a block with content already present in the `content
 
 This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. Errors follow the [shared policy](../errors.md).
 
-Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. The `drop_unknown` option has no effect on native routes. See the [shared input policy](../README.md#cross-protocol-contract).
+Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 ## When the application speaks Messages
 
@@ -172,7 +172,7 @@ Within a user message, tool results must precede ordinary user content for the c
 
 `cache_control` on system text, user text/images, assistant text, and nested tool-result text/images becomes a positional `CacheBreakpoint` with optional lifetime. Block-only caching selects normalized explicit mode; top-level `cache_control` selects implicit mode while preserving block markers. Markers on outer `tool_result`, `tool_use`, thinking blocks, and tool definitions are rejected on translated routes because OpenAI has no corresponding content-part marker. Native passthrough preserves these provider-native fields.
 
-The request wrapper also accepts `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are available in native passthrough but are rejected across the normalized path. Within `output_config`, only `effort` is normalized. Unknown schema properties are rejected by default; `drop_unknown=True` discards them before translation. It still rejects recognized unsupported settings, malformed known values, and unknown roles or content types.
+The request wrapper also accepts `container`, `inference_geo`, `metadata`, `service_tier`, `stop_sequences`, `top_k`, and `user_profile_id`. These fields are available in native passthrough but are rejected across the normalized path. Within `output_config`, only `effort` is normalized.
 
 ### Messages event projection
 

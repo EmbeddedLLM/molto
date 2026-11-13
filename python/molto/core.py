@@ -28,6 +28,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesResponse,
     OpenAIResponsesStreamEvent,
+    has_anthropic_search_metadata,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -192,7 +193,6 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-        drop_unknown: bool = False,
     ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
@@ -209,16 +209,19 @@ class Molto:
             extra_body: Additional fields merged into the upstream request body.
             extra_headers: Additional upstream headers. Client credentials and transport
                 headers are removed before the provider request.
-            drop_unknown: Drop unrecognized properties during translation. Native
-                routes preserve them regardless of this option.
         """
-        body = request_to_dict(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
 
         if endpoint == "responses":
+            body = request_to_dict(body)
+            if has_anthropic_search_metadata(body.get("input")):
+                raise UnsupportedInput(
+                    "Anthropic search extra_content requires endpoint='messages' "
+                    "and provider='anthropic'."
+                )
             upstream = OpenAIResponsesClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -235,9 +238,7 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(body))
 
-        request = OpenAIResponsesCreateRequest.model_validate(
-            body, extra="ignore" if drop_unknown else "forbid"
-        )
+        request = OpenAIResponsesCreateRequest.model_validate(body)
         preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
         if request.has_anthropic_search_metadata() and not preserve_search_metadata:
             raise UnsupportedInput(
@@ -285,23 +286,19 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-        drop_unknown: bool = False,
     ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
         `endpoint` selects the wire protocol, `provider` selects the serving
         implementation and its capabilities, and `base_url` selects only the
         HTTP destination.
-
-        `drop_unknown` discards unrecognized properties only on translated routes.
-        Known unsupported settings and invalid content still raise.
         """
-        body = request_to_dict(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "chat/completions":
+            body = request_to_dict(body)
             upstream = OpenAIChatCompletionsClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -318,9 +315,7 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(body))
 
-        request = OpenAIChatCompletionsCreateRequest.model_validate(
-            body, extra="ignore" if drop_unknown else "forbid"
-        )
+        request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
         if endpoint == "responses":
@@ -361,7 +356,6 @@ class Molto:
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
         citation_policy: CitationPolicy = "drop",
-        drop_unknown: bool = False,
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
@@ -373,16 +367,13 @@ class Molto:
         citations, otherwise streaming text without citations. The default `"drop"`
         always streams text without citations. Transport extensions do not inform
         `"auto"`. The policy has no effect with Chat upstream or native Messages.
-
-        `drop_unknown` discards unrecognized properties only on translated routes.
-        Known unsupported settings and invalid content still raise.
         """
-        body = request_to_dict(body)
         resolved_provider = self._resolve_provider(endpoint, provider)
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
         if endpoint == "messages":
+            body = request_to_dict(body)
             upstream = AnthropicMessagesClient(
                 self._http_client,
                 api_key=resolved_api_key,
@@ -399,9 +390,7 @@ class Molto:
                 )
             return await adapter.project_native_response(upstream.native_response(body))
 
-        request = AnthropicMessagesCreateRequest.model_validate(
-            body, extra="ignore" if drop_unknown else "forbid"
-        )
+        request = AnthropicMessagesCreateRequest.model_validate(body)
         # Chat normalization drops annotations, so buffering cannot recover citations.
         adapter = AnthropicMessagesAdapter(
             capabilities,

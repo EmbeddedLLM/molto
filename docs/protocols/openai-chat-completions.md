@@ -96,7 +96,7 @@ When both sides use Chat Completions, Molto preserves the request dictionary and
 
 This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, and provider extensions accepted by the pinned SDK. Errors follow the [shared policy](../errors.md). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
-Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. The `drop_unknown` option has no effect on native routes. See the [shared input policy](../README.md#cross-protocol-contract).
+Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 ## When the application speaks Chat Completions
 
@@ -133,7 +133,7 @@ Each assistant-history message becomes one `AssistantInput` containing ordered r
 
 Tool messages normalize scalar text or ordered text parts as successful tool results. Chat tool messages containing image parts are rejected on translated routes. The downstream adapter does not reinterpret such input as an image tool result. User text/images and tool-result text retain supported `prompt_cache_breakpoint` values as positional normalized markers.
 
-Recognized fields outside the implemented translation surface are rejected. Unknown schema properties are also rejected by default; `drop_unknown=True` discards them before translation. It still rejects known unsupported settings such as `seed`, malformed known values, and unknown roles or content types. Native passthrough is the appropriate route when a provider-specific field must be preserved.
+Recognized fields outside the implemented translation surface are rejected. Native passthrough is the appropriate route when a provider-specific field must be preserved.
 
 ### Projection back to Chat chunks
 

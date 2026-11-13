@@ -10,6 +10,8 @@ downstream SDK exception
 
 Inspect `error.__cause__` for the portable error category. Unknown errors pass through unchanged.
 
+Native routes leave request validation to the SDK and provider. Invalid arguments may therefore raise a local SDK error before HTTP, such as Anthropic's `TypeError` for missing or null `max_tokens`. These failures are not converted to Pydantic `ValidationError` or synthesized HTTP errors.
+
 ## Recognition rules
 
 Recognition uses error codes and SDK classes (`isinstance`, including subclasses), without checking HTTP status codes. Specific OpenAI error codes take precedence over broader SDK class fallbacks. Anthropic's generic error types do not distinguish context overflow or missing models, so those categories retain their message checks and precede broader SDK class fallbacks. Local missing-credential errors also require message checks because their SDK classes are generic.

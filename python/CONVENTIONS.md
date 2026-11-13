@@ -83,7 +83,7 @@ When translation needs a documented or cassette-backed provider extension that t
 
 Never switch input shapes solely to satisfy SDK or local schema restrictions. Preserve the semantically correct wire representation and supported fields; when verified provider behavior differs from the schema, add a narrow schema extension instead.
 
-Prefer concrete lists over SDK `Iterable` annotations in local compatibility models. Concrete lists validate nested content at request construction time and avoid lazy validation or iterator consumption while Pydantic evaluates union branches.
+Prefer concrete lists over SDK `Iterable` annotations for supported nested request collections. Lists validate content at request construction time and keep repeated serialization from consuming it. Materialize caller-provided iterators before competing union branches can consume them while selecting an input variant.
 
 ## Pydantic field metadata
 
@@ -107,9 +107,7 @@ kind: Annotated[
 
 Keep all field default assignments outside `Annotated`; do not pass defaults such as `default=None` to `Field`.
 
-Local protocol request models inherit from `ExcludeNoneModel`, which rejects unknown fields. Translated upstream requests use their `model_dump()` so unset and `None` values do not become unintended provider parameters. Native request dictionaries bypass these models and retain explicit nulls.
-
-Apply the per-call `drop_unknown` option only at the translated downstream schema boundary. Its default is `False`; `True` discards unrecognized top-level and nested properties before normalization. Keep errors for recognized unsupported settings, malformed known values, and unknown roles or content types. Preserve arbitrary data inside supported dictionaries such as tool JSON Schemas. Do not apply the option to native requests or explicit `extra_body`, and do not weaken normalized request models.
+Local protocol request models inherit from `ExcludeNoneModel`, which rejects unknown fields. Translated upstream requests use their `model_dump()` so unset and `None` values do not become unintended provider parameters. Native conversion omits unset and `None`-valued model attributes while retaining accepted extras and explicit nulls inside dictionaries. Native request dictionaries bypass these models and retain explicit nulls.
 
 The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
 
@@ -152,7 +150,8 @@ Map usage semantically and construct the public usage payload explicitly. This p
 When downstream and upstream use the same protocol, preserve the native protocol instead of round-tripping through the normalized IR.
 
 - Preserve the request dictionary, including unknown properties, nested extensions, and explicit nulls, without validating it against Molto's protocol model.
-- Convert Pydantic model bodies to dictionaries at the boundary.
+- Convert Pydantic model bodies to dictionaries at the boundary, retaining caller-model defaults and JSON serialization, SDK serialization behavior, and Molto models' declared-field omissions.
+- Enforce the destination restriction on Molto's own Anthropic search-history extension before native transport.
 - Yield the SDK's native event or chunk models directly for streaming requests.
 - Return the SDK's native response model directly for non-streaming requests.
 - Do not route a native event or response through the normalized IR.

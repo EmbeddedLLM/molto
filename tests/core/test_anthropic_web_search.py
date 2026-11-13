@@ -373,6 +373,7 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
 
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("history_type", ["web_search_call", "message"])
+@pytest.mark.parametrize("history_container", [list, tuple, iter])
 @pytest.mark.parametrize(
     ("endpoint", "provider"),
     [
@@ -383,10 +384,10 @@ async def test_recorded_search_history_preserves_provider_state(stream: bool):
         ("messages", "vllm"),
     ],
 )
-async def test_search_metadata_preserves_native_and_rejects_other_translated_routes(
-    endpoint: str, provider: str | None, history_type: str, stream: bool
+async def test_search_metadata_rejects_other_upstream_routes(
+    endpoint: str, provider: str | None, history_type: str, stream: bool, history_container
 ):
-    """Ensures native metadata survives while incompatible translated routes fail before HTTP."""
+    """Ensures either source or citation state fails before transport when its Anthropic route changes."""
     body = _responses_body(False)
     async with _get_http_client([SEARCH], "messages") as http_client:
         result = await Molto(http_client=http_client).responses(
@@ -397,23 +398,17 @@ async def test_search_metadata_preserves_native_and_rejects_other_translated_rou
         item.model_dump(exclude_none=True) for item in result.output if item.type == history_type
     )
     if endpoint == "responses":
-        expected = await _sdk_result("responses", stream)
-        async with _get_http_client(
-            [_path("responses", stream)], "responses", expected_body=body
-        ) as http_client:
-            actual = await Molto(http_client=http_client).responses(
-                body=body, endpoint=endpoint, provider=provider, api_key="test-api-key"
-            )
-            if stream:
-                actual = [event async for event in actual]
-                assert [type(event) for event in actual] == [type(event) for event in expected]
-                assert [event.model_dump() for event in actual] == [
-                    event.model_dump() for event in expected
-                ]
-            else:
-                assert type(actual) is type(expected)
-                assert actual.model_dump() == expected.model_dump()
-        return
+        # Native routing checks only Molto-owned metadata, even with provider extensions.
+        body["provider_option"] = True
+    for item in body["input"]:
+        if item.get("type") == "web_search_call":
+            item["action"]["sources"] = history_container(item["action"].get("sources", []))
+        elif item.get("type") == "message":
+            for part in item["content"]:
+                if part["type"] == "output_text":
+                    part["annotations"] = history_container(part["annotations"])
+            item["content"] = history_container(item["content"])
+    body["input"] = history_container(body["input"])
     requests = []
 
     def handle(request: Request) -> Response:

@@ -70,7 +70,7 @@ Each downstream protocol should require one adapter and each upstream protocol s
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
-Cross-protocol translation follows one governing principle: Molto is strict during input validation by default but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Callers may explicitly discard unrecognized input properties with `drop_unknown=True` before translation. This yields three architectural rules:
+Cross-protocol translation follows one governing principle: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. This yields three architectural rules:
 
 - Normalized requests are closed and lossless-or-rejected, with documented [cache-lifetime approximations](../docs/README.md#prompt-caching).
 - Normalized outputs are open to provider extensions.
@@ -150,8 +150,6 @@ Each implemented coordinator performs the following work:
 
 Every coordinator also accepts request-scoped `extra_body` and `extra_headers` as opaque request extensions sent to the upstream. The selected provider SDK merges them into the final upstream request only after Molto has built it. Molto must never consult these extensions when choosing a route, normalizing input, constructing or translating a request, or projecting output. They must not influence any other Molto logic except the header filtering at the credential boundary described below. Translation guarantees are defined over the normalized request; callers who supply `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for those extensions.
 
-Every coordinator accepts `drop_unknown=False`. On translated routes, `True` discards unrecognized properties at the protocol-schema boundary, including nested properties, before constructing the normalized request. Known unsupported settings, malformed known values, and unknown roles or content variants remain errors. Arbitrary dictionaries inside supported fields, such as tool JSON Schemas, retain their data. The option does not affect native requests or explicit `extra_body`.
-
 The sole exception is that the facade filters `extra_headers` once at the credential boundary, removing credential and account-selector headers, hop-by-hop headers, ingress transport headers, and any header named in `Connection` before forwarding. The provider SDK then constructs its own authentication and transport headers. This filtering does not make extra headers inputs to translation or request construction.
 
 The returned `MoltoStream` exposes a copy of the successful upstream response headers as `response_headers`. Coordinator prefetching opens the SDK stream and captures those headers before returning, including on translated routes. Molto retains all response headers; an HTTP server using Molto remains responsible for filtering connection-specific and framing headers before constructing its downstream response.
@@ -184,7 +182,9 @@ Responses SDK event stream
 
 The bypass is intentional. Normalizing a request and response that already use the desired protocol would add no semantic value and could lose provider fields, event variants, JSON representation, or native event fidelity.
 
-Molto retains native request dictionaries without protocol-model validation, preserving unknown properties, nested extensions, and explicit nulls. Pydantic model bodies are converted to dictionaries. The SDK and upstream provider own validation, and the SDK owns native output models. Recognized failures still cross the IR on both streaming and non-streaming native paths: the upstream client normalizes the error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
+Molto retains native request dictionaries without protocol-model validation, preserving unknown properties, nested extensions, and explicit nulls. Pydantic model bodies are converted to dictionaries: Molto request models retain unset/`None` omissions for declared fields while preserving accepted extras, caller-defined models retain useful defaults and JSON serialization, and SDK models retain SDK serialization. The SDK and upstream provider own validation, and the SDK owns native output models. SDK-local argument errors may occur before HTTP and pass through unchanged unless covered by the error translation contract. Recognized failures still cross the IR on both streaming and non-streaming native paths: the upstream client normalizes the error and the downstream adapter re-projects it, giving native passthrough the same error cause chain as a translated route.
+
+Molto still owns its `extra_content.anthropic` search-history extension. Requests containing that metadata require `endpoint="messages"` and `provider="anthropic"`; the coordinator rejects other destinations, including native Responses, before transport.
 
 The Chat Completions path follows the same shape through `Molto.chat_completions(endpoint="chat/completions")` and `OpenAIChatCompletionsClient.native_events()`. The SDK consumes `[DONE]` as a transport terminator, and Molto exposes the yielded `ChatCompletionChunk` models directly without duplicating SDK validation work.
 
