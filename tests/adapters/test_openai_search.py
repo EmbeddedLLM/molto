@@ -183,30 +183,12 @@ def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_
     assert body["input"][1]["content"][0]["annotations"][0]["end_index"] == 6
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        {"type": "api", "name": "oai-weather"},
-        {"type": "api", "name": "oai-weather", "url": "https://example.com"},
-        {"type": "url"},
-        {"type": "url", "url": 1},
-        {"type": "url", "url": "https://example.com", "provider_field": True},
-        {
-            "type": "url",
-            "url": "https://example.com",
-            "title": "Overridden",
-            "extra_content": {"anthropic": {"encrypted_content": "x", "title": "Kept"}},
-        },
-        {"name": "untyped"},
-    ],
-)
-def test_responses_search_history_rejects_untranslatable_sources(source):
-    """Ensures translated history rejects sources it cannot convert losslessly.
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_responses_search_history_rejects_api_sources(status):
+    """Ensures translated history rejects an `api` source instead of dropping it.
 
-    Native passthrough leaves source validation to the upstream, but translated input is
-    lossless-or-rejected. A non-URL type, a missing or malformed URL, an unconverted
-    field, or a top-level title that Anthropic metadata overrides would otherwise be
-    dropped or misreported, so each raises `UnsupportedInput`.
+    Translated input is lossless-or-rejected, and neither Messages nor Chat can represent
+    a source without a URL, such as OpenAI's `oai-weather` source.
     """
     request = OpenAIResponsesCreateRequest(
         model="m",
@@ -214,11 +196,14 @@ def test_responses_search_history_rejects_untranslatable_sources(source):
             {
                 "type": "web_search_call",
                 "id": "ws_1",
-                "status": "completed",
+                "status": status,
                 "action": {
                     "type": "search",
                     "query": "weather: Taiwan",
-                    "sources": [source],
+                    "sources": [
+                        {"type": "url", "url": "https://example.com"},
+                        {"type": "api", "name": "oai-weather"},
+                    ],
                 },
             }
         ],
@@ -226,36 +211,6 @@ def test_responses_search_history_rejects_untranslatable_sources(source):
 
     with pytest.raises(UnsupportedInput, match="Only URL web search sources"):
         OpenAIResponsesAdapter(CAPABILITIES).normalize_request(request)
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        {"type": "url", "url": "https://example.com"},
-        {"url": "https://example.com"},
-        {"type": "url", "url": "https://example.com", "title": "Example", "page_age": "1 day"},
-    ],
-)
-def test_responses_search_history_translates_convertible_url_sources(source):
-    """Ensures URL sources translate with or without `type`, keeping every converted field."""
-    request = OpenAIResponsesCreateRequest(
-        model="m",
-        input=[
-            {
-                "type": "web_search_call",
-                "id": "ws_1",
-                "status": "completed",
-                "action": {"type": "search", "query": "news", "sources": [source]},
-            }
-        ],
-    )
-
-    normalized = OpenAIResponsesAdapter(CAPABILITIES).normalize_request(request)
-
-    (result,) = [part for part in normalized.input if isinstance(part, SearchResult)]
-    (converted,) = result.sources
-    assert converted.url == source["url"]
-    assert (converted.title, converted.page_age) == (source.get("title"), source.get("page_age"))
 
 
 @pytest.mark.parametrize("error", [None, "max_uses_exceeded", "too_many_requests"])

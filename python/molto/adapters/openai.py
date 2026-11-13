@@ -77,7 +77,6 @@ from molto.types.openai_responses import (
 from molto.utils.web_search import (
     citation_from_responses,
     citation_to_responses,
-    is_translatable_responses_source,
     search_call_from_responses,
     search_call_to_responses,
     search_call_to_responses_action,
@@ -405,12 +404,9 @@ class OpenAIResponsesAdapter(
             parts = [call]
             if call.action == "search" and call.status in {"completed", "failed"}:
                 sources = (message.get("action") or {}).get("sources") or []
-                if not all(is_translatable_responses_source(source) for source in sources):
-                    raise UnsupportedInput(
-                        "Only URL web search sources can be translated, with a string `url` "
-                        "and no fields other than `type`, `title`, `page_age`, and "
-                        "`extra_content`."
-                    )
+                # Neither Messages nor Chat can represent a source without a URL.
+                if any(source["type"] == "api" for source in sources):
+                    raise UnsupportedInput("Only URL web search sources can be translated.")
                 parts.append(search_result_from_responses(message))
             return parts
         if message_type == "reasoning":

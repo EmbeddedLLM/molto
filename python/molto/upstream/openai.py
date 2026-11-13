@@ -230,15 +230,18 @@ def _search_parts(item: Any) -> tuple[SearchCall, SearchResult | None]:
     For example, a completed search becomes a call carrying the query and a
     result carrying source URLs, linked by the call ID. Failed searches produce
     a result with error="unavailable"; unfinished searches and browsing actions
-    produce only a call. Missing sources stay None rather than becoming [].
-    The caller emits each returned part's start/end events.
+    produce only a call. Missing sources, or only non-URL sources, stay None
+    rather than becoming []. The caller emits each returned part's start/end events.
     """
-    data = item.model_dump(exclude_unset=True, exclude={"action": {"sources"}})
+    # The SDK response models declare only URL sources, but OpenAI also returns `api`
+    # sources such as `oai-weather`. Dumping them through the item raises serializer
+    # warnings, so sources are dumped separately below.
+    data = item.model_dump(exclude={"action": {"sources"}})
     # Interrupted searches may only have their initial snapshot, which lacks an action.
     sources = getattr(getattr(item, "action", None), "sources", None)
     if sources is not None:
-        # OpenAI also returns sources the SDK does not declare, such as `api` sources.
-        # Dump them separately so only these expected values skip serializer warnings.
+        # Only these expected values skip serializer warnings. `exclude_unset` keeps the
+        # provider's wire shape instead of adding the SDK's unset `url: None`.
         data["action"]["sources"] = [
             source.model_dump(exclude_unset=True, warnings=False) for source in sources
         ]
@@ -901,6 +904,9 @@ class OpenAIResponsesClient(
                     usage = _responses_usage(metadata.usage)
                     if usage is not None:
                         # Dump metadata so both SDK-typed fields and extras have the same shape.
+                        # Only `tool_usage` is dumped: the full response would also serialize
+                        # output `api` search sources, which the SDK does not declare and
+                        # which would raise serializer warnings.
                         tool_usage = (
                             metadata.model_dump(include={"tool_usage"}).get("tool_usage") or {}
                         )

@@ -28,6 +28,7 @@ from openai.types.responses.response_function_web_search_param import (
     ActionFind,
     ActionOpenPage,
     ActionSearch,
+    ActionSearchSource,
     ResponseFunctionWebSearchParam,
 )
 from openai.types.responses.response_includable import ResponseIncludable
@@ -59,16 +60,7 @@ from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Discriminator,
-    Field,
-    TypeAdapter,
-    field_validator,
-    model_validator,
-    with_config,
-)
+from pydantic import BaseModel, Discriminator, Field, TypeAdapter, field_validator, model_validator
 from typing_extensions import Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
@@ -108,27 +100,23 @@ class AnthropicSearchSourceMetadataParam(TypedDict, total=False):
     page_age: str | None
 
 
-# Nested TypedDicts inherit the enclosing open source's `extra="allow"`. Molto's own
-# continuation state forbids unknown keys explicitly, and its nested types inherit that.
-@with_config(ConfigDict(extra="forbid"))
 class ResponseSearchSourceExtraContentParam(TypedDict):
     anthropic: AnthropicSearchSourceMetadataParam
 
 
-@with_config(ConfigDict(extra="allow"))
-class ResponseWebSearchSourceParam(TypedDict, total=False):
-    """A search source of any type, such as a URL or OpenAI's `oai-weather` `api` source.
-
-    The SDK declares only URL sources, but OpenAI returns others, so source types and
-    fields are left for the upstream to validate. Only Molto's own `extra_content` is
-    checked, because Molto consumes it and no upstream can.
-    """
-
+class ResponseWebSearchSourceParam(ActionSearchSource, total=False):
     extra_content: ResponseSearchSourceExtraContentParam
 
 
+class ResponseWebSearchApiSourceParam(TypedDict):
+    """A non-URL source, such as `oai-weather`, that OpenAI returns but the SDK omits."""
+
+    type: Required[Literal["api"]]
+    name: Required[str]
+
+
 class ResponseWebSearchActionSearchParam(ActionSearch, total=False):
-    sources: list[ResponseWebSearchSourceParam]
+    sources: list[ResponseWebSearchSourceParam | ResponseWebSearchApiSourceParam]
 
 
 class ResponseFunctionWebSearchHistoryParam(ResponseFunctionWebSearchParam):
