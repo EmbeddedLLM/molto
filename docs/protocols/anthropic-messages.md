@@ -147,7 +147,7 @@ The native stream may start a block with content already present in the `content
 
 This path retains native content variants, event variants, provider service tiers, cache metadata, `tool_use.caller`, and other fields the Anthropic SDK supports. Wire-level `ping` keepalives are filtered by the SDK before events are yielded, so callers never observe them on this path either. Errors follow the [shared policy](../errors.md).
 
-Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
+Request bodies may be dictionaries or `AnthropicMessagesCreateRequest` models. Models use their normal `model_dump()` behavior. Unknown top-level dictionary properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 ## When the application speaks Messages
 

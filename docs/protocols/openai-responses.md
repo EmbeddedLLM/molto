@@ -117,7 +117,7 @@ An assistant output message may carry `phase="commentary"` or `phase="final_answ
 - yields the SDK's `ResponseStreamEvent` models directly when streaming; and
 - returns the SDK's `Response` directly when non-streaming.
 
-Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. The SDK and provider own request validation. Pydantic model bodies remain supported through conversion to dictionaries. Errors follow the [shared policy](../errors.md).
+Neither native result path crosses the normalized representation. The stream retains native event variants, fields, item IDs, phases, lifecycle shape, and service tier; the non-streaming path retains the native response model directly. The SDK and provider own request validation. Request bodies may be dictionaries or `OpenAIResponsesCreateRequest` models; models use their normal `model_dump()` behavior. Errors follow the [shared policy](../errors.md).
 
 Native passthrough forwards `include` and `store` unchanged. Their behavior-neutral treatment described below applies only when Responses is translated to Chat Completions or Messages.
 

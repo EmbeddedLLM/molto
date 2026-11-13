@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator, Mapping
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
-from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
@@ -186,7 +185,7 @@ class Molto:
 
     async def responses(
         self,
-        body: BaseModel | dict[str, Any],
+        body: OpenAIResponsesCreateRequest | dict[str, Any],
         endpoint: Endpoint = "responses",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -200,7 +199,7 @@ class Molto:
         or Anthropic Messages.
 
         Args:
-            body (BaseModel | dict[str, Any]): Request payload.
+            body: Request dictionary or OpenAIResponsesCreateRequest.
             endpoint: Upstream wire protocol. Defaults to "responses".
             provider: Implementation serving the protocol and its capability profile.
                 Defaults to the canonical provider for the endpoint.
@@ -211,6 +210,8 @@ class Molto:
                 headers are removed before the provider request.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
+        if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
+            raise TypeError("body must be a dictionary or OpenAIResponsesCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -279,7 +280,7 @@ class Molto:
 
     async def chat_completions(
         self,
-        body: BaseModel | dict[str, Any],
+        body: OpenAIChatCompletionsCreateRequest | dict[str, Any],
         endpoint: Endpoint = "chat/completions",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -294,6 +295,8 @@ class Molto:
         HTTP destination.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
+        if not isinstance(body, (dict, OpenAIChatCompletionsCreateRequest)):
+            raise TypeError("body must be a dictionary or OpenAIChatCompletionsCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -348,7 +351,7 @@ class Molto:
 
     async def messages(
         self,
-        body: BaseModel | dict[str, Any],
+        body: AnthropicMessagesCreateRequest | dict[str, Any],
         endpoint: Endpoint = "messages",
         provider: Provider | None = None,
         api_key: str | None = None,
@@ -369,6 +372,8 @@ class Molto:
         `"auto"`. The policy has no effect with Chat upstream or native Messages.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
+        if not isinstance(body, (dict, AnthropicMessagesCreateRequest)):
+            raise TypeError("body must be a dictionary or AnthropicMessagesCreateRequest.")
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)

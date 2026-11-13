@@ -1,7 +1,6 @@
 """Request-boundary validation and preservation of provider-owned input fields."""
 
 from copy import deepcopy
-from enum import Enum
 from itertools import permutations
 from typing import Any
 
@@ -17,7 +16,7 @@ from openai import AsyncOpenAI
 from openai import BadRequestError as OpenAIBadRequestError
 from openai import omit as openai_omit
 from openai.types.shared import Reasoning
-from pydantic import BaseModel, Field, ValidationError, create_model, field_serializer
+from pydantic import BaseModel, ValidationError, create_model
 
 from molto import Molto
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
@@ -47,13 +46,6 @@ _TRANSLATED_ROUTES = tuple(permutations(PROTOCOLS, 2))
 
 def _first_message(body: dict[str, Any], protocol: Protocol) -> dict[str, Any]:
     return body["input" if protocol == "responses" else "messages"][0]
-
-
-def _add_unknown_fields(body: dict[str, Any], protocol: Protocol) -> None:
-    body["provider_option"] = {"enabled": True, "value": None}
-    message = _first_message(body, protocol)
-    message["provider_message"] = "message-extension"
-    message["content"][0]["provider_part"] = {"value": None}
 
 
 async def _sdk_result(
@@ -186,30 +178,31 @@ async def test_native_non_boolean_stream_preserves_provider_error(
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
-async def test_native_model_input_retains_allowed_nested_extras(protocol: Protocol) -> None:
-    """Ensures model inputs retain per-call allowed extras despite stricter declared schemas."""
-    path = _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
-    body = deepcopy(_read_cassette(path)["request"]["body"])
-    _add_unknown_fields(body, protocol)
-    body["temperature"] = None
-    request = _REQUEST_MODELS[protocol].model_validate(body, extra="allow")
+@pytest.mark.parametrize("stream", [False, True], ids=["non-stream", "stream"])
+async def test_native_molto_models_omit_null_parameters(protocol: Protocol, stream: bool) -> None:
+    """Ensures Molto model omission rules retain exact request and parsed SDK parity."""
+    mode = "stream" if stream else "non_stream"
+    path = _matched_cassette_path("simple_text", protocol, f"{mode}-00.yaml")
+    expected = deepcopy(_read_cassette(path)["request"]["body"])
+    request = _REQUEST_MODELS[protocol].model_validate({**expected, "temperature": None})
     original = request.model_copy(deep=True)
-    expected = {key: value for key, value in body.items() if key != "temperature"}
     async with _get_http_client([path], protocol, expected_body=expected) as http_client:
-        reference = await _sdk_result(
-            http_client,
-            protocol,
-            {key: value for key, value in expected.items() if key != "provider_option"},
-            extra_body={"provider_option": expected["provider_option"]},
-        )
+        reference = await _sdk_result(http_client, protocol, expected)
     async with _get_http_client([path], protocol, expected_body=expected) as http_client:
         result = await _coordinator(Molto(http_client=http_client), protocol)(
             body=request, endpoint=protocol, api_key="test-api-key"
         )
-        events = [event async for event in result]
-        assert_stream_lifecycle(protocol, events)
-    assert [type(event) for event in events] == [type(event) for event in reference]
-    assert [event.model_dump() for event in events] == [event.model_dump() for event in reference]
+        if stream:
+            async with result:
+                events = [event async for event in result]
+            assert_stream_lifecycle(protocol, events)
+            assert [type(event) for event in events] == [type(event) for event in reference]
+            assert [event.model_dump() for event in events] == [
+                event.model_dump() for event in reference
+            ]
+        else:
+            assert type(result) is type(reference)
+            assert result.model_dump() == reference.model_dump()
     assert request == original
 
 
@@ -256,68 +249,36 @@ async def test_translated_requests_reject_unknown_top_level_fields(
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
-async def test_generic_model_input_preserves_default_values(
+async def test_coordinators_reject_caller_defined_models(
     downstream: Protocol, upstream: Protocol
 ) -> None:
-    """Ensures defaults on caller-owned request models survive native and translated routes."""
-    mode = "non_stream" if downstream == upstream else "stream"
-    downstream_path = _matched_cassette_path("simple_text", downstream, f"{mode}-00.yaml")
-    upstream_path = _matched_cassette_path("simple_text", upstream, f"{mode}-00.yaml")
-    body = deepcopy(_read_cassette(downstream_path)["request"]["body"])
-    body["stream"] = False
-    request = create_model(
-        "DefaultRequest", **{key: (Any, value) for key, value in body.items()}
-    )()
-    assert not request.model_fields_set
-    async with _get_http_client(
-        [upstream_path],
-        upstream,
-        translated=downstream != upstream,
-        expected_body=body if downstream == upstream else None,
-    ) as http_client:
+    """Ensures unsupported caller models fail before transport on every route."""
+    path = _matched_cassette_path("simple_text", downstream, "stream-00.yaml")
+    body = _read_cassette(path)["request"]["body"]
+    request = create_model("CallerRequest", **{key: (Any, value) for key, value in body.items()})()
+    requests: list[Request] = []
+    async with _get_http_client([], requests=requests) as http_client:
+        with pytest.raises(TypeError, match=_REQUEST_MODELS[downstream].__name__):
+            await _coordinator(Molto(http_client=http_client), downstream)(
+                body=request, endpoint=upstream, api_key="test-api-key"
+            )
+    assert not requests
+
+
+@pytest.mark.parametrize(("downstream", "upstream"), _TRANSLATED_ROUTES)
+async def test_translated_molto_model_inputs_retain_sdk_parity(
+    downstream: Protocol, upstream: Protocol
+) -> None:
+    """Ensures supported Molto model bodies retain translated request and response parity."""
+    path = _matched_cassette_path("simple_text", downstream, "stream-00.yaml")
+    upstream_path = _matched_cassette_path("simple_text", upstream, "stream-00.yaml")
+    body = deepcopy(_read_cassette(path)["request"]["body"])
+    request = _REQUEST_MODELS[downstream].model_validate({**body, "stream": False})
+    async with _get_http_client([upstream_path], upstream, translated=True) as http_client:
         result = await _coordinator(Molto(http_client=http_client), downstream)(
             body=request, endpoint=upstream, api_key="test-api-key"
         )
-    await _assert_text_response_parity(result, downstream, mode)
-
-
-@pytest.mark.parametrize("protocol", PROTOCOLS)
-async def test_native_caller_models_preserve_serialization_and_sdk_parity(protocol: Protocol):
-    """Ensures caller defaults, aliases, and enums serialize without adding null defaults."""
-
-    class MetadataValue(Enum):
-        LABEL = "example"
-
-    path = _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
-    body = deepcopy(_read_cassette(path)["request"]["body"])
-    body.pop("service_tier", None)
-    if protocol == "messages":
-        body["system"] = None
-    tier = "standard_only" if protocol == "messages" else "default"
-    caller_model = create_model(
-        "CallerRequest",
-        **{key: (Any, value) for key, value in body.items()},
-        temperature=(float | None, None),
-        service_tier_=(str, Field(default=tier, alias="service_tier")),
-        metadata=(dict[str, Any], {"label": MetadataValue.LABEL}),
-    )
-    request = caller_model()
-    expected = {
-        **{key: value for key, value in body.items() if value is not None},
-        "service_tier": tier,
-        "metadata": {"label": "example"},
-    }
-    async with _get_http_client([path], protocol, expected_body=expected) as http_client:
-        reference = await _sdk_result(http_client, protocol, expected)
-    async with _get_http_client([path], protocol, expected_body=expected) as http_client:
-        result = await _coordinator(Molto(http_client=http_client), protocol)(
-            body=request, endpoint=protocol, api_key="test-api-key"
-        )
-        events = [event async for event in result]
-    assert [type(event) for event in events] == [type(event) for event in reference]
-    assert [event.model_dump() for event in events] == [event.model_dump() for event in reference]
-    assert not request.model_fields_set
-    assert request.metadata == {"label": MetadataValue.LABEL}
+    await _assert_text_response_parity(result, downstream, "stream")
 
 
 @pytest.mark.parametrize("max_tokens", ["missing", None])
@@ -383,30 +344,20 @@ async def test_native_requests_preserve_iterable_history(protocol: Protocol):
     assert [event.model_dump() for event in events] == [event.model_dump() for event in reference]
 
 
-@pytest.mark.parametrize("model_body", [False, True])
-async def test_translation_keeps_nested_caller_model_attribute_values(model_body: bool):
-    """Ensures native serialization changes do not alter translated caller-model inputs."""
+@pytest.mark.parametrize("protocol", PROTOCOLS)
+async def test_native_requests_reject_nested_caller_models(protocol: Protocol) -> None:
+    """Ensures unsupported nested models cannot become iterable field/value pairs."""
 
-    class CallerMessage(BaseModel):
-        role: str
-        content: Any
+    class CallerMetadata(BaseModel):
+        label: str = "example"
 
-        @field_serializer("content")
-        def serialize_content(self, value):
-            return "Native-only serialization"
-
-    path = _matched_cassette_path("simple_text", "messages", "stream-00.yaml")
-    upstream_path = _matched_cassette_path("simple_text", "responses", "stream-00.yaml")
+    path = _matched_cassette_path("simple_text", protocol, "stream-00.yaml")
     body = deepcopy(_read_cassette(path)["request"]["body"])
-    body["messages"] = [CallerMessage(**message) for message in body["messages"]]
-    body["stream"] = False
-    request = (
-        create_model("CallerRequest", **{key: (Any, value) for key, value in body.items()})()
-        if model_body
-        else body
-    )
-    async with _get_http_client([upstream_path], "responses", translated=True) as http_client:
-        result = await Molto(http_client=http_client).messages(
-            body=request, endpoint="responses", api_key="test-api-key"
-        )
-    await _assert_text_response_parity(result, "messages", "stream")
+    body["metadata"] = CallerMetadata()
+    requests: list[Request] = []
+    async with _get_http_client([], requests=requests) as http_client:
+        with pytest.raises(TypeError, match="Serialize caller-defined Pydantic models"):
+            await _coordinator(Molto(http_client=http_client), protocol)(
+                body=body, api_key="test-api-key"
+            )
+    assert not requests

@@ -27,7 +27,7 @@ Native same-protocol routes preserve request dictionaries, including unknown pro
 
 Native coordinators select streaming only when `body["stream"]` is the boolean `True`. Other values are forwarded unchanged for SDK and provider validation; values such as `1` or `"false"` do not select Molto's streaming path.
 
-On native routes, Pydantic model bodies are converted to a request dictionary. Molto request models omit unset and `None`-valued model attributes, while accepted extras and explicit nulls inside dictionaries remain available. Caller-defined models retain useful defaults and serialize JSON values and aliases; their nested values follow their own serializers. SDK models retain their SDK serialization behavior. Use a dictionary when explicit nulls must reach the provider.
+Each coordinator accepts a dictionary or its corresponding Molto request model. Serialize caller-defined Pydantic models to dictionaries before passing them to Molto. On native routes, Molto request models use their normal `model_dump()` behavior, which omits unset and `None`-valued fields. Model serialization can discard unknown fields, including extras accepted through `extra="allow"`; use a dictionary to preserve unknown fields and explicit nulls. SDK models nested in native request dictionaries retain their SDK serialization behavior.
 
 ## Choose a protocol
 

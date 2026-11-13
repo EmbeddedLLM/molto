@@ -107,7 +107,7 @@ kind: Annotated[
 
 Keep all field default assignments outside `Annotated`; do not pass defaults such as `default=None` to `Field`.
 
-Local protocol request models inherit from `ExcludeNoneModel`, which rejects unknown fields. Translated upstream requests use their `model_dump()` so unset and `None` values do not become unintended provider parameters. Native conversion omits unset and `None`-valued model attributes while retaining accepted extras and explicit nulls inside dictionaries. Native request dictionaries bypass these models and retain explicit nulls.
+Local protocol request models inherit from `ExcludeNoneModel`, which rejects unknown fields. Native Molto model inputs and translated upstream requests use their `model_dump()` so unset and `None` values do not become unintended provider parameters. Do not recover extras discarded by model serialization. Native request dictionaries bypass these models and retain unknown fields and explicit nulls.
 
 The cross-protocol contract is: Molto is strict during input validation but lenient during output handling. Every accepted input field must be effected, and any output stemming from an accepted input set must be tolerated. Apply it through these rules:
 
@@ -150,7 +150,7 @@ Map usage semantically and construct the public usage payload explicitly. This p
 When downstream and upstream use the same protocol, preserve the native protocol instead of round-tripping through the normalized IR.
 
 - Preserve the request dictionary, including unknown properties, nested extensions, and explicit nulls, without validating it against Molto's protocol model.
-- Convert Pydantic model bodies to dictionaries at the boundary, retaining caller-model defaults and JSON serialization, SDK serialization behavior, and Molto models' declared-field omissions.
+- Accept dictionaries or the corresponding Molto request model as coordinator bodies. Callers must serialize custom Pydantic models themselves. On native routes, use Molto models' normal `model_dump()` and retain SDK serialization for SDK models nested in dictionaries.
 - Enforce the destination restriction on Molto's own Anthropic search-history extension before native transport.
 - Yield the SDK's native event or chunk models directly for streaming requests.
 - Return the SDK's native response model directly for non-streaming requests.

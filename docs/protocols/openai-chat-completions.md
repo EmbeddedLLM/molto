@@ -96,7 +96,7 @@ When both sides use Chat Completions, Molto preserves the request dictionary and
 
 This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, and provider extensions accepted by the pinned SDK. Errors follow the [shared policy](../errors.md). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
-Pydantic model bodies remain supported through conversion to dictionaries. Unknown top-level body properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
+Request bodies may be dictionaries or `OpenAIChatCompletionsCreateRequest` models. Models use their normal `model_dump()` behavior. Unknown top-level dictionary properties reach the SDK through `extra_body`, with explicit caller `extra_body` overrides taking precedence. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
 ## When the application speaks Chat Completions
 

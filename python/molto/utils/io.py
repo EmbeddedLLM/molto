@@ -5,39 +5,23 @@ import orjson
 from anthropic import BaseModel as AnthropicModel
 from openai import BaseModel as OpenAIModel
 from pydantic import BaseModel
-from pydantic_core import to_jsonable_python
 
 from molto.types.base import ExcludeNoneModel
 from molto.utils.types import JSONInput, JSONOutput
 
 
-def request_to_dict(body: BaseModel | dict[str, Any]) -> dict[str, Any]:
-    """Serialize native input while retaining extensions on Molto request models."""
+def request_to_dict(body: ExcludeNoneModel | dict[str, Any]) -> dict[str, Any]:
+    """Prepare native input using Molto and SDK model serialization."""
 
     def convert(value: Any) -> Any:
         if isinstance(value, (OpenAIModel, AnthropicModel)):
             return value.to_dict(mode="json")
         if isinstance(value, ExcludeNoneModel):
-            # Schema-based dumps can omit extras accepted by a per-call override,
-            # including keys inside TypedDict fields. Retain those values while
-            # preserving Molto's omission of unset and None-valued declared fields.
-            fields = {
-                key: item
-                for key, item in value
-                if key in (value.model_extra or {})
-                or (key in value.model_fields_set and item is not None)
-            }
-            return to_jsonable_python(convert(fields))
-        elif isinstance(value, BaseModel):
-            # Caller models own aliases and serializers; meaningful default values
-            # must survive even when the caller did not explicitly set the fields.
-            serialized = value.model_dump(mode="json", by_alias=True, exclude_none=True)
-            extras = {
-                key: item
-                for key, item in (value.model_extra or {}).items()
-                if key not in serialized
-            }
-            return {**serialized, **to_jsonable_python(convert(extras))}
+            return value.model_dump()
+        if isinstance(value, BaseModel):
+            # Pydantic models are iterable; do not turn unsupported models into
+            # lists of field/value pairs below.
+            raise TypeError("Serialize caller-defined Pydantic models to dictionaries first.")
         if isinstance(value, dict):
             return {key: convert(item) for key, item in value.items()}
         # SDK array parameters accept iterables. Materialize them once so metadata
