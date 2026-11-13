@@ -256,13 +256,12 @@ def search_result_from_responses(item: dict[str, Any]) -> SearchResult:
         else:
             url_sources.append(search_source_from_responses(source))
     # OpenAI also returns non-URL sources such as {"type": "api", "name": "oai-weather"}.
-    # They have no normalized equivalent, so they stay in `extra_fields`. A result
-    # backed only by them is unknown, not empty: an empty list would claim no results.
+    # They have no normalized equivalent, so they are dropped. A result backed only by
+    # them is unknown, not empty: an empty list would claim the search found nothing.
     return SearchResult(
         tool_call_id=item["id"],
         sources=None if sources is None or (non_url_sources and not url_sources) else url_sources,
         error="unavailable" if item.get("status") == "failed" else None,
-        **({"non_url_sources": non_url_sources} if non_url_sources else {}),
     )
 
 

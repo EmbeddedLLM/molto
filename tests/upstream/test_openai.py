@@ -3937,26 +3937,25 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
 
 @pytest.mark.filterwarnings("error")
 @pytest.mark.parametrize(
-    ("sources", "expected_urls", "non_url_sources"),
+    ("sources", "expected_urls"),
     [
-        ([], [], None),
-        ([{"type": "url", "url": "https://a"}], ["https://a"], None),
+        ([], []),
+        ([{"type": "url", "url": "https://a"}], ["https://a"]),
         # Compatible providers may omit the source type.
-        ([{"url": "https://a"}], ["https://a"], None),
-        ([{"type": "api", "name": "oai-weather"}], None, [{"type": "api", "name": "oai-weather"}]),
+        ([{"url": "https://a"}], ["https://a"]),
+        ([{"type": "api", "name": "oai-weather"}], None),
         (
             [{"type": "api", "name": "oai-weather"}, {"type": "url", "url": "https://a"}],
             ["https://a"],
-            [{"type": "api", "name": "oai-weather"}],
         ),
     ],
 )
-def test_search_parts_separate_url_and_non_url_sources(sources, expected_urls, non_url_sources):
-    """Ensures only URL sources are normalized and others are retained as provider output.
+def test_search_parts_separate_url_and_non_url_sources(sources, expected_urls):
+    """Ensures only URL sources are normalized and non-URL sources are dropped.
 
     A result backed only by non-URL sources is unknown rather than empty, so it never
-    claims that the search found nothing. Retained sources keep the provider's wire
-    shape, and SDK-undeclared values raise no serializer warnings.
+    claims that the search found nothing. SDK-undeclared values raise no serializer
+    warnings.
     """
     item = construct_type(
         type_=ResponseOutputItem,
@@ -3974,4 +3973,3 @@ def test_search_parts_separate_url_and_non_url_sources(sources, expected_urls, n
     assert (
         None if result.sources is None else [source.url for source in result.sources]
     ) == expected_urls
-    assert result.extra_fields.get("non_url_sources") == non_url_sources

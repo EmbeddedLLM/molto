@@ -132,9 +132,9 @@ Available titles and `page_age` are preserved; unavailable age is omitted or nul
 
 ### Non-URL sources
 
-OpenAI can also return sources that are not web pages, such as `{"type": "api", "name": "oai-weather"}` for a weather lookup or `oai-calculator` for arithmetic, and accepts them back as history. The OpenAI SDK declares only `url` sources. Native request dictionaries are forwarded unchanged, and `OpenAIResponsesCreateRequest` also accepts `api` sources.
+OpenAI can also return sources that are not web pages, such as `{"type": "api", "name": "oai-weather"}` for a weather lookup, and accepts them back as history. The OpenAI SDK declares only `url` sources. Native request dictionaries are forwarded unchanged, and `OpenAIResponsesCreateRequest` also accepts `api` sources.
 
-Neither Messages nor Chat can represent a source without a URL, so translated output projects only URL sources. A search answered solely by non-URL sources has an unknown result: Messages keeps the `server_tool_use` block but omits its result, rather than reporting an empty result list as if nothing were found. A mixed result lists only its URL sources, classified by URL presence because compatible providers may omit `type`. Translated input is lossless-or-rejected, so a completed or failed search in Responses history that carries an `api` source raises `UnsupportedInput` before transport.
+Neither Messages nor Chat can represent a source without a URL, so translated output projects only URL sources. A search answered solely by non-URL sources has an unknown result: Messages keeps the `server_tool_use` block but omits its result, rather than reporting an empty result list as if nothing were found. A mixed result lists only its URL sources, classified by URL presence because compatible providers may omit `type`. Translated input is lossless-or-rejected, so Responses search history that carries an `api` source raises `UnsupportedInput` before transport.
 
 Translated Messages omits Responses `open_page` and `find_in_page` operations, retaining the answer and citations.
 

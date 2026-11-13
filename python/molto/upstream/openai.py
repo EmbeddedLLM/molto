@@ -240,8 +240,8 @@ def _search_parts(item: Any) -> tuple[SearchCall, SearchResult | None]:
     # Interrupted searches may only have their initial snapshot, which lacks an action.
     sources = getattr(getattr(item, "action", None), "sources", None)
     if sources is not None:
-        # Only these expected values skip serializer warnings. `exclude_unset` keeps the
-        # provider's wire shape instead of adding the SDK's unset `url: None`.
+        # Source dumps suppress the expected warning for SDK-undeclared `api` sources.
+        # `exclude_unset` keeps the provider's wire shape instead of adding `url: None`.
         data["action"]["sources"] = [
             source.model_dump(exclude_unset=True, warnings=False) for source in sources
         ]

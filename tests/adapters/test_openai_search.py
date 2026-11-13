@@ -183,7 +183,7 @@ def test_responses_search_normalizes_options_budget_and_history(anthropic_extra_
     assert body["input"][1]["content"][0]["annotations"][0]["end_index"] == 6
 
 
-@pytest.mark.parametrize("status", ["completed", "failed"])
+@pytest.mark.parametrize("status", ["completed", "failed", "in_progress"])
 def test_responses_search_history_rejects_api_sources(status):
     """Ensures translated history rejects an `api` source instead of dropping it.
 

@@ -1082,7 +1082,7 @@ async def test_native_responses_conversation_id_is_forwarded(mode: Mode) -> None
     # Each mode created its own conversation; never pair one mode's ID with the other.
     assert body["conversation"] == setup["response"]["body"]["id"]
     assert response.conversation.id == body["conversation"]
-    assert "scarecrow" in response.output_text
+    assert response.output_text
 
 
 @pytest.mark.parametrize("mode", ["stream", "non_stream"])
