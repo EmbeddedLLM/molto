@@ -25,6 +25,8 @@ Cross-protocol semantic input rejections raise `molto.types.exceptions.Unsupport
 
 Native same-protocol routes preserve request dictionaries, including unknown properties, nested extensions, and explicit nulls, without validating them against Molto's protocol models. The SDK and upstream provider own request validation. Explicit `extra_body` overrides take precedence over fields supplied in `body`. Molto still enforces the destination restriction on its own [Anthropic search metadata extension](web-search.md#preserving-anthropic-search-history).
 
+Native coordinators select streaming only when `body["stream"]` is the boolean `True`. Other values are forwarded unchanged for SDK and provider validation; values such as `1` or `"false"` do not select Molto's streaming path.
+
 On native routes, Pydantic model bodies are converted to a request dictionary. Molto request models omit unset and `None`-valued model attributes, while accepted extras and explicit nulls inside dictionaries remain available. Caller-defined models retain useful defaults and serialize JSON values and aliases; their nested values follow their own serializers. SDK models retain their SDK serialization behavior. Use a dictionary when explicit nulls must reach the provider.
 
 ## Choose a protocol

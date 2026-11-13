@@ -324,6 +324,7 @@ class AnthropicMessagesClient(
     """Anthropic Messages transport for native and normalized streaming paths."""
 
     DEFAULT_BASE_URL = "https://api.anthropic.com"
+    REQUEST_MODEL = AnthropicMessagesCreateRequest
 
     def _make_anthropic_client(self) -> AsyncAnthropic:
         return AsyncAnthropic(
@@ -338,7 +339,7 @@ class AnthropicMessagesClient(
         try:
             sdk_client = self._make_anthropic_client()
             stream = await sdk_client.messages.create(
-                **self._request_kwargs(request, AnthropicMessagesCreateRequest),
+                **self._request_kwargs(request),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Messages request did not return a stream.")
@@ -355,7 +356,7 @@ class AnthropicMessagesClient(
         try:
             sdk_client = self._make_anthropic_client()
             response = await sdk_client.messages.create(
-                **self._request_kwargs(request, AnthropicMessagesCreateRequest),
+                **self._request_kwargs(request),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError("Messages request did not return a non-streaming response.")

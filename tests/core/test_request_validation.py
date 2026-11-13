@@ -8,11 +8,13 @@ from typing import Any
 import pytest
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
+from anthropic import BadRequestError as AnthropicBadRequestError
 from anthropic import omit as anthropic_omit
 from anthropic.types import TextBlock
 from httpx import AsyncClient, Request
 from openai import NOT_GIVEN as OPENAI_NOT_GIVEN
 from openai import AsyncOpenAI
+from openai import BadRequestError as OpenAIBadRequestError
 from openai import omit as openai_omit
 from openai.types.shared import Reasoning
 from pydantic import BaseModel, Field, ValidationError, create_model, field_serializer
@@ -21,6 +23,8 @@ from molto import Molto
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
+from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
 from tests.core.test_interface import (
     PROTOCOLS,
@@ -82,11 +86,9 @@ async def _assert_text_response_parity(result, protocol: Protocol, mode: str) ->
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
-@pytest.mark.parametrize(
-    "stream", [False, True, 1], ids=["non-stream", "stream", "integer-stream"]
-)
+@pytest.mark.parametrize("stream", [False, True], ids=["non-stream", "stream"])
 async def test_native_requests_preserve_provider_fields_and_sdk_parity(
-    protocol: Protocol, stream: bool | int
+    protocol: Protocol, stream: bool
 ) -> None:
     """Ensures native input reaches the SDK unchanged while extensions stay body fields."""
     mode = "stream" if stream else "non_stream"
@@ -143,6 +145,44 @@ async def test_native_requests_preserve_provider_fields_and_sdk_parity(
     assert not requests[0].url.query
     assert body == original_body
     assert overrides == original_overrides
+
+
+@pytest.mark.parametrize("protocol", PROTOCOLS)
+@pytest.mark.parametrize("stream", [1, "false"], ids=["integer", "string"])
+async def test_native_non_boolean_stream_preserves_provider_error(
+    protocol: Protocol, stream: int | str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensures truthy non-booleans use the response path and retain SDK error fidelity."""
+    path = _matched_cassette_path("error-invalid_request_error", protocol, "stream-00.yaml")
+    body = {**deepcopy(_read_cassette(path)["request"]["body"]), "stream": stream}
+    error_type = AnthropicBadRequestError if protocol == "messages" else OpenAIBadRequestError
+    client_type = {
+        "responses": OpenAIResponsesClient,
+        "chat/completions": OpenAIChatCompletionsClient,
+        "messages": AnthropicMessagesClient,
+    }[protocol]
+
+    def unexpected_stream(*args: Any) -> None:
+        raise AssertionError("Only the boolean True should select native_events")
+
+    monkeypatch.setattr(client_type, "native_events", unexpected_stream)
+    # Replay an existing provider error to verify forwarding and error handling,
+    # without claiming live acceptance of the modified stream value.
+    async with _get_http_client([path], protocol, expected_body=body) as http_client:
+        with pytest.raises(error_type) as reference:
+            await _sdk_result(http_client, protocol, body)
+    requests: list[Request] = []
+    async with _get_http_client(
+        [path], protocol, expected_body=body, requests=requests
+    ) as http_client:
+        with pytest.raises(error_type) as actual:
+            await _coordinator(Molto(http_client=http_client), protocol)(
+                body=body, api_key="test-api-key"
+            )
+    assert len(requests) == 1
+    assert type(actual.value) is type(reference.value)
+    assert actual.value.status_code == reference.value.status_code
+    assert actual.value.body == reference.value.body
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)

@@ -412,6 +412,7 @@ class OpenAIResponsesClient(
         return payload
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+    REQUEST_MODEL = OpenAIResponsesCreateRequest
 
     async def native_events(
         self, request: OpenAIResponsesCreateRequest | dict[str, Any]
@@ -420,7 +421,7 @@ class OpenAIResponsesClient(
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.responses.create(
-                **self._request_kwargs(request, OpenAIResponsesCreateRequest),
+                **self._request_kwargs(request),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Responses request did not return a stream.")
@@ -447,7 +448,7 @@ class OpenAIResponsesClient(
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.responses.create(
-                **self._request_kwargs(request, OpenAIResponsesCreateRequest),
+                **self._request_kwargs(request),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError("Responses request did not return a non-streaming response.")
@@ -973,6 +974,7 @@ class OpenAIChatCompletionsClient(
         return {"type": "function", "function": _function_tool_payload(tool)}
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
+    REQUEST_MODEL = OpenAIChatCompletionsCreateRequest
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest | dict[str, Any]
@@ -980,7 +982,7 @@ class OpenAIChatCompletionsClient(
         try:
             sdk_client = self._make_sdk_client()
             stream = await sdk_client.chat.completions.create(
-                **self._request_kwargs(request, OpenAIChatCompletionsCreateRequest),
+                **self._request_kwargs(request),
             )
             if not isinstance(stream, AsyncStream):
                 raise TypeError("Chat Completions request did not return a stream.")
@@ -999,7 +1001,7 @@ class OpenAIChatCompletionsClient(
         try:
             sdk_client = self._make_sdk_client()
             response = await sdk_client.chat.completions.create(
-                **self._request_kwargs(request, OpenAIChatCompletionsCreateRequest),
+                **self._request_kwargs(request),
             )
             if isinstance(response, AsyncStream):
                 raise TypeError(

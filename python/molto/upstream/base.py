@@ -22,6 +22,7 @@ class BaseClient[
     NativeResponseT: BaseModel,
 ](ABC):
     DEFAULT_BASE_URL: str
+    REQUEST_MODEL: type[NativeRequestT]
 
     def __init__(
         self,
@@ -45,15 +46,14 @@ class BaseClient[
         self.response_headers.clear()
         self.response_headers.update(headers)
 
-    def _request_kwargs(
-        self, request: NativeRequestT | dict[str, Any], model: type[NativeRequestT]
-    ) -> dict[str, Any]:
+    def _request_kwargs(self, request: NativeRequestT | dict[str, Any]) -> dict[str, Any]:
         """Separate JSON body extensions from the SDK's named body arguments."""
         body = request.model_dump() if isinstance(request, BaseModel) else request
         # Request model fields track SDK body parameters, excluding transport
         # options. Body keys such as extra_headers must remain JSON properties.
-        parameters = {key: value for key, value in body.items() if key in model.model_fields}
-        extensions = {key: value for key, value in body.items() if key not in model.model_fields}
+        body_fields = self.REQUEST_MODEL.model_fields
+        parameters = {key: value for key, value in body.items() if key in body_fields}
+        extensions = {key: value for key, value in body.items() if key not in body_fields}
         return {
             **parameters,
             "extra_body": {**extensions, **(self._extra_body or {})} or None,

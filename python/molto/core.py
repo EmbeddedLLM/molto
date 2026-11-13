@@ -231,7 +231,7 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            if body.get("stream"):
+            if body.get("stream") is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
@@ -308,7 +308,7 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            if body.get("stream"):
+            if body.get("stream") is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
@@ -383,7 +383,7 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
-            if body.get("stream"):
+            if body.get("stream") is True:
                 return await _prefetch_stream(
                     adapter.project_native_events(upstream.native_events(body)),
                     upstream.response_headers,
