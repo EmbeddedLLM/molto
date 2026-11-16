@@ -1,9 +1,37 @@
+from collections.abc import Iterable
 from typing import Any
 
 import orjson
+from anthropic import BaseModel as AnthropicModel
+from openai import BaseModel as OpenAIModel
 from pydantic import BaseModel
 
+from molto.types.base import ExcludeNoneModel
 from molto.utils.types import JSONInput, JSONOutput
+
+
+def request_to_dict(body: ExcludeNoneModel | dict[str, Any]) -> dict[str, Any]:
+    """Prepare native input using Molto and SDK model serialization."""
+
+    def convert(value: Any) -> Any:
+        if isinstance(value, (OpenAIModel, AnthropicModel)):
+            return value.to_dict(mode="json")
+        if isinstance(value, ExcludeNoneModel):
+            return value.model_dump()
+        if isinstance(value, BaseModel):
+            # Pydantic models are iterable; do not turn unsupported models into
+            # lists of field/value pairs below.
+            raise TypeError("Serialize caller-defined Pydantic models to dictionaries first.")
+        if isinstance(value, dict):
+            return {key: convert(item) for key, item in value.items()}
+        # SDK array parameters accept iterables. Materialize them once so metadata
+        # checks can inspect history without exhausting it before transport.
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
+            return [convert(item) for item in value]
+        return value
+
+    # Raw dictionaries may carry SDK omission markers that are not JSON values.
+    return convert(body)
 
 
 def json_loads(data: str) -> JSONOutput:

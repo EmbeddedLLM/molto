@@ -120,6 +120,44 @@ def test_request_dump_preserves_tool_content_part_lists():
     assert body.model_dump() == expected
 
 
+def test_request_tool_calls_remain_repeatable():
+    """Ensures repeated request serialization retains assistant tool-call history."""
+    body = {
+        "model": "model",
+        "messages": [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": "{}"},
+                    }
+                ],
+            }
+        ],
+    }
+    request = OpenAIChatCompletionsCreateRequest.model_validate(body)
+    assert request.model_dump() == body
+    assert request.model_dump() == body
+
+
+def test_request_validates_tool_calls_eagerly():
+    """Ensures malformed tool calls fail before adapters consume the request."""
+    with pytest.raises(ValidationError):
+        OpenAIChatCompletionsCreateRequest(
+            model="model",
+            messages=[
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {"id": "call_1", "type": "function", "function": {"name": "lookup"}}
+                    ],
+                }
+            ],
+        )
+
+
 @pytest.mark.parametrize(
     "content",
     [

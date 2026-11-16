@@ -623,6 +623,7 @@ def test_responses_terminal_search_snapshot_policy(field: str) -> None:
 
 
 async def test_extra_inputs():
+    """Ensures translated requests reject unknown input properties by default."""
     cassette_path = _matched_cassette_path("simple_text", "responses", "stream-00.yaml")
 
     async with _get_http_client([cassette_path]) as http_client:
@@ -632,12 +633,13 @@ async def test_extra_inputs():
         cassette = _read_cassette(cassette_path)
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             await client.responses(
+                endpoint="chat/completions",
                 body=dict(
                     messages=[
                         {"role": "user", "content": "Write one short sentence about the ocean."}
                     ],
                     **cassette["request"]["body"],
-                )
+                ),
             )
 
 
@@ -2518,7 +2520,9 @@ async def test_sampling_controls_preserve_public_request_and_sdk_output(
         downstream,
         upstream,
         controls,
-        {key: value for key, value in controls.items() if value is not None},
+        controls
+        if downstream == upstream
+        else {key: value for key, value in controls.items() if value is not None},
         stream=stream,
     )
 

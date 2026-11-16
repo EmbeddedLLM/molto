@@ -47,6 +47,57 @@ def test_request_dump_accepts_compatible_thinking_history_without_signature():
     assert AnthropicMessagesCreateRequest.model_validate(body).model_dump() == body
 
 
+@pytest.mark.parametrize("location", ["message", "tool-result", "system"])
+def test_request_citations_remain_repeatable(location):
+    """Ensures repeated request serialization retains nested text and citation history."""
+    text = {
+        "type": "text",
+        "text": "An answer",
+        "citations": [
+            {
+                "type": "web_search_result_location",
+                "cited_text": "An answer",
+                "encrypted_index": "opaque-index",
+                "title": "Example",
+                "url": "https://example.com/",
+            }
+        ],
+    }
+    body = {"model": "model", "max_tokens": 100, "messages": []}
+    if location == "system":
+        body["system"] = [text]
+    else:
+        content = (
+            {"type": "tool_result", "tool_use_id": "call_1", "content": [text]}
+            if location == "tool-result"
+            else text
+        )
+        body["messages"] = [{"role": "user", "content": [content]}]
+    request = AnthropicMessagesCreateRequest.model_validate(body)
+    assert request.model_dump() == body
+    assert request.model_dump() == body
+
+
+@pytest.mark.parametrize("location", ["tool-result", "citations", "system-citations"])
+def test_request_validates_nested_iterables_eagerly(location):
+    """Ensures malformed nested content fails before adapters consume the request."""
+    body = {"model": "model", "max_tokens": 100, "messages": []}
+    if location == "tool-result":
+        content = {
+            "type": "tool_result",
+            "tool_use_id": "call_1",
+            "content": [{"type": "text", "text": 42}],
+        }
+    else:
+        content = {"type": "text", "text": "An answer", "citations": [{"type": "invalid"}]}
+    if location == "system-citations":
+        body["system"] = [content]
+    else:
+        body["messages"] = [{"role": "user", "content": [content]}]
+    with pytest.raises(ValidationError):
+        AnthropicMessagesCreateRequest.model_validate(body)
+
+
 @pytest.mark.parametrize("sdk_block", [False, True])
 @pytest.mark.parametrize(
     "content",
