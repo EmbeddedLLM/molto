@@ -269,7 +269,7 @@ User text and tool-result text are always projected in explicit content-block li
 
 Reasoning effort is the portable control. For known Claude model IDs, Molto uses the installed Anthropic model profile to select adaptive thinking or manual extended thinking. Non-Claude model IDs on Messages-compatible endpoints default to adaptive thinking, as covered by the cross-protocol fixtures. In addition, current and future adaptive Claude families are force-treated as adaptive and `xhigh`-capable even when the pinned model table has no entry yet: `claude-mythos-preview` and any `claude-{fable,haiku,mythos,opus,sonnet}-<major>=5+` model ID.
 
-Bedrock's `anthropic.` and inference-profile prefixes are removed only for this capability lookup. The original model ID is preserved in the request.
+Any prefix before `claude-` is ignored only for this capability lookup, including vendor names, route names, and Bedrock inference profiles. The original model ID is preserved in the request.
 
 When the application speaks Messages, an inbound thinking block is normalized as summarized reasoning: Molto sets `reasoning.summary="detailed"` on the normalized request for both adaptive and `enabled` manual modes.
 

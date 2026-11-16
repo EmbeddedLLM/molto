@@ -782,13 +782,16 @@ def test_adapter_maps_thinking_configuration_to_reasoning_effort(
         ),
     ],
 )
+@pytest.mark.parametrize("prefix", ["", "vendor/", "custom.route."])
 def test_client_selects_model_supported_thinking_configuration(
     model: str,
     effort: str,
     thinking: dict,
     output_config: dict | None,
+    prefix: str,
 ):
-    """Ensures thinking mode and effort follow the target model capabilities."""
+    """Ensures thinking follows Claude capabilities regardless of provider/model prefixes."""
+    model = prefix + model
     body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[UserInput(content=[TextInput(content="Hello")])],
