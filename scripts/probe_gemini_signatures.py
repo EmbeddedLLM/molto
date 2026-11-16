@@ -146,9 +146,9 @@ async def run():
             source = original
             synthetic = not bool(signature(source))
             if synthetic:
-                source = await request(
-                    client, "generate_native_message_signature", MESSAGES, "none"
-                )
+                # The accepted continuation supplies a genuine message signature;
+                # combining it with the earlier call is explicitly synthetic.
+                source = control
             if source is None or not signature(source):
                 emit({"error": "No native message-level signature available"})
                 raise SystemExit(2)
@@ -161,6 +161,7 @@ async def run():
                     "comparison": "message_to_tool",
                     "synthetic_combination": synthetic,
                     "original_tool_signature_removed": bool(signature(call)),
+                    "signature_source": "native_continuation" if synthetic else "native_tool_turn",
                     "model": MODEL,
                     "reasoning_effort": "minimal",
                 }
