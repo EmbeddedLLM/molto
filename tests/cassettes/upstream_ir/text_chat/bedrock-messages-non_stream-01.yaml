@@ -1,0 +1,71 @@
+filename: 2026-11-16-01a1e429-0424-7ae1-a24e-78f0bf1009d3
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
+      role: user
+    - content:
+      - text: The ocean covers more than seventy percent of Earth's surface and remains
+          largely unexplored.
+        type: text
+      role: assistant
+    - content:
+      - text: Make that sentence shorter.
+        type: text
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '432'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1e429-0424-7ae1-a24e-78f0bf1009d3
+response:
+  body:
+    container: null
+    content:
+    - text: The ocean covers most of Earth's surface.
+      type: text
+    id: msg_bdrk_ulljohzzu6yuf3fiukvxkgxbbgwvvmyogrybfu3hiqizmfk5l7qq
+    model: anthropic.claude-haiku-4-5-20251001-v1:0
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      input_tokens: 45
+      output_tokens: 12
+      service_tier: standard
+  body_bytes: !!binary |
+    eyJtb2RlbCI6ImFudGhyb3BpYy5jbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxLXYxOjAiLCJpZCI6
+    Im1zZ19iZHJrX3VsbGpvaHp6dTZ5dWYzZml1a3Z4a2d4YmJnd3Z2bXlvZ3J5YmZ1M2hpcWl6bWZr
+    NWw3cXEiLCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjpbeyJ0
+    eXBlIjoidGV4dCIsInRleHQiOiJUaGUgb2NlYW4gY292ZXJzIG1vc3Qgb2YgRWFydGgncyBzdXJm
+    YWNlLiJ9XSwiY29udGFpbmVyIjpudWxsLCJzdG9wX3JlYXNvbiI6ImVuZF90dXJuIiwic3RvcF9z
+    ZXF1ZW5jZSI6bnVsbCwic3RvcF9kZXRhaWxzIjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMi
+    OjQ1LCJjYWNoZV9jcmVhdGlvbl9pbnB1dF90b2tlbnMiOjAsImNhY2hlX3JlYWRfaW5wdXRfdG9r
+    ZW5zIjowLCJjYWNoZV9jcmVhdGlvbiI6eyJlcGhlbWVyYWxfNW1faW5wdXRfdG9rZW5zIjowLCJl
+    cGhlbWVyYWxfMWhfaW5wdXRfdG9rZW5zIjowfSwib3V0cHV0X3Rva2VucyI6MTIsInNlcnZpY2Vf
+    dGllciI6InN0YW5kYXJkIn19
+  headers:
+    connection: keep-alive
+    content-length: '531'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-16T11:40:55.716289+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

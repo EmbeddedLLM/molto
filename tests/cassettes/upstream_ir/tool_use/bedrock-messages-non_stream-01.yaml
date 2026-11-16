@@ -1,0 +1,99 @@
+filename: 2026-11-16-01a1e429-09ae-7321-b723-f6b8fbb75e61
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    - content:
+      - id: toolu_bdrk_01R4Q8DYNcXziUU4fDWYLh3w
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: toolu_bdrk_01R4Q8DYNcXziUU4fDWYLh3w
+        type: tool_result
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: false
+    tool_choice:
+      disable_parallel_tool_use: true
+      name: add
+      type: tool
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '843'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1e429-09ae-7321-b723-f6b8fbb75e61
+response:
+  body:
+    container: null
+    content:
+    - id: toolu_bdrk_01TkfzG59NgrqYWmUh62CK5K
+      input:
+        a: 5
+        b: 7
+      name: add
+      type: tool_use
+    id: msg_bdrk_2vn3xpefjhslqu2aq6bg5ege5k5lgozzpuvxde4u6hu26x7dt3iq
+    model: anthropic.claude-haiku-4-5-20251001-v1:0
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      input_tokens: 792
+      output_tokens: 41
+      service_tier: standard
+  body_bytes: !!binary |
+    eyJtb2RlbCI6ImFudGhyb3BpYy5jbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxLXYxOjAiLCJpZCI6
+    Im1zZ19iZHJrXzJ2bjN4cGVmamhzbHF1MmFxNmJnNWVnZTVrNWxnb3p6cHV2eGRlNHU2aHUyNng3
+    ZHQzaXEiLCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjpbeyJ0
+    eXBlIjoidG9vbF91c2UiLCJpZCI6InRvb2x1X2JkcmtfMDFUa2Z6RzU5TmdycVlXbVVoNjJDSzVL
+    IiwibmFtZSI6ImFkZCIsImlucHV0Ijp7ImEiOjUsImIiOjd9fV0sImNvbnRhaW5lciI6bnVsbCwi
+    c3RvcF9yZWFzb24iOiJ0b29sX3VzZSIsInN0b3Bfc2VxdWVuY2UiOm51bGwsInN0b3BfZGV0YWls
+    cyI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjo3OTIsImNhY2hlX2NyZWF0aW9uX2lucHV0
+    X3Rva2VucyI6MCwiY2FjaGVfcmVhZF9pbnB1dF90b2tlbnMiOjAsImNhY2hlX2NyZWF0aW9uIjp7
+    ImVwaGVtZXJhbF81bV9pbnB1dF90b2tlbnMiOjAsImVwaGVtZXJhbF8xaF9pbnB1dF90b2tlbnMi
+    OjB9LCJvdXRwdXRfdG9rZW5zIjo0MSwic2VydmljZV90aWVyIjoic3RhbmRhcmQifX0=
+  headers:
+    connection: keep-alive
+    content-length: '563'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-16T11:40:57.134280+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages
