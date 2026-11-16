@@ -4,6 +4,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from anthropic import AsyncAnthropic, omit
 from anthropic.lib.streaming._messages import accumulate_event
 from openai import AsyncOpenAI
 from openai.lib.streaming.chat import ChatCompletionStreamState
@@ -13,6 +14,7 @@ from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.normalized import (
     AssistantInput,
     FunctionTool,
+    FunctionToolChoice,
     ImageUrlInput,
     ModelResponseStreamEvent,
     NormalizedRequest,
@@ -33,7 +35,11 @@ from molto.types.normalized import (
     UserInput,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.bedrock import BedrockChatCompletionsClient, BedrockResponsesClient
+from molto.upstream.bedrock import (
+    BedrockChatCompletionsClient,
+    BedrockMessagesClient,
+    BedrockResponsesClient,
+)
 from molto.upstream.fireworks import FireworksChatCompletionsClient, FireworksResponsesClient
 from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -47,6 +53,7 @@ CLIENTS = {
     AnthropicMessagesClient: ("anthropic", "messages"),
     BedrockResponsesClient: ("bedrock", "responses"),
     BedrockChatCompletionsClient: ("bedrock", "chat_completions"),
+    BedrockMessagesClient: ("bedrock", "messages"),
     FireworksResponsesClient: ("fireworks", "responses"),
     FireworksChatCompletionsClient: ("fireworks", "chat_completions"),
     GeminiChatCompletionsClient: ("gemini", "chat_completions"),
@@ -545,6 +552,26 @@ async def _collect_chat(result, stream, *, repair_single_call_index=False):
     return state.get_final_completion(), [event.model_dump() for event in events]
 
 
+async def _collect_messages(result, stream):
+    if not stream:
+        return result, None
+    snapshot = None
+    async with result:
+        events = [event async for event in result]
+    for event in events:
+        snapshot = accumulate_event(event=event, current_snapshot=snapshot)
+    assert snapshot is not None
+    return snapshot, [event.model_dump() for event in events]
+
+
+def _messages_history(message):
+    """Carry actual SDK content into history exactly as the Messages recording driver does."""
+    return {
+        "role": message.role,
+        "content": [block.model_dump(exclude_unset=True) for block in message.content],
+    }
+
+
 def _chat_history(message, provider):
     """Reproduce the recording driver's actual SDK-output history."""
     # Fireworks rejects null output-only fields in assistant input.
@@ -590,16 +617,25 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
     cassettes = _provider_turns(provider, scenario, mode, endpoint)
     stream = mode == "stream"
     responses = endpoint == "responses"
+    messages = endpoint == "messages"
     history_key = "input" if responses else "messages"
-    path = "/responses" if responses else "/chat/completions"
-    collect = _collect_responses if responses else _collect_chat
+    path = {
+        "responses": "/responses",
+        "chat_completions": "/chat/completions",
+        "messages": "/v1/messages",
+    }[endpoint]
+    collect = {
+        "responses": _collect_responses,
+        "chat_completions": _collect_chat,
+        "messages": _collect_messages,
+    }[endpoint]
     history = deepcopy(cassettes[0]["request"]["body"][history_key])
     for turn, cassette in enumerate(cassettes):
         recorded = cassette["request"]["body"]
         base_url = cassette["upstream_url"].removesuffix(path)
         assert history == recorded[history_key]
         wire = {**recorded, history_key: history}
-        if not responses:
+        if endpoint == "chat_completions":
             wire = _chat_input_body(wire)
         body, extras = _sdk_body(wire)
         calls = []
@@ -607,20 +643,32 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
         def handle(request, cassette=cassette, recorded=wire, calls=calls):
             calls.append(request)
             assert str(request.url) == cassette["upstream_url"]
-            assert request.headers["authorization"] == "Bearer test-key"
+            if messages:
+                assert request.headers["x-api-key"] == "test-key"
+                assert "authorization" not in request.headers
+            else:
+                assert request.headers["authorization"] == "Bearer test-key"
             assert json_loads(request.content) == recorded
             return _recorded_response(cassette)
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
-            sdk = AsyncOpenAI(
+            sdk = (AsyncAnthropic if messages else AsyncOpenAI)(
                 api_key="test-key",
                 base_url=base_url,
                 http_client=transport,
                 max_retries=0,
+                **(
+                    {"auth_token": "", "default_headers": {"Authorization": omit}}
+                    if messages
+                    else {}
+                ),
             )
-            sdk_result = await (
-                sdk.responses.create if responses else sdk.chat.completions.create
-            )(**body, extra_body=extras)
+            create = (
+                sdk.messages.create
+                if messages
+                else (sdk.responses.create if responses else sdk.chat.completions.create)
+            )
+            sdk_result = await create(**body, extra_body=extras)
             expected, expected_events = await (
                 _collect_chat(sdk_result, stream, repair_single_call_index=True)
                 if provider == "gemini"
@@ -667,6 +715,8 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
         assert len(calls) == 2
         if responses:
             history.extend(item.model_dump(exclude_unset=True) for item in actual.output)
+        elif messages:
+            history.append(_messages_history(actual))
         else:
             history.append(_chat_history(actual.choices[0].message, provider))
         if turn + 1 < len(cassettes):
@@ -684,13 +734,14 @@ def _caller_input(items):
     """Read recorded caller data; assistant history must come from actual emitted IR."""
     result = []
     for item in items:
-        if item.get("type") == "function_call_output":
-            content = item["output"]
+        if item.get("type") == "function_call_output" or item.get("role") == "tool":
+            responses = item.get("type") == "function_call_output"
+            content = item["output"] if responses else item["content"]
             if isinstance(content, str):
                 content = [{"type": "input_text", "text": content}]
             result.append(
                 ToolReturn(
-                    tool_call_id=item["call_id"],
+                    tool_call_id=item["call_id"] if responses else item["tool_call_id"],
                     content=[TextInput(content=part["text"]) for part in content],
                 )
             )
@@ -699,7 +750,7 @@ def _caller_input(items):
             content = item["content"]
             if isinstance(content, str):
                 content = [{"type": "input_text", "text": content}]
-            assert all(part["type"] == "input_text" for part in content)
+            assert all(part["type"] in {"input_text", "text"} for part in content)
             result.append(UserInput(content=[TextInput(content=part["text"]) for part in content]))
     return result
 
@@ -1386,3 +1437,274 @@ async def test_provider_reasoning_public_projection(
         if item.type == "function_call"
     ]
     assert usage == (reference.usage.input_tokens, reference.usage.output_tokens)
+
+
+def _chat_caller_from_messages(messages):
+    """Express only recorded caller input as Chat text or tool results, never assistant history."""
+    result = []
+    for message in messages:
+        assert message["role"] == "user"
+        content = message["content"]
+        if all(block["type"] == "tool_result" for block in content):
+            result.extend(
+                {
+                    "role": "tool",
+                    "tool_call_id": block["tool_use_id"],
+                    "content": deepcopy(block["content"]),
+                }
+                for block in content
+            )
+        else:
+            assert all(block["type"] == "text" for block in content)
+            result.append(deepcopy(message))
+    return result
+
+
+def _expected_messages_wire(recorded):
+    """Account for normalized text content and empty output metadata without changing recordings."""
+    body = deepcopy(recorded)
+    for message in body["messages"]:
+        for block in message["content"]:
+            if block["type"] == "text":
+                assert block.pop("citations", None) in (None, [])
+            elif block["type"] == "tool_use":
+                assert block.pop("caller", None) in (None, {"type": "direct"})
+            elif block["type"] == "tool_result" and isinstance(block["content"], str):
+                block["content"] = [{"type": "text", "text": block["content"]}]
+    return body
+
+
+async def _messages_sdk_reference(cassette):
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _recorded_response(cassette))
+    ) as transport:
+        sdk = AsyncAnthropic(
+            api_key="test-key",
+            auth_token="",
+            default_headers={"Authorization": omit},
+            http_client=transport,
+            max_retries=0,
+            base_url=cassette["upstream_url"].removesuffix("/v1/messages"),
+        )
+        reference, _ = await _collect_messages(
+            await sdk.messages.create(**cassette["request"]["body"]), True
+        )
+    return reference
+
+
+def _messages_semantics(message):
+    """Read portable content and semantic token usage from the independent SDK response."""
+    assert all(block.type in {"text", "tool_use"} for block in message.content)
+    return (
+        "".join(block.text for block in message.content if block.type == "text"),
+        [
+            (block.id, block.name, block.input)
+            for block in message.content
+            if block.type == "tool_use"
+        ],
+        (
+            message.usage.input_tokens
+            + (message.usage.cache_creation_input_tokens or 0)
+            + (message.usage.cache_read_input_tokens or 0),
+            message.usage.output_tokens,
+        ),
+    )
+
+
+PROVIDER_MESSAGES_CONVERSATIONS = [
+    pytest.param(case.values[0], case.values[2], id=case.id)
+    for case in PROVIDER_NATIVE_CONVERSATIONS
+    if case.values[1] == "messages" and case.values[3] == "stream"
+]
+
+
+@pytest.mark.parametrize(("provider", "scenario"), PROVIDER_MESSAGES_CONVERSATIONS)
+async def test_provider_normalized_messages_conversation(provider, scenario):
+    """Ensures recorded Messages content, calls, usage, and actual IR history survive continuation."""
+    cassettes = _provider_turns(provider, scenario, "stream", "messages")
+    first = cassettes[0]["request"]["body"]
+    request = NormalizedRequest(
+        model=first["model"],
+        stream=True,
+        max_output_tokens=first["max_tokens"],
+        input=_caller_input(_chat_caller_from_messages(first["messages"])),
+        tools=[
+            FunctionTool(
+                name=tool["name"], description=tool["description"], parameters=tool["input_schema"]
+            )
+            for tool in first.get("tools", [])
+        ]
+        or None,
+    )
+    for turn, cassette in enumerate(cassettes):
+        recorded = cassette["request"]["body"]
+        reference = await _messages_sdk_reference(cassette)
+        expected = _expected_messages_wire(recorded)
+        choice = recorded.get("tool_choice", {})
+        request.tool_choice = (
+            FunctionToolChoice(name=choice["name"])
+            if choice.get("type") == "tool"
+            else choice.get("type")
+        )
+        request.parallel_tool_calls = (
+            not choice["disable_parallel_tool_use"]
+            if "disable_parallel_tool_use" in choice
+            else None
+        )
+        calls = []
+
+        def handle(http_request, cassette=cassette, expected=expected, calls=calls):
+            calls.append(http_request)
+            assert str(http_request.url) == cassette["upstream_url"]
+            assert http_request.headers["x-api-key"] == "test-key"
+            assert "authorization" not in http_request.headers
+            assert json_loads(http_request.content) == expected
+            return _recorded_response(cassette)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as transport:
+            client = PROVIDER_CLIENTS[provider, "messages"](
+                transport,
+                api_key="test-key",
+                capabilities=PROVIDER_CAPABILITIES[provider],
+                base_url=cassette["upstream_url"].removesuffix("/v1/messages"),
+            )
+            before = request.model_copy(deep=True)
+            events = [event async for event in client.events(request)]
+            assert request == before
+        assert len(calls) == 1
+        parts = _assert_ir(
+            events, tool_name=request.tools[0].name if request.tools else "read_file"
+        )
+        expected_text, expected_calls, expected_usage = _messages_semantics(reference)
+        assert (events[0].id, events[0].model) == (reference.id, reference.model)
+        assert (
+            "".join(part.content for part in parts if isinstance(part, TextOutput))
+            == expected_text
+        )
+        assert [
+            (part.tool_call_id, part.tool_name, json_loads(part.args))
+            for part in parts
+            if isinstance(part, ToolCall)
+        ] == expected_calls
+        assert (events[-1].usage.input_tokens, events[-1].usage.output_tokens) == expected_usage
+        if turn + 1 < len(cassettes):
+            request.input.append(AssistantInput(content=parts))
+            suffix = cassettes[turn + 1]["request"]["body"]["messages"][
+                len(recorded["messages"]) + 1 :
+            ]
+            assert suffix
+            request.input.extend(_caller_input(_chat_caller_from_messages(suffix)))
+
+
+@pytest.mark.parametrize(("provider", "scenario"), PROVIDER_MESSAGES_CONVERSATIONS)
+@pytest.mark.parametrize("downstream", ["responses", "chat_completions"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_provider_messages_translated_conversation(provider, scenario, downstream, stream):
+    """Ensures Messages recordings project with SDK semantic parity and actual-output continuation."""
+    cassettes = _provider_turns(provider, scenario, "stream", "messages")
+    first = cassettes[0]["request"]["body"]
+    responses = downstream == "responses"
+    history_key = "input" if responses else "messages"
+    caller = _chat_caller_from_messages(first["messages"])
+    body = {
+        "model": first["model"],
+        "stream": stream,
+        "max_output_tokens" if responses else "max_completion_tokens": first["max_tokens"],
+        history_key: _responses_caller_input(caller) if responses else caller,
+    }
+    if first.get("tools"):
+        functions = [
+            {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+                "strict": False,
+            }
+            for tool in first["tools"]
+        ]
+        body["tools"] = [
+            {"type": "function", **function}
+            if responses
+            else {"type": "function", "function": function}
+            for function in functions
+        ]
+    for turn, cassette in enumerate(cassettes):
+        recorded = cassette["request"]["body"]
+        reference = await _messages_sdk_reference(cassette)
+        expected = _expected_messages_wire(recorded)
+        choice = recorded.get("tool_choice")
+        if choice:
+            body["tool_choice"] = (
+                (
+                    {"type": "function", "name": choice["name"]}
+                    if responses
+                    else {"type": "function", "function": {"name": choice["name"]}}
+                )
+                if choice["type"] == "tool"
+                else choice["type"]
+            )
+            if "disable_parallel_tool_use" in choice:
+                body["parallel_tool_calls"] = not choice["disable_parallel_tool_use"]
+            else:
+                body.pop("parallel_tool_calls", None)
+        calls = []
+
+        def handle(request, cassette=cassette, expected=expected, calls=calls):
+            calls.append(request)
+            assert str(request.url) == cassette["upstream_url"]
+            assert request.headers["x-api-key"] == "test-key"
+            assert "authorization" not in request.headers
+            assert json_loads(request.content) == expected
+            return _recorded_response(cassette)
+
+        before = deepcopy(body)
+        async with Molto(
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        ) as molto:
+            result = await getattr(molto, downstream)(
+                body if responses else _chat_input_body(body),
+                provider=provider,
+                endpoint="messages",
+                api_key="test-key",
+                base_url=cassette["upstream_url"].removesuffix("/v1/messages"),
+            )
+            actual, _ = await (_collect_responses if responses else _collect_chat)(result, stream)
+        assert body == before
+        assert len(calls) == 1
+        assert (actual.id, actual.model) == (reference.id, reference.model)
+        expected_text, expected_calls, expected_usage = _messages_semantics(reference)
+        assert reference.stop_reason == ("tool_use" if expected_calls else "end_turn")
+        if responses:
+            assert actual.status == "completed"
+            assert actual.output_text == expected_text
+            actual_calls = [
+                (item.call_id, item.name, json_loads(item.arguments))
+                for item in actual.output
+                if item.type == "function_call"
+            ]
+            assert all(item.type in {"message", "function_call"} for item in actual.output)
+            usage = (actual.usage.input_tokens, actual.usage.output_tokens)
+        else:
+            message = actual.choices[0].message
+            assert (message.content or "") == expected_text
+            assert actual.choices[0].finish_reason == ("tool_calls" if expected_calls else "stop")
+            actual_calls = [
+                (call.id, call.function.name, json_loads(call.function.arguments))
+                for call in message.tool_calls or []
+            ]
+            usage = (actual.usage.prompt_tokens, actual.usage.completion_tokens)
+        assert actual_calls == expected_calls
+        assert usage == expected_usage
+        if turn + 1 < len(cassettes):
+            if responses:
+                body[history_key].extend(
+                    item.model_dump(exclude_unset=True) for item in actual.output
+                )
+            else:
+                body[history_key].append(_chat_history(message, "bedrock"))
+            suffix = cassettes[turn + 1]["request"]["body"]["messages"][
+                len(recorded["messages"]) + 1 :
+            ]
+            assert suffix
+            caller = _chat_caller_from_messages(suffix)
+            body[history_key].extend(_responses_caller_input(caller) if responses else caller)
