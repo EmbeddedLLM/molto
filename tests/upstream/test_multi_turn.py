@@ -939,6 +939,33 @@ def _google_signatures(message):
     ]
 
 
+def _google_prefix_parts(message):
+    """Build expected prefix attachments from the independently collected Google SDK message."""
+    parts = []
+    message_signature = (
+        getattr(message, "extra_content", {}).get("google", {}).get("thought_signature")
+    )
+    if message.content:
+        if message_signature:
+            parts.append(Thinking(content="", summary="", signature=message_signature))
+            message_signature = None
+        parts.append(TextOutput(content=message.content))
+    for index, call in enumerate(message.tool_calls or []):
+        signature = getattr(call, "extra_content", {}).get("google", {}).get("thought_signature")
+        if not message.content and index == 0 and not signature:
+            signature, message_signature = message_signature, None
+        if signature:
+            parts.append(Thinking(content="", summary="", signature=signature))
+        parts.append(
+            ToolCall(
+                tool_call_id=call.id, tool_name=call.function.name, args=call.function.arguments
+            )
+        )
+    if message_signature:
+        parts.append(Thinking(content="", summary="", signature=message_signature))
+    return parts
+
+
 @pytest.mark.parametrize(
     ("provider", "endpoint", "scenario", "mode", "downstream", "unknown_extensions"),
     [
@@ -1106,6 +1133,15 @@ async def test_provider_chat_translated_conversation(
         ]
         assert not getattr(message, "reasoning_content", None)
         assert signatures == (_google_signatures(message) if provider == "gemini" else [])
+        if provider == "gemini":
+            types = (
+                {Thinking: "reasoning", TextOutput: "message", ToolCall: "function_call"}
+                if responses
+                else {Thinking: "thinking", TextOutput: "text", ToolCall: "tool_use"}
+            )
+            assert [item.type for item in (actual.output if responses else actual.content)] == [
+                types[type(part)] for part in _google_prefix_parts(message)
+            ]
         assert usage == (reference.usage.prompt_tokens, reference.usage.completion_tokens)
         if turn + 1 < len(cassettes):
             if responses:
@@ -1200,23 +1236,7 @@ async def test_gemini_normalized_signature_conversation(scenario):
             reference.usage.completion_tokens,
             reference.usage.total_tokens,
         )
-        assert "".join(part.content for part in parts if isinstance(part, TextOutput)) == (
-            message.content or ""
-        )
-        assert [
-            (part.tool_call_id, part.tool_name, json_loads(part.args))
-            for part in parts
-            if isinstance(part, ToolCall)
-        ] == [
-            (call.id, call.function.name, json_loads(call.function.arguments))
-            for call in message.tool_calls or []
-        ]
-        assert [
-            part.signature for part in parts if isinstance(part, Thinking)
-        ] == _google_signatures(message)
-        assert all(
-            not part.content and not part.summary for part in parts if isinstance(part, Thinking)
-        )
+        assert parts == _google_prefix_parts(message)
         if turn + 1 < len(cassettes):
             request.input.append(AssistantInput(content=parts))
             suffix = cassettes[turn + 1]["request"]["body"]["messages"][

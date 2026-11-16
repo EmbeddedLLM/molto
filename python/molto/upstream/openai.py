@@ -382,7 +382,6 @@ class _ChatToolCallState:
     tool_call_id: str
     tool_name: str
     args: str
-    signature: str | None = None
 
 
 class ResponsesClient(
@@ -1345,11 +1344,8 @@ class ChatCompletionsClient(
                 raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
     @staticmethod
-    def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
-        """Return the opaque continuation state attached to a message or tool call.
-
-        The shared protocol defines none, so `extra_content` is ignored here.
-        """
+    def _validate_extra_content(extra_content: dict[str, Any] | None) -> None:
+        """Ignore extensions unless the provider owns a narrower output contract."""
         return None
 
     @staticmethod
@@ -1362,16 +1358,24 @@ class ChatCompletionsClient(
             ) from exc
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        native_request = self._native_request(request)
+        async with aclosing(self.native_events(native_request)) as native_events:
+            async with aclosing(self._normalize_stream(native_events)) as events:
+                async for event in events:
+                    yield event
+
+    async def _normalize_stream(
+        self, native_events: AsyncIterator[OpenAIChatCompletionsStreamChunk]
+    ) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Normalize native chunks without owning their transport lifecycle."""
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
-        text_signature: str | None = None
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
         active_part_index = 0
         next_part_index = 0
         tool_calls: dict[int, _ChatToolCallState] = {}
-        last_part_was_unsigned_tool = False
         # Chat has no per-call stop event. Calls are treated as contiguous, so a
         # new index closes the active call and a later return to that index is invalid.
         active_tool_call_index: int | None = None
@@ -1384,31 +1388,8 @@ class ChatCompletionsClient(
             part_text = ""
             return PartStartEvent(index=active_part_index, part=part)
 
-        def signature_part(signature: str) -> list[ModelResponseStreamEvent]:
-            nonlocal next_part_index, last_part_was_unsigned_tool
-            last_part_was_unsigned_tool = False
-            thinking = Thinking(content="", summary="", signature=signature)
-            index = next_part_index
-            next_part_index += 1
-            return [
-                PartStartEvent(index=index, part=thinking),
-                PartEndEvent(index=index, part=thinking),
-            ]
-
-        def end_part(
-            index: int, part: Thinking | TextOutput | ToolCall, signature: str | None = None
-        ) -> list[ModelResponseStreamEvent]:
-            nonlocal last_part_was_unsigned_tool
-            last_part_was_unsigned_tool = isinstance(part, ToolCall) and signature is None
-            events: list[ModelResponseStreamEvent] = [PartEndEvent(index=index, part=part)]
-            if signature is not None:
-                # Attachment state follows its content so text can stream before
-                # providers supply the signature in their final chunk.
-                events.extend(signature_part(signature))
-            return events
-
         def end_active_part() -> list[ModelResponseStreamEvent]:
-            nonlocal active_part, text_signature
+            nonlocal active_part
             if active_part == "thinking":
                 part: Thinking | TextOutput = self._classify_thinking(part_text)
             elif active_part == "text":
@@ -1416,191 +1397,156 @@ class ChatCompletionsClient(
             else:
                 return []
             active_part = None
-            events = end_part(active_part_index, part, text_signature)
-            text_signature = None
-            return events
+            return [PartEndEvent(index=active_part_index, part=part)]
 
         def end_tool_call(tool_call_index: int) -> list[ModelResponseStreamEvent]:
             state = tool_calls[tool_call_index]
-            return end_part(
-                state.part_index,
-                ToolCall(
-                    tool_call_id=state.tool_call_id,
-                    tool_name=state.tool_name,
-                    args=state.args,
-                ),
-                state.signature,
-            )
+            return [
+                PartEndEvent(
+                    index=state.part_index,
+                    part=ToolCall(
+                        tool_call_id=state.tool_call_id,
+                        tool_name=state.tool_name,
+                        args=state.args,
+                    ),
+                )
+            ]
 
-        native_request = self._native_request(request)
-        async with aclosing(self.native_events(native_request)) as native_events:
-            async for chunk in native_events:
-                if response_metadata is None:
-                    response_metadata = ResponseStartEvent(
-                        id=chunk.id,
-                        created_at=chunk.created,
-                        model=chunk.model,
-                        service_tier=chunk.service_tier,
+        async for chunk in native_events:
+            if response_metadata is None:
+                response_metadata = ResponseStartEvent(
+                    id=chunk.id,
+                    created_at=chunk.created,
+                    model=chunk.model,
+                    service_tier=chunk.service_tier,
+                )
+                yield response_metadata
+
+            if chunk.choices:
+                choice = chunk.choices[0]
+                self._validate_extra_content(getattr(choice.delta, "extra_content", None))
+                reasoning_delta = getattr(choice.delta, "reasoning_content", None)
+                # Reasoning and text may interleave: a non-empty reasoning chunk
+                # ends an active text part and starts a new thinking part. Empty
+                # reasoning chunks carry nothing and never start or switch parts.
+                if reasoning_delta:
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                        active_tool_call_index = None
+                    if active_part == "text":
+                        for event in end_active_part():
+                            yield event
+                    if active_part is None:
+                        yield start_part(Thinking(content="", summary=""))
+                    part_text += reasoning_delta
+                    yield PartDeltaEvent(
+                        index=active_part_index,
+                        delta=self._classify_thinking_delta(reasoning_delta),
                     )
-                    yield response_metadata
 
-                if chunk.choices:
-                    choice = chunk.choices[0]
-                    signature = self._thought_signature(
-                        getattr(choice.delta, "extra_content", None)
+                if choice.delta.content:
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                        active_tool_call_index = None
+                    if active_part == "thinking":
+                        for event in end_active_part():
+                            yield event
+                    if active_part is None:
+                        yield start_part(TextOutput(content=""))
+                    part_text += choice.delta.content
+                    yield PartDeltaEvent(
+                        index=active_part_index,
+                        delta=TextDelta(content_delta=choice.delta.content),
                     )
-                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                    # Reasoning and text may interleave: a non-empty reasoning chunk
-                    # ends an active text part and starts a new thinking part. Empty
-                    # reasoning chunks carry nothing and never start or switch parts.
-                    if reasoning_delta:
-                        if active_tool_call_index is not None:
-                            for event in end_tool_call(active_tool_call_index):
-                                yield event
-                            active_tool_call_index = None
-                        if active_part == "text":
-                            for event in end_active_part():
-                                yield event
-                        if active_part is None:
-                            yield start_part(Thinking(content="", summary=""))
-                        part_text += reasoning_delta
-                        yield PartDeltaEvent(
-                            index=active_part_index,
-                            delta=self._classify_thinking_delta(reasoning_delta),
-                        )
 
-                    if choice.delta.content:
-                        if active_tool_call_index is not None:
-                            for event in end_tool_call(active_tool_call_index):
-                                yield event
-                            active_tool_call_index = None
-                        if active_part == "thinking":
-                            for event in end_active_part():
-                                yield event
-                        if active_part is None:
-                            yield start_part(TextOutput(content=""))
-                        part_text += choice.delta.content
-                        yield PartDeltaEvent(
-                            index=active_part_index,
-                            delta=TextDelta(content_delta=choice.delta.content),
+                if choice.delta.tool_calls:
+                    for event in end_active_part():
+                        yield event
+                    for tool_call_delta in choice.delta.tool_calls:
+                        if tool_call_delta.index is None:
+                            raise ValueError("Chat Completions tool-call deltas require an index.")
+                        self._validate_extra_content(
+                            getattr(tool_call_delta, "extra_content", None)
                         )
-
-                    if signature is not None:
-                        if active_part == "text":
-                            text_signature = signature
-                        else:
-                            # Message state without text still has to reach the
-                            # next request, so it becomes its own part once the
-                            # parts before it are closed.
+                        function_delta = tool_call_delta.function
+                        state = tool_calls.get(tool_call_delta.index)
+                        if state is None:
+                            if (
+                                tool_call_delta.id is None
+                                or function_delta is None
+                                or function_delta.name is None
+                            ):
+                                raise ValueError(
+                                    "The first Chat Completions chunk for a tool call must "
+                                    "include its ID and function name."
+                                )
                             if active_tool_call_index is not None:
                                 for event in end_tool_call(active_tool_call_index):
                                     yield event
-                                active_tool_call_index = None
-                            for event in end_active_part():
-                                yield event
-                            if last_part_was_unsigned_tool:
-                                # Position alone would replay this message-level
-                                # state onto the preceding unsigned tool call.
-                                raise ValueError(
-                                    "A message thought signature after an unsigned tool call "
-                                    "cannot preserve its attachment during translation."
-                                )
-                            for event in signature_part(signature):
-                                yield event
-
-                    if choice.delta.tool_calls:
-                        for event in end_active_part():
-                            yield event
-                        for tool_call_delta in choice.delta.tool_calls:
-                            if tool_call_delta.index is None:
-                                raise ValueError(
-                                    "Chat Completions tool-call deltas require an index."
-                                )
-                            tool_signature = self._thought_signature(
-                                getattr(tool_call_delta, "extra_content", None)
+                            state = _ChatToolCallState(
+                                part_index=next_part_index,
+                                tool_call_id=tool_call_delta.id,
+                                tool_name=function_delta.name,
+                                args=function_delta.arguments or "",
                             )
-                            function_delta = tool_call_delta.function
-                            state = tool_calls.get(tool_call_delta.index)
-                            if state is None:
-                                if (
-                                    tool_call_delta.id is None
-                                    or function_delta is None
-                                    or function_delta.name is None
-                                ):
-                                    raise ValueError(
-                                        "The first Chat Completions chunk for a tool call must "
-                                        "include its ID and function name."
-                                    )
-                                if active_tool_call_index is not None:
-                                    for event in end_tool_call(active_tool_call_index):
-                                        yield event
-                                state = _ChatToolCallState(
-                                    part_index=next_part_index,
-                                    tool_call_id=tool_call_delta.id,
-                                    tool_name=function_delta.name,
-                                    args=function_delta.arguments or "",
-                                    signature=tool_signature,
-                                )
-                                tool_calls[tool_call_delta.index] = state
-                                active_tool_call_index = tool_call_delta.index
-                                yield PartStartEvent(
-                                    index=next_part_index,
-                                    part=ToolCall(
-                                        tool_call_id=state.tool_call_id,
-                                        tool_name=state.tool_name,
-                                        args=state.args,
-                                    ),
-                                )
-                                next_part_index += 1
-                                continue
-
-                            if tool_call_delta.index != active_tool_call_index:
-                                raise ValueError(
-                                    "Chat Completions tool-call deltas must be contiguous by index."
-                                )
-
-                            if tool_signature is not None:
-                                state.signature = tool_signature
-                            name_delta = (
-                                function_delta.name if function_delta is not None else None
-                            )
-                            args_delta = (
-                                function_delta.arguments if function_delta is not None else None
-                            )
-                            if name_delta == state.tool_name:
-                                name_delta = None
-                            tool_call_id_delta = tool_call_delta.id
-                            if tool_call_id_delta == state.tool_call_id:
-                                tool_call_id_delta = None
-                            if name_delta is not None:
-                                state.tool_name += name_delta
-                            if args_delta is not None:
-                                state.args += args_delta
-                            if tool_call_id_delta is not None:
-                                state.tool_call_id = tool_call_id_delta
-                            yield PartDeltaEvent(
-                                index=state.part_index,
-                                delta=ToolCallDelta(
-                                    tool_name_delta=name_delta,
-                                    args_delta=args_delta,
-                                    tool_call_id=tool_call_id_delta,
+                            tool_calls[tool_call_delta.index] = state
+                            active_tool_call_index = tool_call_delta.index
+                            yield PartStartEvent(
+                                index=next_part_index,
+                                part=ToolCall(
+                                    tool_call_id=state.tool_call_id,
+                                    tool_name=state.tool_name,
+                                    args=state.args,
                                 ),
                             )
+                            next_part_index += 1
+                            continue
 
-                    if choice.finish_reason is not None:
-                        termination_reason = self._termination_reason(
-                            choice.finish_reason, has_tool_calls=bool(tool_calls)
+                        if tool_call_delta.index != active_tool_call_index:
+                            raise ValueError(
+                                "Chat Completions tool-call deltas must be contiguous by index."
+                            )
+
+                        name_delta = function_delta.name if function_delta is not None else None
+                        args_delta = (
+                            function_delta.arguments if function_delta is not None else None
                         )
-                        for event in end_active_part():
-                            yield event
-                        if active_tool_call_index is not None:
-                            for event in end_tool_call(active_tool_call_index):
-                                yield event
-                        tool_calls.clear()
-                        active_tool_call_index = None
+                        if name_delta == state.tool_name:
+                            name_delta = None
+                        tool_call_id_delta = tool_call_delta.id
+                        if tool_call_id_delta == state.tool_call_id:
+                            tool_call_id_delta = None
+                        if name_delta is not None:
+                            state.tool_name += name_delta
+                        if args_delta is not None:
+                            state.args += args_delta
+                        if tool_call_id_delta is not None:
+                            state.tool_call_id = tool_call_id_delta
+                        yield PartDeltaEvent(
+                            index=state.part_index,
+                            delta=ToolCallDelta(
+                                tool_name_delta=name_delta,
+                                args_delta=args_delta,
+                                tool_call_id=tool_call_id_delta,
+                            ),
+                        )
 
-                if chunk.usage is not None:
-                    usage = _chat_usage(chunk.usage)
+                if choice.finish_reason is not None:
+                    termination_reason = self._termination_reason(
+                        choice.finish_reason, has_tool_calls=bool(tool_calls)
+                    )
+                    for event in end_active_part():
+                        yield event
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                    tool_calls.clear()
+                    active_tool_call_index = None
+
+            if chunk.usage is not None:
+                usage = _chat_usage(chunk.usage)
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
@@ -1664,7 +1610,7 @@ class OpenAIChatCompletionsClient(ChatCompletionsClient):
     """OpenAI's own Chat Completions API, which defines no `extra_content`."""
 
     @staticmethod
-    def _thought_signature(extra_content: dict[str, Any] | None) -> str | None:
+    def _validate_extra_content(extra_content: dict[str, Any] | None) -> None:
         # OpenAI never sends this field, so one here is opaque state from
         # another implementation that translation would lose.
         if extra_content:

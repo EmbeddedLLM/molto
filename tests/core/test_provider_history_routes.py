@@ -1,5 +1,6 @@
 """Native history transport tests using explicit synthetic Google extension payloads."""
 
+import asyncio
 from copy import deepcopy
 
 import httpx
@@ -14,6 +15,7 @@ from molto.types.normalized import (
     AssistantInput,
     NormalizedRequest,
     PartEndEvent,
+    ResponseStartEvent,
     TextOutput,
     Thinking,
     ToolCall,
@@ -468,8 +470,9 @@ def _google_stream(deltas):
 
 @pytest.mark.parametrize("coordinator", ["responses", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_google_translated_parallel_signature_history(coordinator, stream):
-    """Ensures late signature snapshots retain exact text and parallel-call associations."""
+@pytest.mark.parametrize("order", ["text-first", "late-message-signature", "tools-first"])
+async def test_google_translated_parallel_signature_history(coordinator, stream, order):
+    """Ensures signatures prefix their content and retain text/parallel-call attachments on reuse."""
     text_state = {"google": {"thought_signature": " message\n"}}
     calls = [
         {
@@ -480,7 +483,12 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
         }
         for i in range(2)
     ]
-    deltas = [{"content": "Checking both."}, {"extra_content": text_state}]
+    text_deltas = [{"content": "Checking both."}]
+    deltas = [] if order == "tools-first" else text_deltas.copy()
+    if order == "text-first":
+        deltas.append({"extra_content": text_state})
+    elif order == "late-message-signature":
+        deltas.append({"extra_content": {"google": {"thought_signature": "earlier-message"}}})
     for i, call in enumerate(calls):
         first = deepcopy(call)
         first["index"] = i
@@ -493,6 +501,10 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
                 {"tool_calls": [{"index": i, "extra_content": call["extra_content"]}]},
             ]
         )
+    if order == "tools-first":
+        deltas.extend(text_deltas)
+    if order != "text-first":
+        deltas.append({"extra_content": text_state})
     requests = []
 
     def handler(request):
@@ -519,17 +531,18 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
             await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
         )
         if coordinator == "responses":
-            assert [item.type for item in result.output] == [
-                "message",
-                "reasoning",
-                "function_call",
-                "reasoning",
-                "function_call",
-                "reasoning",
-            ]
+            text_types = ["reasoning", "message"]
+            call_types = ["reasoning", "function_call"] * 2
+            assert [item.type for item in result.output] == (
+                call_types + text_types if order == "tools-first" else text_types + call_types
+            )
             assert [
                 item.encrypted_content for item in result.output if item.type == "reasoning"
-            ] == [" message\n", "call-0", "call-1"]
+            ] == (
+                ["call-0", "call-1", " message\n"]
+                if order == "tools-first"
+                else [" message\n", "call-0", "call-1"]
+            )
             history = [item.model_dump(exclude_unset=True) for item in result.output]
             body["input"].extend(history)
             body["input"].extend(
@@ -537,19 +550,16 @@ async def test_google_translated_parallel_signature_history(coordinator, stream)
                 for call in calls
             )
         else:
-            assert [item.type for item in result.content] == [
-                "text",
-                "thinking",
-                "tool_use",
-                "thinking",
-                "tool_use",
-                "thinking",
-            ]
-            assert [item.signature for item in result.content if item.type == "thinking"] == [
-                " message\n",
-                "call-0",
-                "call-1",
-            ]
+            text_types = ["thinking", "text"]
+            call_types = ["thinking", "tool_use"] * 2
+            assert [item.type for item in result.content] == (
+                call_types + text_types if order == "tools-first" else text_types + call_types
+            )
+            assert [item.signature for item in result.content if item.type == "thinking"] == (
+                ["call-0", "call-1", " message\n"]
+                if order == "tools-first"
+                else [" message\n", "call-0", "call-1"]
+            )
             body["messages"].extend(
                 [
                     {
@@ -696,12 +706,19 @@ async def test_google_signatures_normalize_to_ordered_parts(text):
     parts = [event.part for event in ends]
     assert [event.index for event in ends] == list(range(len(ends)))
     assert parts == [
-        *([TextOutput(content="Checking.")] if text else []),
-        Thinking(content="", summary="", signature=" message\n"),
-        ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
+        *(
+            [
+                Thinking(content="", summary="", signature=" message\n"),
+                TextOutput(content="Checking."),
+            ]
+            if text
+            else []
+        ),
         Thinking(content="", summary="", signature="call-0"),
-        ToolCall(tool_call_id="call_1", tool_name="lookup", args='{"n":1}'),
+        ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
         Thinking(content="", summary="", signature="call-1"),
+        ToolCall(tool_call_id="call_1", tool_name="lookup", args='{"n":1}'),
+        *([] if text else [Thinking(content="", summary="", signature=" message\n")]),
     ]
     history = NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
     assert GeminiChatCompletionsClient._native_request(history).model_dump()["messages"] == [
@@ -717,9 +734,9 @@ async def test_google_signatures_normalize_to_ordered_parts(text):
 def test_google_history_rejects_a_second_signature_for_one_attachment():
     """Ensures a signature Gemini has no place for is rejected instead of dropped."""
     parts = [
-        TextOutput(content="Text"),
         Thinking(content="", summary="", signature="first"),
         Thinking(content="", summary="", signature="second"),
+        TextOutput(content="Text"),
     ]
     with pytest.raises(UnsupportedInput, match="at most one"):
         GeminiChatCompletionsClient._native_request(
@@ -729,10 +746,15 @@ def test_google_history_rejects_a_second_signature_for_one_attachment():
 
 @pytest.mark.parametrize("coordinator", ["responses", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
-async def test_google_message_signature_without_text_round_trips(coordinator, stream):
-    """Ensures a message signature that arrives without text is retained and restored."""
+@pytest.mark.parametrize("signed_call", [False, True])
+async def test_google_late_message_signature_without_text_round_trips(
+    coordinator, stream, signed_call
+):
+    """Ensures late state prefixes an unsigned call or remains separate from an already signed call."""
     state = {"google": {"thought_signature": " message\n"}}
     call = _google_call(0)
+    if not signed_call:
+        call.pop("extra_content")
     deltas = [
         {"tool_calls": [{**call, "index": 0}]},
         {"role": "assistant", "extra_content": state},
@@ -765,17 +787,21 @@ async def test_google_message_signature_without_text_round_trips(coordinator, st
         if coordinator == "responses":
             assert [
                 (item.type, getattr(item, "encrypted_content", None)) for item in result.output
-            ] == [("function_call", None), ("reasoning", "call-0"), ("reasoning", " message\n")]
+            ] == (
+                [("reasoning", "call-0"), ("function_call", None), ("reasoning", " message\n")]
+                if signed_call
+                else [("reasoning", " message\n"), ("function_call", None)]
+            )
             body["input"].extend(item.model_dump(exclude_unset=True) for item in result.output)
             body["input"].append(
                 {"type": "function_call_output", "call_id": call["id"], "output": "ok"}
             )
         else:
-            assert [(item.type, getattr(item, "signature", None)) for item in result.content] == [
-                ("tool_use", None),
-                ("thinking", "call-0"),
-                ("thinking", " message\n"),
-            ]
+            assert [(item.type, getattr(item, "signature", None)) for item in result.content] == (
+                [("thinking", "call-0"), ("tool_use", None), ("thinking", " message\n")]
+                if signed_call
+                else [("thinking", " message\n"), ("tool_use", None)]
+            )
             body["messages"].extend(
                 [
                     {
@@ -795,7 +821,11 @@ async def test_google_message_signature_without_text_round_trips(coordinator, st
         )
     assert requests[1]["messages"] == [
         {"role": "user", "content": [{"type": "text", "text": "Check."}]},
-        {"role": "assistant", "extra_content": state, "tool_calls": [call]},
+        {
+            "role": "assistant",
+            **({"extra_content": state} if signed_call else {}),
+            "tool_calls": [call if signed_call else {**call, "extra_content": state}],
+        },
         {"role": "tool", "tool_call_id": call["id"], "content": [{"type": "text", "text": "ok"}]},
     ]
 
@@ -879,39 +909,51 @@ async def test_native_history_nulls_reach_only_providers_that_accept_them(
     )
 
 
-@pytest.mark.parametrize("coordinator", ["responses", "messages"])
-@pytest.mark.parametrize("stream", [False, True])
-async def test_google_message_signature_after_unsigned_call_is_rejected(coordinator, stream):
-    """Ensures message state cannot silently become tool state on translated continuation."""
-    call = _google_call(0)
-    call.pop("extra_content")
-    deltas = [
-        {"tool_calls": [{**call, "index": 0}]},
-        {"extra_content": {"google": {"thought_signature": "message-state"}}},
-    ]
-    responses = []
+async def test_google_cancellation_while_waiting_for_late_signature_closes_response():
+    """Ensures translated text waits for its signature and cancellation releases buffered transport."""
+    waiting = asyncio.Event()
+    release = asyncio.Event()
+    closed = asyncio.Event()
 
-    def handler(_):
-        response = _google_stream(deltas)
-        responses.append(response)
-        return response
+    class DelayedSignatureStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield dumps_sse(
+                {
+                    "id": "chatcmpl_google",
+                    "created": 1,
+                    "model": "model",
+                    "object": "chat.completion.chunk",
+                    "choices": [{"index": 0, "delta": {"content": "Pending text"}}],
+                }
+            ).encode()
+            waiting.set()
+            await release.wait()
 
-    body = {"model": "model", "stream": stream}
-    if coordinator == "responses":
-        body["input"] = "Check."
-    else:
-        body.update(messages=[{"role": "user", "content": "Check."}], max_tokens=32)
-    async with Molto(
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    ) as molto:
-        with pytest.raises(ValueError, match="cannot preserve its attachment"):
-            result = await getattr(molto, coordinator)(
-                body, endpoint="chat/completions", provider="gemini", api_key="test-key"
+        async def aclose(self):
+            closed.set()
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, stream=DelayedSignatureStream(), headers={"content-type": "text/event-stream"}
             )
-            if stream:
-                async with result:
-                    [event async for event in result]
-    assert len(responses) == 1 and responses[0].is_closed
+        )
+    ) as transport:
+        client = GeminiChatCompletionsClient(
+            transport, api_key="test-key", capabilities=PROVIDER_CAPABILITIES["gemini"]
+        )
+        events = client.events(NormalizedRequest(model="model", stream=True))
+        assert isinstance(await anext(events), ResponseStartEvent)
+        pending = asyncio.create_task(anext(events))
+        try:
+            await asyncio.wait_for(waiting.wait(), timeout=2)
+            assert not pending.done()
+        finally:
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+            await events.aclose()
+        assert closed.is_set()
 
 
 @pytest.mark.parametrize("reasoning", [False, True])
@@ -1035,3 +1077,87 @@ async def test_raw_unknown_format_history_translates_with_recorded_sdk_output(en
         if endpoint == "chat/completions"
         else "".join(block.text for block in expected.content if block.type == "text")
     )
+
+
+@pytest.mark.parametrize("call_placement", [None, "inside", "after"])
+def test_google_prefix_signatures_preserve_explicit_assistant_boundaries(call_placement):
+    """Ensures pending signatures attach forward without merging separate explicit assistant messages."""
+    first_parts = [TextOutput(content="First")]
+    call = ToolCall(tool_call_id="call_0", tool_name="lookup", args="{}")
+    if call_placement == "inside":
+        first_parts.append(call)
+    request = NormalizedRequest(
+        model="model",
+        input=[
+            Thinking(content="", summary="", signature="first-state"),
+            AssistantInput(content=first_parts),
+            *([call] if call_placement == "after" else []),
+            Thinking(content="", summary="", signature="second-state"),
+            AssistantInput(content=[TextOutput(content="Second")]),
+        ],
+    )
+    before = request.model_copy(deep=True)
+    actual = GeminiChatCompletionsClient._native_request(request).model_dump()["messages"]
+    assert request == before
+    assert actual == [
+        {
+            "role": "assistant",
+            "content": "First",
+            "extra_content": {"google": {"thought_signature": "first-state"}},
+            **(
+                {
+                    "tool_calls": [
+                        {
+                            "id": "call_0",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ]
+                }
+                if call_placement
+                else {}
+            ),
+        },
+        {
+            "role": "assistant",
+            "content": "Second",
+            "extra_content": {"google": {"thought_signature": "second-state"}},
+        },
+    ]
+
+
+async def test_google_late_message_signature_prefers_text_over_unsigned_call():
+    """Ensures text arriving after an unsigned tool call owns the late message signature."""
+    call = _google_call(0)
+    call.pop("extra_content")
+    deltas = [
+        {"tool_calls": [{**call, "index": 0}]},
+        {"content": "Checking."},
+        {"extra_content": {"google": {"thought_signature": "message-state"}}},
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _google_stream(deltas))
+    ) as transport:
+        client = GeminiChatCompletionsClient(
+            transport, api_key="test-key", capabilities=PROVIDER_CAPABILITIES["gemini"]
+        )
+        parts = [
+            event.part
+            async for event in client.events(NormalizedRequest(model="model", stream=True))
+            if isinstance(event, PartEndEvent)
+        ]
+    assert parts == [
+        ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
+        Thinking(content="", summary="", signature="message-state"),
+        TextOutput(content="Checking."),
+    ]
+    assert GeminiChatCompletionsClient._native_request(
+        NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+    ).model_dump()["messages"] == [
+        {
+            "role": "assistant",
+            "content": "Checking.",
+            "extra_content": {"google": {"thought_signature": "message-state"}},
+            "tool_calls": [call],
+        }
+    ]
