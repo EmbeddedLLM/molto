@@ -42,6 +42,27 @@ _CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 
 
 @pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {"query": {"type": "string"}}},
+        {"type": "object", "properties": {}, "additionalProperties": False},
+    ],
+)
+def test_responses_default_strictness_preserves_schema(schema):
+    """Ensures the strict default neither repairs schemas nor mutates the caller's tool."""
+    request = OpenAIResponsesCreateRequest(
+        model="m",
+        input="Hello",
+        tools=[{"type": "function", "name": "lookup", "parameters": schema}],
+    )
+    original = request.model_dump()
+    normalized = OpenAIResponsesAdapter(_CAPABILITIES).normalize_request(request)
+    assert normalized.tools[0].strict is True
+    assert normalized.tools[0].parameters == schema
+    assert request.model_dump() == original
+
+
+@pytest.mark.parametrize(
     "content",
     [
         "a",

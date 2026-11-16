@@ -2234,6 +2234,48 @@ async def test_translated_top_level_instructions(upstream: Protocol) -> None:
     await _assert_request_parity("responses", upstream, additions, expected)
 
 
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+@pytest.mark.parametrize(
+    "strictness",
+    [{}, {"strict": None}, {"strict": False}, {"strict": True}],
+    ids=["omitted", "null", "false", "true"],
+)
+async def test_function_tool_strictness_defaults(
+    downstream: Protocol, upstream: Protocol, stream: bool, strictness: dict[str, Any]
+) -> None:
+    """Ensures protocol defaults preserve explicit choices and native SDK request/output parity."""
+    parameters = {"type": "object", "properties": {}, "additionalProperties": False}
+    function = {"name": "lookup", "parameters": parameters, **strictness}
+    additions = {
+        "tools": [
+            {"type": "function", **function}
+            if downstream == "responses"
+            else {"type": "function", "function": function}
+        ]
+    }
+    if downstream == upstream:
+        expected = additions
+    else:
+        strict = strictness.get("strict")
+        if strict is None:
+            strict = downstream == "responses"
+        if upstream == "messages":
+            tool = {"name": "lookup", "input_schema": parameters}
+            if strict:
+                tool["strict"] = True
+        else:
+            function = {"name": "lookup", "parameters": parameters, "strict": strict}
+            tool = (
+                {"type": "function", **function}
+                if upstream == "responses"
+                else {"type": "function", "function": function}
+            )
+        expected = {"tools": [tool]}
+    await _assert_request_parity(downstream, upstream, additions, expected, stream=stream)
+
+
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)
 @pytest.mark.parametrize("parallel", [False, True])
 async def test_required_tool_choice_request(

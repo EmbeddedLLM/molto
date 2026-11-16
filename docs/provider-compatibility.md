@@ -34,7 +34,7 @@ Gemini uses the summary profile, matching Google's [thought-summary documentatio
 
 Gemini and Fireworks Chat clients omit `stream_options.include_obfuscation`, which their tested endpoints reject, on native and translated requests. Other streaming options remain intact. Gemini tool-bearing successful `finish_reason="stop"` becomes normalized tool termination on translated routes, producing Messages `stop_reason="tool_use"`; native output retains the provider's original finish reason.
 
-When a translated Responses function tool omits `strict`, Molto currently sends non-strict tools. This differs from [native Responses](https://developers.openai.com/api/docs/guides/function-calling#strict-mode), which attempts strict schema normalization and may fall back for incompatible schemas. Set `strict` explicitly (`true` with a compatible schema, or `false`) when translating. Reproducing the provider's schema-normalization default is not implemented. Native passthrough preserves omission.
+Translated Responses function tools default omitted or `null` `strict` to `true`; explicit `false` remains non-strict. Translated Chat Completions tools retain their non-strict default. Molto forwards the supplied parameter schema without adding strict-mode constraints and does not retry with non-strict tools. This is a deliberate approximation of [native Responses](https://developers.openai.com/api/docs/guides/function-calling#strict-mode), which attempts schema normalization and can fall back to non-strict mode. Supply a strict-compatible schema or set `strict: false` explicitly; an upstream may reject an incompatible schema or unsupported strict mode. Native passthrough preserves omission and explicit values for the provider to interpret.
 
 ## Replay evidence
 

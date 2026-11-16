@@ -174,13 +174,14 @@ _CHAT_TRANSLATABLE_FIELDS = frozenset(
 )
 
 
-def _function_tool(function: dict[str, Any]) -> FunctionTool:
+def _function_tool(function: dict[str, Any], *, default_strict: bool = False) -> FunctionTool:
     """Normalize one protocol's function definition shape."""
+    strict = function.get("strict")
     return FunctionTool(
         name=function["name"],
         description=function.get("description"),
         parameters=function.get("parameters") or {},
-        strict=function.get("strict") or False,
+        strict=default_strict if strict is None else strict,
     )
 
 
@@ -379,7 +380,8 @@ class OpenAIResponsesAdapter(
             raise UnsupportedInput("Deferred Responses function tools are not supported.")
         if tool.get("output_schema") is not None:
             raise UnsupportedInput("Responses function output schemas are not supported.")
-        return _function_tool(tool)
+        # Use a strict default without rewriting schemas or overriding explicit false.
+        return _function_tool(tool, default_strict=True)
 
     async def _project_response(
         self,

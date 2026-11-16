@@ -293,6 +293,8 @@ Assistant-history text parts remain in their original message, and adjacent assi
 
 Responses client-defined functions map to the provider-neutral function name, description, JSON schema, and strictness. Named choices and `auto`, `none`, and `required` are preserved where the target has an equivalent. Messages maps `required` to `any` and represents `parallel_tool_calls` by inverting `disable_parallel_tool_use`.
 
+On translated Responses requests, omitted or `null` function-tool `strict` defaults to `true`; explicit `false` is preserved. Chat Completions input retains its non-strict default. Molto sends the supplied parameter schema unchanged and does not reproduce native Responses' automatic schema normalization or non-strict fallback. For OpenAI strict mode, each object needs `additionalProperties: false` and every property must be required; optional values can use a nullable type. Incompatible schemas or unsupported strict mode may be rejected upstream. Set `strict: false` to request best-effort arguments. Native Responses passthrough leaves omission and explicit values to the provider. See the [provider compatibility policy](../provider-compatibility.md#provider-differences).
+
 Function-call history preserves call IDs, function names, JSON arguments, successful results, and ordering. Keep these two identifiers distinct:
 
 - `call_id` is the portable identity that pairs a function call with its result.
