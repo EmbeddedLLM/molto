@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, omit
 from openai import AsyncOpenAI, OpenAIError
 from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import SecretStr
@@ -13,8 +13,15 @@ from pydantic import SecretStr
 from molto import Molto
 from molto.configs import ENV_CONFIG, EnvConfig
 from molto.providers import PROVIDER_CAPABILITIES
+from molto.types.exceptions import AuthenticationError
 from molto.upstream.registry import CLIENTS
 from molto.utils.io import dumps_sse, json_loads, read_yaml
+from molto.utils.test import (
+    assert_stream_lifecycle,
+    collect_sdk_response,
+    reconstructable_chat_completions_chunks,
+    reconstructable_responses_event,
+)
 
 DESTINATIONS = [
     ("fireworks", "responses", "https://api.fireworks.ai/inference/v1", "/responses"),
@@ -44,6 +51,18 @@ DESTINATIONS = [
         "responses",
         "https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1",
         "/responses",
+    ),
+    (
+        "bedrock",
+        "messages",
+        "https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic",
+        "/v1/messages",
+    ),
+    (
+        "bedrock",
+        "messages",
+        "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+        "/v1/messages",
     ),
 ]
 
@@ -141,6 +160,8 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
     monkeypatch.setenv("OPENAI_API_KEY", "unrelated")
     monkeypatch.setenv("OPENAI_ORG_ID", "unrelated")
     monkeypatch.setenv("OPENAI_PROJECT_ID", "unrelated")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "unrelated")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "unrelated")
     base = "https://custom.example/prefix" if override else base
     key = "override-key" if override else "configured-key"
     recording = cassette(endpoint, stream)
@@ -156,8 +177,12 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
         assert str(request.url) == base + path
         assert request.method == "POST"
         assert json_loads(request.content) == expected_body
-        assert request.headers["authorization"] == f"Bearer {key}"
-        assert "x-api-key" not in request.headers
+        if endpoint == "messages":
+            assert request.headers["x-api-key"] == key
+            assert "authorization" not in request.headers
+        else:
+            assert request.headers["authorization"] == f"Bearer {key}"
+            assert "x-api-key" not in request.headers
         assert "openai-organization" not in request.headers
         assert "openai-project" not in request.headers
         return response(recording)
@@ -179,16 +204,123 @@ async def test_hosted_native_destination_auth_and_sdk_parity(
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(lambda _: response(recording))
     ) as transport:
-        sdk = AsyncOpenAI(api_key="sdk-key", http_client=transport)
-        expected = await (
-            sdk.responses.create if endpoint == "responses" else sdk.chat.completions.create
-        )(**expected_body)
+        sdk = (
+            AsyncAnthropic(api_key="sdk-key", http_client=transport)
+            if endpoint == "messages"
+            else AsyncOpenAI(api_key="sdk-key", http_client=transport)
+        )
+        create = (
+            sdk.messages.create
+            if endpoint == "messages"
+            else sdk.responses.create
+            if endpoint == "responses"
+            else sdk.chat.completions.create
+        )
+        expected = await create(**expected_body)
         if stream:
             async with expected:
                 expected = [event.model_dump() async for event in expected]
         else:
             expected = expected.model_dump()
     assert actual == expected
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_bedrock_messages_translation_matches_openai_sdk(downstream, stream, monkeypatch):
+    """Ensures Bedrock routing preserves matched Messages-to-OpenAI output in both modes."""
+    # These matched protocol fixtures establish offline translation parity, not
+    # live Bedrock acceptance of their synthetic model or response values.
+    upstream = cassette("messages", True)
+    reference = cassette(downstream, True)
+    body = deepcopy(reference["request"]["body"])
+    body["stream"] = stream
+    if not stream:
+        body.pop("stream_options", None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "unrelated-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "unrelated-token")
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert str(request.url) == "https://bedrock.example/anthropic/v1/messages"
+        assert json_loads(request.content) == upstream["request"]["body"]
+        assert request.headers["x-api-key"] == "selected-key"
+        assert "authorization" not in request.headers
+        return response(upstream)
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        actual = await getattr(molto, downstream.replace("/", "_"))(
+            body,
+            endpoint="messages",
+            provider="bedrock",
+            base_url="https://bedrock.example/anthropic",
+            api_key="selected-key",
+        )
+        if stream:
+            actual = [event async for event in actual]
+            assert_stream_lifecycle(downstream, actual)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: response(reference))
+    ) as transport:
+        sdk = AsyncOpenAI(api_key="sdk-key", http_client=transport)
+        create = sdk.responses.create if downstream == "responses" else sdk.chat.completions.create
+        expected = await create(**reference["request"]["body"])
+        async with expected:
+            expected = [event async for event in expected]
+
+    if stream:
+        if downstream == "responses":
+            actual = [reconstructable_responses_event(dumps_sse(e), body=body) for e in actual]
+            expected = [reconstructable_responses_event(dumps_sse(e), body=body) for e in expected]
+        else:
+            actual = [
+                chunk
+                for event in actual
+                for chunk in reconstructable_chat_completions_chunks(dumps_sse(event), body=body)
+            ]
+            expected = [
+                chunk
+                for event in expected
+                for chunk in reconstructable_chat_completions_chunks(dumps_sse(event), body=body)
+            ]
+            # Messages has no source timestamp to project onto Chat chunks.
+            for chunk in actual + expected:
+                chunk.pop("created", None)
+        assert actual == expected
+    else:
+        expected = collect_sdk_response(downstream, expected)
+        assert actual.id == expected.id
+        assert actual.model == expected.model
+        if downstream == "responses":
+            assert actual.status == expected.status
+            assert actual.incomplete_details == expected.incomplete_details
+            actual_output = [item.model_dump(exclude={"id", "phase"}) for item in actual.output]
+            expected_output = [
+                item.model_dump(exclude={"id", "phase"}) for item in expected.output
+            ]
+            assert actual_output == expected_output
+            assert actual.usage == expected.usage
+        else:
+            assert len(actual.choices) == len(expected.choices) == 1
+            assert actual.choices[0].index == expected.choices[0].index
+            assert actual.choices[0].finish_reason == expected.choices[0].finish_reason
+            actual_message = actual.choices[0].message.model_dump(exclude={"parsed"})
+            expected_message = expected.choices[0].message.model_dump(exclude={"parsed"})
+            assert actual_message == expected_message
+            assert actual.usage.prompt_tokens == expected.usage.prompt_tokens
+            assert actual.usage.completion_tokens == expected.usage.completion_tokens
+            assert actual.usage.total_tokens == expected.usage.total_tokens
+            assert actual.usage.prompt_tokens_details.cached_tokens == (
+                expected.usage.prompt_tokens_details.cached_tokens
+            )
+            assert actual.usage.completion_tokens_details.reasoning_tokens == (
+                expected.usage.completion_tokens_details.reasoning_tokens
+            )
     assert len(requests) == 1
 
 
@@ -245,12 +377,18 @@ async def test_direct_hosted_client_defaults_and_missing_credentials(
                 CLIENTS[provider, endpoint](transport, **kwargs)
             kwargs["base_url"] = base
         client = CLIENTS[provider, endpoint](transport, **kwargs)
-        with pytest.raises(OpenAIError, match=CLIENTS[provider, endpoint].REQUIRED_API_KEY):
-            client._make_sdk_client()
+        factory = "_make_anthropic_client" if endpoint == "messages" else "_make_sdk_client"
+        error_type = AuthenticationError if endpoint == "messages" else OpenAIError
+        with pytest.raises(error_type, match=CLIENTS[provider, endpoint].REQUIRED_API_KEY):
+            getattr(client, factory)()
         selected = CLIENTS[provider, endpoint](transport, api_key="selected-key", **kwargs)
-        sdk = selected._make_sdk_client()
+        sdk = getattr(selected, factory)()
         assert str(sdk.base_url).rstrip("/") == base
-        assert sdk.default_headers["Authorization"] == "Bearer selected-key"
+        if endpoint == "messages":
+            assert sdk.default_headers["X-Api-Key"] == "selected-key"
+            assert sdk.default_headers.get("Authorization", omit) is omit
+        else:
+            assert sdk.default_headers["Authorization"] == "Bearer selected-key"
 
 
 @pytest.mark.parametrize(("provider", "supported", "base", "path"), DESTINATIONS)
@@ -302,7 +440,6 @@ NATIVE_ATTEMPTS = [
     ("openrouter", "messages", "https://openrouter.ai/api/v1", "openrouter_api_key"),
     ("fireworks", "messages", "https://api.fireworks.ai/inference/v1", "fireworks_api_key"),
     ("togetherai", "messages", "https://api.together.ai/v1", "together_ai_api_key"),
-    ("bedrock", "messages", "https://bedrock-runtime.example", "aws_bearer_token_bedrock"),
 ]
 
 
@@ -374,8 +511,8 @@ async def test_unregistered_native_attempts_preserve_sdk_parity(
     assert len(calls) == 1
 
 
-async def test_unregistered_native_bedrock_requires_explicit_destination():
-    """Ensures native fallback cannot send a Bedrock credential to a default OpenAI URL."""
+async def test_native_bedrock_messages_requires_explicit_destination():
+    """Ensures Bedrock Messages cannot send its credential to a default Anthropic URL."""
     async with Molto(
         http_client=httpx.AsyncClient(
             transport=httpx.MockTransport(

@@ -11,18 +11,33 @@ Native attempts such as `Molto.messages(..., provider="openai", base_url="https:
 | Together AI | `TogetherAIResponsesClient`, `TogetherAIChatCompletionsClient` | `https://api.together.ai/v1` | `TOGETHER_AI_API_KEY` |
 | Fireworks | `FireworksResponsesClient`, `FireworksChatCompletionsClient` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` |
 | OpenRouter | `OpenRouterResponsesClient` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
-| Bedrock | `BedrockResponsesClient`, `BedrockChatCompletionsClient` | Explicit regional URL required | `AWS_BEARER_TOKEN_BEDROCK` or `BEDROCK_API_KEY` |
+| Bedrock | `BedrockResponsesClient`, `BedrockMessagesClient`, `BedrockChatCompletionsClient` | Explicit regional URL required | `AWS_BEARER_TOKEN_BEDROCK` or `BEDROCK_API_KEY` |
 | Gemini | `GeminiChatCompletionsClient` | `https://generativelanguage.googleapis.com/v1beta/openai` | `GEMINI_API_KEY` |
 
 An explicit `api_key` overrides the configured provider key; registered hosted clients reject an empty key locally, while unregistered native attempts use the protocol SDK's authentication behavior. Missing provider keys cannot fall back to OpenAI credentials. An explicit `base_url` overrides the default without changing the provider or protocol. Authentication and account headers supplied through `extra_headers` cannot override the selected upstream identity.
 
 Bedrock accepts either credential name from the environment or `.env`. `AWS_BEARER_TOKEN_BEDROCK` takes precedence when both names are configured, including across those sources. For the same name, the environment overrides `.env`.
 
+For Claude on Bedrock, select `endpoint="messages"`. The [Anthropic-native Messages API](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html) accepts the regular Anthropic SDK wire format on runtime and Mantle. Supply a base URL ending in `/anthropic`, such as `https://bedrock-runtime.us-east-1.amazonaws.com/anthropic` or `https://bedrock-mantle.us-east-1.api.aws/anthropic`; the SDK appends `/v1/messages`. This client uses the selected Bedrock key in `x-api-key`, suppresses ambient Anthropic bearer credentials, and reuses Messages streaming and translation. It does not use the InvokeModel/Converse transports or sign requests with AWS SigV4. Keep the model or inference-profile ID expected by the selected destination; Molto neither switches protocols based on model names nor restricts native attempts.
+
+```python
+response = await molto.responses(
+    {"model": "global.anthropic.claude-sonnet-5", "input": "Hello!", "max_output_tokens": 1024},
+    provider="bedrock",
+    endpoint="messages",
+    base_url="https://bedrock-runtime.us-east-1.amazonaws.com/anthropic",
+)
+```
+
+`Molto.messages(..., provider="bedrock", base_url=...)` passes Messages through natively. Responses and Chat callers select `endpoint="messages"` for translation; both streaming and non-streaming results are supported. Model access and region availability are owned by Bedrock.
+
 Select the upstream protocol explicitly when it differs from the public method. For example, `Molto.chat_completions(..., provider="openrouter", endpoint="responses")` translates Chat input through the Responses client. The existing method defaults remain unchanged.
 
 Protocol availability is documented by [Together](https://docs.together.ai/docs/inference/responses-api), [Fireworks](https://docs.fireworks.ai/api-reference/post-responses), [OpenRouter](https://openrouter.ai/docs/api_reference/responses/overview), [Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-responses-api.html), and [Gemini](https://ai.google.dev/gemini-api/docs/openai). Availability does not establish support for every model or feature. Together's Responses documentation lists GLM-5.2 and GLM-5.3 families; its Chat Completions recordings do not validate Responses for those Chat models. Together, Fireworks, and Bedrock expose separate Chat Completions clients to reach models and capabilities available through that protocol. Bedrock's [Chat Completions guide](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions.html) documents the regional runtime and Mantle destinations; callers must choose a destination supported by their model.
 
 ## Provider differences
+
+Bedrock Claude model IDs and inference-profile prefixes are recognized when selecting Messages thinking capabilities. For example, `us.anthropic.claude-haiku-4-5-20251001-v1:0` uses the manual thinking budget, while `global.anthropic.claude-sonnet-5` uses adaptive thinking. The exact supplied model ID stays unchanged on the wire.
 
 OpenRouter Responses identifies raw text and summaries explicitly. Its client accepts unsigned raw reasoning, including the recorded `format: "unknown"`, or summary output with an optional signature. Named formats, formatted summaries, mixed representations, and mid-item representation changes reject. Translated Responses history follows the same format rule: `format: "unknown"` on a raw-only item is accepted and omitted. Native passthrough preserves the original fields. Raw reasoning and unsigned summaries project to Chat and Messages; signed summaries can project to Messages. Chat `reasoning_content` and Messages `thinking` erase the raw-versus-summary label. On continuation, OpenRouter's summary profile interprets that unsigned history as a summary, which the Responses upstream builder rejects without a signature. This is a known limitation for both Chat and Messages reasoning-history replay, including raw text originally emitted by OpenRouter. Use native Responses history to retain the representation; output projection support does not establish a complete reasoning round trip.
 
@@ -48,6 +63,8 @@ Gemini and Fireworks Chat clients omit `stream_options.include_obfuscation`, whi
 Translated Responses function tools default omitted or `null` `strict` to `true`; explicit `false` remains non-strict. Translated Chat Completions tools retain their non-strict default. Molto forwards the supplied parameter schema without adding strict-mode constraints and does not retry with non-strict tools. This is a deliberate approximation of [native Responses](https://developers.openai.com/api/docs/guides/function-calling#strict-mode), which attempts schema normalization and can fall back to non-strict mode. Supply a strict-compatible schema or set `strict: false` explicitly; an upstream may reject an incompatible schema or unsupported strict mode. Native passthrough preserves omission and explicit values for the provider to interpret.
 
 ## Replay evidence
+
+Bedrock Messages currently has offline transport and translation coverage using the existing matched Messages/OpenAI fixtures. Tests compare native Anthropic SDK output and translated OpenAI SDK output, and check the runtime/Mantle URLs, credential isolation, and request bodies. These reused fixtures are not Bedrock Messages recordings; live Claude acceptance and continuation on Bedrock remain unverified.
 
 Provider conversations share `tests/upstream/test_multi_turn.py`. Cassettes use the existing scenario-first layout, for example `tests/cassettes/upstream_ir/tool_use/togetherai-responses-stream-00.yaml`. Each provider uses its own recordings. Canonical OpenAI/Anthropic fixtures are not reused as evidence of hosted-provider behavior.
 

@@ -105,6 +105,9 @@ def _is_current_or_future_adaptive_claude(model: str) -> bool:
 
 
 def _model_thinking_capabilities(model: str) -> tuple[bool, bool]:
+    # Bedrock prefixes Claude IDs (including inference profiles) with anthropic.
+    # Resolve capabilities from the Claude name without rewriting the wire model.
+    model = model.rsplit("anthropic.", 1)[-1]
     # Anthropic-compatible endpoints in the matched fixtures use non-Claude model
     # IDs and expose adaptive thinking. Known Claude IDs use the installed model
     # profile, supplemented for newer families not yet present in the pinned table.

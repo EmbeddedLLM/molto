@@ -762,6 +762,24 @@ def test_adapter_maps_thinking_configuration_to_reasoning_effort(
             {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
             None,
         ),
+        (
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "medium",
+            {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
+            None,
+        ),
+        (
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "medium",
+            {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
+            None,
+        ),
+        (
+            "global.anthropic.claude-sonnet-5",
+            "xhigh",
+            {"type": "adaptive", "display": "summarized"},
+            {"effort": "xhigh"},
+        ),
     ],
 )
 def test_client_selects_model_supported_thinking_configuration(
@@ -783,6 +801,7 @@ def test_client_selects_model_supported_thinking_configuration(
 
     assert body["thinking"] == thinking
     assert body.get("output_config") == output_config
+    assert body["model"] == model
 
 
 def test_client_projects_user_text_as_content_block_list():

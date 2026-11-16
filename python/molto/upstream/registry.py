@@ -3,7 +3,11 @@
 from molto.providers import Endpoint, Provider
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.base import BaseClient
-from molto.upstream.bedrock import BedrockChatCompletionsClient, BedrockResponsesClient
+from molto.upstream.bedrock import (
+    BedrockChatCompletionsClient,
+    BedrockMessagesClient,
+    BedrockResponsesClient,
+)
 from molto.upstream.fireworks import FireworksChatCompletionsClient, FireworksResponsesClient
 from molto.upstream.gemini import GeminiChatCompletionsClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
@@ -20,6 +24,7 @@ CLIENTS: dict[tuple[Provider, Endpoint], type[BaseClient]] = {
     ("vllm", "messages"): VLLMMessagesClient,
     ("bedrock", "responses"): BedrockResponsesClient,
     ("bedrock", "chat/completions"): BedrockChatCompletionsClient,
+    ("bedrock", "messages"): BedrockMessagesClient,
     ("fireworks", "responses"): FireworksResponsesClient,
     ("fireworks", "chat/completions"): FireworksChatCompletionsClient,
     ("openrouter", "responses"): OpenRouterResponsesClient,
