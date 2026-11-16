@@ -53,6 +53,8 @@ These requests were recorded outside pytest through `scripts/recorder_proxy.py`,
 
 Replay asserts exact outgoing request bodies and provider-neutral invariants: balanced event lifecycles, reconstruction from deltas, valid tool arguments and call identities, consistent usage, terminal reasons, and preserved reasoning signatures. Generated answer wording and chunk counts are not fixed expectations. These recordings are not matched across providers, and opaque reasoning state is only replayed to its original provider. Existing SDK parity tests remain in `tests/core/test_interface.py`.
 
+The 10 Gemini cassettes contain four tool-only responses with signatures attached directly to the tool calls (`tool_use` turns 00 and 01 in both modes), and six text-only responses with message-level signatures (`text_chat` turns 00 and 01 plus `tool_use` turn 02 in both modes). None contains an unsigned tool call followed by a message-level signature. That disputed shape is synthetic test input, not observed provider output in this corpus.
+
 ### Anthropic hosted-search recordings
 
 These unmodified Anthropic `claude-sonnet-4-6` recordings provide independent provider evidence:
