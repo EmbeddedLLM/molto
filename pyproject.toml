@@ -79,11 +79,15 @@ classifiers = [
 # The openai floor is a hard import requirement, not a preference;
 # the ceilings are releases where tests start failing.
 # Re-derive from the suite before widening either bound; see AGENTS.md, "Dependency Versions".
+# opentelemetry-api: the floor is the only version installed (1.45.2, via the test extra);
+# derive it with the suite once tracing tests exist. The <2 ceiling relies on OpenTelemetry's
+# API stability guarantee (no breaking changes within a major version), not a test result.
 # The test extra pins the exact versions the suite is developed against.
 dependencies = [
     "anthropic>=0.119.0,<0.124",
     "loguru~=0.7",
     "openai>=2.45.0,<3.2",
+    "opentelemetry-api>=1.45.2,<2",
     "orjson~=3.11",
     "pydantic-ai-slim[retries]~=1.104.0",
     "pydantic-settings~=2.13.1",
@@ -100,6 +104,8 @@ test = [
     "anthropic==0.121.0",
     "fastapi[standard]==0.135.4",
     "openai==2.53.0",
+    "opentelemetry-api==1.45.2",
+    "opentelemetry-sdk==1.45.2",
     "pytest==8.4.2",
     "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",
