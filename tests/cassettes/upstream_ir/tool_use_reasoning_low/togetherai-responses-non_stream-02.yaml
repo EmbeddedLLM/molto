@@ -1,0 +1,201 @@
+filename: 2026-11-17-01a1ea5e-76c4-79d1-bb64-617d94635bac
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - text: 'The user wants me to:
+
+          1. Add 2 and 3
+
+          2. Then add the result of that with 4
+
+          3. Give the final answer
+
+
+          Let me start with the first call.'
+        type: reasoning_text
+      id: rs_0423dab93ad247b9b1d25b8a75264422-aws_as1-01a1ea5e-731b-7dd3-bb71-42bcc0e7ee65
+      summary: []
+      type: reasoning
+    - arguments: '{"a":2,"b":3}'
+      call_id: call_01a1ea5e73ac7001900e935a
+      id: fc_call_01a1ea5e73ac7001900e935a
+      name: add
+      type: function_call
+    - call_id: call_01a1ea5e73ac7001900e935a
+      output: '5'
+      type: function_call_output
+    - content:
+      - text: The result of adding 2 and 3 is 5. Now I need to add 5 and 4.
+        type: reasoning_text
+      id: rs_cc6ffc065fa6461fbe2171ddf175abb9-aws_as1-01a1ea5e-756c-7113-8122-4ca13ae298bf
+      summary: []
+      type: reasoning
+    - arguments: '{"a":5,"b":4}'
+      call_id: call_01a1ea5e75da7e52ae4c7c2c
+      id: fc_call_01a1ea5e75da7e52ae4c7c2c
+      name: add
+      type: function_call
+    - call_id: call_01a1ea5e75da7e52ae4c7c2c
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1538'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1ea5e-76c4-79d1-bb64-617d94635bac
+response:
+  body:
+    background: false
+    completed_at: 1794933421
+    created_at: 1794933421
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1ea5e-770f-77b2-b52a-2e4c297d4854
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - text: The final result is 9.
+        type: reasoning_text
+      id: rs_6663cf62e15b4032997d27f8d0da465d-aws_as1-01a1ea5e-770f-77b2-b52a-2e5de95da643
+      status: completed
+      summary: []
+      type: reasoning
+    - content:
+      - annotations: []
+        text: 'The final answer is **9**.
+
+
+          Here''s the step-by-step breakdown:
+
+          1. 2 + 3 = 5
+
+          2. 5 + 4 = 9'
+        type: output_text
+      id: msg_6663cf62e15b4032997d27f8d0da465d-aws_as1-01a1ea5e-770f-77b2-b52a-2e5de95da643
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: low
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 152
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 46
+      output_tokens_details:
+        reasoning_tokens: 8
+      total_tokens: 198
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfMDFhMWVhNWUtNzcwZi03N2IyLWI1MmEtMmU0YzI5N2Q0ODU0Iiwib2JqZWN0
+    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzk0OTMzNDIxLCJjb21wbGV0ZWRfYXQiOjE3OTQ5
+    MzM0MjEsImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
+    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
+    dXRfdG9rZW5zIjoyMDQ4LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
+    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJyZWFzb25pbmciLCJpZCI6InJzXzY2NjNjZjYyZTE1
+    YjQwMzI5OTdkMjdmOGQwZGE0NjVkLWF3c19hczEtMDFhMWVhNWUtNzcwZi03N2IyLWI1MmEtMmU1
+    ZGU5NWRhNjQzIiwic3VtbWFyeSI6W10sImNvbnRlbnQiOlt7InR5cGUiOiJyZWFzb25pbmdfdGV4
+    dCIsInRleHQiOiJUaGUgZmluYWwgcmVzdWx0IGlzIDkuIn1dLCJzdGF0dXMiOiJjb21wbGV0ZWQi
+    fSx7InR5cGUiOiJtZXNzYWdlIiwiaWQiOiJtc2dfNjY2M2NmNjJlMTViNDAzMjk5N2QyN2Y4ZDBk
+    YTQ2NWQtYXdzX2FzMS0wMWExZWE1ZS03NzBmLTc3YjItYjUyYS0yZTVkZTk1ZGE2NDMiLCJyb2xl
+    IjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6IlRo
+    ZSBmaW5hbCBhbnN3ZXIgaXMgKio5KiouXG5cbkhlcmUncyB0aGUgc3RlcC1ieS1zdGVwIGJyZWFr
+    ZG93bjpcbjEuIDIgKyAzID0gNVxuMi4gNSArIDQgPSA5IiwiYW5ub3RhdGlvbnMiOltdfV0sInN0
+    YXR1cyI6ImNvbXBsZXRlZCJ9XSwicGFyYWxsZWxfdG9vbF9jYWxscyI6ZmFsc2UsInByZXZpb3Vz
+    X3Jlc3BvbnNlX2lkIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9tcHRfY2FjaGVf
+    cmV0ZW50aW9uIjpudWxsLCJyZWFzb25pbmciOnsiZWZmb3J0IjoibG93Iiwic3VtbWFyeSI6bnVs
+    bH0sInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJzdG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjox
+    LjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In0sInZlcmJvc2l0eSI6Im1lZGl1bSJ9
+    LCJ0b29sX2Nob2ljZSI6Im5vbmUiLCJ0b29scyI6W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6
+    ImFkZCIsImRlc2NyaXB0aW9uIjoiQWRkIHR3byBpbnRlZ2Vycy4iLCJwYXJhbWV0ZXJzIjp7InR5
+    cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImEiOnsidHlwZSI6ImludGVnZXIifSwiYiI6eyJ0
+    eXBlIjoiaW50ZWdlciJ9fSwicmVxdWlyZWQiOlsiYSIsImIiXSwiYWRkaXRpb25hbFByb3BlcnRp
+    ZXMiOmZhbHNlfX1dLCJ0b3BfbG9ncHJvYnMiOjAsInRvcF9wIjoxLjAsInRydW5jYXRpb24iOiJk
+    aXNhYmxlZCIsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6MTUyLCJvdXRwdXRfdG9rZW5zIjo0Niwi
+    dG90YWxfdG9rZW5zIjoxOTgsImlucHV0X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMi
+    OjAsImNhY2hlX3dyaXRlX3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnNfZGV0YWlscyI6eyJyZWFz
+    b25pbmdfdG9rZW5zIjo4fX0sInVzZXIiOm51bGwsInNhZmV0eV9pZGVudGlmaWVyIjpudWxsLCJm
+    cmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJwcmVzZW5jZV9wZW5hbHR5IjowLjAsIm1ldGFkYXRhIjp7
+    fX0=
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 6663cf62e15b4032997d27f8d0da465d-aws_as1
+  status_code: 200
+timestamp: '2026-11-17T16:37:01.764708+00:00'
+upstream_url: https://api.together.ai/v1/responses

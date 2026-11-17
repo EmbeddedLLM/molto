@@ -1,0 +1,127 @@
+filename: 2026-11-17-01a1ea5e-81e6-75d0-a6e6-c445b9f29874
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - annotations: []
+      reasoning_content: The user wants me to first add 2 and 3, then take that result
+        and add 4 to it. Let me start with the first addition.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: call_01a1ea5e7f847760831e114a
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_01a1ea5e7f847760831e114a
+    - annotations: []
+      reasoning_content: The first result is 5. Now I need to add that result (5)
+        and 4.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":5,"b":4}'
+          name: add
+        id: call_01a1ea5e811f72b287c3ea9b
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: call_01a1ea5e811f72b287c3ea9b
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1237'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea5e-81e6-75d0-a6e6-c445b9f29874
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      matched_stop: 154827
+      message:
+        annotations: []
+        content: 'The final answer is **9**.
+
+
+          Here''s the step-by-step breakdown:
+
+          1. 2 + 3 = 5
+
+          2. 5 + 4 = 9'
+        reasoning_content: The second result is 9. So the final answer is 9.
+        refusal: null
+        role: assistant
+    created: 1794933424
+    id: f06204d0fb4f4c02bdf69228fd1ef164-aws_as1
+    model: zai-org/GLM-5.2
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: default
+    usage:
+      completion_tokens: 54
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 16
+        rejected_prediction_tokens: 0
+      prompt_tokens: 141
+      prompt_tokens_details:
+        audio_tokens: 0
+        cached_tokens: 0
+      total_tokens: 195
+  body_bytes: !!binary |
+    eyJpZCI6ImYwNjIwNGQwZmI0ZjRjMDJiZGY2OTIyOGZkMWVmMTY0LWF3c19hczEiLCJvYmplY3Qi
+    OiJjaGF0LmNvbXBsZXRpb24iLCJjcmVhdGVkIjoxNzk0OTMzNDI0LCJtb2RlbCI6InphaS1vcmcv
+    R0xNLTUuMiIsImNob2ljZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3Rh
+    bnQiLCJjb250ZW50IjoiVGhlIGZpbmFsIGFuc3dlciBpcyAqKjkqKi5cblxuSGVyZSdzIHRoZSBz
+    dGVwLWJ5LXN0ZXAgYnJlYWtkb3duOlxuMS4gMiArIDMgPSA1XG4yLiA1ICsgNCA9IDkiLCJyZWZ1
+    c2FsIjpudWxsLCJhbm5vdGF0aW9ucyI6W10sInJlYXNvbmluZ19jb250ZW50IjoiVGhlIHNlY29u
+    ZCByZXN1bHQgaXMgOS4gU28gdGhlIGZpbmFsIGFuc3dlciBpcyA5LiJ9LCJsb2dwcm9icyI6bnVs
+    bCwiZmluaXNoX3JlYXNvbiI6InN0b3AiLCJtYXRjaGVkX3N0b3AiOjE1NDgyN31dLCJ1c2FnZSI6
+    eyJwcm9tcHRfdG9rZW5zIjoxNDEsImNvbXBsZXRpb25fdG9rZW5zIjo1NCwidG90YWxfdG9rZW5z
+    IjoxOTUsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowLCJhdWRpb190
+    b2tlbnMiOjB9LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMi
+    OjE2LCJhdWRpb190b2tlbnMiOjAsImFjY2VwdGVkX3ByZWRpY3Rpb25fdG9rZW5zIjowLCJyZWpl
+    Y3RlZF9wcmVkaWN0aW9uX3Rva2VucyI6MH19LCJzeXN0ZW1fZmluZ2VycHJpbnQiOiJkZWZhdWx0
+    Iiwic2VydmljZV90aWVyIjoiZGVmYXVsdCJ9
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: f06204d0fb4f4c02bdf69228fd1ef164-aws_as1
+  status_code: 200
+timestamp: '2026-11-17T16:37:04.614674+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions
