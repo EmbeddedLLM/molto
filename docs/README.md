@@ -19,7 +19,7 @@ Three rules make this principle concrete:
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]` and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of these exceptions.
+“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]`, `include=["web_search_call.action.sources"]`, and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of these exceptions.
 
 Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation on translated routes uses the validation errors provided by the protocol's Pydantic request model. Molto's local public request models reject unknown top-level fields; nested fields follow their declared schemas.
 
@@ -73,10 +73,6 @@ asyncio.run(main())
 Use the same protocol for the method and `endpoint` to select native passthrough. Each protocol guide includes native and translated examples.
 
 `Molto` owns its shared `httpx.AsyncClient`. A returned stream releases its response when its context exits, including after early termination. Closing `Molto`, either with `async with` or `await molto.aclose()`, closes the shared HTTP client.
-
-## Planned server mode
-
-A future `python -m molto.server` entry point will expose Molto as an OpenAI Responses-compatible FastAPI upstream for Codex CLI. The implementation, model-catalog contract, compatibility settings, and remaining tests are specified in the [Codex server handoff](../codex-server.md). The server module is not implemented yet.
 
 ## Routing
 
@@ -378,7 +374,7 @@ The protocol-specific contracts are:
 
 ## Future work
 
-The [Codex server roadmap](roadmap/codex-server.md) describes a proposed stateless HTTP Responses server, its library prerequisites, and the milestones required for Codex CLI compatibility. The server is not yet implemented.
+The [Codex server roadmap](roadmap/codex-server.md) describes a proposed stateless `python -m molto.server` entry point that would expose Molto as an OpenAI Responses-compatible HTTP server for Codex CLI, its library prerequisites, and the milestones required for Codex CLI compatibility. The server is not yet implemented.
 
 ## Primary references
 

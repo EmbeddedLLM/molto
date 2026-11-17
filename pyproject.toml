@@ -94,16 +94,16 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 lint = ["ruff~=0.12"]
-# Exact SDK versions the suite is developed and verified against. Keep these
+# Exact versions the suite is developed and verified against. Keep the SDKs
 # inside the windows declared in the core dependencies.
 test = [
     "anthropic==0.121.0",
-    "fastapi[standard]~=0.135.2",
+    "fastapi[standard]==0.135.4",
     "openai==2.53.0",
-    "pytest~=8.3",
-    "pytest-asyncio>=0.23.8",
+    "pytest==8.4.2",
+    "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",
-    "pytest-timeout~=2.3",
+    "pytest-timeout==2.4.0",
     "PyYAML==6.0.3",
 ]
 all = ["molto[lint,test]"]
