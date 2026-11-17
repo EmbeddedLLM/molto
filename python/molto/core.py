@@ -1,7 +1,10 @@
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
+from opentelemetry import trace
+from opentelemetry.trace import Span, SpanKind, Status, StatusCode
+from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
@@ -30,10 +33,20 @@ from molto.types.openai_responses import (
     has_anthropic_search_metadata,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.base import BaseClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import request_to_dict
+from molto.utils.telemetry import ResolvedRoute, get_tracer, span_name, start_attributes
 
 VLLM_DUMMY_API_KEY = "EMPTY"
+
+# Each endpoint's client, used to resolve the effective destination for span attributes
+# exactly as the client will before transport.
+_UPSTREAM_CLIENTS: dict[Endpoint, type[BaseClient]] = {
+    "responses": OpenAIResponsesClient,
+    "chat/completions": OpenAIChatCompletionsClient,
+    "messages": AnthropicMessagesClient,
+}
 
 _CREDENTIAL_HEADERS = frozenset(
     {
@@ -98,6 +111,14 @@ def _upstream_headers(extra_headers: Mapping[str, str] | None) -> dict[str, str]
     return {name: value for name, value in headers.items() if name.lower() not in excluded}
 
 
+def _finish_span(span: Span, error: BaseException | None = None) -> None:
+    # Cancellation is the caller stopping the call, not the call failing, so only an
+    # `Exception` marks the span as an error (docs/observability.md).
+    if isinstance(error, Exception):
+        span.set_status(Status(StatusCode.ERROR))
+    span.end()
+
+
 class MoltoStream[EventT](AsyncIterator[EventT]):
     """Replay prefetched events and manage the source stream lifecycle."""
 
@@ -110,6 +131,7 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         self._events = events
         self._stream = stream
         self._closed = False
+        self._span: Span | None = None
         self.response_headers = Headers(response_headers)
 
     def __aiter__(self) -> AsyncIterator[EventT]:
@@ -120,7 +142,14 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
             raise StopAsyncIteration
         if self._events:
             return self._events.pop()
-        return await anext(self._stream)
+        try:
+            return await anext(self._stream)
+        except StopAsyncIteration:
+            self._end_span()
+            raise
+        except BaseException as error:
+            self._end_span(error)
+            raise
 
     async def __aenter__(self) -> Self:
         return self
@@ -134,8 +163,19 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         self._closed = True
         self._events.clear()
         close = getattr(self._stream, "aclose", None)
-        if close is not None:
-            await close()
+        try:
+            if close is not None:
+                await close()
+        except BaseException as error:
+            self._end_span(error)
+            raise
+        self._end_span()
+
+    def _end_span(self, error: BaseException | None = None) -> None:
+        # Exhaustion, an error, and `aclose()` can all reach here; end the span once.
+        if self._span is not None:
+            span, self._span = self._span, None
+            _finish_span(span, error)
 
 
 async def _prefetch_stream[EventT](
@@ -147,6 +187,44 @@ async def _prefetch_stream[EventT](
     except StopAsyncIteration:
         return MoltoStream([], stream, response_headers)
     return MoltoStream([first_event], stream, response_headers)
+
+
+async def _traced[ResultT](
+    protocol: Endpoint,
+    endpoint: Endpoint,
+    provider: Provider,
+    base_url: str | None,
+    body: Mapping[str, Any] | BaseModel,
+    call: Callable[[], Awaitable[ResultT]],
+) -> ResultT:
+    """Run one coordinator call inside its span.
+
+    The span starts in the caller's context, so it parents to the caller's active
+    span. It is current only while `call` sends the upstream request (the whole call
+    when non-streaming, the prefetch when streaming), so instrumented `httpx` spans
+    nest under it. A returned stream ends the span itself.
+    """
+    route = ResolvedRoute(
+        protocol, endpoint, provider, _UPSTREAM_CLIENTS[endpoint].resolve_base_url(base_url)
+    )
+    attributes = start_attributes(route, body)
+    span = get_tracer().start_span(
+        span_name(attributes), kind=SpanKind.CLIENT, attributes=attributes
+    )
+    try:
+        # `_finish_span` sets the status instead of `use_span`, whose ERROR status
+        # description would carry the exception message.
+        with trace.use_span(span, record_exception=False, set_status_on_exception=False):
+            result = await call()
+    except BaseException as error:
+        _finish_span(span, error)
+        raise
+    if isinstance(result, MoltoStream):
+        # The stream outlives this `await`, so it ends the span itself.
+        result._span = span
+    else:
+        _finish_span(span)
+    return result
 
 
 class Molto:
@@ -212,6 +290,34 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIResponsesCreateRequest.")
+        return await _traced(
+            "responses",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda: self._run_responses(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+            ),
+        )
+
+    async def _run_responses(
+        self,
+        body: OpenAIResponsesCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+    ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -297,6 +403,34 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIChatCompletionsCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIChatCompletionsCreateRequest.")
+        return await _traced(
+            "chat/completions",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda: self._run_chat_completions(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+            ),
+        )
+
+    async def _run_chat_completions(
+        self,
+        body: OpenAIChatCompletionsCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+    ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -374,6 +508,36 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, AnthropicMessagesCreateRequest)):
             raise TypeError("body must be a dictionary or AnthropicMessagesCreateRequest.")
+        return await _traced(
+            "messages",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda: self._run_messages(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+                citation_policy=citation_policy,
+            ),
+        )
+
+    async def _run_messages(
+        self,
+        body: AnthropicMessagesCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+        citation_policy: CitationPolicy,
+    ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)

@@ -125,7 +125,7 @@ Upstream clients normalize recognized SDK failures as `APIException`; downstream
 
 ## Instrumentation
 
-Planned, not implemented yet. The coordinator owns spans: only `core.py` creates and ends them, while adapters, normalizers, and upstream clients stay telemetry-free. Telemetry never influences routing or translation. The [observability contract](../docs/observability.md) defines the span and its rules.
+The coordinator owns spans: only `core.py` creates and ends them, while adapters, normalizers, and upstream clients stay telemetry-free. Telemetry never influences routing or translation. `_traced` in `core.py` starts one span per coordinator call, and `MoltoStream` ends it for streams. The [observability contract](../docs/observability.md) defines the span and its rules, and records which parts are not implemented yet.
 
 ## Orchestration facade and coordinators
 

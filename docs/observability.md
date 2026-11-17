@@ -1,6 +1,6 @@
 # Observability
 
-Status: planned, not implemented yet. This page defines the tracing contract Molto will implement; Molto does not emit spans today.
+Status: partly implemented. Molto emits the span below for every coordinator call, with its start attributes, lifecycle, and status. The end attributes, error attributes, and the `molto.first_token` event are planned and not emitted yet.
 
 Molto emits one OpenTelemetry span for each coordinator call: `Molto.responses()`, `Molto.chat_completions()`, or `Molto.messages()`. The span shows what Molto did with the call: the route it chose, the downstream and upstream protocols it translated between, the provider, token usage, finish reasons, and why a call failed.
 
@@ -62,7 +62,7 @@ The span follows the [GenAI semantic conventions](https://github.com/open-teleme
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Kind     | `CLIENT`                                                                                                                            |
 | Name     | `{gen_ai.operation.name} {gen_ai.request.model}`, for example `chat gpt-5`; `{gen_ai.operation.name}` when the request has no model |
-| Status   | `UNSET` on success; `ERROR` only on a genuine failure                                                                               |
+| Status   | `UNSET` on success and on cancellation; `ERROR` only on a genuine failure                                                           |
 | Parent   | The span active when the coordinator is awaited                                                                                     |
 
 Molto creates no separate spans for adapters, normalizers, upstream clients, or translation. Translation runs interleaved with streaming, event by event, rather than as a separate phase, so a translation span would not isolate its cost.

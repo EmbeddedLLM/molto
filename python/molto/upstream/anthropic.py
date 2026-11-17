@@ -329,7 +329,7 @@ class AnthropicMessagesClient(
     def _make_anthropic_client(self) -> AsyncAnthropic:
         return AsyncAnthropic(
             api_key=self._api_key,
-            base_url=self._base_url or self.DEFAULT_BASE_URL,
+            base_url=self.resolve_base_url(self._base_url),
             http_client=self._http_client,
         )
 

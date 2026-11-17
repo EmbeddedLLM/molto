@@ -74,9 +74,9 @@ Use the same protocol for the method and `endpoint` to select native passthrough
 
 `Molto` owns its shared `httpx.AsyncClient`. A returned stream releases its response when its context exits, including after early termination. Closing `Molto`, either with `async with` or `await molto.aclose()`, closes the shared HTTP client.
 
-## Planned observability
+## Observability
 
-Tracing is planned and not implemented yet. The [observability contract](observability.md) defines the OpenTelemetry span Molto will emit for each coordinator call.
+Molto emits one OpenTelemetry span per coordinator call, using only `opentelemetry-api`; the application configures export. The [observability contract](observability.md) defines the span and states which parts are not implemented yet.
 
 ## Routing
 

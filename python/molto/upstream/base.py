@@ -42,6 +42,11 @@ class BaseClient[
         self._extra_headers = extra_headers
         self.response_headers = Headers()
 
+    @classmethod
+    def resolve_base_url(cls, base_url: str | None) -> str:
+        """Return the HTTP destination for `base_url`, defaulting to the client's native URL."""
+        return base_url or cls.DEFAULT_BASE_URL
+
     def _capture_response_headers(self, headers: Headers) -> None:
         self.response_headers.clear()
         self.response_headers.update(headers)
@@ -63,7 +68,7 @@ class BaseClient[
     def _make_sdk_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
             api_key=self._api_key,
-            base_url=self._base_url or self.DEFAULT_BASE_URL,
+            base_url=self.resolve_base_url(self._base_url),
             default_headers={
                 # Preserve Molto's explicit credential boundary instead of merging
                 # OpenAI account settings from the SDK's environment variables.
@@ -80,7 +85,7 @@ class BaseClient[
         # this unsent request supplies its intended URL for our synthetic 401 response.
         # HTTP and stream errors retain their real requests instead. Match SDK path
         # appending here, including custom base prefixes and trailing slashes.
-        base_url = URL(self._base_url or self.DEFAULT_BASE_URL)
+        base_url = URL(self.resolve_base_url(self._base_url))
         raw_path = base_url.raw_path
         if not raw_path.endswith(b"/"):
             raw_path += b"/"
