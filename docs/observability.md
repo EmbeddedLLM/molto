@@ -35,7 +35,9 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 HTTPXClientInstrumentor().instrument()
 ```
 
-To instrument only the client Molto uses, pass an instrumented `httpx.AsyncClient` instead:
+Global instrumentation wraps `httpx`'s network transport, so it covers Molto's default client and any injected `httpx.AsyncClient` that uses that transport, including clients created before `instrument()` is called. It does not see a client built on a custom transport, such as `httpx.MockTransport`.
+
+To instrument only the client Molto uses, or a client with a custom transport, pass an instrumented `httpx.AsyncClient` instead:
 
 ```python
 from httpx import AsyncClient
@@ -48,7 +50,7 @@ HTTPXClientInstrumentor.instrument_client(http_client)
 molto = Molto(http_client=http_client)
 ```
 
-The SDK call runs while the Molto span is current, so the HTTP spans nest under it.
+The SDK call runs while the Molto span is current, so the HTTP spans nest under it, on native and translated routes, streaming and non-streaming.
 
 An `httpx` client span ends when the response headers arrive, not when a stream finishes. For a streaming call it measures only the time to first byte. The Molto span covers the whole generation, and its `molto.first_token` event records the time to first token.
 

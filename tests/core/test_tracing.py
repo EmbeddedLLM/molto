@@ -2,13 +2,24 @@ import asyncio
 import subprocess
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import openai
 import pytest
-from httpx import AsyncByteStream, AsyncClient, Headers, MockTransport, Request, Response
+from httpx import (
+    AsyncByteStream,
+    AsyncClient,
+    AsyncHTTPTransport,
+    Headers,
+    MockTransport,
+    Request,
+    Response,
+)
 from opentelemetry import trace
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.metrics import NoOpMeterProvider
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -40,19 +51,25 @@ EVENT_ATTRIBUTE_KEYS = {
 CASSETTES = Path(__file__).parents[1] / "cassettes"
 
 
+@pytest.fixture
+def tracer_provider(monkeypatch: pytest.MonkeyPatch) -> TracerProvider:
+    """Route Molto's tracer to a local SDK provider, leaving the global provider untouched."""
+    provider = TracerProvider()
+    monkeypatch.setattr("molto.core.get_tracer", lambda: provider.get_tracer("molto"))
+    return provider
+
+
 @pytest.fixture(autouse=True)
 def exporter(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tracer_provider: TracerProvider, caplog: pytest.LogCaptureFixture
 ) -> Iterator[InMemorySpanExporter]:
-    """Route Molto's tracer to a local SDK provider, leaving the global provider untouched.
+    """Collect every span the local provider ends, and fail if one ends twice.
 
     The SDK ignores a second `end()` and only logs a warning, so the warning is the
     evidence that a span was ended more than once.
     """
-    provider = TracerProvider()
     exporter = InMemorySpanExporter()
-    provider.add_span_processor(SimpleSpanProcessor(exporter))
-    monkeypatch.setattr("molto.core.get_tracer", lambda: provider.get_tracer("molto"))
+    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
     yield exporter
     # `caplog.records` holds only the current (teardown) phase; check the test body.
     records = caplog.get_records("call")
@@ -1071,3 +1088,179 @@ def test_spans_use_the_application_tracer_provider():
     )
 
     assert result == {"name": "chat gpt-4.1-nano", "scope": "molto", "version": __version__}
+
+
+HTTPX_SCOPE = "opentelemetry.instrumentation.httpx"
+
+
+class HttpSpanCase(NamedTuple):
+    """One coordinator call whose upstream HTTP request should be traced."""
+
+    method: str
+    endpoint: str
+    request: str
+    stream: bool
+    response_override: str | None = None
+
+    @property
+    def response(self) -> str:
+        """The recording that answers the call: the override, or the request's own."""
+        return self.response_override or self.request
+
+
+HTTP_SPAN_CASES = [
+    HttpSpanCase("responses", "responses", "matched/simple_text/openai-responses-stream-00", True),
+    HttpSpanCase(
+        "responses", "responses", "matched/simple_text/openai-responses-non_stream-00", False
+    ),
+    HttpSpanCase(
+        "responses",
+        "messages",
+        "matched/simple_text/openai-responses-stream-00",
+        True,
+        "matched/simple_text/anthropic-messages-stream-00",
+    ),
+    HttpSpanCase(
+        "messages",
+        "responses",
+        "matched/simple_text/anthropic-messages-non_stream-00",
+        False,
+        "matched/simple_text/openai-responses-stream-00",
+    ),
+]
+
+
+def _case_id(case: HttpSpanCase) -> str:
+    route = "native" if case.method.replace("_", "/") == case.endpoint else "translated"
+    return f"{case.method}-{route}-{'stream' if case.stream else 'non_stream'}"
+
+
+async def _call(molto: Molto, case: HttpSpanCase) -> None:
+    """Make the case's coordinator call and consume any stream."""
+    await _consume(
+        await getattr(molto, case.method)(
+            body=_request_body(case.request), endpoint=case.endpoint, api_key="test-key"
+        )
+    )
+
+
+@contextmanager
+def _instrumented_httpx(tracer_provider: TracerProvider) -> Iterator[None]:
+    """Instrument `httpx` globally, as host applications do, for the duration of the block.
+
+    A no-op meter provider keeps the instrumentor's duration histograms off the
+    process-wide meter provider, so no other test sees them.
+    """
+    instrumentor = HTTPXClientInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider, meter_provider=NoOpMeterProvider())
+    try:
+        yield
+    finally:
+        instrumentor.uninstrument()
+
+
+def _replay_network(monkeypatch: pytest.MonkeyPatch, cassette_name: str) -> None:
+    """Answer httpx's network transport from a recording, so no request leaves the process.
+
+    Global instrumentation wraps this transport, which every default `AsyncClient` uses.
+    """
+    replay = replay_transport(_cassette(cassette_name))
+
+    async def handle_async_request(self: AsyncHTTPTransport, request: Request) -> Response:
+        return await replay.handle_async_request(request)
+
+    monkeypatch.setattr(AsyncHTTPTransport, "handle_async_request", handle_async_request)
+
+
+def _http_spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
+    return [
+        span
+        for span in exporter.get_finished_spans()
+        if span.instrumentation_scope.name == HTTPX_SCOPE
+    ]
+
+
+def _assert_http_span_nests_under_molto_span(
+    exporter: InMemorySpanExporter, case: HttpSpanCase
+) -> None:
+    """Assert one HTTP CLIENT span is a child of the Molto span, ending at the response headers.
+
+    For a stream, the HTTP span ends before the first token: it measures only the time
+    to first byte, while the Molto span covers the whole generation.
+    """
+    (http_span,) = _http_spans(exporter)
+    (molto_span,) = [
+        span
+        for span in exporter.get_finished_spans()
+        if span.instrumentation_scope.name == "molto"
+    ]
+    assert http_span.kind is SpanKind.CLIENT
+    assert http_span.parent.span_id == molto_span.context.span_id
+    assert http_span.context.trace_id == molto_span.context.trace_id
+    first_tokens = [event for event in molto_span.events if event.name == "molto.first_token"]
+    if case.stream:
+        (first_token,) = first_tokens
+        assert http_span.end_time <= first_token.timestamp
+    else:
+        assert first_tokens == []
+
+
+@pytest.mark.parametrize("injected", [False, True], ids=["default_client", "injected_client"])
+@pytest.mark.parametrize("case", HTTP_SPAN_CASES, ids=_case_id)
+async def test_global_httpx_instrumentation_nests_http_spans_under_the_molto_span(
+    exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    injected: bool,
+    case: HttpSpanCase,
+):
+    """Ensures globally instrumented `httpx` spans parent to the Molto span on every route.
+
+    Covers Molto's default client and an injected one, both created before the
+    instrumentation is installed, for native and translated, streaming and
+    non-streaming calls. This guards the rule that the Molto span is current while
+    the upstream request is sent.
+    """
+    _replay_network(monkeypatch, case.response)
+    molto = Molto(http_client=AsyncClient() if injected else None)
+    with _instrumented_httpx(tracer_provider):
+        async with molto:
+            await _call(molto, case)
+
+    _assert_http_span_nests_under_molto_span(exporter, case)
+
+
+@pytest.mark.parametrize("case", HTTP_SPAN_CASES, ids=_case_id)
+async def test_instrumented_client_nests_http_spans_under_the_molto_span(
+    exporter: InMemorySpanExporter, tracer_provider: TracerProvider, case: HttpSpanCase
+):
+    """Ensures an injected client instrumented with `instrument_client` nests its spans under Molto's.
+
+    This is the per-client setup `docs/observability.md` shows, which works with any
+    `httpx` transport.
+    """
+    http_client = _replay(case.response)
+    HTTPXClientInstrumentor.instrument_client(
+        http_client, tracer_provider=tracer_provider, meter_provider=NoOpMeterProvider()
+    )
+    async with Molto(http_client=http_client) as molto:
+        await _call(molto, case)
+
+    _assert_http_span_nests_under_molto_span(exporter, case)
+
+
+async def test_global_httpx_instrumentation_ignores_custom_transports(
+    exporter: InMemorySpanExporter, tracer_provider: TracerProvider
+):
+    """Asserts that global instrumentation does not trace a client built on a custom transport.
+
+    It wraps only `httpx`'s network transport, so a `MockTransport` client produces
+    no HTTP span; `docs/observability.md` points such clients to `instrument_client`.
+    """
+    case = HTTP_SPAN_CASES[0]
+    with _instrumented_httpx(tracer_provider):
+        async with Molto(http_client=_replay(case.response)) as molto:
+            await _call(molto, case)
+
+    assert _http_spans(exporter) == []
+    assert len(exporter.get_finished_spans()) == 1
