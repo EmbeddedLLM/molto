@@ -123,6 +123,10 @@ Adapters and upstream clients do not depend on each other. Protocol-specific coo
 
 Upstream clients normalize recognized SDK failures as `APIException`; downstream adapters project them into their SDK namespace. Both native and translated routes use this pipeline for streaming and non-streaming requests. See [Errors](../docs/errors.md) for recognition rules, status mappings, and special cases.
 
+## Instrumentation
+
+Planned, not implemented yet. The coordinator owns spans: only `core.py` creates and ends them, while adapters, normalizers, and upstream clients stay telemetry-free. Telemetry never influences routing or translation. The [observability contract](../docs/observability.md) defines the span and its rules.
+
 ## Orchestration facade and coordinators
 
 `Molto` is expected to expose one coordinator method per downstream protocol:
