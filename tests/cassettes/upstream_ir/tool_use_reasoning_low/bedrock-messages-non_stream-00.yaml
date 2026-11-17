@@ -1,0 +1,123 @@
+filename: 2026-11-17-01a1ea62-ae34-76b1-83d8-f92d77bdf3de
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '634'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1ea62-ae34-76b1-83d8-f92d77bdf3de
+response:
+  body:
+    container: null
+    content:
+    - signature: EvEDCoQBCBMQARgCKkDo7L08qZbFrNiu52vCs2UNl4RgsBG/vrmh0dNXhas7WhRw/My9farsRizJ14gTdvJZBa4xZZkp8pxntjINohJmMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgwxOTgzMzMzNDQxOTWoAcKH8tcGEgyn/vCIx0Bnf0UihHYaDG0QiDdk5bb+8g2PUiIwGP99SMZXrKnMisXCiHbXhzVfY2zjwOKrJJwIBYP748UDs6+e3Zw2hHThh2i+Sk+KKpkC1p7uALynjvVLFCKFLF31/ah5eZvhJQuC+TbtMbgHRURUMIP+WDGvql4wXraQcUpPuRZXG80qekvJKCTVbHHv59QEYP96umctRXqaX+yOLe+fTaEOujCcWFxhU/Y+VTKiTshl+D8Kt0DiQt1RnNsAHzuxmSB67gRznKQFZeBI8bvk9A1v+QayQfxa2xnAmSHmzM/T6PAVtIaqcU1yAqtnh2dha7YIvXnGGZ4FnDMSk9K2tgViDiir/EcziBSqPcOTobHiAwjWH77WxLrtrw2jTTLILRBUExmAox1FoVvzycRX5N84Y1PhXSBtmhiJ6C3A7nXTiFj1eW5rUopGHk9rQJuTOvJfl84QfTLSpMw0GVcS6ybUc/nxt5EYAQ==
+      thinking: 'The user wants me to:
+
+        1. Add 2 and 3 using the add function
+
+        2. Then add 7 to that result using the add function again
+
+        3. Make exactly one tool call per turn
+
+        4. After both results, reply with the final number only
+
+
+        So I should make the first call now to add 2 and 3.'
+      type: thinking
+    - id: toolu_bdrk_01HEWg5EDvvsR1a4Nh89uFyN
+      input:
+        a: 2
+        b: 3
+      name: add
+      type: tool_use
+    id: msg_bdrk_sshmt6hdomzbtzgqmrtzh4ylm5o3hsi7su43rzpfh4l4ngjuk6vq
+    model: anthropic.claude-haiku-4-5-20251001-v1:0
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      input_tokens: 437
+      output_tokens: 145
+      output_tokens_details:
+        thinking_tokens: 83
+      service_tier: standard
+  body_bytes: !!binary |
+    eyJtb2RlbCI6ImFudGhyb3BpYy5jbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxLXYxOjAiLCJpZCI6
+    Im1zZ19iZHJrX3NzaG10Nmhkb216YnR6Z3FtcnR6aDR5bG01bzNoc2k3c3U0M3J6cGZoNGw0bmdq
+    dWs2dnEiLCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjpbeyJ0
+    eXBlIjoidGhpbmtpbmciLCJ0aGlua2luZyI6IlRoZSB1c2VyIHdhbnRzIG1lIHRvOlxuMS4gQWRk
+    IDIgYW5kIDMgdXNpbmcgdGhlIGFkZCBmdW5jdGlvblxuMi4gVGhlbiBhZGQgNyB0byB0aGF0IHJl
+    c3VsdCB1c2luZyB0aGUgYWRkIGZ1bmN0aW9uIGFnYWluXG4zLiBNYWtlIGV4YWN0bHkgb25lIHRv
+    b2wgY2FsbCBwZXIgdHVyblxuNC4gQWZ0ZXIgYm90aCByZXN1bHRzLCByZXBseSB3aXRoIHRoZSBm
+    aW5hbCBudW1iZXIgb25seVxuXG5TbyBJIHNob3VsZCBtYWtlIHRoZSBmaXJzdCBjYWxsIG5vdyB0
+    byBhZGQgMiBhbmQgMy4iLCJzaWduYXR1cmUiOiJFdkVEQ29RQkNCTVFBUmdDS2tEbzdMMDhxWmJG
+    ck5pdTUydkNzMlVObDRSZ3NCRy92cm1oMGROWGhhczdXaFJ3L015OWZhcnNSaXpKMTRnVGR2SlpC
+    YTR4WlprcDhweG50aklOb2hKbU1obGpiR0YxWkdVdGFHRnBhM1V0TkMwMUxUSXdNalV4TURBeE9B
+    QkNDSFJvYVc1cmFXNW5XZ3d4T1Rnek16TXpORFF4T1RXb0FjS0g4dGNHRWd5bi92Q0l4MEJuZjBV
+    aWhIWWFERzBRaURkazViYis4ZzJQVWlJd0dQOTlTTVpYcktuTWlzWENpSGJYaHpWZlkyemp3T0ty
+    Skp3SUJZUDc0OFVEczYrZTNadzJoSFRoaDJpK1NrK0tLcGtDMXA3dUFMeW5qdlZMRkNLRkxGMzEv
+    YWg1ZVp2aEpRdUMrVGJ0TWJnSFJVUlVNSVArV0RHdnFsNHdYcmFRY1VwUHVSWlhHODBxZWt2SktD
+    VFZiSEh2NTlRRVlQOTZ1bWN0UlhxYVgreU9MZStmVGFFT3VqQ2NXRnhoVS9ZK1ZUS2lUc2hsK0Q4
+    S3QwRGlRdDFSbk5zQUh6dXhtU0I2N2dSem5LUUZaZUJJOGJ2azlBMXYrUWF5UWZ4YTJ4bkFtU0ht
+    ek0vVDZQQVZ0SWFxY1UxeUFxdG5oMmRoYTdZSXZYbkdHWjRGbkRNU2s5SzJ0Z1ZpRGlpci9FY3pp
+    QlNxUGNPVG9iSGlBd2pXSDc3V3hMcnRydzJqVFRMSUxSQlVFeG1Bb3gxRm9Wdnp5Y1JYNU44NFkx
+    UGhYU0J0bWhpSjZDM0E3blhUaUZqMWVXNXJVb3BHSGs5clFKdVRPdkpmbDg0UWZUTFNwTXcwR1Zj
+    UzZ5YlVjL254dDVFWUFRPT0ifSx7InR5cGUiOiJ0b29sX3VzZSIsImlkIjoidG9vbHVfYmRya18w
+    MUhFV2c1RUR2dnNSMWE0Tmg4OXVGeU4iLCJuYW1lIjoiYWRkIiwiaW5wdXQiOnsiYSI6MiwiYiI6
+    M319XSwiY29udGFpbmVyIjpudWxsLCJzdG9wX3JlYXNvbiI6InRvb2xfdXNlIiwic3RvcF9zZXF1
+    ZW5jZSI6bnVsbCwic3RvcF9kZXRhaWxzIjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjQz
+    NywiY2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2Vu
+    cyI6MCwiY2FjaGVfY3JlYXRpb24iOnsiZXBoZW1lcmFsXzVtX2lucHV0X3Rva2VucyI6MCwiZXBo
+    ZW1lcmFsXzFoX2lucHV0X3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjE0NSwib3V0cHV0X3Rv
+    a2Vuc19kZXRhaWxzIjp7InRoaW5raW5nX3Rva2VucyI6ODN9LCJzZXJ2aWNlX3RpZXIiOiJzdGFu
+    ZGFyZCJ9fQ==
+  headers:
+    connection: keep-alive
+    content-length: '1603'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-17T16:41:38.100233+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages
