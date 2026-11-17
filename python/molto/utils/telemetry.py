@@ -1,19 +1,43 @@
-"""OpenTelemetry attribute keys and span-start attributes for coordinator calls.
+"""OpenTelemetry attribute keys and span attributes for coordinator calls.
 
 Only the `Molto` coordinators use this module; adapters and upstream clients stay
 telemetry-free. See `docs/observability.md` for the span contract.
 """
 
-from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Any
+import traceback
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import aclosing
+from dataclasses import dataclass, fields
+from typing import Any, Literal, TypeAlias
 
+import anthropic
+import openai
+from anthropic.types import MessageDeltaUsage
+from anthropic.types import Usage as AnthropicUsage
 from httpx import URL, InvalidURL
+from openai.types import CompletionUsage
 from opentelemetry import trace
+from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 
 from molto.providers import Endpoint, Provider
+from molto.types.anthropic_messages import AnthropicMessagesResponse, AnthropicMessagesStreamEvent
+from molto.types.exceptions import APIException
+from molto.types.normalized import (
+    ModelResponseStreamEvent,
+    PartDeltaEvent,
+    ResponseEndEvent,
+    ResponseStartEvent,
+    TextDelta,
+    ThinkingDelta,
+    ToolCallDelta,
+)
+from molto.types.openai_chat_completions import (
+    OpenAIChatCompletionsResponse,
+    OpenAIChatCompletionsStreamChunk,
+)
+from molto.types.openai_responses import OpenAIResponsesResponse, OpenAIResponsesStreamEvent
 from molto.version import __version__
 
 # Keys follow the GenAI semantic conventions. They are plain strings rather than
@@ -31,6 +55,22 @@ SERVER_PORT = "server.port"
 MOLTO_DOWNSTREAM_PROTOCOL = "molto.downstream.protocol"
 MOLTO_ROUTE = "molto.route"
 MOLTO_UPSTREAM_ENDPOINT = "molto.upstream.endpoint"
+GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
+GEN_AI_RESPONSE_ID = "gen_ai.response.id"
+GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
+GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+ERROR_TYPE = "error.type"
+HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
+MOLTO_ERROR_PHASE = "molto.error.phase"
+FIRST_TOKEN_EVENT = "molto.first_token"
+
+ErrorPhase = Literal["setup", "stream"]
+# Native extractors can meet a provider that omits a field; `SpanRecorder.set` drops
+# the `None` values.
+MaybeAttributes: TypeAlias = dict[str, AttributeValue | None]
 
 # The cross-vendor operation type for every coordinator, not Molto's protocol name:
 # backends recognize LLM spans by well-known operation names.
@@ -135,3 +175,371 @@ def _server_attributes(base_url: str) -> dict[str, AttributeValue]:
         return {}
     port = url.port or _DEFAULT_PORTS.get(url.scheme)
     return {SERVER_ADDRESS: url.host} | ({SERVER_PORT: port} if port else {})
+
+
+def usage_attributes(
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
+) -> dict[str, AttributeValue]:
+    """Return token-usage attributes; `input_tokens` must already include cached tokens."""
+    attributes: dict[str, AttributeValue] = {}
+    if _is_int(input_tokens):
+        attributes[GEN_AI_USAGE_INPUT_TOKENS] = input_tokens
+    if _is_int(output_tokens):
+        attributes[GEN_AI_USAGE_OUTPUT_TOKENS] = output_tokens
+    # Normalized usage stores a missing cache count as zero, so cache counts are
+    # reported only when non-zero on every route, as the convention recommends.
+    if _is_int(cache_read_tokens) and cache_read_tokens:
+        attributes[GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS] = cache_read_tokens
+    if _is_int(cache_write_tokens) and cache_write_tokens:
+        attributes[GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS] = cache_write_tokens
+    return attributes
+
+
+# Native passthrough does not validate upstream output, so the native extractors below
+# read every field that a provider may omit with a default; telemetry must never turn
+# a successful call into a failure.
+
+
+def normalized_event_attributes(event: ModelResponseStreamEvent) -> dict[str, AttributeValue]:
+    """Return end attributes carried by a translated route's normalized lifecycle event.
+
+    Translated spans report Molto's normalized termination reason, not the
+    upstream provider's own value.
+    """
+    if isinstance(event, ResponseStartEvent):
+        return {GEN_AI_RESPONSE_ID: event.id, GEN_AI_RESPONSE_MODEL: event.model}
+    if not isinstance(event, ResponseEndEvent):
+        return {}
+    attributes: dict[str, AttributeValue] = {
+        GEN_AI_RESPONSE_ID: event.id,
+        GEN_AI_RESPONSE_MODEL: event.model,
+        GEN_AI_RESPONSE_FINISH_REASONS: [event.termination_reason],
+    }
+    if event.usage is not None:
+        details = event.usage.input_tokens_details
+        attributes |= usage_attributes(
+            event.usage.input_tokens,
+            event.usage.output_tokens,
+            details.cached_tokens,
+            details.cache_write_tokens,
+        )
+    return attributes
+
+
+def is_normalized_content_delta(event: ModelResponseStreamEvent) -> bool:
+    """Return whether a normalized event carries text, reasoning, or tool-call arguments."""
+    if not isinstance(event, PartDeltaEvent):
+        return False
+    delta = event.delta
+    if isinstance(delta, TextDelta):
+        return bool(delta.content_delta)
+    if isinstance(delta, ThinkingDelta):
+        # A signature-only delta replaces opaque state and carries no content.
+        return bool(delta.content_delta or delta.summary_delta)
+    if isinstance(delta, ToolCallDelta):
+        return bool(delta.args_delta)
+    return False
+
+
+def responses_response_attributes(response: OpenAIResponsesResponse) -> MaybeAttributes:
+    """Return end attributes for a native Responses `Response`.
+
+    Responses has no finish-reason field, so the span reports the incomplete reason
+    when the response is incomplete and its terminal status otherwise.
+    """
+    status = getattr(response, "status", None)
+    details = getattr(response, "incomplete_details", None)
+    reason = getattr(details, "reason", None) if status == "incomplete" else None
+    attributes: MaybeAttributes = {
+        GEN_AI_RESPONSE_ID: getattr(response, "id", None),
+        GEN_AI_RESPONSE_MODEL: getattr(response, "model", None),
+        GEN_AI_RESPONSE_FINISH_REASONS: [reason or status] if reason or status else None,
+    }
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        input_details = getattr(usage, "input_tokens_details", None)
+        attributes |= usage_attributes(
+            getattr(usage, "input_tokens", None),
+            getattr(usage, "output_tokens", None),
+            getattr(input_details, "cached_tokens", None),
+            getattr(input_details, "cache_write_tokens", None),
+        )
+    return attributes
+
+
+def is_responses_content_delta(event: OpenAIResponsesStreamEvent) -> bool:
+    """Return whether a native Responses event carries text, reasoning, or tool-call arguments."""
+    return getattr(event, "type", None) in _RESPONSES_CONTENT_DELTAS and bool(
+        getattr(event, "delta", None)
+    )
+
+
+def chat_completions_usage_attributes(usage: CompletionUsage) -> dict[str, AttributeValue]:
+    """Return token-usage attributes for Chat Completions usage."""
+    details = getattr(usage, "prompt_tokens_details", None)
+    return usage_attributes(
+        getattr(usage, "prompt_tokens", None),
+        getattr(usage, "completion_tokens", None),
+        getattr(details, "cached_tokens", None),
+        getattr(details, "cache_write_tokens", None),
+    )
+
+
+def chat_completions_finish_reasons(choices: Any) -> dict[int, str]:
+    """Return each choice's finish reason by choice index, skipping unfinished choices."""
+    reasons: dict[int, str] = {}
+    for choice in choices or []:
+        reason = getattr(choice, "finish_reason", None)
+        if reason:
+            index = getattr(choice, "index", None)
+            reasons[index if _is_int(index) else 0] = reason
+    return reasons
+
+
+def chat_completions_response_attributes(
+    completion: OpenAIChatCompletionsResponse,
+) -> MaybeAttributes:
+    """Return end attributes for a native non-streaming `ChatCompletion`."""
+    reasons = chat_completions_finish_reasons(getattr(completion, "choices", None))
+    attributes: MaybeAttributes = {
+        GEN_AI_RESPONSE_ID: getattr(completion, "id", None),
+        GEN_AI_RESPONSE_MODEL: getattr(completion, "model", None),
+        GEN_AI_RESPONSE_FINISH_REASONS: [reasons[index] for index in sorted(reasons)] or None,
+    }
+    usage = getattr(completion, "usage", None)
+    if usage is not None:
+        attributes |= chat_completions_usage_attributes(usage)
+    return attributes
+
+
+def is_chat_completions_content_delta(chunk: OpenAIChatCompletionsStreamChunk) -> bool:
+    """Return whether a native Chat chunk carries text, reasoning, or tool-call arguments."""
+    for choice in getattr(chunk, "choices", None) or []:
+        delta = getattr(choice, "delta", None)
+        if delta is None:
+            continue
+        # `reasoning_content` is a compatible-provider extension, such as vLLM's.
+        if any(
+            getattr(delta, field, None) for field in ("content", "refusal", "reasoning_content")
+        ):
+            return True
+        for call in getattr(delta, "tool_calls", None) or []:
+            if getattr(getattr(call, "function", None), "arguments", None):
+                return True
+    return False
+
+
+@dataclass
+class MessagesUsage:
+    """Anthropic Messages token counts; `message_delta` updates the `message_start` snapshot."""
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
+    cache_creation_input_tokens: int | None = None
+
+    def update(self, usage: AnthropicUsage | MessageDeltaUsage | None) -> None:
+        """Take every count `usage` reports, keeping earlier counts it omits."""
+        for field in fields(self):
+            value = getattr(usage, field.name, None)
+            if value is not None:
+                setattr(self, field.name, value)
+
+    def attributes(self) -> dict[str, AttributeValue]:
+        # Anthropic `input_tokens` excludes cached tokens; the convention and normalized
+        # usage include them, so native and translated spans agree for the same call.
+        cache_read = self.cache_read_input_tokens
+        cache_write = self.cache_creation_input_tokens
+        total_input = (
+            self.input_tokens + (cache_read or 0) + (cache_write or 0)
+            if _is_int(self.input_tokens)
+            else None
+        )
+        return usage_attributes(total_input, self.output_tokens, cache_read, cache_write)
+
+
+def messages_response_attributes(message: AnthropicMessagesResponse) -> MaybeAttributes:
+    """Return end attributes for a native non-streaming Messages `Message`."""
+    stop_reason = getattr(message, "stop_reason", None)
+    usage = MessagesUsage()
+    usage.update(getattr(message, "usage", None))
+    return {
+        GEN_AI_RESPONSE_ID: getattr(message, "id", None),
+        GEN_AI_RESPONSE_MODEL: getattr(message, "model", None),
+        GEN_AI_RESPONSE_FINISH_REASONS: [stop_reason] if stop_reason else None,
+        **usage.attributes(),
+    }
+
+
+def is_messages_content_delta(event: AnthropicMessagesStreamEvent) -> bool:
+    """Return whether a native Messages event carries text, reasoning, or tool-call arguments."""
+    if getattr(event, "type", None) != "content_block_delta":
+        return False
+    delta = getattr(event, "delta", None)
+    field = _MESSAGES_CONTENT_DELTAS.get(getattr(delta, "type", None))
+    return field is not None and bool(getattr(delta, field, None))
+
+
+def error_attributes(error: BaseException, phase: ErrorPhase) -> dict[str, AttributeValue]:
+    """Return low-cardinality error attributes; the message is never an attribute."""
+    normalized = next(
+        (
+            candidate
+            for candidate in (error, error.__cause__)
+            if isinstance(candidate, APIException)
+        ),
+        None,
+    )
+    # A recognized failure reports its normalized class, so native and translated
+    # routes agree; the outward exception is the caller's SDK-specific class.
+    attributes: dict[str, AttributeValue] = {
+        ERROR_TYPE: type(normalized or error).__name__,
+        MOLTO_ERROR_PHASE: phase,
+    }
+    if normalized is not None:
+        status = normalized.response.status_code if normalized.response is not None else None
+    elif isinstance(error, (openai.APIStatusError, anthropic.APIStatusError)):
+        status = error.status_code
+    else:
+        status = None
+    # Only a real upstream error response: missing credentials carry a synthetic 401
+    # on the outward exception alone, and a mid-stream failure can arrive on HTTP 200.
+    if _is_int(status) and status >= 400:
+        attributes[HTTP_RESPONSE_STATUS_CODE] = status
+    return attributes
+
+
+def exception_event_attributes(error: BaseException) -> dict[str, AttributeValue]:
+    """Return content-free overrides for the attributes `Span.record_exception` builds.
+
+    Exception messages can quote request content (a validation error's input, or an
+    upstream error echoing a field), and the default stack trace repeats the message
+    of every chained cause. Report the class name as the message and a stack trace of
+    frames only: frame lines show code locations, never runtime values.
+    """
+    lines: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        lines.append(f"{type(current).__module__}.{type(current).__qualname__}\n")
+        lines.extend(traceback.format_tb(current.__traceback__))
+        current = current.__cause__
+    return {"exception.message": type(error).__name__, "exception.stacktrace": "".join(lines)}
+
+
+_RESPONSES_CONTENT_DELTAS = frozenset(
+    {
+        "response.output_text.delta",
+        "response.reasoning_text.delta",
+        "response.reasoning_summary_text.delta",
+        "response.function_call_arguments.delta",
+        "response.custom_tool_call_input.delta",
+        "response.mcp_call_arguments.delta",
+        "response.refusal.delta",
+    }
+)
+_RESPONSES_TERMINAL_EVENTS = frozenset({"response.completed", "response.incomplete"})
+# Messages content-block delta types that carry content, mapped to their text field.
+_MESSAGES_CONTENT_DELTAS = {
+    "text_delta": "text",
+    "thinking_delta": "thinking",
+    "input_json_delta": "partial_json",
+}
+
+
+async def observe[EventT](
+    events: AsyncIterator[EventT], record: Callable[[EventT], None]
+) -> AsyncIterator[EventT]:
+    """Yield `events` unchanged, passing each to `record` first."""
+    # Closing this wrapper must close the source and release its HTTP response.
+    async with aclosing(events) as source:
+        async for event in source:
+            record(event)
+            yield event
+
+
+class SpanRecorder:
+    """Record end attributes and the first-token event on a coordinator's span.
+
+    The coordinator starts and ends the span; the recorder only adds what the
+    upstream output reveals, so the span carries it before it ends. It holds the
+    state that spans several stream events.
+    """
+
+    def __init__(self, span: Span, *, streaming: bool) -> None:
+        self._span = span
+        self._streaming = streaming
+        self._first_token_recorded = False
+        self._chat_finish_reasons: dict[int, str] = {}
+        self._messages_usage = MessagesUsage()
+
+    def set(self, attributes: MaybeAttributes) -> None:
+        """Set the attributes whose value is known."""
+        self._span.set_attributes(
+            {key: value for key, value in attributes.items() if value is not None}
+        )
+
+    def record_normalized(self, event: ModelResponseStreamEvent) -> None:
+        self.set(normalized_event_attributes(event))
+        if is_normalized_content_delta(event):
+            self._record_first_token()
+
+    def record_responses_event(self, event: OpenAIResponsesStreamEvent) -> None:
+        if getattr(event, "type", None) in _RESPONSES_TERMINAL_EVENTS:
+            self.set(responses_response_attributes(getattr(event, "response", None)))
+        elif is_responses_content_delta(event):
+            self._record_first_token()
+
+    def record_chat_completions_chunk(self, chunk: OpenAIChatCompletionsStreamChunk) -> None:
+        self.set(
+            {
+                GEN_AI_RESPONSE_ID: getattr(chunk, "id", None),
+                GEN_AI_RESPONSE_MODEL: getattr(chunk, "model", None),
+            }
+        )
+        if is_chat_completions_content_delta(chunk):
+            self._record_first_token()
+        # Each choice reports its finish reason in its own chunk.
+        self._chat_finish_reasons |= chat_completions_finish_reasons(
+            getattr(chunk, "choices", None)
+        )
+        if self._chat_finish_reasons:
+            reasons = self._chat_finish_reasons
+            self.set({GEN_AI_RESPONSE_FINISH_REASONS: [reasons[i] for i in sorted(reasons)]})
+        # Present only when the caller set `stream_options.include_usage`.
+        usage = getattr(chunk, "usage", None)
+        if usage is not None:
+            self.set(chat_completions_usage_attributes(usage))
+
+    def record_messages_event(self, event: AnthropicMessagesStreamEvent) -> None:
+        event_type = getattr(event, "type", None)
+        if event_type == "message_start":
+            message = getattr(event, "message", None)
+            self.set(
+                {
+                    GEN_AI_RESPONSE_ID: getattr(message, "id", None),
+                    GEN_AI_RESPONSE_MODEL: getattr(message, "model", None),
+                }
+            )
+            self._record_messages_usage(getattr(message, "usage", None))
+        elif event_type == "message_delta":
+            stop_reason = getattr(getattr(event, "delta", None), "stop_reason", None)
+            if stop_reason:
+                self.set({GEN_AI_RESPONSE_FINISH_REASONS: [stop_reason]})
+            self._record_messages_usage(getattr(event, "usage", None))
+        elif is_messages_content_delta(event):
+            self._record_first_token()
+
+    def _record_messages_usage(self, usage: AnthropicUsage | MessageDeltaUsage | None) -> None:
+        self._messages_usage.update(usage)
+        self.set(self._messages_usage.attributes())
+
+    def _record_first_token(self) -> None:
+        # Time to first token matters only to a streaming caller.
+        if self._streaming and not self._first_token_recorded:
+            self._first_token_recorded = True
+            self._span.add_event(FIRST_TOKEN_EVENT)

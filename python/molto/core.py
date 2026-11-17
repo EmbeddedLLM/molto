@@ -7,6 +7,7 @@ from opentelemetry.trace import Span, SpanKind, Status, StatusCode
 from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
+from molto.adapters.base import BaseAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.configs import ENV_CONFIG
 from molto.providers import (
@@ -36,7 +37,21 @@ from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.base import BaseClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import request_to_dict
-from molto.utils.telemetry import ResolvedRoute, get_tracer, span_name, start_attributes
+from molto.utils.telemetry import (
+    GEN_AI_REQUEST_STREAM,
+    ErrorPhase,
+    ResolvedRoute,
+    SpanRecorder,
+    chat_completions_response_attributes,
+    error_attributes,
+    exception_event_attributes,
+    get_tracer,
+    messages_response_attributes,
+    observe,
+    responses_response_attributes,
+    span_name,
+    start_attributes,
+)
 
 VLLM_DUMMY_API_KEY = "EMPTY"
 
@@ -111,11 +126,15 @@ def _upstream_headers(extra_headers: Mapping[str, str] | None) -> dict[str, str]
     return {name: value for name, value in headers.items() if name.lower() not in excluded}
 
 
-def _finish_span(span: Span, error: BaseException | None = None) -> None:
+def _finish_span(
+    span: Span, error: BaseException | None = None, phase: ErrorPhase = "setup"
+) -> None:
     # Cancellation is the caller stopping the call, not the call failing, so only an
     # `Exception` marks the span as an error (docs/observability.md).
     if isinstance(error, Exception):
         span.set_status(Status(StatusCode.ERROR))
+        span.set_attributes(error_attributes(error, phase))
+        span.record_exception(error, attributes=exception_event_attributes(error))
     span.end()
 
 
@@ -175,7 +194,29 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         # Exhaustion, an error, and `aclose()` can all reach here; end the span once.
         if self._span is not None:
             span, self._span = self._span, None
-            _finish_span(span, error)
+            _finish_span(span, error, "stream")
+
+
+async def _run_native[EventT, ResponseT: BaseModel](
+    adapter: BaseAdapter[Any, EventT, ResponseT],
+    upstream: BaseClient[Any, EventT, ResponseT],
+    body: dict[str, Any],
+    *,
+    record_event: Callable[[EventT], None],
+    record_response: Callable[[ResponseT], None],
+) -> MoltoStream[EventT] | ResponseT:
+    """Pass a same-protocol request through, recording its native output on the span.
+
+    Streaming follows the coordinators' rule: only `body["stream"] is True` streams.
+    """
+    if body.get("stream") is True:
+        return await _prefetch_stream(
+            adapter.project_native_events(observe(upstream.native_events(body), record_event)),
+            upstream.response_headers,
+        )
+    response = await adapter.project_native_response(upstream.native_response(body))
+    record_response(response)
+    return response
 
 
 async def _prefetch_stream[EventT](
@@ -195,14 +236,15 @@ async def _traced[ResultT](
     provider: Provider,
     base_url: str | None,
     body: Mapping[str, Any] | BaseModel,
-    call: Callable[[], Awaitable[ResultT]],
+    call: Callable[[SpanRecorder], Awaitable[ResultT]],
 ) -> ResultT:
     """Run one coordinator call inside its span.
 
     The span starts in the caller's context, so it parents to the caller's active
     span. It is current only while `call` sends the upstream request (the whole call
     when non-streaming, the prefetch when streaming), so instrumented `httpx` spans
-    nest under it. A returned stream ends the span itself.
+    nest under it. `call` records end attributes through its `SpanRecorder`; a
+    returned stream ends the span itself.
     """
     route = ResolvedRoute(
         protocol, endpoint, provider, _UPSTREAM_CLIENTS[endpoint].resolve_base_url(base_url)
@@ -211,11 +253,12 @@ async def _traced[ResultT](
     span = get_tracer().start_span(
         span_name(attributes), kind=SpanKind.CLIENT, attributes=attributes
     )
+    recorder = SpanRecorder(span, streaming=attributes.get(GEN_AI_REQUEST_STREAM) is True)
     try:
         # `_finish_span` sets the status instead of `use_span`, whose ERROR status
         # description would carry the exception message.
         with trace.use_span(span, record_exception=False, set_status_on_exception=False):
-            result = await call()
+            result = await call(recorder)
     except BaseException as error:
         _finish_span(span, error)
         raise
@@ -296,7 +339,7 @@ class Molto:
             resolved_provider,
             base_url,
             body,
-            lambda: self._run_responses(
+            lambda recorder: self._run_responses(
                 body,
                 endpoint=endpoint,
                 resolved_provider=resolved_provider,
@@ -304,6 +347,7 @@ class Molto:
                 base_url=base_url,
                 extra_body=extra_body,
                 extra_headers=extra_headers,
+                recorder=recorder,
             ),
         )
 
@@ -317,6 +361,7 @@ class Molto:
         base_url: str | None,
         extra_body: Mapping[str, Any] | None,
         extra_headers: Mapping[str, str] | None,
+        recorder: SpanRecorder,
     ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -338,12 +383,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_responses_event,
+                record_response=lambda response: recorder.set(
+                    responses_response_attributes(response)
+                ),
+            )
 
         request = OpenAIResponsesCreateRequest.model_validate(body)
         preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
@@ -377,7 +425,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:
@@ -409,7 +460,7 @@ class Molto:
             resolved_provider,
             base_url,
             body,
-            lambda: self._run_chat_completions(
+            lambda recorder: self._run_chat_completions(
                 body,
                 endpoint=endpoint,
                 resolved_provider=resolved_provider,
@@ -417,6 +468,7 @@ class Molto:
                 base_url=base_url,
                 extra_body=extra_body,
                 extra_headers=extra_headers,
+                recorder=recorder,
             ),
         )
 
@@ -430,6 +482,7 @@ class Molto:
         base_url: str | None,
         extra_body: Mapping[str, Any] | None,
         extra_headers: Mapping[str, str] | None,
+        recorder: SpanRecorder,
     ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -445,12 +498,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_chat_completions_chunk,
+                record_response=lambda response: recorder.set(
+                    chat_completions_response_attributes(response)
+                ),
+            )
 
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         adapter = OpenAIChatCompletionsAdapter(capabilities)
@@ -476,7 +532,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:
@@ -514,7 +573,7 @@ class Molto:
             resolved_provider,
             base_url,
             body,
-            lambda: self._run_messages(
+            lambda recorder: self._run_messages(
                 body,
                 endpoint=endpoint,
                 resolved_provider=resolved_provider,
@@ -523,6 +582,7 @@ class Molto:
                 extra_body=extra_body,
                 extra_headers=extra_headers,
                 citation_policy=citation_policy,
+                recorder=recorder,
             ),
         )
 
@@ -537,6 +597,7 @@ class Molto:
         extra_body: Mapping[str, Any] | None,
         extra_headers: Mapping[str, str] | None,
         citation_policy: CitationPolicy,
+        recorder: SpanRecorder,
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
@@ -552,12 +613,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_messages_event,
+                record_response=lambda response: recorder.set(
+                    messages_response_attributes(response)
+                ),
+            )
 
         request = AnthropicMessagesCreateRequest.model_validate(body)
         # Chat normalization drops annotations, so buffering cannot recover citations.
@@ -587,7 +651,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:

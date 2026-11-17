@@ -10,13 +10,15 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
+from molto.configs import ENV_CONFIG
 from molto.core import Molto, MoltoStream, _prefetch_stream, _traced
-from molto.utils.io import read_yaml
+from molto.types.exceptions import ContextLengthExceededError
+from molto.utils.io import json_loads, read_yaml
 
 BODY = {"model": "gpt-5", "input": "Hello!"}
-SIMPLE_TEXT = Path(__file__).parents[1] / "cassettes" / "matched" / "simple_text"
+CASSETTES = Path(__file__).parents[1] / "cassettes"
 
 
 @pytest.fixture(autouse=True)
@@ -51,16 +53,21 @@ async def _events(*events: str, error: BaseException | None = None) -> AsyncIter
 
 
 async def _trace[ResultT](call: Callable[[], Awaitable[ResultT]]) -> ResultT:
-    return await _traced("responses", "responses", "openai", None, BODY, call)
+    return await _traced("responses", "responses", "openai", None, BODY, lambda _: call())
 
 
 async def _traced_stream(events: AsyncIterator[str]) -> MoltoStream[str]:
     return await _trace(lambda: _prefetch_stream(events, Headers()))
 
 
+def _cassette(name: str) -> dict[str, Any]:
+    """Read the cassette at `name`, a path under `tests/cassettes` without `.yaml`."""
+    return read_yaml(str(CASSETTES / f"{name}.yaml"))
+
+
 def _replay(cassette_name: str) -> AsyncClient:
     """Serve one recorded response for any request, without checking the request."""
-    response = read_yaml(str(SIMPLE_TEXT / cassette_name))["response"]
+    response = _cassette(cassette_name)["response"]
 
     def handler(request: Request) -> Response:
         if "sse" in response:
@@ -74,8 +81,22 @@ def _replay(cassette_name: str) -> AsyncClient:
     return AsyncClient(transport=MockTransport(handler))
 
 
+def _recorded_response_id(cassette_name: str) -> str:
+    """Return the response ID a recording carries, from its body or first identified event."""
+    response = _cassette(cassette_name)["response"]
+    if "body" in response:
+        return response["body"]["id"]
+    for line in "".join(response["sse"]).splitlines():
+        if line.startswith("data:") and line != "data: [DONE]":
+            data = json_loads(line.removeprefix("data:"))
+            identified = data.get("response") or data.get("message") or data
+            if "id" in identified:
+                return identified["id"]
+    raise AssertionError(f"{cassette_name} has no response ID")
+
+
 def _request_body(cassette_name: str) -> dict[str, Any]:
-    return read_yaml(str(SIMPLE_TEXT / cassette_name))["request"]["body"]
+    return _cassette(cassette_name)["request"]["body"]
 
 
 async def test_non_streaming_call_ends_span_on_return(exporter: InMemorySpanExporter):
@@ -262,67 +283,127 @@ async def test_stream_span_is_not_current_while_the_caller_iterates(
     assert iteration.get_span_context().span_id != span.context.span_id
 
 
+COORDINATOR_CASES = [
+    # (method, protocol, endpoint, request cassette, response cassette, finish reason)
+    (
+        "responses",
+        "responses",
+        "responses",
+        "matched/simple_text/openai-responses-stream-00",
+        None,
+        "completed",
+    ),
+    (
+        "responses",
+        "responses",
+        "responses",
+        "matched/simple_text/openai-responses-non_stream-00",
+        None,
+        "completed",
+    ),
+    (
+        "chat_completions",
+        "chat/completions",
+        "chat/completions",
+        "matched/simple_text/openai-chat_completions-stream-00",
+        None,
+        "stop",
+    ),
+    (
+        "chat_completions",
+        "chat/completions",
+        "chat/completions",
+        "matched/simple_text/openai-chat_completions-non_stream-00",
+        None,
+        "stop",
+    ),
+    (
+        "messages",
+        "messages",
+        "messages",
+        "matched/simple_text/anthropic-messages-stream-00",
+        None,
+        "end_turn",
+    ),
+    (
+        "messages",
+        "messages",
+        "messages",
+        "matched/simple_text/anthropic-messages-non_stream-00",
+        None,
+        "end_turn",
+    ),
+    # Translated spans report Molto's normalized termination reason.
+    (
+        "responses",
+        "responses",
+        "chat/completions",
+        "matched/simple_text/openai-responses-stream-00",
+        "matched/simple_text/openai-chat_completions-stream-00",
+        "stop",
+    ),
+    (
+        "messages",
+        "messages",
+        "responses",
+        "matched/simple_text/anthropic-messages-non_stream-00",
+        # Translated calls always stream from the upstream, even when non-streaming.
+        "matched/simple_text/openai-responses-stream-00",
+        "stop",
+    ),
+    (
+        "responses",
+        "responses",
+        "messages",
+        "matched/simple_text/openai-responses-non_stream-00",
+        "matched/simple_text/anthropic-messages-stream-00",
+        "stop",
+    ),
+    (
+        "chat_completions",
+        "chat/completions",
+        "messages",
+        "matched/simple_text/openai-chat_completions-stream-00",
+        "matched/simple_text/anthropic-messages-stream-00",
+        "stop",
+    ),
+    (
+        "chat_completions",
+        "chat/completions",
+        "responses",
+        "matched/simple_text/openai-chat_completions-non_stream-00",
+        "matched/simple_text/openai-responses-stream-00",
+        "stop",
+    ),
+    (
+        "messages",
+        "messages",
+        "chat/completions",
+        "matched/simple_text/anthropic-messages-stream-00",
+        "matched/simple_text/openai-chat_completions-stream-00",
+        "stop",
+    ),
+]
+
+
+async def _run_coordinator(
+    method: str, endpoint: str, request_cassette: str, response_cassette: str | None
+) -> bool:
+    """Call one coordinator against a replayed response, consuming any stream."""
+    body = _request_body(request_cassette)
+    client = _replay(response_cassette or request_cassette)
+    async with Molto(http_client=client) as molto:
+        result = await getattr(molto, method)(body=body, endpoint=endpoint, api_key="test-key")
+        if not isinstance(result, MoltoStream):
+            return False
+        async with result:
+            [event async for event in result]
+    return True
+
+
 @pytest.mark.parametrize(
-    ("method", "protocol", "endpoint", "request_cassette", "response_cassette"),
-    [
-        (
-            "responses",
-            "responses",
-            "responses",
-            "openai-responses-stream-00.yaml",
-            "openai-responses-stream-00.yaml",
-        ),
-        (
-            "responses",
-            "responses",
-            "responses",
-            "openai-responses-non_stream-00.yaml",
-            "openai-responses-non_stream-00.yaml",
-        ),
-        (
-            "chat_completions",
-            "chat/completions",
-            "chat/completions",
-            "openai-chat_completions-stream-00.yaml",
-            "openai-chat_completions-stream-00.yaml",
-        ),
-        (
-            "chat_completions",
-            "chat/completions",
-            "chat/completions",
-            "openai-chat_completions-non_stream-00.yaml",
-            "openai-chat_completions-non_stream-00.yaml",
-        ),
-        (
-            "messages",
-            "messages",
-            "messages",
-            "anthropic-messages-stream-00.yaml",
-            "anthropic-messages-stream-00.yaml",
-        ),
-        (
-            "messages",
-            "messages",
-            "messages",
-            "anthropic-messages-non_stream-00.yaml",
-            "anthropic-messages-non_stream-00.yaml",
-        ),
-        (
-            "responses",
-            "responses",
-            "chat/completions",
-            "openai-responses-stream-00.yaml",
-            "openai-chat_completions-stream-00.yaml",
-        ),
-        (
-            "messages",
-            "messages",
-            "responses",
-            "anthropic-messages-non_stream-00.yaml",
-            # Translated calls always stream from the upstream, even when non-streaming.
-            "openai-responses-stream-00.yaml",
-        ),
-    ],
+    ("method", "protocol", "endpoint", "request_cassette", "response_cassette", "finish_reason"),
+    COORDINATOR_CASES,
 )
 async def test_coordinator_emits_one_span_per_call(
     exporter: InMemorySpanExporter,
@@ -330,36 +411,148 @@ async def test_coordinator_emits_one_span_per_call(
     protocol: str,
     endpoint: str,
     request_cassette: str,
-    response_cassette: str,
+    response_cassette: str | None,
+    finish_reason: str,
 ):
-    """Ensures each coordinator emits one span per call on native and translated routes.
+    """Ensures each coordinator emits one complete span per call on native and translated routes.
 
-    A streaming coordinator hands its span to the returned stream, so the span stays
-    open until the caller exhausts the stream.
+    The span carries the start attributes, the response identity, finish reason, and
+    usage, and, for a streaming caller only, one `molto.first_token` event.
     """
-    body = _request_body(request_cassette)
-    async with Molto(http_client=_replay(response_cassette)) as molto:
-        result = await getattr(molto, method)(body=body, endpoint=endpoint, api_key="test-key")
-        if isinstance(result, MoltoStream):
-            assert exporter.get_finished_spans() == ()
-            async with result:
-                [event async for event in result]
+    streamed = await _run_coordinator(method, endpoint, request_cassette, response_cassette)
 
     span = _molto_span(exporter)
-    assert span.name == f"chat {body['model']}"
+    attributes = span.attributes
+    assert span.name == "chat gpt-4.1-nano"
     assert span.status.status_code is StatusCode.UNSET
-    assert span.attributes["molto.downstream.protocol"] == protocol
-    assert span.attributes["molto.upstream.endpoint"] == endpoint
-    assert span.attributes["molto.route"] == ("native" if protocol == endpoint else "translated")
-    assert span.attributes.get("gen_ai.request.stream") is (
-        True if isinstance(result, MoltoStream) else None
+    assert attributes["molto.downstream.protocol"] == protocol
+    assert attributes["molto.upstream.endpoint"] == endpoint
+    assert attributes["molto.route"] == ("native" if protocol == endpoint else "translated")
+    assert attributes.get("gen_ai.request.stream") is (True if streamed else None)
+    assert attributes["gen_ai.response.id"] == _recorded_response_id(
+        response_cassette or request_cassette
     )
+    assert attributes["gen_ai.response.model"] == "gpt-4.1-nano-2025-04-14"
+    assert attributes["gen_ai.response.finish_reasons"] == (finish_reason,)
+    assert attributes["gen_ai.usage.input_tokens"] == 15
+    assert isinstance(attributes["gen_ai.usage.output_tokens"], int)
+    # The recorded calls used no prompt cache, so no zero-valued cache counts appear.
+    assert "gen_ai.usage.cache_read.input_tokens" not in attributes
+    assert "gen_ai.usage.cache_write.input_tokens" not in attributes
+    assert [event.name for event in span.events] == (["molto.first_token"] if streamed else [])
+
+
+async def test_native_and_translated_messages_spans_report_the_same_usage(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that the same Messages upstream call reports identical usage on both routes.
+
+    Native Messages sums Anthropic's uncached and cached input tokens, matching the
+    normalized usage that the translated route reports.
+    """
+    await _run_coordinator(
+        "messages", "messages", "matched/simple_text/anthropic-messages-stream-00", None
+    )
+    await _run_coordinator(
+        "responses",
+        "messages",
+        "matched/simple_text/openai-responses-stream-00",
+        "matched/simple_text/anthropic-messages-stream-00",
+    )
+
+    native, translated = exporter.get_finished_spans()
+    usage_keys = ("gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens")
+    assert [native.attributes[key] for key in usage_keys] == [
+        translated.attributes[key] for key in usage_keys
+    ]
+    assert native.attributes["gen_ai.response.finish_reasons"] == ("end_turn",)
+    assert translated.attributes["gen_ai.response.finish_reasons"] == ("stop",)
+
+
+def _not_found(request: Request) -> Response:
+    return Response(
+        404,
+        json={"error": {"message": "secret-request-marker not found", "type": "not_found"}},
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "body", "endpoint"),
+    [
+        ("responses", {"model": "gpt-5", "input": "Hello!"}, "responses"),
+        (
+            "chat_completions",
+            {"model": "gpt-5", "messages": [{"role": "user", "content": "Hello!"}]},
+            "responses",
+        ),
+    ],
+)
+async def test_upstream_error_reports_the_same_error_type_on_both_routes(
+    exporter: InMemorySpanExporter, method: str, body: dict, endpoint: str
+):
+    """Asserts that an upstream HTTP error records the normalized error on native and translated routes.
+
+    The caller receives an SDK-specific exception, but `error.type` reports the
+    normalized class so both routes agree, and the recorded exception event carries
+    no message text from the upstream error.
+    """
+    async with Molto(http_client=AsyncClient(transport=MockTransport(_not_found))) as molto:
+        with pytest.raises(Exception, match="secret-request-marker"):
+            await getattr(molto, method)(body=body, endpoint=endpoint, api_key="test-key")
+
+    span = _molto_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.attributes["error.type"] == "ResourceNotFoundError"
+    assert span.attributes["http.response.status_code"] == 404
+    assert span.attributes["molto.error.phase"] == "setup"
+    # `use_span` must not record its own exception event with the full message.
+    (event,) = span.events
+    assert event.name == "exception"
+    assert event.attributes["exception.message"] == "NotFoundError"
+    assert "secret-request-marker" not in event.attributes["exception.stacktrace"]
+    assert "ResourceNotFoundError" in event.attributes["exception.stacktrace"]
+
+
+async def test_validation_error_records_no_request_content(exporter: InMemorySpanExporter):
+    """Asserts that a rejected request's values never reach the span, though the error message holds them."""
+    async with Molto() as molto:
+        with pytest.raises(ValidationError, match="secret-request-marker"):
+            await molto.responses(
+                body={"model": "gpt-5", "input": "Hello!", "extra": "secret-request-marker"},
+                endpoint="messages",
+                api_key="test-key",
+            )
+
+    span = _molto_span(exporter)
+    assert span.attributes["error.type"] == "ValidationError"
+    assert "http.response.status_code" not in span.attributes
+    (event,) = span.events
+    assert event.attributes["exception.message"] == "ValidationError"
+    recorded = [*span.attributes.values(), *event.attributes.values()]
+    assert not any("secret-request-marker" in str(value) for value in recorded)
+
+
+async def test_mid_stream_error_reports_stream_phase(exporter: InMemorySpanExporter):
+    """Ensures an error raised while the caller iterates is attributed to the stream phase."""
+    stream = await _traced_stream(_events("a", error=RuntimeError("secret-request-marker")))
+
+    with pytest.raises(RuntimeError):
+        async for _ in stream:
+            pass
+
+    span = _molto_span(exporter)
+    assert span.attributes["error.type"] == "RuntimeError"
+    assert span.attributes["molto.error.phase"] == "stream"
+    (event,) = span.events
+    assert "secret-request-marker" not in str(dict(event.attributes))
 
 
 async def test_coordinator_reports_caller_base_url(exporter: InMemorySpanExporter):
     """Asserts that a caller-supplied `base_url`, not the client default, sets the server attributes."""
-    body = _request_body("openai-responses-non_stream-00.yaml")
-    async with Molto(http_client=_replay("openai-responses-non_stream-00.yaml")) as molto:
+    body = _request_body("matched/simple_text/openai-responses-non_stream-00")
+    async with Molto(
+        http_client=_replay("matched/simple_text/openai-responses-non_stream-00")
+    ) as molto:
         await molto.responses(body=body, base_url="http://localhost:8000/v1", api_key="test-key")
 
     span = _molto_span(exporter)
@@ -388,3 +581,88 @@ async def test_coordinator_rejection_is_recorded_on_its_span(exporter: InMemoryS
     assert span.attributes["molto.route"] == "translated"
     assert span.attributes["gen_ai.provider.name"] == "anthropic"
     assert span.attributes["server.address"] == "api.anthropic.com"
+
+
+async def test_cached_input_is_reported_alike_on_every_route(exporter: InMemorySpanExporter):
+    """Asserts that one cached call reports the same input and cache-read counts on all routes.
+
+    The recorded Anthropic call reports 34 uncached and 7440 cache-read input tokens;
+    the matched Responses call reports 7474 input tokens with 7440 cached. Native
+    Messages must add the cached tokens to match Responses and the translated route.
+    """
+    scenario = "matched/prompt_cache_explicit"
+    await _run_coordinator(
+        "responses", "responses", f"{scenario}/openai-responses-stream-00", None
+    )
+    await _run_coordinator(
+        "messages", "messages", f"{scenario}/anthropic-messages-stream-00", None
+    )
+    await _run_coordinator(
+        "responses",
+        "messages",
+        f"{scenario}/openai-responses-stream-00",
+        f"{scenario}/anthropic-messages-stream-00",
+    )
+
+    for span in exporter.get_finished_spans():
+        assert span.attributes["gen_ai.usage.input_tokens"] == 7474
+        assert span.attributes["gen_ai.usage.cache_read.input_tokens"] == 7440
+        assert "gen_ai.usage.cache_write.input_tokens" not in span.attributes
+
+
+async def test_incomplete_native_responses_stream_reports_its_reason(
+    exporter: InMemorySpanExporter,
+):
+    """Ensures a native Responses stream ending in `response.incomplete` reports the incomplete reason."""
+    await _run_coordinator(
+        "responses", "responses", "errors/incomplete_response/openai-responses-stream-00", None
+    )
+
+    span = _molto_span(exporter)
+    assert span.status.status_code is StatusCode.UNSET
+    assert span.attributes["gen_ai.response.finish_reasons"] == ("max_output_tokens",)
+
+
+async def test_missing_credentials_report_no_http_status(
+    exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+):
+    """Asserts that a call failing for missing credentials reports no HTTP status.
+
+    No request is sent; the outward SDK error carries a synthetic 401 that must not
+    be reported as an upstream response.
+    """
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(ENV_CONFIG, "openai_api_key", SecretStr(""))
+    async with Molto(http_client=AsyncClient(transport=MockTransport(_not_found))) as molto:
+        with pytest.raises(Exception) as raised:
+            await molto.responses(body={"model": "gpt-5", "input": "Hello!"})
+
+    assert raised.value.response.status_code == 401
+    span = _molto_span(exporter)
+    assert span.attributes["error.type"] == "AuthenticationError"
+    assert span.attributes["molto.error.phase"] == "setup"
+    assert "http.response.status_code" not in span.attributes
+
+
+async def test_failure_after_a_successful_stream_response_reports_the_stream_phase(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that a Responses error arriving on an HTTP 200 stream is a stream-phase failure.
+
+    The first event arrives before the error, so the coordinator returns a stream
+    and the failure surfaces while the caller iterates. Its HTTP response succeeded,
+    so no status code is reported.
+    """
+    body = _request_body("errors/context_length_exceeded/openai-responses-stream-00")
+    client = _replay("errors/context_length_exceeded/openai-responses-stream-00")
+    async with Molto(http_client=client) as molto:
+        stream = await molto.responses(body=body, api_key="test-key")
+        with pytest.raises(Exception) as raised:
+            async with stream:
+                [event async for event in stream]
+
+    assert isinstance(raised.value.__cause__, ContextLengthExceededError)
+    span = _molto_span(exporter)
+    assert span.attributes["error.type"] == "ContextLengthExceededError"
+    assert span.attributes["molto.error.phase"] == "stream"
+    assert "http.response.status_code" not in span.attributes

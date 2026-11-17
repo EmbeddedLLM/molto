@@ -1,14 +1,41 @@
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any, get_args
 
+import openai
 import pytest
+from anthropic.types import Message
+from httpx import Request, Response
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.chat_completion import Choice as ChatChoice
+from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
 
 from molto.providers import Provider
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
+from molto.types.exceptions import AuthenticationError, ContextLengthExceededError
+from molto.types.normalized import PartDeltaEvent, TextDelta, ThinkingDelta
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
-from molto.utils.telemetry import ResolvedRoute, span_name, start_attributes
+from molto.utils.telemetry import (
+    MessagesUsage,
+    ResolvedRoute,
+    SpanRecorder,
+    chat_completions_response_attributes,
+    error_attributes,
+    exception_event_attributes,
+    is_chat_completions_content_delta,
+    is_messages_content_delta,
+    is_responses_content_delta,
+    messages_response_attributes,
+    observe,
+    responses_response_attributes,
+    span_name,
+    start_attributes,
+)
 
 NATIVE_RESPONSES = ResolvedRoute(
     protocol="responses",
@@ -266,3 +293,324 @@ def test_provider_set_is_pinned_for_gen_ai_naming():
     must either match the convention or add a mapping before this test is updated.
     """
     assert set(get_args(Provider)) == {"openai", "anthropic", "vllm"}
+
+
+REQUEST = Request("POST", "https://api.openai.com/v1/responses")
+
+
+def _raised_from(error: Exception, cause: Exception) -> Exception:
+    """Return `error` raised from `cause`, with tracebacks, as Molto's error chain does."""
+    try:
+        try:
+            raise cause
+        except Exception as caught:
+            raise error from caught
+    except Exception as raised:
+        return raised
+
+
+def test_missing_credentials_omit_the_synthetic_status_code():
+    """Asserts that the synthetic 401 on a missing-credentials error is not reported as HTTP.
+
+    No HTTP call happens: the 401 exists only on the outward SDK exception, and the
+    normalized cause has no response.
+    """
+    outward = openai.AuthenticationError(
+        "Missing credentials.", response=Response(401, request=REQUEST), body=None
+    )
+    error = _raised_from(
+        outward, AuthenticationError("Missing credentials.", response=None, body=None)
+    )
+
+    attributes = error_attributes(error, "setup")
+
+    assert attributes == {"error.type": "AuthenticationError", "molto.error.phase": "setup"}
+
+
+def test_error_on_a_successful_stream_response_omits_the_status_code():
+    """Asserts that a failure arriving on an HTTP 200 stream does not report status 200."""
+    cause = ContextLengthExceededError(
+        "context length exceeded", response=Response(200, request=REQUEST), body=None
+    )
+    error = _raised_from(openai.APIError("context length exceeded", REQUEST, body=None), cause)
+
+    attributes = error_attributes(error, "stream")
+
+    assert attributes == {
+        "error.type": "ContextLengthExceededError",
+        "molto.error.phase": "stream",
+    }
+
+
+def test_unrecognized_sdk_error_reports_its_class_and_status():
+    """Ensures an error that passes through unchanged keeps its own class and HTTP status."""
+    error = openai.RateLimitError(
+        "rate limited", response=Response(429, request=REQUEST), body=None
+    )
+
+    attributes = error_attributes(error, "setup")
+
+    assert attributes == {
+        "error.type": "RateLimitError",
+        "http.response.status_code": 429,
+        "molto.error.phase": "setup",
+    }
+
+
+def test_exception_event_attributes_carry_no_message_from_the_cause_chain():
+    """Asserts that the recorded exception keeps types and frames but no chained message text."""
+    error = _raised_from(
+        RuntimeError("outer secret-request-marker"),
+        ValueError("inner secret-request-marker"),
+    )
+
+    attributes = exception_event_attributes(error)
+
+    assert attributes["exception.message"] == "RuntimeError"
+    stacktrace = attributes["exception.stacktrace"]
+    assert "secret-request-marker" not in stacktrace
+    assert "builtins.RuntimeError" in stacktrace
+    assert "builtins.ValueError" in stacktrace
+    assert "_raised_from" in stacktrace
+
+
+def test_messages_usage_includes_cached_tokens_in_input():
+    """Ensures native Messages input tokens include cache reads and writes, as normalized usage does."""
+    usage = MessagesUsage(
+        input_tokens=10, output_tokens=5, cache_read_input_tokens=3, cache_creation_input_tokens=2
+    )
+
+    assert usage.attributes() == {
+        "gen_ai.usage.input_tokens": 15,
+        "gen_ai.usage.output_tokens": 5,
+        "gen_ai.usage.cache_read.input_tokens": 3,
+        "gen_ai.usage.cache_write.input_tokens": 2,
+    }
+
+
+def test_incomplete_responses_response_reports_its_reason():
+    """Ensures a native Responses span reports the incomplete reason, since Responses has no finish reason."""
+    response = SimpleNamespace(
+        id="resp_1",
+        model="gpt-5",
+        status="incomplete",
+        incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+        usage=None,
+    )
+
+    attributes = responses_response_attributes(response)
+
+    assert attributes["gen_ai.response.finish_reasons"] == ["max_output_tokens"]
+
+
+def _recorded_span(streaming: bool, record) -> Any:
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    span = provider.get_tracer("test").start_span("chat")
+    record(SpanRecorder(span, streaming=streaming))
+    span.end()
+    (finished,) = exporter.get_finished_spans()
+    return finished
+
+
+def _chunk(index: int, *, content: str | None = None, finish_reason: str | None = None):
+    delta = SimpleNamespace(content=content, tool_calls=None)
+    choice = SimpleNamespace(index=index, delta=delta, finish_reason=finish_reason)
+    return SimpleNamespace(id="chatcmpl-1", model="gpt-5", choices=[choice], usage=None)
+
+
+def test_chat_stream_reports_every_choice_finish_reason_without_usage():
+    """Ensures Chat streams report finish reasons per choice and omit usage the caller did not request.
+
+    Usage appears only with `stream_options.include_usage`, which native passthrough
+    never injects.
+    """
+
+    def record(recorder: SpanRecorder) -> None:
+        recorder.record_chat_completions_chunk(_chunk(1, finish_reason="length"))
+        recorder.record_chat_completions_chunk(_chunk(0, finish_reason="stop"))
+
+    span = _recorded_span(True, record)
+
+    assert span.attributes["gen_ai.response.finish_reasons"] == ("stop", "length")
+    assert "gen_ai.usage.input_tokens" not in span.attributes
+
+
+def test_first_token_is_recorded_once_and_only_for_streaming_callers():
+    """Ensures `molto.first_token` marks the first content delta, once, for streaming callers only."""
+
+    def record(recorder: SpanRecorder) -> None:
+        recorder.record_normalized(PartDeltaEvent(index=0, delta=TextDelta(content_delta="Hi")))
+        recorder.record_normalized(PartDeltaEvent(index=0, delta=TextDelta(content_delta="!")))
+
+    assert [event.name for event in _recorded_span(True, record).events] == ["molto.first_token"]
+    assert _recorded_span(False, record).events == ()
+
+
+def test_signature_only_reasoning_delta_is_not_a_first_token():
+    """Asserts that a delta replacing opaque reasoning state carries no content for time to first token."""
+
+    def record(recorder: SpanRecorder) -> None:
+        recorder.record_normalized(
+            PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="opaque"))
+        )
+
+    assert _recorded_span(True, record).events == ()
+
+
+# Native passthrough does not validate upstream output, so these build SDK models
+# without validation, as the SDKs do for stream chunks a provider sends.
+
+
+def test_chat_chunk_choice_without_delta_is_recorded_without_raising():
+    """Asserts that a Chat chunk whose choice has no delta still records its finish reason.
+
+    Telemetry must never turn a successful native call into a failure.
+    """
+    chunk = ChatCompletionChunk.model_construct(
+        id="chatcmpl-1",
+        model="gpt-5",
+        choices=[ChunkChoice.model_construct(index=0, finish_reason="stop")],
+        usage=None,
+    )
+
+    span = _recorded_span(True, lambda recorder: recorder.record_chat_completions_chunk(chunk))
+
+    assert span.attributes["gen_ai.response.finish_reasons"] == ("stop",)
+    assert span.events == ()
+
+
+def test_chat_completion_without_choice_indexes_or_choices_is_recorded_without_raising():
+    """Asserts that Chat responses missing choice indexes, or all choices, never raise."""
+    unindexed = ChatCompletion.model_construct(
+        id="chatcmpl-1",
+        model="gpt-5",
+        choices=[ChatChoice.model_construct(finish_reason="stop")],
+        usage=None,
+    )
+    choiceless = ChatCompletion.model_construct(
+        id="chatcmpl-2", model="gpt-5", choices=None, usage=None
+    )
+
+    assert chat_completions_response_attributes(unindexed)["gen_ai.response.finish_reasons"] == [
+        "stop"
+    ]
+    assert chat_completions_response_attributes(choiceless)["gen_ai.response.id"] == "chatcmpl-2"
+
+
+def test_message_without_usage_is_recorded_without_raising():
+    """Asserts that a native Messages response without usage reports no usage instead of raising."""
+    message = Message.model_construct(id="msg_1", model="claude-sonnet-5", stop_reason="end_turn")
+
+    attributes = messages_response_attributes(message)
+
+    assert attributes["gen_ai.response.finish_reasons"] == ["end_turn"]
+    assert "gen_ai.usage.input_tokens" not in attributes
+
+
+async def test_observe_closes_its_source_when_closed_early():
+    """Ensures closing the recording wrapper closes the wrapped stream, releasing its response."""
+    closed = []
+
+    async def source():
+        try:
+            yield "a"
+            yield "b"
+        finally:
+            closed.append(True)
+
+    recorded = []
+    wrapped = observe(source(), recorded.append)
+
+    assert await anext(wrapped) == "a"
+    await wrapped.aclose()
+
+    assert closed == [True]
+    assert recorded == ["a"]
+
+
+async def test_observe_propagates_source_errors_unchanged():
+    """Asserts that an error from the wrapped stream reaches the caller as the same exception."""
+    failure = RuntimeError("upstream failed")
+
+    async def source():
+        yield "a"
+        raise failure
+
+    with pytest.raises(RuntimeError) as raised:
+        async for _ in observe(source(), lambda event: None):
+            pass
+
+    assert raised.value is failure
+
+
+@pytest.mark.parametrize(
+    ("event_type", "delta", "expected"),
+    [
+        ("response.output_text.delta", "Hi", True),
+        ("response.reasoning_text.delta", "Thinking", True),
+        ("response.reasoning_summary_text.delta", "Summary", True),
+        ("response.function_call_arguments.delta", '{"city"', True),
+        ("response.custom_tool_call_input.delta", "input", True),
+        ("response.mcp_call_arguments.delta", '{"q"', True),
+        ("response.refusal.delta", "I can't", True),
+        ("response.output_text.delta", "", False),
+        ("response.audio.delta", "audio", False),
+    ],
+)
+def test_responses_content_deltas(event_type: str, delta: str, expected: bool):
+    """Ensures native Responses first-token detection counts text, reasoning, tool, and refusal deltas."""
+    event = SimpleNamespace(type=event_type, delta=delta)
+
+    assert is_responses_content_delta(event) is expected
+
+
+@pytest.mark.parametrize(
+    ("delta", "expected"),
+    [
+        ({"content": "Hi"}, True),
+        ({"refusal": "I can't"}, True),
+        ({"reasoning_content": "Thinking"}, True),
+        (
+            {"tool_calls": [{"index": 0, "function": {"arguments": '{"city"'}}]},
+            True,
+        ),
+        ({"tool_calls": [{"index": 0, "id": "call_1", "function": {"name": "f"}}]}, False),
+        ({"role": "assistant", "content": ""}, False),
+    ],
+)
+def test_chat_completions_content_deltas(delta: dict, expected: bool):
+    """Ensures native Chat first-token detection counts text, refusal, reasoning, and tool arguments.
+
+    A tool-call delta carrying only its name or ID, or an empty role chunk, carries
+    no generated content.
+    """
+    chunk = ChatCompletionChunk.model_validate(
+        {
+            "id": "chatcmpl-1",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "gpt-5",
+            "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+        }
+    )
+
+    assert is_chat_completions_content_delta(chunk) is expected
+
+
+@pytest.mark.parametrize(
+    ("delta", "expected"),
+    [
+        ({"type": "text_delta", "text": "Hi"}, True),
+        ({"type": "thinking_delta", "thinking": "Thinking"}, True),
+        ({"type": "input_json_delta", "partial_json": '{"city"'}, True),
+        ({"type": "signature_delta", "signature": "opaque"}, False),
+        ({"type": "text_delta", "text": ""}, False),
+    ],
+)
+def test_messages_content_deltas(delta: dict, expected: bool):
+    """Ensures native Messages first-token detection counts text, thinking, and tool-input deltas only."""
+    event = SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(**delta))
+
+    assert is_messages_content_delta(event) is expected

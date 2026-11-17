@@ -76,7 +76,7 @@ Use the same protocol for the method and `endpoint` to select native passthrough
 
 ## Observability
 
-Molto emits one OpenTelemetry span per coordinator call, using only `opentelemetry-api`; the application configures export. The [observability contract](observability.md) defines the span and states which parts are not implemented yet.
+Molto emits one OpenTelemetry span per coordinator call, using only `opentelemetry-api`; the application configures export. The [observability contract](observability.md) defines the span, its attributes and events, and its content policy.
 
 ## Routing
 
