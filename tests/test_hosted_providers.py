@@ -391,124 +391,48 @@ async def test_direct_hosted_client_defaults_and_missing_credentials(
             assert sdk.default_headers["Authorization"] == "Bearer selected-key"
 
 
-@pytest.mark.parametrize(("provider", "supported", "base", "path"), DESTINATIONS)
-async def test_hosted_providers_reject_unregistered_translations(provider, supported, base, path):
-    """Ensures native fallback does not silently enable unregistered translation routes."""
+@pytest.mark.parametrize(
+    ("provider", "endpoint"),
+    [
+        (provider, endpoint)
+        for provider in PROVIDER_CAPABILITIES
+        for endpoint in ("responses", "chat/completions", "messages")
+        if (provider, endpoint) not in CLIENTS
+    ],
+)
+@pytest.mark.parametrize("downstream", ["responses", "chat_completions", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("base_url", [None, "https://custom.example/prefix"])
+async def test_unregistered_routes_rejected_before_http(
+    provider, endpoint, downstream, stream, base_url
+):
+    """Ensures native and translated routes require registration even with an explicit URL."""
+    body = {"model": "example", "stream": stream}
+    if downstream == "responses":
+        body["input"] = "Hi"
+    else:
+        body["messages"] = [{"role": "user", "content": "Hi"}]
+        if downstream == "messages":
+            body["max_tokens"] = 20
+    before = deepcopy(body)
     async with Molto(
         http_client=httpx.AsyncClient(
             transport=httpx.MockTransport(
-                lambda _: pytest.fail("Unsupported provider protocol reached HTTP")
+                lambda _: pytest.fail("Unregistered provider protocol reached HTTP")
             )
         )
     ) as client:
-        for endpoint in {"responses", "chat/completions", "messages"}:
-            if (provider, endpoint) in CLIENTS:
-                continue
-            downstream = "messages" if endpoint == "responses" else "responses"
-            body = (
-                {"model": "example", "messages": [], "max_tokens": 20}
-                if downstream == "messages"
-                else {"model": "example", "input": "Hi"}
+        with pytest.raises(ValueError, match="Unsupported upstream endpoint") as error:
+            await getattr(client, downstream)(
+                body,
+                provider=provider,
+                endpoint=endpoint,
+                api_key="selected-key",
+                base_url=base_url,
             )
-            with pytest.raises(ValueError):
-                await getattr(client, downstream)(
-                    body,
-                    provider=provider,
-                    endpoint=endpoint,
-                    api_key="selected-key",
-                    base_url=base,
-                )
-
-
-NATIVE_ATTEMPTS = [
-    ("openai", "messages", "https://api.openai.com/v1", "openai_api_key"),
-    ("anthropic", "responses", "https://api.anthropic.com", "anthropic_api_key"),
-    ("anthropic", "chat/completions", "https://api.anthropic.com", "anthropic_api_key"),
-    (
-        "gemini",
-        "responses",
-        "https://generativelanguage.googleapis.com/v1beta/openai",
-        "gemini_api_key",
-    ),
-    (
-        "gemini",
-        "messages",
-        "https://generativelanguage.googleapis.com/v1beta/openai",
-        "gemini_api_key",
-    ),
-    ("openrouter", "chat/completions", "https://openrouter.ai/api/v1", "openrouter_api_key"),
-    ("openrouter", "messages", "https://openrouter.ai/api/v1", "openrouter_api_key"),
-    ("fireworks", "messages", "https://api.fireworks.ai/inference/v1", "fireworks_api_key"),
-    ("togetherai", "messages", "https://api.together.ai/v1", "together_ai_api_key"),
-]
-
-
-@pytest.mark.parametrize(("provider", "endpoint", "base", "key_field"), NATIVE_ATTEMPTS)
-@pytest.mark.parametrize("stream", [False, True])
-@pytest.mark.parametrize("override", [False, True])
-async def test_unregistered_native_attempts_preserve_sdk_parity(
-    provider, endpoint, base, key_field, stream, override, monkeypatch
-):
-    """Ensures every native pair reaches its provider with selected credentials and SDK fidelity."""
-    monkeypatch.setattr(ENV_CONFIG, key_field, SecretStr("configured-key"))
-    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "unrelated-token")
-    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
-    recording = cassette(endpoint, stream)
-    body = deepcopy(recording["request"]["body"])
-    body["stream"] = stream
-    before = deepcopy(body)
-    base = "https://custom.example/prefix" if override else base
-    key = "override-key" if override else "configured-key"
-    calls = []
-
-    def handler(request):
-        calls.append(request)
-        suffix = "/v1/messages" if endpoint == "messages" else f"/{endpoint}"
-        assert str(request.url) == base + suffix
-        assert json_loads(request.content) == body
-        if endpoint == "messages":
-            assert request.headers["x-api-key"] == key
-            assert "authorization" not in request.headers
-        else:
-            assert request.headers["authorization"] == f"Bearer {key}"
-            assert "x-api-key" not in request.headers
-        return response(recording)
-
-    async with Molto(
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    ) as client:
-        actual = await getattr(client, endpoint.replace("/", "_"))(
-            body,
-            endpoint=endpoint,
-            provider=provider,
-            base_url=base if override or provider == "bedrock" else None,
-            api_key=key if override else None,
-        )
-        actual = [event.model_dump() async for event in actual] if stream else actual.model_dump()
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda _: response(recording))
-    ) as transport:
-        sdk = (
-            AsyncAnthropic(api_key="sdk-key", http_client=transport)
-            if endpoint == "messages"
-            else AsyncOpenAI(api_key="sdk-key", http_client=transport)
-        )
-        create = (
-            sdk.messages.create
-            if endpoint == "messages"
-            else sdk.responses.create
-            if endpoint == "responses"
-            else sdk.chat.completions.create
-        )
-        expected = await create(**body)
-        if stream:
-            async with expected:
-                expected = [event.model_dump() async for event in expected]
-        else:
-            expected = expected.model_dump()
-    assert actual == expected
+    assert repr(provider) in str(error.value)
+    assert repr(endpoint) in str(error.value)
     assert body == before
-    assert len(calls) == 1
 
 
 async def test_native_bedrock_messages_requires_explicit_destination():
@@ -526,50 +450,6 @@ async def test_native_bedrock_messages_requires_explicit_destination():
                 provider="bedrock",
                 api_key="selected-key",
             )
-
-
-@pytest.mark.parametrize("endpoint", ["responses", "chat/completions", "messages"])
-@pytest.mark.parametrize("stream", [False, True])
-async def test_unregistered_native_attempts_surface_sdk_rejection(endpoint, stream):
-    """Ensures a rejected native attempt surfaces the provider SDK error after transport."""
-    provider = "openai" if endpoint == "messages" else "anthropic"
-    body = deepcopy(cassette(endpoint, stream)["request"]["body"])
-    body["stream"] = stream
-    payload = {"error": {"type": "invalid_request_error", "message": "Unsupported endpoint"}}
-    calls = []
-
-    def handler(request):
-        calls.append(request)
-        return httpx.Response(400, json=payload)
-
-    async with Molto(
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    ) as client:
-        with pytest.raises(Exception) as error:
-            await getattr(client, endpoint.replace("/", "_"))(
-                body,
-                provider=provider,
-                api_key="selected-key",
-                base_url="https://provider.example",
-            )
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as transport:
-        sdk = (
-            AsyncAnthropic(api_key="selected-key", http_client=transport)
-            if endpoint == "messages"
-            else AsyncOpenAI(api_key="selected-key", http_client=transport)
-        )
-        create = (
-            sdk.messages.create
-            if endpoint == "messages"
-            else sdk.responses.create
-            if endpoint == "responses"
-            else sdk.chat.completions.create
-        )
-        with pytest.raises(type(error.value)) as reference:
-            await create(**body)
-    assert error.value.status_code == reference.value.status_code == 400
-    assert error.value.body == reference.value.body
-    assert len(calls) == 2
 
 
 def tool_chunk(calls, finish=None):
@@ -655,14 +535,11 @@ async def test_gemini_missing_indices_preserve_distinct_calls(downstream, stream
     assert actual == [("call-a", '{"a":1}')] + ([("call-b", '{"a":2}')] if parallel else [])
 
 
-@pytest.mark.parametrize("mixed_indices", [False, True])
-async def test_gemini_native_interleaved_calls_use_ids_not_array_positions(mixed_indices):
+async def test_gemini_native_interleaved_calls_use_ids_not_array_positions():
     """Ensures native accumulation preserves parallel identities when fragment order changes."""
     first = [call_start("call-a"), call_start("call-b")]
     for call in first:
         call["extra_content"] = {"google": {"thought_signature": f"state-{call['id']}"}}
-    if mixed_indices:
-        first[1]["index"] = 1
     events = [
         tool_chunk(first),
         tool_chunk(
@@ -714,20 +591,11 @@ async def test_gemini_translated_noncontiguous_calls_reject(stream):
                 [event async for event in result]
 
 
-@pytest.mark.parametrize(
-    "calls",
-    [
-        [{"index": None, "function": {"arguments": "{}"}}],
-        [call_start("call-a", index=-1)],
-        [call_start("call-a", index="invalid")],
-        [call_start("call-a", index=0), call_start("call-b", index=0)],
-        [call_start("call-a", index=0), call_start("call-a", index=1)],
-    ],
-)
-async def test_gemini_ambiguous_or_conflicting_identity_rejects(calls):
-    """Ensures malformed or conflicting identity fails before a fabricated successful completion."""
+async def test_gemini_unidentified_call_rejects():
+    """Ensures a call lacking both an index and identity cannot be repaired."""
+    calls = [{"index": None, "function": {"arguments": "{}"}}]
     async with Molto(http_client=gemini_http([tool_chunk(calls)])) as molto:
-        with pytest.raises(ValueError, match="unambiguous|nonnegative|identity|index"):
+        with pytest.raises(ValueError, match="unambiguous"):
             result = await molto.responses(
                 {"model": "example", "input": "Hi", "stream": True},
                 endpoint="chat/completions",
@@ -774,12 +642,20 @@ async def test_gemini_anonymous_single_call_continuation_is_unambiguous():
     assert [(item.call_id, item.arguments) for item in result.output] == [("call-a", '{"a":1}')]
 
 
-async def test_gemini_indexed_chunks_retain_native_fidelity():
-    """Ensures Gemini compatibility repair does not alter already indexed provider chunks."""
-    from openai.types.chat import ChatCompletionChunk
-
+@pytest.mark.parametrize(
+    "calls",
+    [
+        [call_start("call-a", index=0)],
+        [call_start("call-a", index=-1)],
+        [call_start("call-a", index="invalid")],
+        [call_start("call-a", index=0), call_start("call-b", index=0)],
+        [call_start("call-a", index=0), call_start("call-a", index=1)],
+    ],
+)
+async def test_gemini_indexed_chunks_retain_native_fidelity(calls):
+    """Ensures already indexed output retains SDK parity without Molto identity validation."""
     events = [
-        tool_chunk([call_start("call-a", index=0)]),
+        tool_chunk(calls),
         tool_chunk([{"id": "call-a", "index": 0, "function": {"arguments": "}"}}]),
         tool_chunk([], "tool_calls"),
     ]
@@ -790,4 +666,12 @@ async def test_gemini_indexed_chunks_retain_native_fidelity():
             api_key="key",
         )
         actual = [event.model_dump() async for event in result]
-    assert actual == [ChatCompletionChunk.model_validate(event).model_dump() for event in events]
+    async with AsyncOpenAI(
+        api_key="key", base_url="https://example.test", http_client=gemini_http(events)
+    ) as sdk:
+        reference = await sdk.chat.completions.create(
+            model="example", messages=[{"role": "user", "content": "Hi"}], stream=True
+        )
+        async with reference:
+            expected = [event.model_dump() async for event in reference]
+    assert actual == expected

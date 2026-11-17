@@ -14,7 +14,7 @@ class OpenRouterResponsesClient(ResponsesClient):
 
     @classmethod
     def resolve_capabilities(cls, profile: ProviderCapabilities) -> ProviderCapabilities:
-        return replace(profile, responses_reasoning="wire")
+        return replace(profile, thinking="raw", responses_reasoning="wire")
 
     def _reasoning_part(self, item: Any) -> Thinking:
         part = _reasoning_part(item)

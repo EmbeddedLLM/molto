@@ -1923,6 +1923,75 @@ async def test_chat_groups_consecutive_assistant_parts(
     )
 
 
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("order", [(0, 1, 2, 3), (2, 0, 3, 1), (0, 2, 1, 3), (2, 3, 0, 1)])
+async def test_chat_groups_interleaved_text_and_calls(order, stream) -> None:
+    """Ensures shared Chat grouping preserves per-kind order, markers, boundaries, and results."""
+    text_parts = [
+        {"type": "text", "text": "First", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "Second"},
+    ]
+    calls = [
+        {"type": "tool_use", "id": call_id, "name": "lookup", "input": {}}
+        for call_id in ("c1", "c2")
+    ]
+    parts = [*text_parts, *calls]
+    additions = {
+        "messages": [
+            {"role": "assistant", "content": [parts[index] for index in order]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": call["id"], "content": call["id"]}
+                    for call in calls
+                ],
+            },
+            {"role": "assistant", "content": [{"type": "text", "text": "Separate"}]},
+        ],
+    }
+    original = deepcopy(additions)
+    await _assert_request_parity(
+        "messages",
+        "chat/completions",
+        additions,
+        {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "First",
+                            "prompt_cache_breakpoint": {"mode": "explicit"},
+                        },
+                        {"type": "text", "text": "Second"},
+                    ],
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": call["id"],
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                        for call in calls
+                    ],
+                },
+                *[
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": [{"type": "text", "text": call["id"]}],
+                    }
+                    for call in calls
+                ],
+                {"role": "assistant", "content": "Separate"},
+            ],
+            "prompt_cache_options": {"mode": "explicit"},
+        },
+        stream=stream,
+    )
+    assert additions == original
+
+
 @pytest.mark.parametrize(
     ("content", "match"),
     [
@@ -1936,13 +2005,6 @@ async def test_chat_groups_consecutive_assistant_parts(
                 {"type": "thinking", "thinking": "After tool"},
             ],
             "cannot preserve this assistant reasoning order",
-        ),
-        (
-            [
-                {"type": "tool_use", "id": "c1", "name": "lookup", "input": {}},
-                {"type": "text", "text": "After tool"},
-            ],
-            "cannot preserve assistant text after tool calls",
         ),
     ],
 )

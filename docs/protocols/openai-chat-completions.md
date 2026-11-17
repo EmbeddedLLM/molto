@@ -172,7 +172,7 @@ An upstream Chat client converts another downstream protocol's normalized reques
 
 The client rejects normalized settings that Chat cannot represent: hosted search declarations, selections, and search history; `max_tool_calls`; a `concise` reasoning summary; and tool-result names, such as the optional `name` on a Responses `function_call_output`.
 
-The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
+The client preserves every explicit assistant-history message boundary. Within one message, reasoning must precede text and calls. Text and tool-call parts may interleave; the shared builder groups them into separate `content` and `tool_calls` fields, preserving order within each field and accepting the loss of their relative order. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
 
 These examples apply within one explicit assistant message:
 
@@ -183,9 +183,10 @@ These examples apply within one explicit assistant message:
 | `ToolCall(id="a") -> ToolCall(id="b")`    | Accepted as two entries in one `tool_calls` array; IDs `a` and `b` remain distinct.       |
 | `Text -> Thinking`                        | Rejected: Chat has no slot for reasoning after text.                                      |
 | `ToolCall -> Thinking`                    | Rejected: Chat has no slot for reasoning after tool calls.                                |
-| `ToolCall -> Text`                        | Rejected: Chat has no slot for text after tool calls.                                     |
+| `ToolCall -> Text`                        | Accepted as `tool_calls` plus `content`; their relative order is lost.                    |
+| `Text A -> Call 1 -> Text B -> Call 2`    | Accepted as text `[A, B]` and calls `[1, 2]`; their interleaving is lost.                 |
 
-The generic Chat client rejects those incompatible orders rather than splitting or reordering the source message. Gemini separately accepts signature-only prefixes and text following calls, restoring text to the message `content` and calls to `tool_calls`; these wire fields cannot encode their relative order. Grouping parts never merges separate explicit assistant messages. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message. These Responses items have no explicit shared message boundary to preserve. A reasoning-only message is forwarded with `reasoning_content`; the upstream decides whether to accept it.
+The shared Chat client rejects reasoning after text or calls. All Chat clients use the same text/tool grouping; JSON property order cannot recover the original interleaving. Gemini additionally accepts signature-only prefixes and restores their attachment forward using the original part order. Grouping parts never merges separate explicit assistant messages. Standalone Responses reasoning may accompany the following text message, and following standalone function calls may join that message. These Responses items have no explicit shared message boundary to preserve. A reasoning-only message is forwarded with `reasoning_content`; the upstream decides whether to accept it.
 
 OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 
@@ -203,10 +204,12 @@ The client reads only `choices[0]`. Non-empty `reasoning_content` and text delta
 
 `reasoning_content` does not say whether it contains raw reasoning or a reasoning summary. Molto classifies it with the explicit provider capability:
 
-| Provider profile | Interpretation    |
-| ---------------- | ----------------- |
-| `openai`         | Reasoning summary |
-| `vllm`           | Raw reasoning     |
+| Provider profile                  | Interpretation                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `openai`                          | Reasoning summary                                                             |
+| `vllm`, `togetherai`, `fireworks` | Raw reasoning                                                                 |
+| `gemini`                          | Reasoning summary; reasoning-text compatibility remains unverified            |
+| `bedrock`                         | Existing summary profile; reasoning-enabled classification remains unverified |
 
 `endpoint` and `base_url` do not select this interpretation. A custom OpenAI-compatible service must use the provider profile matching its actual behavior.
 

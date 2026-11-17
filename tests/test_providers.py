@@ -19,10 +19,10 @@ def test_provider_capabilities_are_explicit_and_immutable() -> None:
     assert PROVIDER_CAPABILITIES == {
         "anthropic": ProviderCapabilities(thinking="summary", requires_search_history_state=True),
         "bedrock": ProviderCapabilities(thinking="summary"),
-        "fireworks": ProviderCapabilities(thinking="summary"),
+        "fireworks": ProviderCapabilities(thinking="raw"),
         "openai": ProviderCapabilities(thinking="summary"),
         "gemini": ProviderCapabilities(thinking="summary"),
-        "openrouter": ProviderCapabilities(thinking="summary"),
+        "openrouter": ProviderCapabilities(thinking="raw"),
         "togetherai": ProviderCapabilities(thinking="raw"),
         "vllm": ProviderCapabilities(thinking="raw"),
     }

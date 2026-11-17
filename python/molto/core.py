@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Mapping
+from dataclasses import replace
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
@@ -12,6 +13,7 @@ from molto.providers import (
     Endpoint,
     Provider,
     ProviderCapabilities,
+    ReasoningRepresentation,
 )
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
@@ -198,34 +200,30 @@ class Molto:
         endpoint: Endpoint,
         provider: Provider,
         *,
-        native: bool,
+        downstream: Endpoint,
+        reasoning_representation: ReasoningRepresentation | None,
         api_key: str | None,
         base_url: str | None,
         extra_body: Mapping[str, Any] | None,
         extra_headers: Mapping[str, str] | None,
     ) -> tuple[BaseClient, ProviderCapabilities]:
-        """Select a translator or attempt the requested native protocol at the provider."""
+        """Select a registered client and resolve its translation capabilities."""
         client_type = CLIENTS.get((provider, endpoint))
-        provider_client = client_type
         if client_type is None:
-            if not native:
-                raise ValueError(
-                    f"Unsupported upstream endpoint {endpoint!r} for provider {provider!r}."
-                )
-            # Native attempts need protocol transport, not a registered translator.
-            # Reuse provider-owned defaults so fallback never sends its key to
-            # the canonical protocol provider's destination.
-            provider_client = next(
-                client for (name, _), client in CLIENTS.items() if name == provider
+            raise ValueError(
+                f"Unsupported upstream endpoint {endpoint!r} for provider {provider!r}."
             )
-            if provider_client.REQUIRES_BASE_URL and not base_url:
-                raise ValueError(f"Provider {provider!r} requires an explicit base_url.")
-            base_url = base_url or provider_client.DEFAULT_BASE_URL
-            client_type = CLIENTS[DEFAULT_PROVIDER_BY_ENDPOINT[endpoint], endpoint]
         capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider])
+        if downstream != endpoint and client_type.REQUIRES_REASONING_REPRESENTATION:
+            if reasoning_representation not in {"raw", "summary"}:
+                raise ValueError(
+                    f"{client_type.__name__} translation requires "
+                    "reasoning_representation='raw' or 'summary'."
+                )
+            capabilities = replace(capabilities, thinking=reasoning_representation)
         upstream = client_type(
             self._http_client,
-            api_key=self._resolve_api_key(provider_client, provider, api_key),
+            api_key=self._resolve_api_key(client_type, provider, api_key),
             base_url=base_url,
             capabilities=capabilities,
             extra_body=extra_body,
@@ -242,6 +240,8 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        *,
+        reasoning_representation: ReasoningRepresentation | None = None,
     ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
@@ -258,6 +258,9 @@ class Molto:
             extra_body: Additional fields merged into the upstream request body.
             extra_headers: Additional upstream headers. Client credentials and transport
                 headers are removed before the provider request.
+            reasoning_representation: Required raw/summary classification when the
+                translated upstream client declares ambiguous reasoning. Other
+                clients retain their fixed profile; native passthrough ignores it.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
@@ -265,7 +268,8 @@ class Molto:
         upstream, capabilities = self._upstream_client(
             endpoint,
             resolved_provider,
-            native=endpoint == "responses",
+            downstream="responses",
+            reasoning_representation=reasoning_representation,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,
@@ -315,6 +319,8 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        *,
+        reasoning_representation: ReasoningRepresentation | None = None,
     ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
@@ -328,7 +334,8 @@ class Molto:
         upstream, capabilities = self._upstream_client(
             endpoint,
             resolved_provider,
-            native=endpoint == "chat/completions",
+            downstream="chat/completions",
+            reasoning_representation=reasoning_representation,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,
@@ -365,6 +372,8 @@ class Molto:
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
         citation_policy: CitationPolicy = "drop",
+        *,
+        reasoning_representation: ReasoningRepresentation | None = None,
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
@@ -383,7 +392,8 @@ class Molto:
         upstream, capabilities = self._upstream_client(
             endpoint,
             resolved_provider,
-            native=endpoint == "messages",
+            downstream="messages",
+            reasoning_representation=reasoning_representation,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,

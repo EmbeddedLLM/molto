@@ -429,14 +429,10 @@ def test_openai_clients_preserve_assistant_message_and_text_part_boundaries(empt
             ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
             Thinking(content="Later", summary=""),
         ],
-        [
-            ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
-            TextOutput(content="Later"),
-        ],
     ],
 )
 def test_chat_client_rejects_unrepresentable_order_within_assistant_message(content):
-    """Ensures Chat never reorders or overwrites parts from one explicit assistant message."""
+    """Ensures Chat rejects reasoning after text or calls within one assistant message."""
     request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
 
     with pytest.raises(UnsupportedInput):

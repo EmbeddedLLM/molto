@@ -102,7 +102,7 @@ def _reasoning_and_text(protocol: Protocol, response) -> tuple[str, str]:
         for downstream, upstream in permutations(PROTOCOLS, 2)
         for ciphertext in ((None, "") if upstream == "responses" else (None,))
         for provider in {
-            "responses": ("openai", "openrouter"),
+            "responses": ("openai",),
             "messages": ("anthropic",),
             "chat/completions": ("openai",),
         }[upstream]

@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Mapping
 from contextlib import aclosing
-from typing import Any, NoReturn
+from dataclasses import replace
+from typing import Any, ClassVar, NoReturn
 
 from httpx import URL, AsyncClient, Headers, Request
 from openai import AsyncOpenAI, OpenAIError, omit
@@ -25,6 +26,7 @@ class BaseClient[
     REQUEST_MODEL: type[NativeRequestT]
     REQUIRED_API_KEY: str | None = None
     REQUIRES_BASE_URL = False
+    REQUIRES_REASONING_REPRESENTATION: ClassVar[bool] = False
 
     @classmethod
     def resolve_capabilities(cls, capabilities: ProviderCapabilities) -> ProviderCapabilities:
@@ -47,6 +49,10 @@ class BaseClient[
         self._api_key = api_key
         self._base_url = base_url
         self._capabilities = self.resolve_capabilities(capabilities)
+        if self.REQUIRES_REASONING_REPRESENTATION:
+            # The coordinator has already selected the interpretation for this
+            # request; constructor resolution must not restore a fixed default.
+            self._capabilities = replace(self._capabilities, thinking=capabilities.thinking)
         self._extra_body = extra_body
         self._extra_headers = extra_headers
         self.response_headers = Headers()

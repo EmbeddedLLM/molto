@@ -229,6 +229,12 @@ Relevant test entry points and canonicalization helpers:
 
 When a matcher changes an SSE payload discriminator, update the corresponding `event:` header as part of the same change. Keep JSON key order and whitespace stable unless the changed value requires reserialization; this keeps fixture diffs focused on intentional semantic alignment.
 
+## Hosted reasoning continuation evidence
+
+`upstream_ir/tool_use_reasoning_low/` contains unchanged native recordings from November 17, 2026. Together `zai-org/GLM-5.2` has three-turn Responses and Chat conversations in both modes (12 exchanges); Fireworks `accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b` has three-turn Chat conversations in both modes (six exchanges). Together and Fireworks used low reasoning. Bedrock `global.anthropic.claude-haiku-4-5-20251001-v1:0` adds three-turn Messages conversations in both modes (six exchanges), with enabled thinking and a 1,024-token budget through Singapore runtime. All used a 2,048-token output cap and zero SDK retries through `scripts/recorder_proxy.py`, outside pytest. Each conversation carries actual SDK reasoning and tool-call state through two tool results to a final answer.
+
+Fireworks Responses wire fields remain `summary_text` in faithful recordings. Molto's raw interpretation is asserted separately in IR and translated replay; expected wire continuation retains the captured summary-labeled request shape. Do not relabel original captures to implement this policy. Fresh Fireworks Responses captures with missing `usage.input_tokens_details.cache_write_tokens` remain staged pending the SDK schema mismatch procedure; they are not part of this scenario. The provider guide records the tested settings and the separate Gemini/Bedrock evidence gaps.
+
 ## Provider recording workflow
 
 `scripts/recorder_proxy.py` defaults to `/tmp/molto-recordings`, binds localhost, and makes one upstream attempt. Native SDK recording callers must also use `max_retries=0`. Non-SSE responses retain `response.body_bytes` as authoritative bytes and a decoded `body` for inspection. Replay prefers bytes; successful response matching drops this raw field on deliberately modified copies. Request-only error matching preserves the complete response unchanged.

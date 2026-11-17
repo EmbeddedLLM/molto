@@ -3,10 +3,18 @@
 import httpx
 import pytest
 
-from molto.providers import PROVIDER_CAPABILITIES
+from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
 from molto.types.normalized import NormalizedRequest, PartEndEvent, Thinking
 from molto.upstream.openrouter import OpenRouterResponsesClient
 from tests.upstream.test_openai import _response_event, _unexpected_http
+
+
+def test_openrouter_uses_raw_history_profile_with_explicit_response_labels():
+    """Ensures ambiguous history is raw while Responses keeps explicit wire labels."""
+    profile = ProviderCapabilities(thinking="summary")
+    resolved = OpenRouterResponsesClient.resolve_capabilities(profile)
+    assert resolved == ProviderCapabilities(thinking="raw", responses_reasoning="wire")
+    assert profile.thinking == "summary"
 
 
 async def normalized_events(monkeypatch, items):

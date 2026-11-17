@@ -60,6 +60,23 @@ def _normalize(request: AnthropicMessagesCreateRequest, capabilities: ProviderCa
     return AnthropicMessagesAdapter(capabilities).normalize_request(request)
 
 
+@pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}])
+def test_normalization_preserves_unsigned_raw_history(signature_fields):
+    """Ensures raw continuation accepts omitted or empty signatures without changing reasoning."""
+    request = _request(
+        messages=[
+            {
+                "role": "assistant",
+                "content": [{"type": "thinking", "thinking": "Raw thought", **signature_fields}],
+            }
+        ]
+    )
+    normalized = _normalize(request, ProviderCapabilities(thinking="raw"))
+    assert normalized.input == [
+        AssistantInput(content=[Thinking(content="Raw thought", summary="", signature=None)])
+    ]
+
+
 @pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
 @pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}, {"signature": "state"}])
 def test_normalization_preserves_summary_history(

@@ -164,8 +164,10 @@ class BaseAdapter[
         Protocols with a single reasoning field do not say whether their text is
         raw reasoning or a summary; the provider capability profile classifies it.
         """
+        if self._capabilities.thinking == "raw" and signature:
+            raise UnsupportedInput("Raw reasoning cannot preserve a thinking signature.")
         return Thinking(
             content=text if self._capabilities.thinking == "raw" else "",
             summary=text if self._capabilities.thinking == "summary" else "",
-            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
+            signature=signature or None,
         )

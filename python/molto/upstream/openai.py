@@ -418,6 +418,9 @@ class ResponsesClient(
     def _reasoning_part(self, item: Any) -> Thinking:
         return _reasoning_part(item)
 
+    def _reasoning_delta(self, text: str, *, summary: bool) -> ThinkingDelta:
+        return ThinkingDelta(summary_delta=text) if summary else ThinkingDelta(content_delta=text)
+
     def _validate_reasoning(self, part: Thinking) -> None:
         _validate_responses_reasoning_capability(part, self._capabilities.thinking)
 
@@ -708,6 +711,14 @@ class ResponsesClient(
             # seen; keep its source index rather than inventing a dense one.
             return part_indices.get(source_index, source_index)
 
+        def reasoning_delta(source_index: int, text: str, *, summary: bool) -> ThinkingDelta:
+            delta = self._reasoning_delta(text, summary=summary)
+            validate_reasoning(
+                source_index,
+                Thinking(content=delta.content_delta or "", summary=delta.summary_delta or ""),
+            )
+            return delta
+
         async with (
             aclosing(self.native_events(native_request)) as native_events,
             aclosing(_ordered_items(native_events)) as ordered_events,
@@ -751,46 +762,30 @@ class ResponsesClient(
                         pending_reasoning[event.output_index] = part
                     else:
                         yield start_part(event.output_index, part)
-                elif event_type == "response.reasoning_text.delta":
-                    validate_reasoning(
-                        event.output_index, Thinking(content=event.delta, summary="")
+                elif event_type in {
+                    "response.reasoning_text.delta",
+                    "response.reasoning_summary_text.delta",
+                }:
+                    delta = reasoning_delta(
+                        event.output_index,
+                        event.delta,
+                        summary=event_type == "response.reasoning_summary_text.delta",
                     )
                     # An empty delta must not materialize a deferred reasoning part.
                     if not event.delta and event.output_index in pending_reasoning:
                         continue
                     if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                         yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(content_delta=event.delta),
-                    )
-                elif event_type == "response.reasoning_summary_text.delta":
-                    validate_reasoning(
-                        event.output_index, Thinking(content="", summary=event.delta)
-                    )
-                    # An empty delta must not materialize a deferred reasoning part.
-                    if not event.delta and event.output_index in pending_reasoning:
-                        continue
-                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                        yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(summary_delta=event.delta),
-                    )
+                    yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                 elif event_type == "response.content_part.added":
                     # A part-added snapshot can carry initial text; empty ones are
                     # lifecycle echoes and must not materialize a deferred part.
                     added_part = event.part
                     if added_part.type == "reasoning_text" and added_part.text:
-                        validate_reasoning(
-                            event.output_index, Thinking(content=added_part.text, summary="")
-                        )
+                        delta = reasoning_delta(event.output_index, added_part.text, summary=False)
                         if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                             yield start_part(event.output_index, start)
-                        yield PartDeltaEvent(
-                            index=part_index(event.output_index),
-                            delta=ThinkingDelta(content_delta=added_part.text),
-                        )
+                        yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                     elif added_part.type == "output_text":
                         key = (event.output_index, event.content_index)
                         # Non-text snapshots may precede the first text content.
@@ -821,15 +816,10 @@ class ResponsesClient(
                 elif event_type == "response.reasoning_summary_part.added":
                     added_part = event.part
                     if added_part.type == "summary_text" and added_part.text:
-                        validate_reasoning(
-                            event.output_index, Thinking(content="", summary=added_part.text)
-                        )
+                        delta = reasoning_delta(event.output_index, added_part.text, summary=True)
                         if (start := pending_reasoning.pop(event.output_index, None)) is not None:
                             yield start_part(event.output_index, start)
-                        yield PartDeltaEvent(
-                            index=part_index(event.output_index),
-                            delta=ThinkingDelta(summary_delta=added_part.text),
-                        )
+                        yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                 elif event_type == "response.output_text.delta":
                     yield PartDeltaEvent(
                         index=text_indices.get(
@@ -1096,10 +1086,6 @@ class ChatCompletionsClient(
                     )
                 reasoning_parts.append(part.content or part.summary)
             elif isinstance(part, TextOutput):
-                if "tool_calls" in message:
-                    raise UnsupportedInput(
-                        "Chat Completions cannot preserve assistant text after tool calls."
-                    )
                 text_parts.append(
                     {
                         "type": "text",
@@ -1195,7 +1181,10 @@ class ChatCompletionsClient(
                 if (
                     explicit_assistant
                     or any(isinstance(part, ToolCall) for part in assistant_parts)
-                    or any(isinstance(part, Thinking) for part in item.content)
+                    or any(
+                        isinstance(part, Thinking) and cls._starts_assistant_message(part)
+                        for part in item.content
+                    )
                 ):
                     flush_assistant()
                 assistant_parts.extend(item.content)
