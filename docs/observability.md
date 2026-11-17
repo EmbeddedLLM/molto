@@ -88,12 +88,14 @@ Molto resolves these values before transport.
 | `gen_ai.operation.name` | `chat` |
 | `gen_ai.provider.name` | Resolved `provider`: `openai`, `anthropic`, or `vllm` |
 | `gen_ai.request.model` | Request `model` |
-| `gen_ai.request.max_tokens`, `gen_ai.request.temperature`, `gen_ai.request.top_p` | Request fields, only when set |
+| `gen_ai.request.max_tokens`, `gen_ai.request.temperature`, `gen_ai.request.top_p` | Request fields, only when set with the expected type |
 | `gen_ai.request.stream` | Set only when streaming |
-| `server.address`, `server.port` | Effective `base_url` |
+| `server.address`, `server.port` | Host and port of the effective `base_url`; the scheme's default port when the URL has none |
 | `molto.downstream.protocol` | `responses`, `chat/completions`, or `messages`, from the coordinator |
 | `molto.upstream.endpoint` | Effective `endpoint` |
 | `molto.route` | `native` or `translated` |
+
+Native request bodies reach the SDK unvalidated, so a request field becomes an attribute only when it has the convention's type: a non-empty string model, an integer output-token limit, and numeric sampling values, reported as doubles. Booleans do not count as numbers. Chat Completions reports `max_completion_tokens`, falling back to the deprecated `max_tokens`. A `base_url` without a host, or one `httpx` cannot parse, omits the server attributes and leaves the error to the SDK.
 
 `vllm` is not a well-known `gen_ai.provider.name` value; the conventions allow a custom value for other providers. Molto has no separate `molto.provider` attribute, because it would duplicate this value and `server.address` already identifies the host.
 
