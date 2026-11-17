@@ -4,9 +4,11 @@ from itertools import pairwise
 from typing import Any
 
 from anthropic.lib.streaming._messages import accumulate_event
+from httpx import AsyncClient, MockTransport, Request, Response
 from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel
 
+from molto.core import Molto, MoltoStream
 from molto.providers import Endpoint
 from molto.types.anthropic_messages import AnthropicMessagesStreamEventAdapter
 from molto.types.openai_chat_completions import (
@@ -17,7 +19,7 @@ from molto.types.openai_responses import (
     OpenAIResponsesCreateRequest,
     OpenAIResponsesStreamEventAdapter,
 )
-from molto.utils.io import dumps_sse, load_sse
+from molto.utils.io import dumps_sse, load_sse, read_yaml
 
 _RECONSTRUCTIBLE_RESPONSE_FIELDS = {
     "id",
@@ -314,3 +316,64 @@ def reconstructable_anthropic_event(sse: str) -> dict[str, Any]:
     elif event["type"] == "message_delta":
         event["delta"].pop("stop_details", None)
     return event
+
+
+def replay_transport(cassette: dict[str, Any]) -> MockTransport:
+    """Serve a cassette's recorded response for every request, without checking the request."""
+    recorded = cassette["response"]
+
+    def handler(request: Request) -> Response:
+        if "sse" in recorded:
+            return Response(
+                recorded["status_code"],
+                content="".join(recorded["sse"]).encode(),
+                headers={"content-type": "text/event-stream"},
+            )
+        return Response(recorded["status_code"], json=recorded["body"])
+
+    return MockTransport(handler)
+
+
+async def coordinator_outcome(
+    method: str,
+    body: dict[str, Any],
+    http_client: AsyncClient,
+    **arguments: Any,
+) -> dict[str, Any]:
+    """Call one `Molto` coordinator and return what the caller observes, as JSON values.
+
+    A stream is consumed in full. A failure is reported by exception class and
+    message, so outcomes compare equal only when the caller saw the same thing.
+    """
+    async with Molto(http_client=http_client) as molto:
+        try:
+            result = await getattr(molto, method)(body=body, **arguments)
+            if isinstance(result, MoltoStream):
+                async with result:
+                    return {"events": [event.model_dump(mode="json") async for event in result]}
+            return {"response": result.model_dump(mode="json")}
+        except Exception as error:
+            return {"error": type(error).__name__, "message": str(error)}
+
+
+async def replayed_outcomes(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return each case's coordinator outcome, replaying its recorded upstream response.
+
+    Each case names a `method`, an `endpoint`, the `request` cassette whose body is
+    sent, and an optional `response` cassette (the request cassette otherwise). Paths
+    are cassette files; no request reaches the network.
+    """
+    outcomes = []
+    for case in cases:
+        request = read_yaml(case["request"])
+        response = read_yaml(case.get("response") or case["request"])
+        outcomes.append(
+            await coordinator_outcome(
+                case["method"],
+                request["request"]["body"],
+                AsyncClient(transport=replay_transport(response)),
+                endpoint=case["endpoint"],
+                api_key="test-key",
+            )
+        )
+    return outcomes

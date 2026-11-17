@@ -67,6 +67,35 @@ HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 MOLTO_ERROR_PHASE = "molto.error.phase"
 FIRST_TOKEN_EVENT = "molto.first_token"
 
+# Every span attribute the contract defines. Spans carry no other keys, so no
+# attribute can hold request or completion content (docs/observability.md).
+ATTRIBUTE_KEYS = frozenset(
+    {
+        GEN_AI_OPERATION_NAME,
+        GEN_AI_PROVIDER_NAME,
+        GEN_AI_REQUEST_MAX_TOKENS,
+        GEN_AI_REQUEST_MODEL,
+        GEN_AI_REQUEST_STREAM,
+        GEN_AI_REQUEST_TEMPERATURE,
+        GEN_AI_REQUEST_TOP_P,
+        SERVER_ADDRESS,
+        SERVER_PORT,
+        MOLTO_DOWNSTREAM_PROTOCOL,
+        MOLTO_ROUTE,
+        MOLTO_UPSTREAM_ENDPOINT,
+        GEN_AI_RESPONSE_FINISH_REASONS,
+        GEN_AI_RESPONSE_ID,
+        GEN_AI_RESPONSE_MODEL,
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+        GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+        GEN_AI_USAGE_INPUT_TOKENS,
+        GEN_AI_USAGE_OUTPUT_TOKENS,
+        ERROR_TYPE,
+        HTTP_RESPONSE_STATUS_CODE,
+        MOLTO_ERROR_PHASE,
+    }
+)
+
 ErrorPhase = Literal["setup", "stream"]
 # Native extractors can meet a provider that omits a field; `SpanRecorder.set` drops
 # the `None` values.

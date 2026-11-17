@@ -1,10 +1,13 @@
 import asyncio
+import subprocess
+import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
+import openai
 import pytest
-from httpx import AsyncClient, Headers, MockTransport, Request, Response
+from httpx import AsyncByteStream, AsyncClient, Headers, MockTransport, Request, Response
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -15,9 +18,25 @@ from pydantic import SecretStr, ValidationError
 from molto.configs import ENV_CONFIG
 from molto.core import Molto, MoltoStream, _prefetch_stream, _traced
 from molto.types.exceptions import ContextLengthExceededError
-from molto.utils.io import json_loads, read_yaml
+from molto.utils.io import json_dumps, json_loads, read_yaml
+from molto.utils.telemetry import ATTRIBUTE_KEYS
+from molto.utils.test import replay_transport, replayed_outcomes
+from molto.version import __version__
 
 BODY = {"model": "gpt-5", "input": "Hello!"}
+# Placed in request content, extensions, headers, and credentials; it must never
+# reach a span.
+CONTENT_MARKER = "secret-content-marker"
+# Event attribute keys Molto may record; anything else could carry content.
+EVENT_ATTRIBUTE_KEYS = {
+    "molto.first_token": set(),
+    "exception": {
+        "exception.type",
+        "exception.message",
+        "exception.stacktrace",
+        "exception.escaped",
+    },
+}
 CASSETTES = Path(__file__).parents[1] / "cassettes"
 
 
@@ -45,6 +64,14 @@ def _molto_span(exporter: InMemorySpanExporter) -> ReadableSpan:
     return span
 
 
+def _assert_cancelled(span: ReadableSpan) -> None:
+    """Cancellation ends the span as UNSET, recording no error (decision 9)."""
+    assert span.status.status_code is StatusCode.UNSET
+    assert "error.type" not in span.attributes
+    assert "molto.error.phase" not in span.attributes
+    assert span.events == ()
+
+
 async def _events(*events: str, error: BaseException | None = None) -> AsyncIterator[str]:
     for event in events:
         yield event
@@ -67,18 +94,7 @@ def _cassette(name: str) -> dict[str, Any]:
 
 def _replay(cassette_name: str) -> AsyncClient:
     """Serve one recorded response for any request, without checking the request."""
-    response = _cassette(cassette_name)["response"]
-
-    def handler(request: Request) -> Response:
-        if "sse" in response:
-            return Response(
-                response["status_code"],
-                content="".join(response["sse"]).encode(),
-                headers={"content-type": "text/event-stream"},
-            )
-        return Response(response["status_code"], json=response["body"])
-
-    return AsyncClient(transport=MockTransport(handler))
+    return AsyncClient(transport=replay_transport(_cassette(cassette_name)))
 
 
 def _recorded_response_id(cassette_name: str) -> str:
@@ -138,7 +154,7 @@ async def test_cancelled_call_ends_span_without_error(exporter: InMemorySpanExpo
     with pytest.raises(asyncio.CancelledError):
         await _trace(call)
 
-    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+    _assert_cancelled(_molto_span(exporter))
 
 
 async def test_span_parents_to_caller_and_is_current_only_during_the_call(
@@ -238,7 +254,7 @@ async def test_stream_cancellation_ends_span_without_error(exporter: InMemorySpa
         async for _ in stream:
             pass
 
-    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+    _assert_cancelled(_molto_span(exporter))
 
 
 async def test_prefetch_failure_ends_span_in_coordinator(exporter: InMemorySpanExporter):
@@ -254,7 +270,7 @@ async def test_prefetch_cancellation_ends_span_without_error(exporter: InMemoryS
     with pytest.raises(asyncio.CancelledError):
         await _traced_stream(_events(error=asyncio.CancelledError()))
 
-    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+    _assert_cancelled(_molto_span(exporter))
 
 
 async def test_stream_span_is_not_current_while_the_caller_iterates(
@@ -387,10 +403,14 @@ COORDINATOR_CASES = [
 
 
 async def _run_coordinator(
-    method: str, endpoint: str, request_cassette: str, response_cassette: str | None
+    method: str,
+    endpoint: str,
+    request_cassette: str,
+    response_cassette: str | None,
+    **body_fields: Any,
 ) -> bool:
     """Call one coordinator against a replayed response, consuming any stream."""
-    body = _request_body(request_cassette)
+    body = {**_request_body(request_cassette), **body_fields}
     client = _replay(response_cassette or request_cassette)
     async with Molto(http_client=client) as molto:
         result = await getattr(molto, method)(body=body, endpoint=endpoint, api_key="test-key")
@@ -416,15 +436,34 @@ async def test_coordinator_emits_one_span_per_call(
 ):
     """Ensures each coordinator emits one complete span per call on native and translated routes.
 
-    The span carries the start attributes, the response identity, finish reason, and
-    usage, and, for a streaming caller only, one `molto.first_token` event.
+    The span is a CLIENT child of the caller's span and carries the start attributes,
+    the response identity, finish reason, and usage, and, for a streaming caller only,
+    one `molto.first_token` event.
     """
-    streamed = await _run_coordinator(method, endpoint, request_cassette, response_cassette)
+    with TracerProvider().get_tracer("caller").start_as_current_span("caller") as caller:
+        # The replay ignores the request, so sampling values only reach the span.
+        streamed = await _run_coordinator(
+            method, endpoint, request_cassette, response_cassette, temperature=0.5, top_p=0.9
+        )
 
     span = _molto_span(exporter)
     attributes = span.attributes
     assert span.name == "chat gpt-4.1-nano"
+    assert span.kind is SpanKind.CLIENT
+    assert span.parent.span_id == caller.get_span_context().span_id
     assert span.status.status_code is StatusCode.UNSET
+    assert attributes["gen_ai.operation.name"] == "chat"
+    assert attributes["gen_ai.provider.name"] == (
+        "anthropic" if endpoint == "messages" else "openai"
+    )
+    assert attributes["server.address"] == (
+        "api.anthropic.com" if endpoint == "messages" else "api.openai.com"
+    )
+    assert attributes["server.port"] == 443
+    assert attributes["gen_ai.request.model"] == "gpt-4.1-nano"
+    assert attributes["gen_ai.request.max_tokens"] == 1024
+    assert attributes["gen_ai.request.temperature"] == 0.5
+    assert attributes["gen_ai.request.top_p"] == 0.9
     assert attributes["molto.downstream.protocol"] == protocol
     assert attributes["molto.upstream.endpoint"] == endpoint
     assert attributes["molto.route"] == ("native" if protocol == endpoint else "translated")
@@ -666,3 +705,369 @@ async def test_failure_after_a_successful_stream_response_reports_the_stream_pha
     assert span.attributes["error.type"] == "ContextLengthExceededError"
     assert span.attributes["molto.error.phase"] == "stream"
     assert "http.response.status_code" not in span.attributes
+
+
+async def test_coordinator_stream_closed_early_ends_its_span_once(exporter: InMemorySpanExporter):
+    """Ensures a coordinator stream closed after its first event ends its span once, without ERROR."""
+    name = "matched/simple_text/openai-responses-stream-00"
+    async with Molto(http_client=_replay(name)) as molto:
+        stream = await molto.responses(body=_request_body(name), api_key="test-key")
+        await anext(stream)
+        await stream.aclose()
+        await stream.aclose()
+
+    span = _molto_span(exporter)
+    assert span.status.status_code is StatusCode.UNSET
+    assert "error.type" not in span.attributes
+
+
+async def test_streaming_coordinator_failure_before_the_first_event_ends_its_span(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that a streaming call failing before its first event ends the span in the coordinator."""
+    async with Molto(http_client=AsyncClient(transport=MockTransport(_not_found))) as molto:
+        with pytest.raises(Exception, match="secret-request-marker"):
+            await molto.responses(
+                body={"model": "gpt-5", "input": "Hello!", "stream": True}, api_key="test-key"
+            )
+
+    span = _molto_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.attributes["error.type"] == "ResourceNotFoundError"
+    assert span.attributes["molto.error.phase"] == "setup"
+
+
+_CONTENT_FIELDS = {
+    "responses": {"input": CONTENT_MARKER},
+    "chat/completions": {"messages": [{"role": "user", "content": CONTENT_MARKER}]},
+    "messages": {"messages": [{"role": "user", "content": CONTENT_MARKER}]},
+}
+_MARKED_EXTENSIONS = {
+    "api_key": f"{CONTENT_MARKER}-key",
+    "extra_body": {"metadata": {"note": CONTENT_MARKER}},
+    "extra_headers": {
+        "x-trace-note": CONTENT_MARKER,
+        "authorization": f"Bearer {CONTENT_MARKER}",
+    },
+}
+
+
+def _assert_carries_no_content(span: ReadableSpan) -> None:
+    """Spans hold only contract keys, and no recorded value contains the marker."""
+    assert set(span.attributes) <= ATTRIBUTE_KEYS
+    recorded = [*span.attributes.values()]
+    for event in span.events:
+        assert set(event.attributes) <= EVENT_ATTRIBUTE_KEYS[event.name]
+        recorded += [event.name, *event.attributes.values()]
+    assert not any(CONTENT_MARKER in str(value) for value in recorded)
+
+
+async def _consume(result: Any) -> None:
+    if isinstance(result, MoltoStream):
+        async with result:
+            [event async for event in result]
+
+
+@pytest.mark.parametrize(
+    ("method", "protocol", "endpoint", "request_cassette", "response_cassette", "finish_reason"),
+    COORDINATOR_CASES,
+)
+async def test_spans_carry_no_content_headers_or_credentials(
+    exporter: InMemorySpanExporter,
+    method: str,
+    protocol: str,
+    endpoint: str,
+    request_cassette: str,
+    response_cassette: str | None,
+    finish_reason: str,
+):
+    """Asserts that request content, extensions, headers, and credentials never reach a span.
+
+    Covers every coordinator route. Spans hold only the contract's attribute keys, so
+    completion text cannot appear either.
+    """
+    body = {**_request_body(request_cassette), **_CONTENT_FIELDS[protocol]}
+    async with Molto(http_client=_replay(response_cassette or request_cassette)) as molto:
+        await _consume(
+            await getattr(molto, method)(body=body, endpoint=endpoint, **_MARKED_EXTENSIONS)
+        )
+
+    _assert_carries_no_content(_molto_span(exporter))
+
+
+@pytest.mark.parametrize(
+    ("method", "protocol", "endpoint", "request_cassette", "response_cassette"),
+    [
+        (
+            "responses",
+            "responses",
+            "responses",
+            "matched/simple_text/openai-responses-non_stream-00",
+            "errors/not_found/openai-responses-non_stream-00",
+        ),
+        (
+            "responses",
+            "responses",
+            "responses",
+            "matched/simple_text/openai-responses-stream-00",
+            "errors/not_found/openai-responses-stream-00",
+        ),
+        (
+            "chat_completions",
+            "chat/completions",
+            "responses",
+            "matched/simple_text/openai-chat_completions-stream-00",
+            "errors/not_found/openai-responses-stream-00",
+        ),
+    ],
+)
+async def test_failed_spans_carry_no_content_headers_or_credentials(
+    exporter: InMemorySpanExporter,
+    method: str,
+    protocol: str,
+    endpoint: str,
+    request_cassette: str,
+    response_cassette: str,
+):
+    """Asserts that a failed call's error attributes and exception event carry no request content."""
+    body = {**_request_body(request_cassette), **_CONTENT_FIELDS[protocol]}
+    async with Molto(http_client=_replay(response_cassette)) as molto:
+        with pytest.raises(openai.NotFoundError):
+            await _consume(
+                await getattr(molto, method)(body=body, endpoint=endpoint, **_MARKED_EXTENSIONS)
+            )
+
+    span = _molto_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    _assert_carries_no_content(span)
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "response_cassette"),
+    [
+        ("responses", None),
+        ("messages", "matched/simple_text/anthropic-messages-stream-00"),
+    ],
+)
+async def test_request_extensions_never_change_span_attributes(
+    exporter: InMemorySpanExporter, endpoint: str, response_cassette: str | None
+):
+    """Asserts that `extra_body`, `extra_headers`, and the API key never influence the span.
+
+    The same call with and without request extensions produces identical attributes,
+    so telemetry cannot be reading them.
+    """
+    request_cassette = "matched/simple_text/openai-responses-stream-00"
+    body = _request_body(request_cassette)
+    for extensions in ({"api_key": "test-key"}, _MARKED_EXTENSIONS):
+        async with Molto(http_client=_replay(response_cassette or request_cassette)) as molto:
+            await _consume(await molto.responses(body=body, endpoint=endpoint, **extensions))
+
+    plain, extended = exporter.get_finished_spans()
+    assert dict(plain.attributes) == dict(extended.attributes)
+
+
+class _StalledStream(AsyncByteStream):
+    """Send `head`, then wait forever, as an upstream that stops responding."""
+
+    def __init__(self, head: bytes, sent: asyncio.Event) -> None:
+        self._head = head
+        self._sent = sent
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        if self._head:
+            yield self._head
+        self._sent.set()
+        await asyncio.Event().wait()
+
+
+def _stalled_client(head: bytes, sent: asyncio.Event) -> AsyncClient:
+    def handler(request: Request) -> Response:
+        return Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            stream=_StalledStream(head, sent),
+        )
+
+    return AsyncClient(transport=MockTransport(handler))
+
+
+async def test_cancelling_a_coordinator_call_ends_its_span_without_error(
+    exporter: InMemorySpanExporter,
+):
+    """Ensures cancelling a real coordinator call before its first event ends its span as UNSET."""
+    sent = asyncio.Event()
+    async with Molto(http_client=_stalled_client(b"", sent)) as molto:
+        call = asyncio.create_task(
+            molto.responses(body={**BODY, "stream": True}, api_key="test-key")
+        )
+        await sent.wait()
+        call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+
+    _assert_cancelled(_molto_span(exporter))
+
+
+async def test_cancelling_a_coordinator_stream_ends_its_span_without_error(
+    exporter: InMemorySpanExporter,
+):
+    """Ensures cancelling the task iterating a real coordinator stream ends its span once, as UNSET."""
+    name = "matched/simple_text/openai-responses-stream-00"
+    # The first recorded SSE event, after which the upstream stops responding.
+    first_event = "".join(_cassette(name)["response"]["sse"]).split("\n\n")[0] + "\n\n"
+    sent = asyncio.Event()
+    async with Molto(http_client=_stalled_client(first_event.encode(), sent)) as molto:
+        stream = await molto.responses(body=_request_body(name), api_key="test-key")
+        consumer = asyncio.create_task(_consume(stream))
+        await sent.wait()
+        consumer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await consumer
+
+    _assert_cancelled(_molto_span(exporter))
+
+
+# Recorded calls compared with and without an SDK: native and translated, streaming and
+# non-streaming, and an upstream failure in both modes.
+FRESH_INTERPRETER_CASES = [
+    {
+        "method": method,
+        "endpoint": endpoint,
+        "request": str(CASSETTES / f"{request}.yaml"),
+        "response": str(CASSETTES / f"{response or request}.yaml"),
+    }
+    for method, endpoint, request, response in [
+        ("responses", "responses", "matched/simple_text/openai-responses-stream-00", None),
+        ("responses", "responses", "matched/simple_text/openai-responses-non_stream-00", None),
+        (
+            "responses",
+            "chat/completions",
+            "matched/simple_text/openai-responses-stream-00",
+            "matched/simple_text/openai-chat_completions-stream-00",
+        ),
+        (
+            "messages",
+            "responses",
+            "matched/simple_text/anthropic-messages-non_stream-00",
+            "matched/simple_text/openai-responses-stream-00",
+        ),
+        (
+            "responses",
+            "responses",
+            "matched/simple_text/openai-responses-non_stream-00",
+            "errors/not_found/openai-responses-non_stream-00",
+        ),
+        (
+            "responses",
+            "responses",
+            "matched/simple_text/openai-responses-stream-00",
+            "errors/not_found/openai-responses-stream-00",
+        ),
+    ]
+]
+_FRESH_INTERPRETER_PREAMBLE = (
+    "import asyncio, json, sys\n"
+    "from molto.utils.test import replayed_outcomes\n"
+    "cases = json.loads(sys.argv[1])\n"
+)
+
+
+def _run_in_fresh_interpreter(code: str, cases: list[dict[str, Any]]) -> Any:
+    """Run `code` in a new interpreter with `cases` bound, and return its JSON stdout.
+
+    A new interpreter has no tracer provider unless `code` installs one; the API
+    lets a process set its global provider only once. The conftest network block does
+    not apply there, but `replayed_outcomes` serves every response through
+    `MockTransport`, so no request leaves the process.
+    """
+    completed = subprocess.run(
+        [sys.executable, "-c", _FRESH_INTERPRETER_PREAMBLE + code, json_dumps(cases)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return json_loads(completed.stdout)
+
+
+def _without_item_ids(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_without_item_ids(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    return {
+        key: _without_item_ids(item)
+        for key, item in value.items()
+        if key != "item_id" and not (key == "id" and "type" in value)
+    }
+
+
+def _comparable(case: dict[str, Any], outcome: dict[str, Any]) -> dict[str, Any]:
+    """Drop the output-item IDs a translated Responses route generates afresh on every call.
+
+    They differ between any two runs, traced or not (`python/ARCHITECTURE.md`,
+    "Responses through Chat Completions"); every other value is compared exactly.
+    """
+    translated_responses = case["method"] == "responses" and case["endpoint"] != "responses"
+    return _without_item_ids(outcome) if translated_responses else outcome
+
+
+async def test_calls_behave_identically_without_an_sdk(exporter: InMemorySpanExporter):
+    """Asserts that with no SDK configured, every call yields exactly what a traced call yields.
+
+    Covers native and translated routes, streaming and non-streaming, and failures,
+    comparing events, responses, and error classes and messages. The SDK must never be
+    imported, because Molto depends only on the API.
+    """
+    traced = await replayed_outcomes(FRESH_INTERPRETER_CASES)
+
+    untraced = _run_in_fresh_interpreter(
+        "outcomes = asyncio.run(replayed_outcomes(cases))\n"
+        "sdk_imported = 'opentelemetry.sdk' in sys.modules\n"
+        "print(json.dumps({'outcomes': outcomes, 'sdk_imported': sdk_imported}))\n",
+        FRESH_INTERPRETER_CASES,
+    )
+
+    assert [
+        _comparable(case, outcome)
+        for case, outcome in zip(FRESH_INTERPRETER_CASES, untraced["outcomes"], strict=True)
+    ] == [
+        _comparable(case, outcome)
+        for case, outcome in zip(FRESH_INTERPRETER_CASES, traced, strict=True)
+    ]
+    assert untraced["sdk_imported"] is False
+    assert [outcome.keys() & {"events", "response", "error"} for outcome in traced] == [
+        {"events"},
+        {"response"},
+        {"events"},
+        {"response"},
+        {"error"},
+        {"error"},
+    ]
+    assert len(exporter.get_finished_spans()) == len(FRESH_INTERPRETER_CASES)
+
+
+def test_spans_use_the_application_tracer_provider():
+    """Ensures Molto's tracer comes from the application's global provider, scoped as `molto`.
+
+    The other tests route the tracer to a local provider; this checks the real
+    accessor in an interpreter whose application installs the SDK globally.
+    """
+    result = _run_in_fresh_interpreter(
+        "from opentelemetry import trace\n"
+        "from opentelemetry.sdk.trace import TracerProvider\n"
+        "from opentelemetry.sdk.trace.export import SimpleSpanProcessor\n"
+        "from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter\n"
+        "exporter = InMemorySpanExporter()\n"
+        "provider = TracerProvider()\n"
+        "provider.add_span_processor(SimpleSpanProcessor(exporter))\n"
+        "trace.set_tracer_provider(provider)\n"
+        "asyncio.run(replayed_outcomes(cases))\n"
+        "(span,) = exporter.get_finished_spans()\n"
+        "scope = span.instrumentation_scope\n"
+        "print(json.dumps({'name': span.name, 'scope': scope.name, 'version': scope.version}))\n",
+        FRESH_INTERPRETER_CASES[:1],
+    )
+
+    assert result == {"name": "chat gpt-4.1-nano", "scope": "molto", "version": __version__}
