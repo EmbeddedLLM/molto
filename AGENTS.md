@@ -42,7 +42,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
   3. Establish the intended production contract before changing a public API. Tests should verify that contract, not define new requirements implicitly. Explain any change to the contract.
   4. Verify affected defaults, preset inheritance, override detection, and serialization across consumers, not only the originally failing path.
 
-- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files, use `docker compose config --quiet`; do not print fully resolved Compose configuration because it can expand secret environment values into command output.
+- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets.
 
 ## Workflow Orchestration
 
@@ -154,7 +154,7 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - Never describe a skipped, incomplete, or failing check as passing.
 - In the final handoff, list the verification, test, formatting, linting, and static-analysis commands run, together with their outcomes.
 
-### 8. Repository Safety
+### 9. Repository Safety
 
 - Inspect `git status` and the relevant diff before editing.
 - Preserve existing uncommitted changes and never overwrite work you did not create.
@@ -199,7 +199,7 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - When writing prompts, avoid using non-ASCII symbols.
 - Follow the existing code style in each file.
 - Use meaningful variable and function names.
-- **Dependency versions**: Pin exact versions (e.g. `"2.0.0"`) in `package.json` and in the `test` extra of `pyproject.toml`. Core `dependencies` may use ranges, because they describe what a consumer may install rather than what this repository is tested against. Never use caret (`^`) or tilde (`~`) ranges for a pinned dependency, and never widen a range without re-deriving it from the test suite. See [Dependency Versions](#dependency-versions).
+- **Dependency versions**: Pin exact versions (e.g. `==2.0.0`) in the `test` extra of `pyproject.toml`. Core `dependencies` may use ranges, because they describe what a consumer may install rather than what this repository is tested against. Never use caret (`^`) or tilde (`~`) ranges for a pinned dependency, and never widen a range without re-deriving it from the test suite. See [Dependency Versions](#dependency-versions).
 
 ### Dependency Versions
 
@@ -211,9 +211,7 @@ Do not format unrelated files merely to make a repository-wide check pass.
 
 Because CI is pinned, the rest of each range is not continuously verified: a new SDK release inside a window can break consumers without turning CI red. Validate a bound explicitly, by installing that single version into a throwaway `uv` environment and running the whole suite there, rather than trusting the range.
 
-`dependency-version.md` is an uncommitted, local analysis of the provider SDK windows. It records the floor and ceiling each SDK passes the offline replay suite on with the failing test or `ImportError` behind every bound, why each bound exists (a hard imported SDK symbol versus test-level schema drift versus structural breakage no test update can fix), the `uv` per-candidate methodology used to derive them, and how to re-derive or lift a bound.
-
-Treat it as a dated snapshot, not a source of truth. SDK releases appear continuously, so re-derive any bound with the suite before changing it. This file and `pyproject.toml` remain authoritative.
+When deriving or changing a provider SDK window, record in the pull request the floor and ceiling the offline replay suite passes on, the failing test or `ImportError` behind each bound, and why the bound exists: a hard imported SDK symbol, test-level schema drift, or structural breakage that no test update can fix. Treat that evidence as a dated snapshot. SDK releases appear continuously, so re-derive any bound with the suite before changing it. `pyproject.toml` remains authoritative.
 
 ### Code Comments
 
