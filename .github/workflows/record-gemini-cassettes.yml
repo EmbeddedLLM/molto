@@ -1,4 +1,4 @@
-name: Probe Gemini signature placement
+name: Record Gemini combined reasoning history
 
 on:
   push:
@@ -6,15 +6,15 @@ on:
       - record/gemini-cassettes-20261105
     paths:
       - .github/workflows/record-gemini-cassettes.yml
-      - scripts/probe_gemini_signatures.py
+      - scripts/probe_gemini_combined_history.py
 
 permissions:
   contents: read
 
 jobs:
-  probe:
+  record:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -22,15 +22,16 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
-      - name: Install pinned native SDK
-        run: python -m pip install openai==2.53.0
-      - name: Compare signature attachments
+      - name: Install recording dependencies
+        run: python -m pip install openai==2.53.0 fastapi[standard]==0.135.4 PyYAML==6.0.3 loguru==0.7.3 uuid-utils==0.14.1
+      - name: Record native reasoning continuation
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python scripts/probe_gemini_signatures.py
+          PYTHONPATH: .
+        run: python scripts/probe_gemini_combined_history.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: gemini-signature-probe-results
-          path: /tmp/molto-gemini-signature-probe-results.json
-          retention-days: 1
+          name: gemini-combined-history
+          path: /tmp/molto-gemini-combined-history
+          retention-days: 7

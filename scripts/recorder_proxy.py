@@ -139,6 +139,9 @@ def decode_body(body: bytes, content_type: str) -> Any:
         return body
 
 
+CREDENTIAL_QUERY_PARAMS = {"key", "api_key", "api-key", "access_token"}
+
+
 def mask_secrets(value: Any, secrets: list[str]) -> Any:
     """Mask known request credentials, including credentials echoed by an upstream error."""
     if isinstance(value, dict):
@@ -147,6 +150,10 @@ def mask_secrets(value: Any, secrets: list[str]) -> Any:
         return [mask_secrets(item, secrets) for item in value]
     if isinstance(value, (str, bytes)):
         for secret in secrets:
+            # Molto's fixed vLLM placeholder is not secret. Replacing it would
+            # corrupt unrelated text; real credentials remain masked at any length.
+            if secret in {"", "EMPTY", "Bearer EMPTY"}:
+                continue
             if isinstance(value, bytes):
                 value = value.replace(secret.encode(), b"***")
             else:
@@ -179,7 +186,7 @@ async def proxy_request(request: Request, path: str) -> Response:
     secrets.extend(
         value
         for name, value in request.query_params.multi_items()
-        if name.lower() in {"key", "api_key", "api-key", "access_token"} and value
+        if name.lower() in CREDENTIAL_QUERY_PARAMS and value
     )
     body = await request.body()
     parsed_body = decode_body(body, request.headers.get("content-type", ""))
@@ -191,7 +198,11 @@ async def proxy_request(request: Request, path: str) -> Response:
         "request": {
             "method": request.method,
             "path": f"/{path}",
-            "query_params": dict(request.query_params),
+            # A credential's own field is masked whatever its length.
+            "query_params": {
+                name: "***" if name.lower() in CREDENTIAL_QUERY_PARAMS and value else value
+                for name, value in request.query_params.items()
+            },
             "headers": filter_headers(request.headers),
             "body": parsed_body,
         },
