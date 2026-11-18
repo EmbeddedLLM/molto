@@ -101,10 +101,10 @@ Molto resolves these values before transport.
 | `gen_ai.provider.name` | Resolved `provider`: `openai`, `anthropic`, or `vllm` |
 | `gen_ai.request.model` | Request `model` |
 | `gen_ai.request.max_tokens`, `gen_ai.request.temperature`, `gen_ai.request.top_p` | Request fields, only when set with the expected type |
-| `gen_ai.request.top_k` | Request `top_k`, only when set as an integer. Only Messages defines it |
-| `gen_ai.request.frequency_penalty`, `gen_ai.request.presence_penalty` | Request fields, only when set as numbers. Only Chat Completions defines them |
-| `gen_ai.request.seed` | Request `seed`, only when set as an integer. Only Chat Completions defines it |
-| `gen_ai.request.choice.count` | Request `n`, only when set as an integer other than `1`. Only Chat Completions defines it |
+| `gen_ai.request.top_k` | Request `top_k`, only when set as an integer |
+| `gen_ai.request.frequency_penalty`, `gen_ai.request.presence_penalty` | Request fields, only when set as numbers |
+| `gen_ai.request.seed` | Request `seed`, only when set as an integer |
+| `gen_ai.request.choice.count` | Request `n`, only when set as an integer other than `1` |
 | `gen_ai.request.stream` | Set only when the coordinator streams the call |
 | `server.address`, `server.port` | Host and port of the effective `base_url`; the scheme's default port when the URL has none |
 | `molto.downstream.protocol` | `responses`, `chat/completions`, or `messages`, from the coordinator |
@@ -113,7 +113,7 @@ Molto resolves these values before transport.
 
 Native request bodies reach the SDK unvalidated, so a request field becomes an attribute only when it has the convention's type: a non-empty string model, an integer output-token limit, `top_k`, `seed`, and `n`, and numeric `temperature`, `top_p`, and penalty values, reported as doubles. Booleans do not count as numbers. `stream` follows the coordinator's own rule: native passthrough streams for any truthy value, as the OpenAI and Anthropic SDKs do, while translated routes validate it, streaming for `true`, `1`, or `1.0` and rejecting strings. Chat Completions reports `max_completion_tokens`, falling back to the deprecated `max_tokens`. A `base_url` without a host, or one `httpx` cannot parse, omits the server attributes and leaves the error to the SDK.
 
-Translation cannot express Messages `top_k` or Chat `seed`, `n`, and the penalties, so a translated request that sets one is rejected with `UnsupportedInput`. Its span still carries the attribute, because the span starts before translation, so the rejected call shows the value that caused it. Native passthrough forwards these fields unchanged.
+Molto's request types define `top_k` only on Messages, and `seed`, `n`, and the penalties only on Chat Completions. Native passthrough forwards fields its request type does not define, so these attributes are read from any native body as sent: a native vLLM Chat request with `top_k`, for example, reports it. Translation cannot express these fields, so a translated request that sets one is rejected with `UnsupportedInput`. Its span still carries the attribute, because the span starts before translation, so the rejected call shows the value that caused it.
 
 The conventions also define `gen_ai.request.stop_sequences`. Molto does not record it: stop sequences are caller-written text, and spans carry no request content (see [Content and privacy](#content-and-privacy)).
 
@@ -137,7 +137,7 @@ Translated spans report Molto's normalized termination reason, such as `stop`, `
 
 Normalized usage stores a missing detail count as zero, so the cache and reasoning attributes appear only when non-zero, on every route, as the conventions recommend. Native reasoning counts come from Responses `output_tokens_details.reasoning_tokens`, Chat Completions `completion_tokens_details.reasoning_tokens`, and Messages `output_tokens_details.thinking_tokens`. The OpenAI and Anthropic APIs already include reasoning tokens in their output-token counts, as the conventions require for `gen_ai.usage.output_tokens`, so Molto reports both counts unchanged. Native cache counts come from Responses `input_tokens_details.cached_tokens` and `cache_write_tokens`, Chat Completions `prompt_tokens_details.cached_tokens` and `cache_write_tokens`, and Messages `cache_read_input_tokens` and `cache_creation_input_tokens`.
 
-The conventions define no web-search or server-tool usage count, so `molto.usage.web_search_requests` is Molto's own key. It counts the search requests the provider reports, which is the quantity providers bill. A translated span reports it only when the upstream reports it: a Chat Completions upstream never does.
+The conventions define no web-search or server-tool usage count, so `molto.usage.web_search_requests` is Molto's own key. It counts the search requests the provider reports. A translated span reports it only when the upstream reports it: a Chat Completions upstream never does.
 
 Molto reports the provider's token counts. The one adjustment is native Messages input: the Anthropic SDK `input_tokens` excludes cached tokens, so a native Messages span reports `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`. This matches the normalized usage a translated route reports for the same call.
 

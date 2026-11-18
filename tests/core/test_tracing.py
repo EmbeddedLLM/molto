@@ -844,6 +844,8 @@ async def test_chat_sampling_controls_reach_the_span_where_sent_and_where_reject
     native, rejected = exporter.get_finished_spans()
     for span in (native, rejected):
         assert {key: span.attributes[key] for key in expected} == expected
+    assert native.status.status_code is StatusCode.UNSET
+    assert rejected.status.status_code is StatusCode.ERROR
     assert rejected.attributes["error.type"] == "UnsupportedInput"
 
 

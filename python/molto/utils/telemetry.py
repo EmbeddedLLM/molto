@@ -39,6 +39,7 @@ from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsStreamChunk,
 )
 from molto.types.openai_responses import OpenAIResponsesResponse, OpenAIResponsesStreamEvent
+from molto.upstream.openai import responses_web_search_requests
 from molto.version import __version__
 
 # Keys follow the GenAI semantic conventions. They are plain strings rather than
@@ -202,9 +203,10 @@ def start_attributes(
         value = _field(body, name)
         if _is_int(value) or isinstance(value, float):
             attributes[key] = float(value)
-    # Only one protocol defines each of these fields (Messages `top_k`, Chat `seed` and
-    # `n`, and the penalties above), and translation rejects them, so they appear on
-    # native spans and on the span of a translated call they caused to be rejected.
+    # Molto's request types define these fields on one protocol each (Messages `top_k`,
+    # Chat `seed` and `n`, and the penalties above), but native passthrough forwards
+    # unknown fields, so they are read from any native body as sent. Translation rejects
+    # them, and the span of a rejected call still shows the value that caused it.
     for key, name in (
         (GEN_AI_REQUEST_TOP_K, "top_k"),
         (GEN_AI_REQUEST_SEED, "seed"),
@@ -247,6 +249,7 @@ def _server_attributes(base_url: str) -> dict[str, AttributeValue]:
 def usage_attributes(
     input_tokens: int | None,
     output_tokens: int | None,
+    *,
     cache_read_tokens: int | None = None,
     cache_write_tokens: int | None = None,
     reasoning_tokens: int | None = None,
@@ -300,10 +303,10 @@ def normalized_event_attributes(event: ModelResponseStreamEvent) -> dict[str, At
         attributes |= usage_attributes(
             event.usage.input_tokens,
             event.usage.output_tokens,
-            details.cached_tokens,
-            details.cache_write_tokens,
-            event.usage.output_tokens_details.reasoning_tokens,
-            event.usage.web_search_requests,
+            cache_read_tokens=details.cached_tokens,
+            cache_write_tokens=details.cache_write_tokens,
+            reasoning_tokens=event.usage.output_tokens_details.reasoning_tokens,
+            web_search_requests=event.usage.web_search_requests,
         )
     return attributes
 
@@ -341,16 +344,13 @@ def responses_response_attributes(response: OpenAIResponsesResponse) -> MaybeAtt
     if usage is not None:
         input_details = getattr(usage, "input_tokens_details", None)
         output_details = getattr(usage, "output_tokens_details", None)
-        # `tool_usage` is a field the SDK does not model, so it arrives as a plain mapping.
-        tool_usage = getattr(response, "tool_usage", None)
-        web_search = tool_usage.get("web_search") if isinstance(tool_usage, Mapping) else None
         attributes |= usage_attributes(
             getattr(usage, "input_tokens", None),
             getattr(usage, "output_tokens", None),
-            getattr(input_details, "cached_tokens", None),
-            getattr(input_details, "cache_write_tokens", None),
-            getattr(output_details, "reasoning_tokens", None),
-            web_search.get("num_requests") if isinstance(web_search, Mapping) else None,
+            cache_read_tokens=getattr(input_details, "cached_tokens", None),
+            cache_write_tokens=getattr(input_details, "cache_write_tokens", None),
+            reasoning_tokens=getattr(output_details, "reasoning_tokens", None),
+            web_search_requests=responses_web_search_requests(response),
         )
     return attributes
 
@@ -369,9 +369,9 @@ def chat_completions_usage_attributes(usage: CompletionUsage) -> dict[str, Attri
     return usage_attributes(
         getattr(usage, "prompt_tokens", None),
         getattr(usage, "completion_tokens", None),
-        getattr(details, "cached_tokens", None),
-        getattr(details, "cache_write_tokens", None),
-        getattr(completion_details, "reasoning_tokens", None),
+        cache_read_tokens=getattr(details, "cached_tokens", None),
+        cache_write_tokens=getattr(details, "cache_write_tokens", None),
+        reasoning_tokens=getattr(completion_details, "reasoning_tokens", None),
     )
 
 
@@ -450,11 +450,11 @@ class MessagesUsage:
         return usage_attributes(
             total_input,
             self.output_tokens,
-            cache_read,
-            cache_write,
+            cache_read_tokens=cache_read,
+            cache_write_tokens=cache_write,
             # Anthropic `output_tokens` already includes thinking tokens.
-            getattr(self.output_tokens_details, "thinking_tokens", None),
-            getattr(self.server_tool_use, "web_search_requests", None),
+            reasoning_tokens=getattr(self.output_tokens_details, "thinking_tokens", None),
+            web_search_requests=getattr(self.server_tool_use, "web_search_requests", None),
         )
 
 

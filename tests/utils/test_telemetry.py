@@ -249,6 +249,22 @@ def test_messages_top_k_is_reported_on_native_and_validated_requests():
     assert translated["gen_ai.request.top_k"] == 40
 
 
+def test_native_body_reports_a_field_its_request_type_does_not_define():
+    """Ensures a native body's sampling field is reported as sent, whatever protocol defines it.
+
+    Native passthrough forwards fields its request type does not define, such as `top_k`
+    on a vLLM Chat request, so the span must report what was actually sent.
+    """
+    attributes = _start(
+        {"model": "qwen3", "messages": [], "top_k": 20},
+        protocol="chat/completions",
+        endpoint="chat/completions",
+        provider="vllm",
+    )
+
+    assert attributes["gen_ai.request.top_k"] == 20
+
+
 def test_chat_sampling_controls_are_reported_with_convention_types():
     """Ensures Chat penalties, seed, and choice count use the convention's keys and types.
 
