@@ -1,0 +1,101 @@
+filename: 2026-11-17-01a1ea38-0df7-7723-aa63-9572a996e2b3
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content: ''
+      reasoning_content: 'We need to first add 2 and 3 using the add function, get
+        result 5. Then add that result (5) and 4 using add, get 9. Then give final
+        answer.
+
+
+        We need to call add twice. Use function calls.'
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a": 2, "b": 3}'
+          name: add
+        id: chatcmpl-tool-b80b187c20aeff65
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-b80b187c20aeff65
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1060'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ea38-0df7-7723-aa63-9572a996e2b3
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: ''
+        reasoning_content: Now add 5 and 4.
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a": 5, "b": 4}'
+            name: add
+          id: chatcmpl-tool-a05f9870bd569596
+          index: 0
+          name: null
+          type: function
+        tools: null
+    created: 1794930905
+    id: chatcmpl-6f04d0c3334e43e6a82aada435a270b1
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 40
+      completion_tokens_details:
+        reasoning_tokens: 8
+      output_tokens_details:
+        reasoning_tokens: 8
+      prompt_tokens: 429
+      prompt_tokens_details:
+        cached_tokens: 324
+      total_tokens: 469
+  headers:
+    connection: keep-alive
+    content-length: '686'
+    content-type: application/json
+    x-request-id: chatcmpl-6f04d0c3334e43e6a82aada435a270b1
+  status_code: 200
+timestamp: '2026-11-17T15:55:04.567917+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

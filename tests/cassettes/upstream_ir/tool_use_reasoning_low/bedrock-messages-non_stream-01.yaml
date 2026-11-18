@@ -1,0 +1,108 @@
+filename: 2026-11-17-01a1ea62-b252-7cb0-abac-8f227da89e9c
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    - content:
+      - signature: EvEDCoQBCBMQARgCKkDo7L08qZbFrNiu52vCs2UNl4RgsBG/vrmh0dNXhas7WhRw/My9farsRizJ14gTdvJZBa4xZZkp8pxntjINohJmMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgwxOTgzMzMzNDQxOTWoAcKH8tcGEgyn/vCIx0Bnf0UihHYaDG0QiDdk5bb+8g2PUiIwGP99SMZXrKnMisXCiHbXhzVfY2zjwOKrJJwIBYP748UDs6+e3Zw2hHThh2i+Sk+KKpkC1p7uALynjvVLFCKFLF31/ah5eZvhJQuC+TbtMbgHRURUMIP+WDGvql4wXraQcUpPuRZXG80qekvJKCTVbHHv59QEYP96umctRXqaX+yOLe+fTaEOujCcWFxhU/Y+VTKiTshl+D8Kt0DiQt1RnNsAHzuxmSB67gRznKQFZeBI8bvk9A1v+QayQfxa2xnAmSHmzM/T6PAVtIaqcU1yAqtnh2dha7YIvXnGGZ4FnDMSk9K2tgViDiir/EcziBSqPcOTobHiAwjWH77WxLrtrw2jTTLILRBUExmAox1FoVvzycRX5N84Y1PhXSBtmhiJ6C3A7nXTiFj1eW5rUopGHk9rQJuTOvJfl84QfTLSpMw0GVcS6ybUc/nxt5EYAQ==
+        thinking: 'The user wants me to:
+
+          1. Add 2 and 3 using the add function
+
+          2. Then add 7 to that result using the add function again
+
+          3. Make exactly one tool call per turn
+
+          4. After both results, reply with the final number only
+
+
+          So I should make the first call now to add 2 and 3.'
+        type: thinking
+      - id: toolu_bdrk_01HEWg5EDvvsR1a4Nh89uFyN
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: toolu_bdrk_01HEWg5EDvvsR1a4Nh89uFyN
+        type: tool_result
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: false
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '1874'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1ea62-b252-7cb0-abac-8f227da89e9c
+response:
+  body:
+    container: null
+    content:
+    - text: 'Now I''ll add 7 to that result:'
+      type: text
+    - id: toolu_bdrk_01UuV1dMnaRbc7M1wyPvnQ6H
+      input:
+        a: 7
+        b: 5
+      name: add
+      type: tool_use
+    id: msg_bdrk_tncp7ffm436h2e4k45amlt72pyyolqyrtzuuxsrckddz5wupraia
+    model: anthropic.claude-haiku-4-5-20251001-v1:0
+    role: assistant
+    stop_details: null
+    stop_reason: tool_use
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      input_tokens: 604
+      output_tokens: 71
+      output_tokens_details:
+        thinking_tokens: 0
+      service_tier: standard
+  headers:
+    connection: keep-alive
+    content-length: '665'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-17T16:41:39.154027+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

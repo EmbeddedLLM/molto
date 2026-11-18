@@ -1,0 +1,89 @@
+filename: 2026-11-17-01a1ea38-0b7d-7041-9f8e-a892fd5bc179
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '602'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/chat/completions
+  query_params: {}
+request_id: 01a1ea38-0b7d-7041-9f8e-a892fd5bc179
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: ''
+        reasoning_content: 'We need to first add 2 and 3 using the add function, get
+          result 5. Then add that result (5) and 4 using add, get 9. Then give final
+          answer.
+
+
+          We need to call add twice. Use function calls.'
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a": 2, "b": 3}'
+            name: add
+          id: chatcmpl-tool-b80b187c20aeff65
+          index: 0
+          name: null
+          type: function
+        tools: null
+    created: 1794930904
+    id: chatcmpl-86c0b6196cdc4e9fb64e69a798952a54
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: chat.completion
+    usage:
+      completion_tokens: 85
+      completion_tokens_details:
+        reasoning_tokens: 53
+      output_tokens_details:
+        reasoning_tokens: 53
+      prompt_tokens: 325
+      prompt_tokens_details:
+        cached_tokens: 324
+      total_tokens: 410
+  headers:
+    connection: keep-alive
+    content-length: '861'
+    content-type: application/json
+    x-request-id: chatcmpl-86c0b6196cdc4e9fb64e69a798952a54
+  status_code: 200
+timestamp: '2026-11-17T15:55:03.933102+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/chat/completions

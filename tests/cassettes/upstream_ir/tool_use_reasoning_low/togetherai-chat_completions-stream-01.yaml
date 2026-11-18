@@ -1,0 +1,161 @@
+filename: 2026-11-17-01a1ea5e-7ae7-7fd2-b4bf-381ed486841f
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - reasoning_content: The user wants me to add 2 and 3 first, then take that result
+        and add 4 to it. I need to do these sequentially since the second call depends
+        on the result of the first.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: call_01a1ea5e799979a1974ed250
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_01a1ea5e799979a1974ed250
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1019'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea5e-7ae7-7fd2-b4bf-381ed486841f
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: 9039d77f4b7945feaf64aec9451cc17b-aws_as1
+  sse:
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"The"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    first"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    result is 5"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":".
+    Now I need to add"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    5 and"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    4."},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_01a1ea5e7b8e7462975cc233","type":"function","function":{"name":"add"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\":5"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\"b\":4"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls","matched_stop":154829}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"9039d77f4b7945feaf64aec9451cc17b-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[],"usage":{"prompt_tokens":263,"completion_tokens":35,"total_tokens":298,"prompt_tokens_details":{"cached_tokens":192,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":19,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-17T16:37:02.823569+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

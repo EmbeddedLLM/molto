@@ -123,7 +123,7 @@ Native passthrough forwards `include` and `store` unchanged. Their behavior-neut
 
 Unknown top-level body properties reach the SDK through `extra_body`; explicit caller `extra_body` overrides take precedence. Molto's own `extra_content.anthropic` search extension still requires its Anthropic Messages destination and is rejected on native Responses routes. See the [shared input policy](../README.md#cross-protocol-contract) for model serialization and null handling.
 
-There is one narrow compatible-provider normalization: if a completed Responses event includes usage but omits `input_tokens_details.cache_write_tokens` as `null`, Molto sets it to `0` to satisfy the pinned SDK contract. Otherwise it does not revalidate or rewrite each event.
+Native Responses transport yields the parsed SDK event. Missing or null `input_tokens_details.cache_write_tokens` remains unknown. An explicit zero remains zero.
 
 ## When the application speaks Responses
 
@@ -150,7 +150,7 @@ The implemented normalized path accepts:
 
 - string input and text messages with `system`, `developer`, `user`, and `assistant` roles.
 - ordered mixed text and image user input, using remote URLs or base64 data URLs.
-- raw reasoning and reasoning-summary history.
+- raw reasoning and reasoning-summary history. The `format="unknown"` label is accepted and omitted only for raw-only history; named formats and formatted summary/signature state are rejected. Native passthrough preserves the field.
 - client-defined function tools, tool choice, parallel-call control, calls, successful results, and streamed JSON argument deltas.
 - `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`, and supported content-part `prompt_cache_breakpoint` markers.
 - model, streaming mode, output-token limit, reasoning effort, temperature, `top_p`, and `include_obfuscation` when the upstream protocol has an equivalent stream option.
@@ -160,7 +160,7 @@ One user message remains one user message, and its ordered text and image parts 
 
 System and developer messages both become role-less normalized instructions. A multipart instruction message becomes multiple instruction values, losing its role and enclosing boundary. Each assistant message becomes one `AssistantInput` retaining its optional message ID and ordered text parts, including part markers. Standalone reasoning and function-call items remain separate normalized items; multiple reasoning parts of the same representation are joined within their normalized reasoning value.
 
-Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, and caller-defined prompt-cache keys on Messages. Output-item IDs remain valid normalized history and are preserved by Responses, including marked assistant history; Messages drops cache keys without enabling caching and processes cache options independently. Encrypted-reasoning inclusion is ignored because Molto already preserves any encrypted reasoning returned by the provider, search-source inclusion because Molto requests and projects sources whenever hosted search is declared, while disabled storage is ignored because it requests no provider-side state; `store=true` is rejected. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. Supported content-part `prompt_cache_breakpoint` values become normalized positional markers. Assistant markers use `output_text` parts and preserve optional output-item IDs.
+Unsupported item types, content parts, non-successful tool outcomes, and populated request-wrapper fields outside the implemented normalization surface are rejected on translated routes. Nested request settings are validated independently; accepting their top-level container does not authorize unsupported members. Documented omissions are optional Responses output-item IDs on Chat Completions or Messages, caller-defined prompt-cache keys on Messages, and `format="unknown"` on raw-only reasoning history. Output-item IDs remain valid normalized history and are preserved by Responses, including marked assistant history; Messages drops cache keys without enabling caching and processes cache options independently. Encrypted-reasoning inclusion is ignored because Molto already preserves any encrypted reasoning returned by the provider, search-source inclusion because Molto requests and projects sources whenever hosted search is declared, while disabled storage is ignored because it requests no provider-side state; `store=true` is rejected. Messages has no obfuscation field, so a Responses obfuscation request is not portable to that endpoint. Supported content-part `prompt_cache_breakpoint` values become normalized positional markers. Assistant markers use `output_text` parts and preserve optional output-item IDs.
 
 ### Downstream event projection
 
@@ -210,20 +210,20 @@ When another Molto method selects `endpoint="responses"`, the Responses client p
 
 The Responses client maps normalized input as follows:
 
-| Normalized value         | Responses request                                                    |
-| ------------------------ | -------------------------------------------------------------------- |
-| Instruction              | `developer` message at the same normalized sequence position         |
-| User input               | One `user` message with ordered `input_text` and `input_image` parts |
-| Raw reasoning            | Completed `reasoning` item with `reasoning_text` content             |
-| Reasoning summary        | Completed `reasoning` item with summary and encrypted state          |
-| Assistant text run       | Completed assistant `message` with ordered `output_text` parts       |
-| Function call            | Completed `function_call` item                                       |
-| Function result          | `function_call_output` with ordered text and image parts             |
-| Output-token limit       | `max_output_tokens`                                                  |
-| Function definition      | Responses function tool                                              |
-| Tool selection           | Responses `auto`, `none`, `required`, or named function choice       |
-| Prompt cache             | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention` |
-| Content cache breakpoint | `prompt_cache_breakpoint` on supported text/image parts              |
+| Normalized value         | Responses request                                                        |
+| ------------------------ | ------------------------------------------------------------------------ |
+| Instruction              | `developer` message at the same normalized sequence position             |
+| User input               | One `user` message with ordered `input_text` and `input_image` parts     |
+| Raw reasoning            | Completed `reasoning` item with `reasoning_text` content                 |
+| Reasoning summary        | Completed `reasoning` item with summary and any supplied encrypted state |
+| Assistant text run       | Completed assistant `message` with ordered `output_text` parts           |
+| Function call            | Completed `function_call` item                                           |
+| Function result          | `function_call_output` with ordered text and image parts                 |
+| Output-token limit       | `max_output_tokens`                                                      |
+| Function definition      | Responses function tool                                                  |
+| Tool selection           | Responses `auto`, `none`, `required`, or named function choice           |
+| Prompt cache             | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`     |
+| Content cache breakpoint | `prompt_cache_breakpoint` on supported text/image parts                  |
 
 Every normalized instruction is emitted as a `developer` message with one `input_text` part; an original `system` role cannot be reconstructed. Contiguous text parts of one assistant input become one assistant message with ordered `output_text` parts. Reasoning or function calls between text parts become standalone items, so they split the surrounding text into separate Responses messages. Assistant `phase` remains omitted.
 
@@ -235,19 +235,21 @@ If a normalized request came from Messages, Molto sets `stream_options.include_o
 
 Reasoning effort is a portable control. A normalized reasoning effort is carried into the Responses `reasoning` object as-is. When a normalized request originated from Messages, `output_config.effort` is preserved directly; adaptive thinking defaults to high effort, while an `enabled` manual `budget_tokens` is normalized by rounding up to the smallest effort preset that is at least the budget (`max` above 32,768) rather than the nearest one. Responses-only features such as conversation references, previous-response state, hosted tools other than basic web search, and background execution require an explicit mapping or rejection before they can be translated from another protocol.
 
-Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Summary text, item IDs, and encrypted state are preserved. Native passthrough still forwards the caller's request for provider validation.
+Reconstructed reasoning history omits the output lifecycle `status` field. The live OpenAI API rejects that field on reasoning input, even though the SDK schema permits it. Raw content, summary text, item IDs, and encrypted state are preserved. The translated history builder uses an empty `content` array when no raw text was supplied. Native passthrough still forwards the caller's request for provider validation.
 
 ### Upstream event normalization
 
 The Responses client emits one normalized response start, one part lifecycle per supported output item, each source delta as a matching normalized delta, and one response end. Empty role or lifecycle echoes do not become content deltas.
 
-Supported output items are assistant text, reasoning, and client function calls. A completely empty reasoning `output_item.added` snapshot is deferred until text or encrypted state establishes a real part. If it also completes empty, Molto omits that empty part and reindexes surviving normalized parts densely. An item that starts with content or encrypted state is emitted immediately.
+Supported output items include assistant text, reasoning, and client function calls. A reasoning item starts immediately, including when it has an ID and no text or encrypted state.
 
 The client recognizes completed and incomplete response terminals. A completed response containing a function call normalizes as `tool_call`; otherwise it normalizes as `stop`. An incomplete response without a reason normalizes as `unknown`. Other terminal events, including `response.failed`, are rejected with `ValueError`. Unsupported stream event variants are rejected unless they are explicitly classified as transport or redundant lifecycle events.
 
 ## Semantic mappings
 
 ### Reasoning representation
+
+Responses uses the same mapping for every provider, including OpenRouter and Fireworks.
 
 Responses is explicit where Chat Completions and Messages are ambiguous:
 
@@ -257,17 +259,7 @@ Responses is explicit where Chat Completions and Messages are ambiguous:
 | `response.reasoning_summary_*`   | Summary in `Thinking.summary`           |
 | `encrypted_content`              | Opaque snapshot in `Thinking.signature` |
 
-Every explicit Responses event must agree with the selected provider capability profile. OpenAI is classified as summarized reasoning and vLLM as raw reasoning. A base URL never chooses this behavior.
-
-A Responses reasoning output lifecycle must use exactly one representation:
-
-- raw reasoning content with no summary or encrypted state;
-- a reasoning summary with optional encrypted state and no raw content; or
-- encrypted state with neither summary nor raw content.
-
-The item must not combine or switch representations between its added, delta, and done states. A completely empty start may remain deferred until its representation becomes known. Output processing accepts completed summaries without encrypted state and normalizes empty `encrypted_content` to no signature. Request normalization preserves unsigned summary history; upstream Chat accepts the summary text, while upstream Responses and Messages builders still reject it before transport.
-
-Chat Completions has one `reasoning_content` extension and no signature. Messages has one `thinking_delta` field plus signature lifecycle. Their configured provider capability decides whether their text is classified as Responses raw reasoning or summary. Unsigned Chat reasoning output can project into Responses as raw reasoning or a summary according to that capability. Responses-to-Chat output rejects any present signature instead of dropping it; unsigned summary output is representable. Supported delta boundaries remain observable and are preserved by matched parity coverage.
+A single item can carry raw text, a summary, both, or neither, along with optional opaque state. Each text field with data has its own part lifecycle. Unsigned history omits encrypted state. When translated through Chat or Messages, reasoning uses the [single-field projection and continuation rules](../reasoning.md#protocol-mapping).
 
 ### Opaque continuation state
 
@@ -292,6 +284,8 @@ Assistant-history text parts remain in their original message, and adjacent assi
 ### Tools and identifiers
 
 Responses client-defined functions map to the provider-neutral function name, description, JSON schema, and strictness. Named choices and `auto`, `none`, and `required` are preserved where the target has an equivalent. Messages maps `required` to `any` and represents `parallel_tool_calls` by inverting `disable_parallel_tool_use`.
+
+On translated Responses requests, omitted or `null` function-tool `strict` defaults to `true`; explicit `false` is preserved. For existing callers, `strict: null` previously became upstream `false` and now becomes `true`. Chat Completions input retains its non-strict default. Molto sends the supplied parameter schema unchanged and does not reproduce native Responses' automatic schema normalization or non-strict fallback. For OpenAI strict mode, each object needs `additionalProperties: false` and every property must be required; optional values can use a nullable type. Incompatible schemas or unsupported strict mode may be rejected upstream. Set `strict: false` to request best-effort arguments. Native Responses passthrough leaves omission and explicit values to the provider. See the [provider compatibility policy](../provider-compatibility.md#provider-differences).
 
 Function-call history preserves call IDs, function names, JSON arguments, successful results, and ordering. Keep these two identifiers distinct:
 
@@ -318,6 +312,8 @@ Molto constructs Responses usage explicitly from normalized semantic fields:
 | `output_tokens`                           | Generated output tokens             |
 | `output_tokens_details.reasoning_tokens`  | Reasoning or thinking output tokens |
 | `total_tokens`                            | Total input plus output tokens      |
+
+For strict validation of a complete response body, `molto.types.openai_responses.OpenAICompatibleResponsesResponse.model_validate(body)` accepts omitted or null cache-write counts. The Responses event adapter applies the same schema to every response snapshot. Native transport returns the SDK's own parsed objects.
 
 Chat maps prompt, completion, cache, and reasoning counts directly to these meanings. Messages input totals combine uncached input, cache creation, and cache reads before projection. Source-only audio, prediction, cache TTL, inference geography, and server-tool usage are not synthesized.
 
@@ -392,7 +388,7 @@ A Responses stream can fail after HTTP `200`: the SDK raises `APIError` on the c
 The following are implementation gaps, not general claims that the source data cannot exist:
 
 - multiple Chat Completions choices; the current translated client reads only `choices[0]`;
-- signed reasoning output or history through Chat Completions and unsigned summary history targeting Responses or Messages upstreams; Chat has no signature slot, while Responses and Messages request builders require summary signatures;
+- signed reasoning projection into Chat without a configured signature namespace;
 - refusals as content, hosted tools other than basic search, failed client-function result semantics, redacted thinking, structured output, non-web annotations, moderation, and image or other multimodal output;
 - log probability transport across the normalized representation;
 - Chat audio and accepted or rejected prediction-token details;

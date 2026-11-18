@@ -1,0 +1,102 @@
+filename: 2026-11-17-01a1ea5e-8064-7543-9662-ce8cda3ef92d
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - annotations: []
+      reasoning_content: The user wants me to first add 2 and 3, then take that result
+        and add 4 to it. Let me start with the first addition.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: call_01a1ea5e7f847760831e114a
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_01a1ea5e7f847760831e114a
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '945'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea5e-8064-7543-9662-ce8cda3ef92d
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      logprobs: null
+      matched_stop: 154829
+      message:
+        annotations: []
+        content: null
+        reasoning_content: The first result is 5. Now I need to add that result (5)
+          and 4.
+        refusal: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a":5,"b":4}'
+            name: add
+          id: call_01a1ea5e811f72b287c3ea9b
+          type: function
+    created: 1794933424
+    id: f56ff35f9ad74310ae4d1caf2c00025e-aws_as1
+    model: zai-org/GLM-5.2
+    object: chat.completion
+    service_tier: default
+    system_fingerprint: default
+    usage:
+      completion_tokens: 38
+      completion_tokens_details:
+        accepted_prediction_tokens: 0
+        audio_tokens: 0
+        reasoning_tokens: 22
+        rejected_prediction_tokens: 0
+      prompt_tokens: 253
+      prompt_tokens_details:
+        audio_tokens: 0
+        cached_tokens: 192
+      total_tokens: 291
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: f56ff35f9ad74310ae4d1caf2c00025e-aws_as1
+  status_code: 200
+timestamp: '2026-11-17T16:37:04.228133+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

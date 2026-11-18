@@ -326,14 +326,14 @@ def test_reconstructable_responses_event_preserves_incomplete_result(
     assert response["usage"] == expected["usage"]
 
 
-def test_reconstructable_responses_event_requires_recorded_cache_write_count(
+def test_reconstructable_responses_event_preserves_missing_cache_write_count(
     incomplete_responses_event: tuple[dict[str, Any], dict[str, Any]],
 ) -> None:
     """Ensure comparison validation cannot invent a missing incomplete cache-write count."""
     event, body = deepcopy(incomplete_responses_event)
     event["response"]["usage"]["input_tokens_details"].pop("cache_write_tokens", None)
-    with pytest.raises(ValidationError, match="cache_write_tokens"):
-        reconstructable_responses_event(dumps_sse(event), body)
+    actual = reconstructable_responses_event(dumps_sse(event), body)
+    assert "cache_write_tokens" not in actual["response"]["usage"]["input_tokens_details"]
 
 
 @pytest.mark.parametrize(

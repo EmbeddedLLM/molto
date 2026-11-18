@@ -11,8 +11,18 @@ from collections.abc import Iterable
 from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
-from openai.types.responses import Response, ResponseCompletedEvent, ResponseStreamEvent
+from openai.types.responses import (
+    Response,
+    ResponseCompletedEvent,
+    ResponseCreatedEvent,
+    ResponseFailedEvent,
+    ResponseIncompleteEvent,
+    ResponseInProgressEvent,
+    ResponseQueuedEvent,
+    ResponseStreamEvent,
+)
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
+from openai.types.responses.function_tool_param import FunctionToolParam
 from openai.types.responses.response_create_params import (
     ContextManagement,
     Conversation,
@@ -56,11 +66,12 @@ from openai.types.responses.response_reasoning_item_param import (
     Summary as ResponseReasoningSummaryParam,
 )
 from openai.types.responses.response_text_config_param import ResponseTextConfigParam
+from openai.types.responses.response_usage import InputTokensDetails, ResponseUsage
 from openai.types.responses.tool_param import ToolParam
 from openai.types.shared.metadata import Metadata
 from openai.types.shared.reasoning import Reasoning
 from openai.types.shared.responses_model import ResponsesModel
-from pydantic import BaseModel, Discriminator, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, Discriminator, Field, TypeAdapter, field_validator
 from typing_extensions import Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
@@ -89,6 +100,10 @@ class ResponseReasoningItemOptionalIDParam(ExcludeNoneModel):
     status: Annotated[
         Literal["in_progress", "completed", "incomplete"] | None,
         Field(description="The reasoning item status."),
+    ] = None
+    format: Annotated[
+        str | None,
+        Field(description="Provider-specific reasoning format required for native continuation."),
     ] = None
 
 
@@ -231,6 +246,18 @@ OpenAIResponsesInputItemParam: TypeAlias = Union[
 OpenAIResponsesInputParam: TypeAlias = list[OpenAIResponsesInputItemParam]
 
 
+class ResponseFunctionToolOptionalStrictParam(FunctionToolParam, total=False):
+    """Preserve omitted strictness accepted by recorded compatible Responses APIs."""
+
+    strict: bool | None
+
+
+OpenAIResponsesToolParam: TypeAlias = Union[
+    ResponseFunctionToolOptionalStrictParam,
+    *(item for item in get_args(ToolParam) if item is not FunctionToolParam),  # pyright: ignore[reportInvalidTypeForm]
+]
+
+
 class OpenAIResponsesCreateRequest(ExcludeNoneModel):
     """The JSON parameters accepted by `AsyncOpenAI.responses.create`.
 
@@ -346,7 +373,7 @@ class OpenAIResponsesCreateRequest(ExcludeNoneModel):
         Field(description="How the model should select tools."),
     ] = None
     tools: Annotated[
-        list[ToolParam] | None,
+        list[OpenAIResponsesToolParam] | None,
         Field(description="Tools available to the model."),
     ] = None
     top_logprobs: Annotated[
@@ -418,19 +445,42 @@ def _has_anthropic_metadata(value: Any) -> bool:
     return isinstance(extra, dict) and "anthropic" in extra
 
 
-class OpenAIResponseCompletedEvent(ResponseCompletedEvent):
-    """ResponseCompletedEvent but with usage that is set to zero when null."""
+class _InputTokensDetails(InputTokensDetails):
+    cache_write_tokens: int | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def set_usage_to_zero(cls, data: dict[str, Any]) -> dict[str, Any]:
-        usage = data.get("response", {}).get("usage")
-        if (
-            usage is not None
-            and usage.get("input_tokens_details", {}).get("cache_write_tokens") is None
-        ):
-            usage["input_tokens_details"]["cache_write_tokens"] = 0
-        return data
+
+class _ResponseUsage(ResponseUsage):
+    input_tokens_details: _InputTokensDetails
+
+
+class OpenAICompatibleResponsesResponse(Response):
+    """Responses providers can omit the cache-write count even when reporting usage."""
+
+    usage: _ResponseUsage | None = None
+
+
+class OpenAIResponseCompletedEvent(ResponseCompletedEvent):
+    response: OpenAICompatibleResponsesResponse
+
+
+class OpenAIResponseCreatedEvent(ResponseCreatedEvent):
+    response: OpenAICompatibleResponsesResponse
+
+
+class OpenAIResponseFailedEvent(ResponseFailedEvent):
+    response: OpenAICompatibleResponsesResponse
+
+
+class OpenAIResponseInProgressEvent(ResponseInProgressEvent):
+    response: OpenAICompatibleResponsesResponse
+
+
+class OpenAIResponseIncompleteEvent(ResponseIncompleteEvent):
+    response: OpenAICompatibleResponsesResponse
+
+
+class OpenAIResponseQueuedEvent(ResponseQueuedEvent):
+    response: OpenAICompatibleResponsesResponse
 
 
 class OpenAIResponseFunctionCallArgumentsDoneEvent(ResponseFunctionCallArgumentsDoneEvent):
@@ -439,9 +489,13 @@ class OpenAIResponseFunctionCallArgumentsDoneEvent(ResponseFunctionCallArguments
     name: str | None = None
 
 
-# Some compatible providers omit `cache_write_tokens`
 _REPLACED_SDK_STREAM_ITEMS = {
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
+    ResponseFailedEvent,
+    ResponseInProgressEvent,
+    ResponseIncompleteEvent,
+    ResponseQueuedEvent,
     ResponseFunctionCallArgumentsDoneEvent,
 }
 _RETAINED_SDK_STREAM_ITEMS = tuple(
@@ -452,6 +506,11 @@ _RETAINED_SDK_STREAM_ITEMS = tuple(
 OpenAIResponsesStreamEvent: TypeAlias = Annotated[
     Union[
         OpenAIResponseCompletedEvent,
+        OpenAIResponseCreatedEvent,
+        OpenAIResponseFailedEvent,
+        OpenAIResponseInProgressEvent,
+        OpenAIResponseIncompleteEvent,
+        OpenAIResponseQueuedEvent,
         OpenAIResponseFunctionCallArgumentsDoneEvent,
         *_RETAINED_SDK_STREAM_ITEMS,  # pyright: ignore[reportInvalidTypeForm]
     ],
@@ -461,13 +520,13 @@ OpenAIResponsesStreamEvent: TypeAlias = Annotated[
 # These are aliases rather than duplicate classes intentionally: the SDK's response
 # models are already Pydantic models generated from the same schema as the endpoint.
 OpenAIResponsesResponse = Response
-# OpenAIResponsesStreamEvent = ResponseStreamEvent
 OpenAIResponsesStreamEventAdapter = TypeAdapter(OpenAIResponsesStreamEvent)
 OpenAIResponsesStream = AsyncStream[OpenAIResponsesStreamEvent]
 OpenAIResponsesCreateResult = OpenAIResponsesResponse | OpenAIResponsesStream
 
 
 __all__ = [
+    "OpenAICompatibleResponsesResponse",
     "OpenAIResponsesCreateRequest",
     "OpenAIResponsesCreateResult",
     "OpenAIResponsesInputContentParam",

@@ -5,16 +5,17 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import aclosing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, NoReturn
 
 from httpx import Response
 from openai import APIError, APIStatusError, AsyncStream, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import NotFoundError as OpenAINotFoundError
-from openai.types.responses import ResponseCompletedEvent, ResponseStreamEvent
+from openai.types.responses import ResponseStreamEvent
 from pydantic import BaseModel, ValidationError
 
+from molto.providers import ChatReasoningField, ProviderCapabilities
 from molto.types.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -59,6 +60,8 @@ from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsCreateRequest,
     OpenAIChatCompletionsResponse,
     OpenAIChatCompletionsStreamChunk,
+    chat_reasoning_text,
+    chat_thought_state,
 )
 from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
 from molto.upstream.base import BaseClient
@@ -168,29 +171,8 @@ def _function_call_part(item: Any) -> ToolCall:
     )
 
 
-def _reasoning_part(item: Any) -> Thinking:
-    """Project a Responses reasoning item snapshot into a normalized part."""
-    return Thinking(
-        content="".join(part.text for part in item.content or [] if part.type == "reasoning_text"),
-        summary="".join(part.text for part in item.summary if part.type == "summary_text"),
-        id=item.id,
-        signature=item.encrypted_content or None,
-    )
-
-
-def _validate_responses_reasoning_capability(
-    part: Thinking, representation: Literal["raw", "summary"]
-) -> None:
-    if representation == "raw" and (part.summary or part.signature):
-        raise ValueError("Raw Responses reasoning cannot contain a summary or signature.")
-    if representation == "summary" and part.content:
-        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-
-
-def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+def _started_output_item(item: Any) -> TextOutput | ToolCall:
     """Project a just-added Responses output item into its initial normalized part."""
-    if item.type == "reasoning":
-        return _reasoning_part(item)
     if item.type == "message":
         return TextOutput(content="", id=item.id)
     if item.type == "function_call":
@@ -199,10 +181,8 @@ def _started_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
     raise ValueError(f"Unsupported Responses output item: {item.type}")
 
 
-def _completed_output_item(item: Any) -> Thinking | TextOutput | ToolCall:
+def _completed_output_item(item: Any) -> TextOutput | ToolCall:
     """Project a completed Responses output item into its normalized part."""
-    if item.type == "reasoning":
-        return _reasoning_part(item)
     if item.type == "message":
         text = ""
         citations = []
@@ -352,7 +332,7 @@ def _chat_usage(raw_usage: Any) -> Usage:
         input_tokens_details=InputTokenDetails(
             cached_tokens=prompt_details.cached_tokens if prompt_details is not None else 0,
             cache_write_tokens=(
-                prompt_details.cache_write_tokens if prompt_details is not None else 0
+                prompt_details.cache_write_tokens if prompt_details is not None else None
             ),
         ),
         output_tokens=raw_usage.completion_tokens,
@@ -388,10 +368,15 @@ class _ChatToolCallState:
     args: str
 
 
-class OpenAIResponsesClient(
+class ResponsesClient(
     BaseClient[OpenAIResponsesCreateRequest, ResponseStreamEvent, OpenAIResponsesResponse]
 ):
-    """OpenAI Responses transport for native and normalized streaming paths."""
+    """Shared Responses transport for native and normalized streaming paths.
+
+    Every Responses provider client inherits this implementation. It ignores
+    output extension fields it does not model; a provider client that knows an
+    extension owns its extraction and validation.
+    """
 
     @staticmethod
     def _translate_tool(tool: FunctionTool | WebSearchTool) -> dict[str, Any]:
@@ -414,6 +399,17 @@ class OpenAIResponsesClient(
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
     REQUEST_MODEL = OpenAIResponsesCreateRequest
 
+    def _reasoning_part(self, item: Any) -> Thinking:
+        """Project a Responses reasoning item snapshot into a normalized part."""
+        return Thinking(
+            content="".join(
+                part.text for part in item.content or [] if part.type == "reasoning_text"
+            ),
+            summary="".join(part.text for part in item.summary if part.type == "summary_text"),
+            id=item.id,
+            signature=item.encrypted_content or None,
+        )
+
     async def native_events(
         self, request: OpenAIResponsesCreateRequest | dict[str, Any]
     ) -> AsyncIterator[ResponseStreamEvent]:
@@ -429,15 +425,6 @@ class OpenAIResponsesClient(
             upstream_response = stream.response
             async with stream:
                 async for event in stream:
-                    if isinstance(event, ResponseCompletedEvent):
-                        usage = event.response.usage
-                        if (
-                            usage is not None
-                            and usage.input_tokens_details.cache_write_tokens is None
-                        ):
-                            usage.input_tokens_details.cache_write_tokens = 0
-                    # The SDK already constructs ResponseStreamEvent instances. Apart from
-                    # the provider omission above, avoid validating every event twice.
                     yield event
         except Exception as error:
             self._handle_error(error, response=upstream_response)
@@ -499,8 +486,6 @@ class OpenAIResponsesClient(
             elif isinstance(item, SearchResult):
                 _merge_search_result(items, item)
             elif isinstance(item, Thinking):
-                if item.summary and not item.signature:
-                    raise UnsupportedInput("A Responses reasoning summary requires a signature.")
                 # OpenAI rejects output lifecycle status on reasoning history input.
                 reasoning_item = {
                     "type": "reasoning",
@@ -580,11 +565,9 @@ class OpenAIResponsesClient(
                         content.append(image)
                 items.append({"role": "user", "content": content})
             elif isinstance(item, AssistantInput):
-                OpenAIResponsesClient._append_assistant_items(
-                    items, item.content, message_id=item.id
-                )
+                ResponsesClient._append_assistant_items(items, item.content, message_id=item.id)
             elif isinstance(item, (Thinking, ToolCall, SearchCall)):
-                OpenAIResponsesClient._append_assistant_items(items, [item])
+                ResponsesClient._append_assistant_items(items, [item])
             elif isinstance(item, SearchResult):
                 _merge_search_result(items, item)
             elif isinstance(item, ToolReturn):
@@ -661,14 +644,7 @@ class OpenAIResponsesClient(
 
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         native_request = self._native_request(request)
-        # Only a reasoning item whose `added` snapshot is completely empty (no
-        # content, summary, or encrypted state) is deferred: if nothing ever
-        # arrives, its part lifecycle is omitted from the IR entirely. An item
-        # that already carries content or encrypted state at `added` starts
-        # immediately, so a stalled or failed stream cannot lose it.
-        pending_reasoning: dict[int, Thinking] = {}
-        # Source output indices map to dense normalized indices so an omitted
-        # reasoning item cannot leave a gap for downstream projections.
+        # Splitting message content and search results can shift normalized indices.
         part_indices: dict[int, int] = {}
         text_indices: dict[tuple[int, int], int] = {}
         started_text_items: set[int] = set()
@@ -715,57 +691,29 @@ class OpenAIResponsesClient(
                         service_tier=metadata.service_tier,
                     )
                 elif event_type == "response.output_item.added":
-                    part = _started_output_item(event.item)
-                    if isinstance(part, Thinking):
-                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
-                    if (
-                        isinstance(part, Thinking)
-                        and not part.content
-                        and not part.summary
-                        and part.signature is None
-                    ):
-                        pending_reasoning[event.output_index] = part
-                    else:
-                        yield start_part(event.output_index, part)
-                elif event_type == "response.reasoning_text.delta":
-                    if self._capabilities.thinking != "raw" and event.delta:
-                        raise ValueError("Summarized Responses reasoning cannot contain raw text.")
-                    # An empty delta must not materialize a deferred reasoning part.
-                    if not event.delta and event.output_index in pending_reasoning:
-                        continue
-                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                        yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(content_delta=event.delta),
+                    part = (
+                        self._reasoning_part(event.item)
+                        if event.item.type == "reasoning"
+                        else _started_output_item(event.item)
                     )
-                elif event_type == "response.reasoning_summary_text.delta":
-                    if self._capabilities.thinking != "summary" and event.delta:
-                        raise ValueError("Raw Responses reasoning cannot contain a summary.")
-                    # An empty delta must not materialize a deferred reasoning part.
-                    if not event.delta and event.output_index in pending_reasoning:
-                        continue
-                    if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                        yield start_part(event.output_index, start)
-                    yield PartDeltaEvent(
-                        index=part_index(event.output_index),
-                        delta=ThinkingDelta(summary_delta=event.delta),
+                    yield start_part(event.output_index, part)
+                elif event_type in {
+                    "response.reasoning_text.delta",
+                    "response.reasoning_summary_text.delta",
+                }:
+                    delta = (
+                        ThinkingDelta(content_delta=event.delta)
+                        if event_type == "response.reasoning_text.delta"
+                        else ThinkingDelta(summary_delta=event.delta)
                     )
+                    if event.delta:
+                        yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                 elif event_type == "response.content_part.added":
-                    # A part-added snapshot can carry initial text; empty ones are
-                    # lifecycle echoes and must not materialize a deferred part.
+                    # Part-added snapshots can carry initial text before the first delta.
                     added_part = event.part
                     if added_part.type == "reasoning_text" and added_part.text:
-                        if self._capabilities.thinking != "raw":
-                            raise ValueError(
-                                "Summarized Responses reasoning cannot contain raw text."
-                            )
-                        if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                            yield start_part(event.output_index, start)
-                        yield PartDeltaEvent(
-                            index=part_index(event.output_index),
-                            delta=ThinkingDelta(content_delta=added_part.text),
-                        )
+                        delta = ThinkingDelta(content_delta=added_part.text)
+                        yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                     elif added_part.type == "output_text":
                         key = (event.output_index, event.content_index)
                         # Non-text snapshots may precede the first text content.
@@ -796,14 +744,8 @@ class OpenAIResponsesClient(
                 elif event_type == "response.reasoning_summary_part.added":
                     added_part = event.part
                     if added_part.type == "summary_text" and added_part.text:
-                        if self._capabilities.thinking != "summary":
-                            raise ValueError("Raw Responses reasoning cannot contain a summary.")
-                        if (start := pending_reasoning.pop(event.output_index, None)) is not None:
-                            yield start_part(event.output_index, start)
-                        yield PartDeltaEvent(
-                            index=part_index(event.output_index),
-                            delta=ThinkingDelta(summary_delta=added_part.text),
-                        )
+                        delta = ThinkingDelta(summary_delta=added_part.text)
+                        yield PartDeltaEvent(index=part_index(event.output_index), delta=delta)
                 elif event_type == "response.output_text.delta":
                     yield PartDeltaEvent(
                         index=text_indices.get(
@@ -855,26 +797,16 @@ class OpenAIResponsesClient(
                 elif event_type == "response.output_item.done":
                     if event.item.type == "message" and event.output_index in ended_text_items:
                         continue
-                    start = pending_reasoning.pop(event.output_index, None)
-                    part = _completed_output_item(event.item)
-                    if isinstance(part, Thinking):
-                        _validate_responses_reasoning_capability(part, self._capabilities.thinking)
-                        # Deferred items always start empty, so the part is omitted
-                        # when it also completes without content or state.
-                        if (
-                            start is not None
-                            and not part.content
-                            and not part.summary
-                            and part.signature is None
-                        ):
-                            continue
-                        if start is not None:
-                            yield start_part(event.output_index, start)
-                        if part.signature is not None:
-                            yield PartDeltaEvent(
-                                index=part_index(event.output_index),
-                                delta=ThinkingDelta(signature_delta=part.signature),
-                            )
+                    part = (
+                        self._reasoning_part(event.item)
+                        if event.item.type == "reasoning"
+                        else _completed_output_item(event.item)
+                    )
+                    if isinstance(part, Thinking) and part.signature is not None:
+                        yield PartDeltaEvent(
+                            index=part_index(event.output_index),
+                            delta=ThinkingDelta(signature_delta=part.signature),
+                        )
                     yield PartEndEvent(index=part_index(event.output_index), part=part)
                 elif event_type in {"response.completed", "response.incomplete"}:
                     metadata = event.response
@@ -959,14 +891,30 @@ class OpenAIResponsesClient(
         raise error
 
 
-class OpenAIChatCompletionsClient(
+class OpenAIResponsesClient(ResponsesClient):
+    """OpenAI's own Responses API, which defines no reasoning `format`."""
+
+    def _reasoning_part(self, item: Any) -> Thinking:
+        # OpenAI never labels reasoning with a format, so one here is opaque
+        # state from another implementation that translation would lose.
+        if getattr(item, "format", None) is not None:
+            raise ValueError("Responses reasoning format cannot be translated.")
+        return super()._reasoning_part(item)
+
+
+class ChatCompletionsClient(
     BaseClient[
         OpenAIChatCompletionsCreateRequest,
         OpenAIChatCompletionsStreamChunk,
         OpenAIChatCompletionsResponse,
     ]
 ):
-    """OpenAI Chat Completions transport for native and normalized streaming paths."""
+    """Shared Chat Completions transport for native and normalized streaming paths.
+
+    Every Chat Completions provider client inherits this implementation. It
+    ignores output extension fields it does not model; a provider client that
+    knows an extension owns its extraction and validation.
+    """
 
     @staticmethod
     def _translate_tool(tool: FunctionTool) -> dict[str, Any]:
@@ -975,6 +923,38 @@ class OpenAIChatCompletionsClient(
 
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
     REQUEST_MODEL = OpenAIChatCompletionsCreateRequest
+    # History nulls are wire values and are forwarded as sent. A provider whose
+    # input endpoint rejects them, although its own SDK output carries them, opts in.
+    OMIT_NULL_MESSAGE_FIELDS = False
+    OMIT_INCLUDE_OBFUSCATION = False
+    REASONING_FIELD: ChatReasoningField = "reasoning_content"
+    SIGNATURE_NAMESPACE: str | None = None
+
+    @classmethod
+    def resolve_capabilities(cls, profile: ProviderCapabilities) -> ProviderCapabilities:
+        return replace(
+            profile,
+            chat_reasoning_field=profile.chat_reasoning_field or cls.REASONING_FIELD,
+            chat_signature_namespace=profile.chat_signature_namespace or cls.SIGNATURE_NAMESPACE,
+        )
+
+    def _request_kwargs(
+        self, request: OpenAIChatCompletionsCreateRequest | dict[str, Any]
+    ) -> dict[str, Any]:
+        body = super()._request_kwargs(request)
+        if self.OMIT_NULL_MESSAGE_FIELDS and isinstance(body.get("messages"), list):
+            # Nested values, such as opaque provider state, are left unchanged.
+            body["messages"] = [
+                {name: value for name, value in message.items() if value is not None}
+                for message in body["messages"]
+            ]
+        if self.OMIT_INCLUDE_OBFUSCATION and isinstance(body.get("stream_options"), dict):
+            body["stream_options"] = {
+                name: value
+                for name, value in body["stream_options"].items()
+                if name != "include_obfuscation"
+            }
+        return body
 
     async def native_events(
         self, request: OpenAIChatCompletionsCreateRequest | dict[str, Any]
@@ -1012,26 +992,61 @@ class OpenAIChatCompletionsClient(
             self._handle_error(error)
 
     @staticmethod
-    def _assistant_message(parts: list[Thinking | TextOutput | ToolCall]) -> dict[str, Any]:
+    def _assistant_messages(
+        parts: list[Thinking | TextOutput | ToolCall],
+        reasoning_field: str,
+        namespace: str | None,
+    ) -> list[dict[str, Any]]:
+        messages = []
         message: dict[str, Any] = {"role": "assistant"}
-        reasoning_parts: list[str] = []
         text_parts: list[dict[str, Any]] = []
-        for part in parts:
+        pending_signature = None
+        has_reasoning = False
+
+        def attach(target: dict[str, Any], signature: str) -> None:
+            if not namespace:
+                raise UnsupportedInput(
+                    "Chat Completions cannot represent thinking signatures without a signature namespace."
+                )
+            target["extra_content"] = {namespace: {"thought_signature": signature}}
+
+        def finish_message() -> None:
+            if len(text_parts) == 1 and "prompt_cache_breakpoint" not in text_parts[0]:
+                message["content"] = text_parts[0]["text"]
+            elif text_parts or (reasoning_field not in message and "tool_calls" not in message):
+                message["content"] = list(text_parts)
+            messages.append(message)
+            text_parts.clear()
+
+        for index, part in enumerate(parts):
             if isinstance(part, Thinking):
-                if part.signature is not None:
-                    raise UnsupportedInput(
-                        "Chat Completions cannot represent thinking signatures."
-                    )
-                if text_parts or "tool_calls" in message:
+                reasoning = part.content or part.summary
+                if reasoning and (text_parts or "tool_calls" in message):
                     raise UnsupportedInput(
                         "Chat Completions cannot preserve this assistant reasoning order."
                     )
-                reasoning_parts.append(part.content or part.summary)
+                # Each signed reasoning part needs its own message-level field.
+                # A signature-only prefix immediately before a tool belongs to that call.
+                prefixes_call = (
+                    not reasoning
+                    and part.signature
+                    and index + 1 < len(parts)
+                    and isinstance(parts[index + 1], ToolCall)
+                )
+                if prefixes_call:
+                    pending_signature = part.signature
+                    continue
+                starts_reasoning = bool(reasoning) or not part.signature
+                if (starts_reasoning and has_reasoning) or "extra_content" in message:
+                    finish_message()
+                    message = {"role": "assistant"}
+                    has_reasoning = False
+                has_reasoning = has_reasoning or starts_reasoning
+                if reasoning:
+                    message[reasoning_field] = reasoning
+                if part.signature:
+                    attach(message, part.signature)
             elif isinstance(part, TextOutput):
-                if "tool_calls" in message:
-                    raise UnsupportedInput(
-                        "Chat Completions cannot preserve assistant text after tool calls."
-                    )
                 text_parts.append(
                     {
                         "type": "text",
@@ -1040,23 +1055,56 @@ class OpenAIChatCompletionsClient(
                     }
                 )
             elif isinstance(part, ToolCall):
-                message.setdefault("tool_calls", []).append(
-                    {
-                        "id": part.tool_call_id,
-                        "type": "function",
-                        "function": {"name": part.tool_name, "arguments": part.args or ""},
-                    }
-                )
-        if reasoning_parts:
-            message["reasoning_content"] = "\n".join(reasoning_parts)
-        if len(text_parts) == 1 and "prompt_cache_breakpoint" not in text_parts[0]:
-            message["content"] = text_parts[0]["text"]
-        else:
-            message["content"] = text_parts if text_parts or not parts else None
-        return message
+                call = {
+                    "id": part.tool_call_id,
+                    "type": "function",
+                    "function": {"name": part.tool_name, "arguments": part.args or ""},
+                }
+                if pending_signature is not None:
+                    attach(call, pending_signature)
+                    pending_signature = None
+                message.setdefault("tool_calls", []).append(call)
+        finish_message()
+        return messages
 
-    @staticmethod
-    def _messages(request: NormalizedRequest) -> list[dict[str, Any]]:
+    @classmethod
+    def _messages(
+        cls, request: NormalizedRequest, *, capabilities: ProviderCapabilities | None = None
+    ) -> list[dict[str, Any]]:
+        namespace = (
+            capabilities.chat_signature_namespace if capabilities else None
+        ) or cls.SIGNATURE_NAMESPACE
+        reasoning_field = (
+            capabilities.chat_reasoning_field if capabilities else None
+        ) or cls.REASONING_FIELD
+
+        def is_prefix(part: Any) -> bool:
+            return bool(
+                namespace
+                and isinstance(part, Thinking)
+                and part.signature
+                and not (part.content or part.summary)
+            )
+
+        items = []
+        for item in request.input or []:
+            if namespace and isinstance(item, AssistantInput):
+                # A standalone Responses signature prefixes the next explicit
+                # message. Group unattached calls with its text when available.
+                signature_start = len(items)
+                while signature_start and is_prefix(items[signature_start - 1]):
+                    signature_start -= 1
+                start = signature_start
+                while start and (
+                    isinstance(items[start - 1], ToolCall) or is_prefix(items[start - 1])
+                ):
+                    start -= 1
+                if start and isinstance(items[start - 1], AssistantInput):
+                    start = signature_start
+                if start < len(items):
+                    item = item.model_copy(update={"content": [*items[start:], *item.content]})
+                    del items[start:]
+            items.append(item)
         messages: list[dict[str, Any]] = []
         assistant_parts: list[Thinking | TextOutput | ToolCall] = []
         explicit_assistant = False
@@ -1067,7 +1115,9 @@ class OpenAIChatCompletionsClient(
         def flush_assistant() -> None:
             nonlocal explicit_assistant
             if explicit_assistant or assistant_parts:
-                messages.append(OpenAIChatCompletionsClient._assistant_message(assistant_parts))
+                messages.extend(
+                    cls._assistant_messages(assistant_parts, reasoning_field, namespace)
+                )
                 assistant_parts.clear()
                 explicit_assistant = False
 
@@ -1076,7 +1126,7 @@ class OpenAIChatCompletionsClient(
                 messages.extend(deferred_image_messages)
                 deferred_image_messages.clear()
 
-        for item in request.input or []:
+        for item in items:
             if not isinstance(item, ToolReturn):
                 flush_deferred_images()
             if isinstance(item, SystemPrompt):
@@ -1123,13 +1173,16 @@ class OpenAIChatCompletionsClient(
                 if (
                     explicit_assistant
                     or any(isinstance(part, ToolCall) for part in assistant_parts)
-                    or any(isinstance(part, Thinking) for part in item.content)
+                    or any(
+                        isinstance(part, Thinking) and not is_prefix(part) for part in item.content
+                    )
                 ):
                     flush_assistant()
                 assistant_parts.extend(item.content)
                 explicit_assistant = True
             elif isinstance(item, Thinking):
-                flush_assistant()
+                if not is_prefix(item):
+                    flush_assistant()
                 assistant_parts.append(item)
             elif isinstance(item, ToolCall):
                 assistant_parts.append(item)
@@ -1201,7 +1254,9 @@ class OpenAIChatCompletionsClient(
         return messages
 
     @classmethod
-    def _native_request(cls, request: NormalizedRequest) -> OpenAIChatCompletionsCreateRequest:
+    def _native_request(
+        cls, request: NormalizedRequest, *, capabilities: ProviderCapabilities | None = None
+    ) -> OpenAIChatCompletionsCreateRequest:
         cls._validate_request(request)
         stream_options: dict[str, Any] = {}
         if request.stream:
@@ -1213,7 +1268,7 @@ class OpenAIChatCompletionsClient(
             stream_options["include_obfuscation"] = request.stream_options.include_obfuscation
 
         body: dict[str, Any] = {
-            "messages": cls._messages(request),
+            "messages": cls._messages(request, capabilities=capabilities),
             "model": request.model,
             "stream": request.stream,
         }
@@ -1270,9 +1325,32 @@ class OpenAIChatCompletionsClient(
             if isinstance(item, ToolReturn) and item.tool_name is not None:
                 raise UnsupportedInput("Chat Completions cannot represent tool return names.")
 
+    def _thought_state(self, extra_content: Any) -> tuple[bool, str | None]:
+        return chat_thought_state(extra_content, self._capabilities.chat_signature_namespace)
+
+    @staticmethod
+    def _termination_reason(finish_reason: str, *, has_tool_calls: bool) -> TerminationReason:
+        try:
+            return _CHAT_TERMINATION_REASONS[finish_reason]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unsupported Chat Completions finish reason: {finish_reason}"
+            ) from exc
+
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
+        native_request = self._native_request(request, capabilities=self._capabilities)
+        async with aclosing(self.native_events(native_request)) as native_events:
+            async with aclosing(self._normalize_stream(native_events)) as events:
+                async for event in events:
+                    yield event
+
+    async def _normalize_stream(
+        self, native_events: AsyncIterator[OpenAIChatCompletionsStreamChunk]
+    ) -> AsyncIterator[ModelResponseStreamEvent]:
+        """Normalize native chunks without owning their transport lifecycle."""
         response_metadata: ResponseStartEvent | None = None
         part_text = ""
+        pending_signature: str | None = None
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
         active_part: Literal["thinking", "text"] | None = None
@@ -1291,171 +1369,208 @@ class OpenAIChatCompletionsClient(
             part_text = ""
             return PartStartEvent(index=active_part_index, part=part)
 
-        def end_active_part() -> PartEndEvent | None:
-            nonlocal active_part
+        def end_active_part() -> list[ModelResponseStreamEvent]:
+            nonlocal active_part, pending_signature
             if active_part == "thinking":
-                part: Thinking | TextOutput = self._classify_thinking(part_text)
+                part: Thinking | TextOutput = self._classify_thinking(
+                    part_text, signature=pending_signature
+                )
             elif active_part == "text":
                 part = TextOutput(content=part_text)
             else:
-                return None
-            active_part = None
-            return PartEndEvent(index=active_part_index, part=part)
-
-        def end_tool_call(tool_call_index: int) -> PartEndEvent:
-            state = tool_calls[tool_call_index]
-            return PartEndEvent(
-                index=state.part_index,
-                part=ToolCall(
-                    tool_call_id=state.tool_call_id,
-                    tool_name=state.tool_name,
-                    args=state.args,
-                ),
-            )
-
-        native_request = self._native_request(request)
-        async with aclosing(self.native_events(native_request)) as native_events:
-            async for chunk in native_events:
-                if response_metadata is None:
-                    response_metadata = ResponseStartEvent(
-                        id=chunk.id,
-                        created_at=chunk.created,
-                        model=chunk.model,
-                        service_tier=chunk.service_tier,
+                return []
+            events: list[ModelResponseStreamEvent] = []
+            if active_part == "thinking" and pending_signature:
+                events.append(
+                    PartDeltaEvent(
+                        index=active_part_index,
+                        delta=ThinkingDelta(signature_delta=pending_signature),
                     )
-                    yield response_metadata
+                )
+                pending_signature = None
+            active_part = None
+            events.append(PartEndEvent(index=active_part_index, part=part))
+            return events
 
-                if chunk.choices:
-                    choice = chunk.choices[0]
-                    reasoning_delta = getattr(choice.delta, "reasoning_content", None)
-                    # Reasoning and text may interleave: a non-empty reasoning chunk
-                    # ends an active text part and starts a new thinking part. Empty
-                    # reasoning chunks carry nothing and never start or switch parts.
+        def end_tool_call(tool_call_index: int) -> list[ModelResponseStreamEvent]:
+            state = tool_calls[tool_call_index]
+            return [
+                PartEndEvent(
+                    index=state.part_index,
+                    part=ToolCall(
+                        tool_call_id=state.tool_call_id,
+                        tool_name=state.tool_name,
+                        args=state.args,
+                    ),
+                )
+            ]
+
+        async for chunk in native_events:
+            if response_metadata is None:
+                response_metadata = ResponseStartEvent(
+                    id=chunk.id,
+                    created_at=chunk.created,
+                    model=chunk.model,
+                    service_tier=chunk.service_tier,
+                )
+                yield response_metadata
+
+            # The normalized response has one completion. Chunks for alternative
+            # choices can arrive separately or in any array position.
+            choice = next((choice for choice in chunk.choices if choice.index == 0), None)
+            if choice is not None:
+                marked, signature = self._thought_state(
+                    getattr(choice.delta, "extra_content", None)
+                )
+                reasoning_delta = chat_reasoning_text(
+                    self._capabilities.chat_reasoning_field,
+                    getattr(choice.delta, "reasoning", None),
+                    getattr(choice.delta, "reasoning_content", None),
+                )
+                visible_text = choice.delta.content
+                if marked:
+                    reasoning_delta = visible_text or reasoning_delta
+                    visible_text = None
+                # Reasoning and text may interleave: a non-empty reasoning chunk
+                # ends an active text part and starts a new thinking part. Empty
+                # reasoning chunks carry nothing and never start or switch parts.
+                if reasoning_delta or signature:
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                        active_tool_call_index = None
+                    if active_part == "text":
+                        for event in end_active_part():
+                            yield event
+                    if active_part is None:
+                        yield start_part(Thinking(content="", summary=""))
                     if reasoning_delta:
-                        if active_part == "text":
-                            ended_part = end_active_part()
-                            if ended_part is not None:
-                                yield ended_part
-                        if active_part is None:
-                            yield start_part(Thinking(content="", summary=""))
                         part_text += reasoning_delta
                         yield PartDeltaEvent(
                             index=active_part_index,
                             delta=self._classify_thinking_delta(reasoning_delta),
                         )
+                    if signature:
+                        pending_signature = signature
 
-                    if choice.delta.content is not None:
-                        is_empty_role_chunk = (
-                            choice.delta.role is not None and choice.delta.content == ""
+                if visible_text:
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                        active_tool_call_index = None
+                    if active_part == "thinking":
+                        for event in end_active_part():
+                            yield event
+                    if active_part is None:
+                        yield start_part(TextOutput(content=""))
+                    part_text += visible_text
+                    yield PartDeltaEvent(
+                        index=active_part_index,
+                        delta=TextDelta(content_delta=visible_text),
+                    )
+
+                if choice.delta.tool_calls:
+                    for event in end_active_part():
+                        yield event
+                    for tool_call_delta in choice.delta.tool_calls:
+                        if tool_call_delta.index is None:
+                            raise ValueError("Chat Completions tool-call deltas require an index.")
+                        _, tool_signature = self._thought_state(
+                            getattr(tool_call_delta, "extra_content", None)
                         )
-                        if not is_empty_role_chunk:
-                            if active_part == "thinking":
-                                ended_part = end_active_part()
-                                if ended_part is not None:
-                                    yield ended_part
-                            if active_part is None:
-                                yield start_part(TextOutput(content=""))
-                            if choice.delta.content:
-                                part_text += choice.delta.content
-                                yield PartDeltaEvent(
-                                    index=active_part_index,
-                                    delta=TextDelta(content_delta=choice.delta.content),
-                                )
-
-                    if choice.delta.tool_calls is not None:
-                        ended_part = end_active_part()
-                        if ended_part is not None:
-                            yield ended_part
-                        for tool_call_delta in choice.delta.tool_calls:
-                            function_delta = tool_call_delta.function
-                            state = tool_calls.get(tool_call_delta.index)
-                            if state is None:
-                                if (
-                                    tool_call_delta.id is None
-                                    or function_delta is None
-                                    or function_delta.name is None
-                                ):
-                                    raise ValueError(
-                                        "The first Chat Completions chunk for a tool call must "
-                                        "include its ID and function name."
-                                    )
-                                if active_tool_call_index is not None:
-                                    yield end_tool_call(active_tool_call_index)
-                                state = _ChatToolCallState(
-                                    part_index=next_part_index,
-                                    tool_call_id=tool_call_delta.id,
-                                    tool_name=function_delta.name,
-                                    args=function_delta.arguments or "",
-                                )
-                                tool_calls[tool_call_delta.index] = state
-                                active_tool_call_index = tool_call_delta.index
-                                yield PartStartEvent(
-                                    index=next_part_index,
-                                    part=ToolCall(
-                                        tool_call_id=state.tool_call_id,
-                                        tool_name=state.tool_name,
-                                        args=state.args,
-                                    ),
-                                )
-                                next_part_index += 1
-                                continue
-
-                            if tool_call_delta.index != active_tool_call_index:
+                        function_delta = tool_call_delta.function
+                        state = tool_calls.get(tool_call_delta.index)
+                        if state is None:
+                            if (
+                                tool_call_delta.id is None
+                                or function_delta is None
+                                or function_delta.name is None
+                            ):
                                 raise ValueError(
-                                    "Chat Completions tool-call deltas must be contiguous by index."
+                                    "The first Chat Completions chunk for a tool call must "
+                                    "include its ID and function name."
                                 )
-
-                            name_delta = (
-                                function_delta.name if function_delta is not None else None
+                            if active_tool_call_index is not None:
+                                for event in end_tool_call(active_tool_call_index):
+                                    yield event
+                            if tool_signature:
+                                part = Thinking(content="", summary="", signature=tool_signature)
+                                yield PartStartEvent(index=next_part_index, part=part)
+                                yield PartEndEvent(index=next_part_index, part=part)
+                                next_part_index += 1
+                            state = _ChatToolCallState(
+                                part_index=next_part_index,
+                                tool_call_id=tool_call_delta.id,
+                                tool_name=function_delta.name,
+                                args=function_delta.arguments or "",
                             )
-                            args_delta = (
-                                function_delta.arguments if function_delta is not None else None
-                            )
-                            if name_delta == state.tool_name:
-                                name_delta = None
-                            tool_call_id_delta = tool_call_delta.id
-                            if tool_call_id_delta == state.tool_call_id:
-                                tool_call_id_delta = None
-                            if name_delta is not None:
-                                state.tool_name += name_delta
-                            if args_delta is not None:
-                                state.args += args_delta
-                            if tool_call_id_delta is not None:
-                                state.tool_call_id = tool_call_id_delta
-                            yield PartDeltaEvent(
-                                index=state.part_index,
-                                delta=ToolCallDelta(
-                                    tool_name_delta=name_delta,
-                                    args_delta=args_delta,
-                                    tool_call_id=tool_call_id_delta,
+                            tool_calls[tool_call_delta.index] = state
+                            active_tool_call_index = tool_call_delta.index
+                            yield PartStartEvent(
+                                index=next_part_index,
+                                part=ToolCall(
+                                    tool_call_id=state.tool_call_id,
+                                    tool_name=state.tool_name,
+                                    args=state.args,
                                 ),
                             )
+                            next_part_index += 1
+                            continue
 
-                    if choice.finish_reason is not None:
-                        try:
-                            termination_reason = _CHAT_TERMINATION_REASONS[choice.finish_reason]
-                        except KeyError as exc:
+                        if tool_signature:
                             raise ValueError(
-                                f"Unsupported Chat Completions finish reason: {choice.finish_reason}"
-                            ) from exc
-                        ended_part = end_active_part()
-                        if ended_part is not None:
-                            yield ended_part
-                        if active_tool_call_index is not None:
-                            yield end_tool_call(active_tool_call_index)
-                        tool_calls.clear()
-                        active_tool_call_index = None
+                                "Chat Completions tool signatures must arrive with the start of the tool call."
+                            )
+                        if tool_call_delta.index != active_tool_call_index:
+                            raise ValueError(
+                                "Chat Completions tool-call deltas must be contiguous by index."
+                            )
 
-                if chunk.usage is not None:
-                    usage = _chat_usage(chunk.usage)
+                        name_delta = function_delta.name if function_delta is not None else None
+                        args_delta = (
+                            function_delta.arguments if function_delta is not None else None
+                        )
+                        if name_delta == state.tool_name:
+                            name_delta = None
+                        tool_call_id_delta = tool_call_delta.id
+                        if tool_call_id_delta == state.tool_call_id:
+                            tool_call_id_delta = None
+                        if name_delta is not None:
+                            state.tool_name += name_delta
+                        if args_delta is not None:
+                            state.args += args_delta
+                        if tool_call_id_delta is not None:
+                            state.tool_call_id = tool_call_id_delta
+                        yield PartDeltaEvent(
+                            index=state.part_index,
+                            delta=ToolCallDelta(
+                                tool_name_delta=name_delta,
+                                args_delta=args_delta,
+                                tool_call_id=tool_call_id_delta,
+                            ),
+                        )
+
+                if choice.finish_reason is not None:
+                    termination_reason = self._termination_reason(
+                        choice.finish_reason, has_tool_calls=bool(tool_calls)
+                    )
+                    for event in end_active_part():
+                        yield event
+                    if active_tool_call_index is not None:
+                        for event in end_tool_call(active_tool_call_index):
+                            yield event
+                    tool_calls.clear()
+                    active_tool_call_index = None
+
+            if chunk.usage is not None:
+                usage = _chat_usage(chunk.usage)
 
         if response_metadata is None:
             raise ValueError("Chat Completions stream did not contain a response chunk.")
         if termination_reason is None:
             raise ValueError("Chat Completions stream ended without a finish reason.")
-        ended_part = end_active_part()
-        if ended_part is not None:
-            yield ended_part
+        for event in end_active_part():
+            yield event
         yield ResponseEndEvent(
             id=response_metadata.id,
             created_at=response_metadata.created_at,
@@ -1506,3 +1621,14 @@ class OpenAIChatCompletionsClient(
                     body=error.body,
                 ) from error
         raise error
+
+
+class OpenAIChatCompletionsClient(ChatCompletionsClient):
+    """OpenAI's own Chat Completions API, which defines no `extra_content`."""
+
+    def _thought_state(self, extra_content: Any) -> tuple[bool, str | None]:
+        # The OpenAI API has no opaque extensions. Accept explicitly configured
+        # continuation state and reject fields translation cannot carry.
+        return chat_thought_state(
+            extra_content, self._capabilities.chat_signature_namespace, history=True
+        )

@@ -32,6 +32,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     """Ensures every discovered conversation turn matches valid native output idempotently."""
     messages = read_yaml(messages_path)
     responses = read_yaml(responses_path)
+    original_responses = deepcopy(responses)
     transport = deepcopy(messages["response"]["headers"])
 
     match_messages_response(messages, responses)
@@ -64,6 +65,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     matched = deepcopy(messages)
     match_messages_response(messages, responses)
     assert messages == matched
+    assert responses == original_responses
 
 
 def test_matches_ordered_content_usage_and_tool_stop() -> None:
@@ -193,6 +195,16 @@ def test_matches_positive_cache_writes_by_effective_lifetime(
     matched = deepcopy(messages)
     match_messages_response(messages, responses)
     assert messages == matched
+
+
+def test_missing_cache_write_count_remains_unknown():
+    """Ensures a missing aggregate cannot produce a cache write count or lifetime breakdown."""
+    messages, responses = _cassettes()
+    responses["response"]["body"]["usage"]["input_tokens_details"].pop("cache_write_tokens", None)
+    match_messages_response(messages, responses)
+    usage = messages["response"]["body"]["usage"]
+    assert usage["cache_creation_input_tokens"] is None
+    assert usage.get("cache_creation") is None
 
 
 @pytest.mark.parametrize("cache_write_tokens", [0, 3, 4])

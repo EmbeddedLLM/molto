@@ -1,0 +1,86 @@
+filename: 2026-11-05-01a1ac2f-8dd1-7691-82c6-b92edd6108f2
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: global.openai.gpt-5.6-luna
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '249'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-8dd1-7691-82c6-b92edd6108f2
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: 9d29619b-8fc8-4169-b2b8-7fb4e2847944
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"","role":"assistant","refusal":null},"finish_reason":null,"index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefgh"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"Spr"},"finish_reason":null,"index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyz"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"out"},"finish_reason":null,"index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"Bot"},"finish_reason":null,"index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcde"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"."},"finish_reason":null,"index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrst"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":"stop","index":0}],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHI"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[],"created":1793890160,"id":"chatcmpl-ycvefv7mo6fy7ad2qroyk5rdsg3xpsh5653ngkfh4ip3zsibslva","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","usage":{"completion_tokens":8,"completion_tokens_details":{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":14,"prompt_tokens_details":{"audio_tokens":0,"cache_write_tokens":0,"cached_tokens":0},"total_tokens":22},"system_fingerprint":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T14:49:20.081125+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

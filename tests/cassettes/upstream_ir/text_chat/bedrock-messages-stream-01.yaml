@@ -1,0 +1,108 @@
+filename: 2026-11-16-01a1e428-f577-7740-af0d-aed8441107f3
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
+      role: user
+    - content:
+      - citations: null
+        text: The ocean covers most of Earth's surface and teems with life in depths
+          we're still exploring.
+        type: text
+      role: assistant
+    - content:
+      - text: Make that sentence shorter.
+        type: text
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '448'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1e428-f577-7740-af0d-aed8441107f3
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"anthropic.claude-haiku-4-5-20251001-v1:0","id":"msg_bdrk_nvlbqvyjjonbs27tdd3hjq4zv5t4gfldqwp24637vtwfyfl332mq","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":46,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":7,"service_tier":"standard"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The
+    ocean covers most of Earth and"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+    teems with life."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":46,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":15}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: message_stop
+timestamp: '2026-11-16T11:40:51.959308+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

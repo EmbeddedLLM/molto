@@ -1,0 +1,383 @@
+filename: 2026-11-17-01a1ea62-a33e-7201-86db-2a359c9b0d71
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: true
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '633'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1ea62-a33e-7201-86db-2a359c9b0d71
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"anthropic.claude-haiku-4-5-20251001-v1:0","id":"msg_bdrk_asc3vlhofaizwgewickkjhfbma54737jqrs4h6jeiyno73zv35sa","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":437,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The
+    user wants me to:\n1"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":".
+    First"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":","}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    add 2 and 3 "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"using
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    add function"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n2.
+    Then, add 7 "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"to
+    that"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    result using the add function again\n3"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":".
+    Make exactly one tool call per turn"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n4.
+    After both results, reply"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    with the final number only\n\nSince"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    I should"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    make exactly one tool call per turn,"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    I''ll"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    start"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    with"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    the"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    first addition"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":":"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"
+    "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"2
+    + 3."}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EqQECoQBCBMQARgCKkDmNra/T7rjoPCwfpZdSdYGKJpzkE/Fw2IC/rtE1GJYsJ5v16g4lCV1Pw/+D2uRC5XRR/FAtdOVw35u7u6eMKl5MhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgwxOTgzMzMzNDQxOTWoAcCH8tcGEgzW8/mjpQksZv12aNYaDFMapqRfR4yeTAQu1SIwG5eQHOSwFCuc0g1zxHDjhBZ2uw1KK5QyUCIm7qq86Fn2K6DVYwfwL4Prc4AxAcR9KswCx2uDppXFtsPSnT/NnlISqGkd+JL+6J3bmLqEhGQ3pIOrk7gFu2IkSr7Ii7CZcxYc9Zb3orVOU+B125p4m/WFNwBiW7z3tFfKvn5/h6uBOdbZFl05qn1j2/uOxnosREXzHG9snqXJ3SW26on7IXzY/jQh13S3eapXpXaKdJBzI2b2Rn//kXN2ymPpjsBzNCYeeNlydekffFI1V/IaQHFFxwPDPj5kaBJ5H1pAqYw9IYMTaa/qAXfWVg5lFAJNgyJq+50WwDUFDBA3W6ZCcptZZEyYopMCdOl+2safsrWaM8aSDEaAPvpaN1UvLDiKWkC9kdMrYSw7WsA0GBiig/9tuqmwYI0hGSJyZwSPSFxoI4Rpf0hKmy8xdgqnlEY3t9U43bLcZlV0A5p09NW/ed0GlO5A9X5+O6e4sc+2M8wIJvwz8Eo9AntBO61ghaoYAQ=="}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_bdrk_01BEYvCK8kVzRoruaRfYYxRD","name":"add","input":{}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"a\":
+    2"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":",
+    \"b\": "}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"3}"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":1}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":437,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":157,"output_tokens_details":{"thinking_tokens":95}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: message_stop
+timestamp: '2026-11-17T16:41:35.294870+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

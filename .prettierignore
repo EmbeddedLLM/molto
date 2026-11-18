@@ -4,6 +4,8 @@ thumbs.db
 
 # Cassettes
 tests/cassettes/**/*.yaml
+# Preserve generated provenance alongside unchanged original capture bytes.
+tests/cassettes/provider_recordings/**/manifest.json
 
 # Internal references, dependencies, temporary folders & files
 .env

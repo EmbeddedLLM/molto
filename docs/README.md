@@ -19,7 +19,7 @@ Three rules make this principle concrete:
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]`, `include=["web_search_call.action.sources"]`, and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Portable call identities such as `tool_call_id` are not part of these exceptions.
+“Closed” applies recursively to nested request models. “Lossless-or-rejected” means each populated input field must affect the normalized request or target request, or Molto must reject it. Documented omission exceptions are optional Responses output-item IDs on Chat Completions and Messages, caller-defined prompt-cache keys on Messages, the `format="unknown"` label on raw-only Responses reasoning history, and the behavior-neutral Responses settings `include=["reasoning.encrypted_content"]`, `include=["web_search_call.action.sources"]`, and `store=false` on translated routes. Native passthrough forwards these fields unchanged, while `store=true` remains unsupported for translation. Named reasoning formats and formatted summary/signature state remain rejected. Portable call identities such as `tool_call_id` are not part of these exceptions. Shared Chat history groups text and tool calls into separate fields, preserving order within each kind while losing their interleaving; it retains explicit assistant-message boundaries.
 
 Cross-protocol semantic input rejections raise `molto.types.exceptions.UnsupportedInput`, a `ValueError` subclass. Schema validation on translated routes uses the validation errors provided by the protocol's Pydantic request model. Molto's local public request models reject unknown top-level fields; nested fields follow their declared schemas.
 
@@ -85,9 +85,15 @@ Four independent choices define a route:
 | `provider`    | Selects the serving implementation and its immutable capability profile.                      |
 | `base_url`    | Selects only the HTTP destination.                                                            |
 
-Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL.
+See [hosted provider compatibility](provider-compatibility.md) for provider keys, exact destinations, history constraints, and the recorded/matched/synthetic evidence matrix.
 
-Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM classifies it as raw reasoning.
+Molto never infers provider behavior from a hostname. When `provider` is omitted, the endpoint supplies a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint or base URL. Both native and translated routes require an explicit registration in `CLIENTS` for the selected pair; an explicit `base_url` does not bypass this requirement.
+
+The provider profile classifies unlabeled Chat and Messages reasoning. Responses labels raw text and summaries explicitly.
+
+## Reasoning
+
+See [Reasoning and signatures](reasoning.md) for field selection, signature attachments, continuation, and SDK stream collection.
 
 ## How translation works
 
@@ -209,9 +215,9 @@ The translated path currently supports:
 - string input and ordered text messages;
 - ordered mixed text and image user input using remote URLs or base64 data URLs;
 - system prompts and supported assistant history;
-- raw reasoning across all three protocols, reasoning summaries between Responses and Messages, and unsigned summary output and history through Chat;
+- raw reasoning, summaries, and provider-specific continuation state across the three protocols;
 - client-defined function tools, selection, parallel-call control, calls, successful results, history, and streamed argument deltas;
-- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning is rejected;
+- basic [hosted web search](web-search.md), URL attribution between Responses and Messages, and mandatory search with text output for downstream Chat; signed Chat projections require a signature namespace;
 - model, output-token limit, reasoning effort, temperature, and `top_p`;
 - prompt-cache settings and supported text/image breakpoints under the [shared mapping policy](#prompt-caching), including silent omission of caller-defined keys on Messages;
 - response identity, model, lifecycle metadata, termination, and semantic token usage; and
@@ -225,16 +231,7 @@ Protocol guides distinguish these current implementation gaps from information t
 
 ### Reasoning
 
-The normalized representation distinguishes raw reasoning from reasoning summaries:
-
-- `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning.
-- `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary.
-
-Responses events label those representations explicitly and must agree with the configured provider capability. Chat Completions `reasoning_content` and Messages `thinking_delta` are ambiguous, so the capability profile classifies them before normalization.
-
-A Responses reasoning output lifecycle contains raw reasoning without a summary or signature, a summary with an optional signature and no raw reasoning, or a signature without reasoning text. A Messages thinking output lifecycle follows the same rule. A completely empty start may be deferred until its representation is known, and a lifecycle must not switch representations.
-
-Output processing preserves unsigned summaries rather than rejecting a response because its signature is missing. Chat can carry unsigned raw reasoning or summaries according to the provider profile, but rejects present signatures because it has no signature field. Request normalization preserves unsigned summary history. Upstream Chat request construction accepts that summary text; upstream Responses and Messages request construction still requires its original signature. Receiving unsigned reasoning output does not establish opaque continuation state. Native passthrough is unchanged.
+Responses preserves raw content, summaries, and opaque state independently. Chat and Messages each project one text representation. Their inbound provider profile classifies returned text again when it enters continuation history. See [Reasoning and signatures](reasoning.md).
 
 ### Opaque continuation state
 
@@ -353,7 +350,7 @@ For open-weight models, the selected renderer or chat template is the most autho
 
 ## Compatibility and maintenance
 
-OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models, except two narrow Responses event replacements: `OpenAIResponseCompletedEvent` (sets a `null` `cache_write_tokens` to `0`) and `OpenAIResponseFunctionCallArgumentsDoneEvent` (relaxes the required `name`). Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
+OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. Narrow Responses schema extensions accept an omitted cache-write count as `None` and an omitted function name on argument completion. Native Responses transport preserves the SDK result.
 
 Responses is the canonical behavioral reference for matched cross-protocol cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
 

@@ -1,17 +1,38 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import AsyncExitStack
+from dataclasses import dataclass
 from typing import NoReturn
 
 from pydantic import BaseModel, ValidationError
 
-from molto.providers import ProviderCapabilities
+from molto.providers import ProviderCapabilities, ReasoningRepresentation
 from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     ModelResponseStreamEvent,
     NormalizedRequest,
     Thinking,
 )
+
+
+@dataclass
+class ReasoningTextStream:
+    """Select the first nonempty representation for one unlabeled output part."""
+
+    representation: ReasoningRepresentation | None = None
+    emitted: int = 0
+
+    def text(self, content: str | None, summary: str | None, *, snapshot: bool = False) -> str:
+        if self.representation is None:
+            if content:
+                self.representation = "raw"
+            elif summary:
+                self.representation = "summary"
+        text = (content if self.representation == "raw" else summary) or ""
+        if snapshot:
+            text = text[self.emitted :]
+        self.emitted += len(text)
+        return text
 
 
 class BaseAdapter[
@@ -167,5 +188,5 @@ class BaseAdapter[
         return Thinking(
             content=text if self._capabilities.thinking == "raw" else "",
             summary=text if self._capabilities.thinking == "summary" else "",
-            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
+            signature=signature or None,
         )

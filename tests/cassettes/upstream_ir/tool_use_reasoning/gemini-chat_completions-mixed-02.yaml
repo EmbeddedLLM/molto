@@ -1,0 +1,121 @@
+filename: 2026-11-18-01a1ee03-b8f6-7963-b774-497ec7491cd0
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add for 2 + 3, then use add for that result + 4, then report the
+        final answer.
+      role: user
+    - reasoning_content: '<thought>**My Calculation Process**
+
+
+        Alright, let''s break this down. My goal is to add some numbers together in
+        a series of steps. It''s a straightforward arithmetic problem, really. I need
+        to use an "add" tool for this, which seems simple enough.
+
+
+        First, I''ll take 2 and 3 and add them together. The system is instructing
+        me to call the "add" function with those specific numbers. The expected outcome
+        here should be 5, which seems correct. I''ll mentally check it to be sure.
+
+
+        Next, I take the result from that first calculation, which is 5, and I add
+        4 to it, again using the "add" tool. I expect to get 9 here.
+
+
+        Finally, I just have to report the final result, which is the 9 from the second
+        calculation. Basically, it’s a two-step process: `add(2, 3)` then `add(result_from_step1,
+        4)`, and finally, the output.
+
+
+
+        </thought>'
+      role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EuEECt4EAWkUfROlRmusje4h46Y+IE1KD5GkENSXTTrHbWBVozezh6zEjYscYBgY0QokZRG2eg3DJk8mVSxxDtkhpx1mU1CIgpkcvqdpTK9irMmC7uz+6QEwfofVGiijnm0cr7k1Nlg9qt35+pdIHq1o4dn3B1xn+ouiSq2y69PLSMmjKRstyi1WB87YvrBXLXBbmWJZH0W2/w1OPdVLra69XF5yUj7mSDS3L1Y42LYVAxS1LuG9T3mxwpw/QzGrT61leKL+nAiEgGnmvZCaLjUpoQN2+Bu6sURto5djHLB/RtOkCE6BQ2el1MT2ynR+Sg8x2P1qV/ZCVOnYsua0ALzbpSSGg2MduXwplP6u71YRxuA6aRdFJa29jDZ98T26UwtPCCNn7fdKhGht/cKizhb8Ebj6xBI2F2X1QpQh2p9LxTfgkUPuWHEGYO8DfcHzNjoFz2mkP5QFfDDR0qyooNfGWLM6bczIAXW8Xyr/MN7PNLe8fujNRZCop1DYjBTE4dH5Y67+NJLqdTw6VDCgDTobZQArlHzqNQQyfqU5ttDAlPnyAxKtjl0BdSxHkFQgiVY6j5N5l/p/FqQD+emQP2RqP1YEsJ8BXvMq9Oiga1ncPr3Rxx5fUlBMzy8DrjidQusEuSuEzOCXzeD2n3wUE7Wsehi9TKkVU4aPA3pVSoSa0Vxf5UVtdpXqJiwbYz4LDOlNNqo5UCeuYyCwXwVWnEF4mWrq4G1xb/xQ5R8VIvd30q/Lqk9AlHF+AMYTxzl04UD7yQfsOiY3s9WkuGmkwlimsLGrEVk3RRMOXWHtUSw0cnnb
+        function:
+          arguments: '{"b":3,"a":2}'
+          name: add
+        id: call_1242298174733071490
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_1242298174733071490
+    - role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EvsBCvgBAWkUfRPgh75DaYBo716Q7SUvSFq+qFmiPT6YTRyjEEXEs/2wpA+eDigzPL3ODKIzcdnjaj3mqwmCBWqvtN+BSSO7MOwl5/tfPo2Uq18oIPwOwvznhB1XuOY/bqi0L9pvnYuNJ29XLSIKhdttIgAgDD4DFA2sv8Q/VdZPxopC20pZfLOPPHIOouBfoyRhFweZPitZDf2r/QYaPGp0mJDJSdiBLerIZu73pxDsRnDMt1euRagGHeLqYoVOULqgtP2UU9qi2YEQe69uJKM6jFLK4fCRDiHIwnpUVYmjf/EHzBogeoiFuRCCBlCMOJDzB8Qte4xq1CwEqso=
+        function:
+          arguments: '{"b":4,"a":5}'
+          name: add
+        id: call_7085737281323246864
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: call_7085737281323246864
+    model: gemini-3.1-flash-lite
+    stream: true
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3092'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1ee03-b8f6-7963-b774-497ec7491cd0
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"The final answer is 9.","role":"assistant"},"index":0}],"created":1794994584,"id":"l3H9ao_LNLS-qtsP1JXPwQk","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EsMBCsABAWkUfRM6J/tDzSM3oUllV1LwSNVldJ9NEKls758Z5WaXWvrrtEn7LexXypUfnlOl3wqynvgqW1hm7MjS2VzECKa1mAVHqWbQc2lCl0Iy3FN4Ap0l2E8Oo46LkO7dZ7OoKlbiP/sy9wfzz6OoNcAv/oxnveED4s/GaAjnz3GyuPVKQ5b9NSSUmrw71YN9jAbkTOorZF//DNP9ZBXXtFgqGxcNxt7stBUvOBSfkgcqPJlA7eXjEsbNhMCN8BIGK91X"}},"role":"assistant"},"finish_reason":"stop","index":0}],"created":1794994584,"id":"l3H9ao_LNLS-qtsP1JXPwQk","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-18T09:36:23.798199+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

@@ -1,0 +1,135 @@
+filename: 2026-11-05-01a1aab8-efb2-7fd3-acd6-bf2ca1c479a4
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '599'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/responses
+  query_params: {}
+request_id: 01a1aab8-efb2-7fd3-acd6-bf2ca1c479a4
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: 13855726-3e73-4e13-a15e-cff3576cbf4c
+  sse:
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865609,"error":null,"frequency_penalty":0.0,"id":"resp_655qwwnojkpejgvpgs2f5d2tmroenlsy2tvndmyki4lzpok2wllq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":0,"type":"response.created"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":null,"created_at":1793865609,"error":null,"frequency_penalty":0.0,"id":"resp_655qwwnojkpejgvpgs2f5d2tmroenlsy2tvndmyki4lzpok2wllq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"auto","status":"in_progress","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"moderation":null},"sequence_number":1,"type":"response.in_progress"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"arguments":"","call_id":"call_c80a312cdcb9565ba95378477b5a66cc","id":"fc_952eccd443bc551ea316b2dfc89f16af","name":"read_file","status":"in_progress","type":"function_call"},"output_index":0,"sequence_number":2,"type":"response.output_item.added"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":"{\"","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123","output_index":0,"sequence_number":3,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":"path","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345","output_index":0,"sequence_number":4,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":"\":\"","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN","output_index":0,"sequence_number":5,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":"index","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJK","output_index":0,"sequence_number":6,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":".txt","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyz","output_index":0,"sequence_number":7,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"delta":"\"}","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567","output_index":0,"sequence_number":8,"type":"response.function_call_arguments.delta"}
+
+    '
+  - '
+
+    '
+  - 'data: {"arguments":"{\"path\":\"index.txt\"}","item_id":"fc_952eccd443bc551ea316b2dfc89f16af","output_index":0,"sequence_number":9,"type":"response.function_call_arguments.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"item":{"arguments":"{\"path\":\"index.txt\"}","call_id":"call_c80a312cdcb9565ba95378477b5a66cc","id":"fc_952eccd443bc551ea316b2dfc89f16af","name":"read_file","status":"completed","type":"function_call"},"output_index":0,"sequence_number":10,"type":"response.output_item.done"}
+
+    '
+  - '
+
+    '
+  - 'data: {"response":{"background":false,"completed_at":1793865609,"created_at":1793865609,"error":null,"frequency_penalty":0.0,"id":"resp_655qwwnojkpejgvpgs2f5d2tmroenlsy2tvndmyki4lzpok2wllq","incomplete_details":null,"instructions":null,"max_output_tokens":1024,"max_tool_calls":null,"metadata":{},"model":"global.openai.gpt-5.6-luna","object":"response","output":[{"arguments":"{\"path\":\"index.txt\"}","call_id":"call_c80a312cdcb9565ba95378477b5a66cc","id":"fc_952eccd443bc551ea316b2dfc89f16af","name":"read_file","status":"completed","type":"function_call"}],"parallel_tool_calls":false,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"summary":null,"effort":"none","context":"all_turns"},"safety_identifier":null,"service_tier":"default","status":"completed","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"medium"},"tool_choice":"auto","tools":[{"description":"Read
+    a file by its path.","name":"read_file","output_schema":null,"parameters":{"additionalProperties":false,"properties":{"path":{"type":"string"}},"required":["path"],"type":"object"},"strict":false,"type":"function"}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":149,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":19,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":168},"user":null,"moderation":null},"sequence_number":11,"type":"response.completed"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T08:00:09.138339+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/responses

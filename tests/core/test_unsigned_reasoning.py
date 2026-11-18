@@ -96,18 +96,23 @@ def _reasoning_and_text(protocol: Protocol, response) -> tuple[str, str]:
 
 
 @pytest.mark.parametrize(
-    ("downstream", "upstream", "ciphertext"),
+    ("downstream", "upstream", "ciphertext", "provider"),
     [
-        (downstream, upstream, ciphertext)
+        (downstream, upstream, ciphertext, provider)
         for downstream, upstream in permutations(PROTOCOLS, 2)
         for ciphertext in ((None, "") if upstream == "responses" else (None,))
+        for provider in {
+            "responses": ("openai",),
+            "messages": ("anthropic",),
+            "chat/completions": ("openai",),
+        }[upstream]
     ],
 )
 @pytest.mark.parametrize("stream", [True, False])
 async def test_unsigned_reasoning_output_and_history_match_sdk(
-    downstream: Protocol, upstream: Protocol, ciphertext: str | None, stream: bool
+    downstream: Protocol, upstream: Protocol, ciphertext: str | None, provider: str, stream: bool
 ):
-    """Ensures unsigned output matches the SDK and history is validated by its destination."""
+    """Ensures unsigned reasoning survives SDK collection and the exact next-turn request."""
     events = _unsigned_events(upstream, ciphertext)
     payload = "".join(dumps_sse(event, event.get("type", "")) for event in events)
     expected_request = _expected_request(downstream, upstream)
@@ -134,7 +139,7 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         result = await _coordinator(client, downstream)(
             body=_body(downstream, stream),
             endpoint=upstream,
-            provider="openai",
+            provider=provider,
             api_key="test-api-key",
         )
         if stream:
@@ -169,31 +174,57 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
             )
             history_body["messages"].extend([assistant, {"role": "user", "content": "Follow up"}])
 
-        if upstream != "chat/completions":
-            with pytest.raises(UnsupportedInput, match="summary requires a signature"):
-                await _coordinator(client, downstream)(
-                    body=history_body,
-                    endpoint=upstream,
-                    provider="openai",
-                    api_key="test-api-key",
-                )
-            assert len(requests) == 2
-            return
-
-        expected_request["messages"].extend(
-            [
-                {
+        if upstream == "responses":
+            expected_request["input"].extend(
+                [
+                    {
+                        "type": "reasoning",
+                        "content": [],
+                        "summary": [{"type": "summary_text", "text": expected[0]}],
+                    },
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": expected[1],
+                                "annotations": [],
+                                "logprobs": [],
+                            }
+                        ],
+                    },
+                    {"role": "user", "content": [{"type": "input_text", "text": "Follow up"}]},
+                ]
+            )
+        else:
+            if upstream == "messages":
+                assistant_history = {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "thinking", "thinking": expected[0]},
+                        {"type": "text", "text": expected[1]},
+                    ],
+                }
+                expected_request["thinking"] = {"type": "adaptive", "display": "summarized"}
+                expected_request["output_config"] = {"effort": "high"}
+            else:
+                assistant_history = {
                     "role": "assistant",
                     "reasoning_content": expected[0],
                     "content": expected[1],
-                },
-                {"role": "user", "content": [{"type": "text", "text": "Follow up"}]},
-            ]
-        )
+                }
+            expected_request["messages"].extend(
+                [
+                    assistant_history,
+                    {"role": "user", "content": [{"type": "text", "text": "Follow up"}]},
+                ]
+            )
         async with await create(**expected_request) as sdk_stream:
             reference = collect_sdk_response(upstream, [event async for event in sdk_stream])
         followup = await _coordinator(client, downstream)(
-            body=history_body, endpoint=upstream, provider="openai", api_key="test-api-key"
+            body=history_body, endpoint=upstream, provider=provider, api_key="test-api-key"
         )
         if stream:
             projected = [event async for event in followup]
@@ -204,7 +235,10 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         )
         assert len(requests) == 4
 
-        # Chat can replay summary text, but must not silently discard opaque state.
+        if upstream != "chat/completions":
+            return
+
+        # An unconfigured Chat endpoint has no destination for opaque state.
         if downstream == "responses":
             thinking = next(
                 item for item in history_body["input"] if item.get("type") == "reasoning"
@@ -215,6 +249,46 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
             thinking["signature"] = "opaque-state"
         with pytest.raises(UnsupportedInput, match="cannot represent thinking signatures"):
             await _coordinator(client, downstream)(
-                body=history_body, endpoint=upstream, provider="openai", api_key="test-api-key"
+                body=history_body, endpoint=upstream, provider=provider, api_key="test-api-key"
             )
         assert len(requests) == 4
+
+
+@pytest.mark.parametrize("downstream", ["chat/completions", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("populated_start", [False, True])
+async def test_openrouter_summary_projects_downstream(downstream, stream, populated_start):
+    """Ensures OpenRouter summary snapshots and deltas reach Chat and Messages despite its raw profile."""
+    # This fixture-derived stream tests a wire shape independently of live OpenRouter output.
+    events = _unsigned_events("responses")
+    if populated_start:
+        added = next(
+            event["item"] for event in events if event["type"] == "response.output_item.added"
+        )
+        first = next(
+            event for event in events if event["type"] == "response.reasoning_summary_text.delta"
+        )
+        added["summary"] = [{"type": "summary_text", "text": first["delta"]}]
+        first["delta"] = ""
+    payload = "".join(dumps_sse(event, event["type"]) for event in events)
+
+    def handler(request):
+        return Response(200, text=payload, headers={"content-type": "text/event-stream"})
+
+    async with AsyncClient(transport=MockTransport(handler)) as transport:
+        sdk = AsyncOpenAI(api_key="test-key", http_client=transport)
+        async with await sdk.responses.create(
+            input="Question", model="test-model", stream=True
+        ) as source:
+            expected = collect_sdk_response("responses", [event async for event in source])
+        result = await _coordinator(Molto(http_client=transport), downstream)(
+            _body(downstream, stream),
+            provider="openrouter",
+            endpoint="responses",
+            api_key="test-key",
+        )
+        if stream:
+            projected = [event async for event in result]
+            assert_stream_lifecycle(downstream, projected)
+            result = collect_sdk_response(downstream, projected)
+    assert _reasoning_and_text(downstream, result) == _reasoning_and_text("responses", expected)

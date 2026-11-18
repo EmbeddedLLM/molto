@@ -215,19 +215,17 @@ async def test_events_merge_start_usage_without_mutating_started_parts(
 
 
 @pytest.mark.parametrize(
-    ("capabilities", "thinking_delta", "thinking", "preserves_signature"),
+    ("capabilities", "thinking_delta", "thinking"),
     [
         (
             VLLM_CAPABILITIES,
             ThinkingDelta(content_delta="Thought"),
-            Thinking(content="Thought", summary=""),
-            False,
+            Thinking(content="Thought", summary="", signature="replacement-state"),
         ),
         (
             PROVIDER_CAPABILITIES["anthropic"],
             ThinkingDelta(summary_delta="Thought"),
             Thinking(content="", summary="Thought", signature="replacement-state"),
-            True,
         ),
     ],
 )
@@ -236,8 +234,8 @@ async def test_client_maps_streamed_signatures_to_ir(
     capabilities: ProviderCapabilities,
     thinking_delta: ThinkingDelta,
     thinking: Thinking,
-    preserves_signature: bool,
 ):
+    """Ensures both raw and summarized thinking retain the latest signature."""
     native_events = [
         {
             "type": "message_start",
@@ -318,11 +316,9 @@ async def test_client_maps_streamed_signatures_to_ir(
     ]
     part_end = next(event for event in events if isinstance(event, PartEndEvent))
     assert isinstance(part_start.part, Thinking)
-    assert part_start.part.signature == ("initial-state" if preserves_signature else None)
+    assert part_start.part.signature == "initial-state"
     assert text_delta.delta == thinking_delta
-    assert [event.delta.signature_delta for event in signature_deltas] == (
-        ["replacement-state"] if preserves_signature else []
-    )
+    assert [event.delta.signature_delta for event in signature_deltas] == ["replacement-state"]
     assert isinstance(part_end.part, Thinking)
     assert part_end.part == thinking
 
@@ -627,8 +623,7 @@ async def test_client_preserves_unsigned_summary_completion(
 async def test_client_completes_thinking_block_without_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A thinking block whose text is complete at block start still gets a
-    # balanced part lifecycle: the deferred start is flushed at block stop.
+    """Ensures a raw block complete at start retains its text and signature through block stop."""
     native_events = [
         _MESSAGE_START,
         {
@@ -652,8 +647,12 @@ async def test_client_completes_thinking_block_without_deltas(
         if isinstance(event, (PartStartEvent, PartDeltaEvent, PartEndEvent))
     ]
     assert part_events == [
-        PartStartEvent(index=0, part=Thinking(content="Settled thought", summary="")),
-        PartEndEvent(index=0, part=Thinking(content="Settled thought", summary="")),
+        PartStartEvent(
+            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
+        ),
+        PartEndEvent(
+            index=0, part=Thinking(content="Settled thought", summary="", signature="sig-1")
+        ),
     ]
 
 
@@ -762,15 +761,36 @@ def test_adapter_maps_thinking_configuration_to_reasoning_effort(
             {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
             None,
         ),
+        (
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "medium",
+            {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
+            None,
+        ),
+        (
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "medium",
+            {"type": "enabled", "budget_tokens": 10_000, "display": "summarized"},
+            None,
+        ),
+        (
+            "global.anthropic.claude-sonnet-5",
+            "xhigh",
+            {"type": "adaptive", "display": "summarized"},
+            {"effort": "xhigh"},
+        ),
     ],
 )
+@pytest.mark.parametrize("prefix", ["", "vendor/", "custom.route."])
 def test_client_selects_model_supported_thinking_configuration(
     model: str,
     effort: str,
     thinking: dict,
     output_config: dict | None,
+    prefix: str,
 ):
-    """Ensures thinking mode and effort follow the target model capabilities."""
+    """Ensures thinking follows Claude capabilities regardless of provider/model prefixes."""
+    model = prefix + model
     body = AnthropicMessagesClient._native_request(
         NormalizedRequest(
             input=[UserInput(content=[TextInput(content="Hello")])],
@@ -783,6 +803,7 @@ def test_client_selects_model_supported_thinking_configuration(
 
     assert body["thinking"] == thinking
     assert body.get("output_config") == output_config
+    assert body["model"] == model
 
 
 def test_client_projects_user_text_as_content_block_list():
@@ -1115,17 +1136,21 @@ def test_client_uses_summary_when_reasoning_history_omits_raw_content():
     }
 
 
-def test_client_rejects_reasoning_history_outside_capability() -> None:
-    """Ensures reasoning history respects the selected provider capability."""
+def test_client_prefers_content_for_complete_history() -> None:
+    """Ensures complete Messages history prefers raw text and preserves its signature."""
     request = NormalizedRequest(
-        input=[Thinking(content="", summary="Summary", signature="opaque-state")],
+        input=[Thinking(content="Raw", summary="Summary", signature="opaque-state")],
         max_output_tokens=100,
         model="model",
         stream=True,
     )
 
-    with pytest.raises(UnsupportedInput, match="does not match the provider"):
-        AnthropicMessagesClient._native_request(request, capabilities=VLLM_CAPABILITIES)
+    body = AnthropicMessagesClient._native_request(
+        request, capabilities=PROVIDER_CAPABILITIES["anthropic"]
+    ).model_dump()
+    assert body["messages"][0]["content"] == [
+        {"type": "thinking", "thinking": "Raw", "signature": "opaque-state"}
+    ]
 
 
 def test_client_disables_thinking_without_output_effort():

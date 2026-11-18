@@ -1,0 +1,247 @@
+filename: 2026-11-17-01a1ea37-f4f7-7863-843b-7529516a454e
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - id: rs_41c356bb10094db899af23d02ef569ff
+      summary:
+      - text: 'We need to compute (2+3)=5, then add 5+4 =9. Use the add tool twice.
+
+
+          We must call function add with a=2 b=3. Then call again with a=result b=4.
+          Then give final answer.
+
+
+          We''ll need to output calls.'
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-97dd83b08a8858b6
+      id: fc_a5b8cb0550f74a028cd6b040ecd59d2b
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-97dd83b08a8858b6
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: true
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1144'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1ea37-f4f7-7863-843b-7529516a454e
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: 4775bd82-3ed4-4592-9cbf-fd6876784845
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_4e749290bffd462aaebe1c38a8360c6a","object":"response","created_at":1794930898,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_4e749290bffd462aaebe1c38a8360c6a","object":"response","created_at":1794930898,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"reasoning","id":"rs_8b44eb4be0d7479393272d7ed578fd01","status":"in_progress","summary":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.added","sequence_number":3,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":4,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"We"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":5,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    got"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":6,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    result"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":7,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    5"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":8,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":9,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    Now"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":10,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    add"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":11,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    5"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":12,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    and"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":13,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"
+    4"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":14,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":15,"output_index":1,"item":{"type":"function_call","id":"fc_03b10d96cd204c678c9a34b9a35c34e8","status":"in_progress","call_id":"chatcmpl-tool-8b5f27737986ef19","name":"add","arguments":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":16,"item_id":"fc_03b10d96cd204c678c9a34b9a35c34e8","output_index":1,"delta":"{\"a\":
+    "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":17,"item_id":"fc_03b10d96cd204c678c9a34b9a35c34e8","output_index":1,"delta":"5,
+    \"b\": "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":18,"item_id":"fc_03b10d96cd204c678c9a34b9a35c34e8","output_index":1,"delta":"4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.done","sequence_number":19,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"text":"We
+    got result 5. Now add 5 and 4."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.done","sequence_number":20,"item_id":"rs_8b44eb4be0d7479393272d7ed578fd01","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":"We
+    got result 5. Now add 5 and 4."}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":21,"output_index":0,"item":{"type":"reasoning","id":"rs_8b44eb4be0d7479393272d7ed578fd01","status":"completed","summary":[{"type":"summary_text","text":"We
+    got result 5. Now add 5 and 4."}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","sequence_number":22,"item_id":"fc_03b10d96cd204c678c9a34b9a35c34e8","output_index":1,"arguments":"{\"a\":
+    5, \"b\": 4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":23,"output_index":1,"item":{"type":"function_call","id":"fc_03b10d96cd204c678c9a34b9a35c34e8","status":"completed","call_id":"chatcmpl-tool-8b5f27737986ef19","name":"add","arguments":"{\"a\":
+    5, \"b\": 4}"}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":24,"response":{"id":"resp_4e749290bffd462aaebe1c38a8360c6a","object":"response","created_at":1794930898,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"rs_8b44eb4be0d7479393272d7ed578fd01","type":"reasoning","summary":[{"type":"summary_text","text":"We
+    got result 5. Now add 5 and 4."}]},{"id":"fc_03b10d96cd204c678c9a34b9a35c34e8","type":"function_call","call_id":"chatcmpl-tool-8b5f27737986ef19","name":"add","arguments":"{\"a\":
+    5, \"b\": 4}","status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":438,"output_tokens":46,"total_tokens":484,"input_tokens_details":{"cached_tokens":324},"output_tokens_details":{"reasoning_tokens":14}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":{"type":"function","name":"add"},"tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-17T15:54:58.167499+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

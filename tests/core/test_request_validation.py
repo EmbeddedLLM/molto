@@ -19,6 +19,7 @@ from openai.types.shared import Reasoning
 from pydantic import BaseModel, ValidationError, create_model
 
 from molto import Molto
+from molto.providers import Provider
 from molto.types.anthropic_messages import AnthropicMessagesCreateRequest
 from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.types.openai_responses import OpenAIResponsesCreateRequest
@@ -77,12 +78,21 @@ async def _assert_text_response_parity(result, protocol: Protocol, mode: str) ->
     _assert_matched_response(result, protocol, reference)
 
 
-@pytest.mark.parametrize("protocol", PROTOCOLS)
+@pytest.mark.parametrize(
+    ("protocol", "provider"),
+    [
+        ("responses", None),
+        ("chat/completions", None),
+        ("messages", None),
+        ("chat/completions", "gemini"),
+        ("chat/completions", "fireworks"),
+    ],
+)
 @pytest.mark.parametrize("stream", [False, True], ids=["non-stream", "stream"])
 async def test_native_requests_preserve_provider_fields_and_sdk_parity(
-    protocol: Protocol, stream: bool
+    protocol: Protocol, provider: Provider | None, stream: bool
 ) -> None:
-    """Ensures native input reaches the SDK unchanged while extensions stay body fields."""
+    """Ensures native extensions survive transport alongside provider-specific omissions."""
     mode = "stream" if stream else "non_stream"
     path = _matched_cassette_path("simple_text", protocol, f"{mode}-00.yaml")
     sdk_body = deepcopy(_read_cassette(path)["request"]["body"])
@@ -91,8 +101,11 @@ async def test_native_requests_preserve_provider_fields_and_sdk_parity(
     sdk_body["service_tier"] = "provider-specific-tier"
     message = _first_message(sdk_body, protocol)
     message["provider_message"] = {"value": None}
+    message["provider_message_null"] = None
     message["content"][0]["provider_part"] = True
     message["content"].append({"type": "provider-specific-part", "payload": {"value": None}})
+    if protocol == "chat/completions":
+        sdk_body["stream_options"] = {"include_usage": True, "include_obfuscation": False}
     extensions = {
         "provider_option": {"value": "body-value"},
         "provider_null": None,
@@ -101,14 +114,18 @@ async def test_native_requests_preserve_provider_fields_and_sdk_parity(
         "timeout": "body-only-timeout",
         "extra_body": {"body_only": "must-not-be-merged"},
     }
-    body = {**sdk_body, **extensions}
+    body = deepcopy({**sdk_body, **extensions})
     overrides = {"provider_option": {"value": "override"}, "top_p": 0.75}
     original_body = deepcopy(body)
     original_overrides = deepcopy(overrides)
-    expected = {**body, **overrides}
+    if provider in ("gemini", "fireworks"):
+        del sdk_body["messages"][0]["provider_message_null"]
+        sdk_body["stream_options"] = {"include_usage": True}
+    expected = {**sdk_body, **extensions, **overrides}
     requests: list[Request] = []
 
-    # Synthetic request extensions exercise forwarding, not live provider acceptance.
+    # Synthetic requests replay OpenAI/Anthropic responses to test forwarding,
+    # not live provider acceptance. Hosted Chat clients use the cassette URL.
     async with _get_http_client([path], protocol, expected_body=expected) as http_client:
         reference = await _sdk_result(
             http_client, protocol, sdk_body, extra_body={**extensions, **overrides}
@@ -119,7 +136,9 @@ async def test_native_requests_preserve_provider_fields_and_sdk_parity(
         result = await _coordinator(Molto(http_client=http_client), protocol)(
             body=body,
             endpoint=protocol,
+            provider=provider,
             api_key="test-api-key",
+            base_url="https://api.openai.com/v1" if provider is not None else None,
             extra_body=overrides,
         )
         if stream:

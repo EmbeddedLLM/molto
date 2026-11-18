@@ -1,0 +1,121 @@
+filename: 2026-11-05-01a1ac2f-9bde-75f0-b071-ffb1c61ea9cb
+request:
+  body:
+    max_completion_tokens: 512
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    model: global.openai.gpt-5.6-luna
+    parallel_tool_calls: false
+    reasoning_effort: none
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '634'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /openai/v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-9bde-75f0-b071-ffb1c61ea9cb
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: a398188a-ad5a-43bd-bc5e-e82dce44b90f
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"","role":"assistant","refusal":null},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"","name":"read_file"},"id":"call_4ec5112ac9b6527986ce6d4ff0540948","index":0,"type":"function"}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\""},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmno"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"path"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"\":\""},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"index"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRST"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":".txt"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"\"}"},"index":0}]},"finish_reason":null,"index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopq"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":"tool_calls","index":0}],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","system_fingerprint":null,"usage":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[],"created":1793890164,"id":"chatcmpl-ywd7d2vrp735e4wegtza2mils3lzmg746ball6nj6xn4xnfhfecq","model":"global.openai.gpt-5.6-luna","object":"chat.completion.chunk","service_tier":"default","usage":{"completion_tokens":19,"completion_tokens_details":{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":149,"prompt_tokens_details":{"audio_tokens":0,"cache_write_tokens":0,"cached_tokens":0},"total_tokens":168},"system_fingerprint":null,"obfuscation":"abcdefghijklmnopqrstuvwxyzABCD"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T14:49:23.678294+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/openai/v1/chat/completions

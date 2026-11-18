@@ -1,0 +1,223 @@
+filename: 2026-11-18-01a1edfe-436e-75b2-9256-919a223254fb
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Find the smallest positive integer divisible by 6, 8 and 9. Explain
+        briefly.
+      role: user
+    - extra_content:
+        google:
+          thought_signature: EuAHCt0HAWkUfROWTFcppcunA+BgWuAbfeoIFMelNhuhMrYJlCjStDvD0XWIbqnhFb/3WM4PUkv6l8mfuu6fBIZzHeTVimjC+u6Y0CsA9ezWlsV0KdgPGKDLLv0S2EMOneSm9jzOJ0jHmbt4SJsq5ndM3qxqdwfRqazeSwZ9+Rpy5T91n2Q/xI32CE/phzFOdtEfwDFgIG7LLXhc2l0kjM0OYkbGMVZ6+u9spvpM6eQXJQddso3PQeWoOAZjgKCQJX637qJsHdb1/mysQ0fxe2n/PNpMhNIx9HIE9R5moO5TB21bd+rfOnjDkAsVc8sPJurzpkw40wM6AffTMtruCV25o+8yCn/Dx1Ko6y/x8Sj30z6hsTgJvmpAE4laVfc4xOHLE7F4l9cKEafN57+YXLSy281vSByfcKSrW5kyx5uCY+ET2lp4C+CBK0qOUnRhK6T2FYOnj6gT44QB+/VdL9gJlmAO8zzGw2o4hGKPtz8xRNGAMFtNSdgkkpOjkfqIzjsnYKNBO7uaeOXwh5ru9tMu6DaHhOOQon4dbJ0ZVGHknWiwYn3jSvrdMkO+2MoxGQ8c4Z8Ay7WHolEbcgEJ2EgwKb8vO/2XwZAUXwxHDXXEQT0H120535owORV2PfOoHbf4MX4HcNsabIxHsZRyF8lBYzrrk1WrEm+GZv59X0GU7MM16k5nvfaRPzL3w6YX+ZK9W/rZ0fvD/hoFYogx+fzy/hl9mH6ghUANYRWgXdZpIXXkOUKCMovUT3CGi9Ji7P5Ho+jk29rhL839u5tMiYOpFOhhwjqSdwbELcSTbEEHOkbUP7+YP37VuDLMO5qUgpdwt353wPQGpT1tY+WkJCKtZauVoPi+26rM9qosEuoogUua7sfb85l2+7Jok2KPCxhZDoT/9dCEvCvB6Cd1L5mg3luei3iVtKSKJXZDC4Hz3406wEsa3WhuqRHy9EvXIqR4W3s7KSJm/CObgd53Ujz4sCFX98tpjbv7A/UmIheaaqQ0IsEomMU6al/uOKaCHvTk9w5XURdJRABJDCtT0gD7OmLywo9Lhir3OavddcDJnSQj5qDOFI5Wg7M6EaGvUAO64nJVUTMEKjV/+RiRIUR/3W42t/X2YjMfQiHBtW33sHDA8gJknknq5ZqffO7SN7Q7N/htigsyESqxr5sVohoSGRrU4qW+1mO2KdekKu5iOOaFrrniXCT01K1THZeJJ0HU/7SJ6IR5867sopd0PXRA6ChB/aCoOBnMncL4kVOzinJmTWNS4lMyq6CU11kSlHHcRemSqAXAzLMKrdOmj9IhRrDfSfPsLgm2DwL/1Y0Njf0=
+      reasoning_content: "<thought>**Finding the Least Common Multiple (LCM)**\n\n\
+        Okay, my task is clear: I need to determine the smallest positive integer\
+        \ that's divisible by 6, 8, and 9.  I recognize this as finding the Least\
+        \ Common Multiple (LCM) of these three numbers. Right, let's break this down\
+        \ systematically.\n\nFirst, I'll prime factorize each number to identify the\
+        \ prime building blocks.\n\n*   6 factors into 2 x 3\n*   8 factors into 2³\n\
+        *   9 factors into 3²\n\nNow I remember how to calculate the LCM.  I need\
+        \ to consider each unique prime factor that appears in any of the factorizations\
+        \ and raise it to its highest power across all the factorizations.\n\n*  \
+        \ The prime factors present are 2 and 3.\n*   The highest power of 2 is 2³\
+        \ (from the factorization of 8).\n*   The highest power of 3 is 3² (from the\
+        \ factorization of 9).\n\nTherefore, the LCM is the product of these highest\
+        \ powers: 2³ * 3².\n\nThis calculates to 8 * 9, which equals 72.\n\nTo ensure\
+        \ this is correct, I'll quickly verify that 72 is indeed divisible by all\
+        \ three numbers. 72 divided by 6 is 12, divisible. 72 divided by 8 is 9, divisible.\
+        \ 72 divided by 9 is 8, also divisible.\n\nTherefore, the final answer is\
+        \ 72. I've stated the goal as the LCM, shown the prime factorization, and\
+        \ calculated the correct result.\n\n\n</thought>To find the smallest positive\
+        \ integer divisible by 6, 8, and 9, you need to find their **Least Common\
+        \ Multiple (LCM)**.\n\n### Step-by-Step Calculation:\n\n1.  **Find the prime\
+        \ factorization of each number:**\n    *   **6** = $2 \\times 3$\n    *  \
+        \ **8** = $2^3$\n    *   **9** = $3^2$\n\n2.  **Identify the highest power\
+        \ of each prime factor present:**\n    *   The prime factors involved are\
+        \ **2** and **3**.\n    *   The highest power of 2 is **$2^3$** (from 8).\n\
+        \    *   The highest power of 3 is **$3^2$** (from 9).\n\n3.  **Multiply these\
+        \ highest powers together:**\n    *   LCM = $2^3 \\times 3^2$\n    *   LCM\
+        \ = $8 \\times 9$\n    *   LCM = **72**\n\n**Result:** The smallest positive\
+        \ integer divisible by 6, 8, and 9 is **72**."
+      role: assistant
+    - content: What is half that number?
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3806'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1edfe-436e-75b2-9256-919a223254fb
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: '<thought>**My Thought Process: Finding the LCM and Halving It**
+
+
+          Alright, let''s break this down. My goal is to find the smallest positive
+          integer divisible by 6, 8, and 9. That means I need to calculate the Least
+          Common Multiple (LCM) of these numbers.
+
+
+          My approach will be straightforward: prime factorization. I''ll break down
+          each number into its prime factors: 6 is 2 x 3, 8 is 2³, and 9 is 3².  To
+          find the LCM, I''ll take the highest power of each prime factor present
+          in any of the numbers.  So, I see the primes 2 and 3. The highest power
+          of 2 is 2³ (from 8), which equals 8. The highest power of 3 is 3² (from
+          9), which equals 9.
+
+
+          Therefore, the LCM is 8 multiplied by 9, which equals 72. I should probably
+          double-check that.  Okay, let''s see: 72 divided by 6 is 12, 72 divided
+          by 8 is 9, and 72 divided by 9 is 8. That checks out. I''ll also do a quick
+          mental check to see if any smaller number works. It looks like 72 is the
+          smallest.
+
+
+          So, the answer to Task 1 is 72. For Task 2, I need to briefly explain this.
+          I''ll just say that to calculate the LCM, I used the prime factorization
+          method. The LCM has to include all the factors of each number, but only
+          at their highest frequency.
+
+
+          Finally, Task 3 is asking for half of 72. That''s a simple calculation,
+          it''s 36.
+
+
+
+          </thought>The smallest positive integer divisible by 6, 8, and 9 is **72**.
+
+
+          ### Explanation:
+
+          To find this, you calculate the Least Common Multiple (LCM) by looking at
+          the prime factors of each number:
+
+          *   **6** = 2 × 3
+
+          *   **8** = 2³
+
+          *   **9** = 3²
+
+
+          To find the LCM, you take the highest power of each prime factor present
+          in these numbers:
+
+          *   The highest power of 2 is **2³ (8)**.
+
+          *   The highest power of 3 is **3² (9)**.
+
+
+          Multiplying these together: **8 × 9 = 72**.
+
+
+          ### Half of that number:
+
+          Half of 72 is **36**.'
+        extra_content:
+          google:
+            thought: true
+            thought_signature: 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
+        role: assistant
+    created: 1794994229
+    id: MnD9as3tBYKrqtsPxfDcsQc
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 168
+      prompt_tokens: 28
+      total_tokens: 755
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImNvbnRlbnQiOiI8dGhvdWdodD4qKk15IFRob3VnaHQgUHJvY2VzczogRmluZGluZyB0aGUgTENN
+    IGFuZCBIYWx2aW5nIEl0KipcblxuQWxyaWdodCwgbGV0J3MgYnJlYWsgdGhpcyBkb3duLiBNeSBn
+    b2FsIGlzIHRvIGZpbmQgdGhlIHNtYWxsZXN0IHBvc2l0aXZlIGludGVnZXIgZGl2aXNpYmxlIGJ5
+    IDYsIDgsIGFuZCA5LiBUaGF0IG1lYW5zIEkgbmVlZCB0byBjYWxjdWxhdGUgdGhlIExlYXN0IENv
+    bW1vbiBNdWx0aXBsZSAoTENNKSBvZiB0aGVzZSBudW1iZXJzLlxuXG5NeSBhcHByb2FjaCB3aWxs
+    IGJlIHN0cmFpZ2h0Zm9yd2FyZDogcHJpbWUgZmFjdG9yaXphdGlvbi4gSSdsbCBicmVhayBkb3du
+    IGVhY2ggbnVtYmVyIGludG8gaXRzIHByaW1lIGZhY3RvcnM6IDYgaXMgMiB4IDMsIDggaXMgMsKz
+    LCBhbmQgOSBpcyAzwrIuICBUbyBmaW5kIHRoZSBMQ00sIEknbGwgdGFrZSB0aGUgaGlnaGVzdCBw
+    b3dlciBvZiBlYWNoIHByaW1lIGZhY3RvciBwcmVzZW50IGluIGFueSBvZiB0aGUgbnVtYmVycy4g
+    IFNvLCBJIHNlZSB0aGUgcHJpbWVzIDIgYW5kIDMuIFRoZSBoaWdoZXN0IHBvd2VyIG9mIDIgaXMg
+    MsKzIChmcm9tIDgpLCB3aGljaCBlcXVhbHMgOC4gVGhlIGhpZ2hlc3QgcG93ZXIgb2YgMyBpcyAz
+    wrIgKGZyb20gOSksIHdoaWNoIGVxdWFscyA5LlxuXG5UaGVyZWZvcmUsIHRoZSBMQ00gaXMgOCBt
+    dWx0aXBsaWVkIGJ5IDksIHdoaWNoIGVxdWFscyA3Mi4gSSBzaG91bGQgcHJvYmFibHkgZG91Ymxl
+    LWNoZWNrIHRoYXQuICBPa2F5LCBsZXQncyBzZWU6IDcyIGRpdmlkZWQgYnkgNiBpcyAxMiwgNzIg
+    ZGl2aWRlZCBieSA4IGlzIDksIGFuZCA3MiBkaXZpZGVkIGJ5IDkgaXMgOC4gVGhhdCBjaGVja3Mg
+    b3V0LiBJJ2xsIGFsc28gZG8gYSBxdWljayBtZW50YWwgY2hlY2sgdG8gc2VlIGlmIGFueSBzbWFs
+    bGVyIG51bWJlciB3b3Jrcy4gSXQgbG9va3MgbGlrZSA3MiBpcyB0aGUgc21hbGxlc3QuXG5cblNv
+    LCB0aGUgYW5zd2VyIHRvIFRhc2sgMSBpcyA3Mi4gRm9yIFRhc2sgMiwgSSBuZWVkIHRvIGJyaWVm
+    bHkgZXhwbGFpbiB0aGlzLiBJJ2xsIGp1c3Qgc2F5IHRoYXQgdG8gY2FsY3VsYXRlIHRoZSBMQ00s
+    IEkgdXNlZCB0aGUgcHJpbWUgZmFjdG9yaXphdGlvbiBtZXRob2QuIFRoZSBMQ00gaGFzIHRvIGlu
+    Y2x1ZGUgYWxsIHRoZSBmYWN0b3JzIG9mIGVhY2ggbnVtYmVyLCBidXQgb25seSBhdCB0aGVpciBo
+    aWdoZXN0IGZyZXF1ZW5jeS5cblxuRmluYWxseSwgVGFzayAzIGlzIGFza2luZyBmb3IgaGFsZiBv
+    ZiA3Mi4gVGhhdCdzIGEgc2ltcGxlIGNhbGN1bGF0aW9uLCBpdCdzIDM2LlxuXG5cbjwvdGhvdWdo
+    dD5UaGUgc21hbGxlc3QgcG9zaXRpdmUgaW50ZWdlciBkaXZpc2libGUgYnkgNiwgOCwgYW5kIDkg
+    aXMgKio3MioqLlxuXG4jIyMgRXhwbGFuYXRpb246XG5UbyBmaW5kIHRoaXMsIHlvdSBjYWxjdWxh
+    dGUgdGhlIExlYXN0IENvbW1vbiBNdWx0aXBsZSAoTENNKSBieSBsb29raW5nIGF0IHRoZSBwcmlt
+    ZSBmYWN0b3JzIG9mIGVhY2ggbnVtYmVyOlxuKiAgICoqNioqID0gMiDDlyAzXG4qICAgKio4Kiog
+    PSAywrNcbiogICAqKjkqKiA9IDPCslxuXG5UbyBmaW5kIHRoZSBMQ00sIHlvdSB0YWtlIHRoZSBo
+    aWdoZXN0IHBvd2VyIG9mIGVhY2ggcHJpbWUgZmFjdG9yIHByZXNlbnQgaW4gdGhlc2UgbnVtYmVy
+    czpcbiogICBUaGUgaGlnaGVzdCBwb3dlciBvZiAyIGlzICoqMsKzICg4KSoqLlxuKiAgIFRoZSBo
+    aWdoZXN0IHBvd2VyIG9mIDMgaXMgKiozwrIgKDkpKiouXG5cbk11bHRpcGx5aW5nIHRoZXNlIHRv
+    Z2V0aGVyOiAqKjggw5cgOSA9IDcyKiouXG5cbiMjIyBIYWxmIG9mIHRoYXQgbnVtYmVyOlxuSGFs
+    ZiBvZiA3MiBpcyAqKjM2KiouIiwiZXh0cmFfY29udGVudCI6eyJnb29nbGUiOnsidGhvdWdodCI6
+    dHJ1ZSwidGhvdWdodF9zaWduYXR1cmUiOiJFdUlMQ3Q4TEFXa1VmUk1weE1nbEpXcU9UekorQ05N
+    aDc3RDZOWG5kNTkrNUNiRk01NzQzaFcwS1Bscjk2ajJJWm9xMDQvWG1PZUlKL1c2R0duWHRDNWhB
+    TXljSEUrWXhxREJBVjVlY2Q4ZE5RT0lLd21rcnRuWWcwRkZvU3VvS1Mrc2xPM09YOHBrZ0VVdUtY
+    cHU3d29lTXc2UWZ1ZE5hY01lR1orZTRaSFBGM1ZZS2d2M20rTGFjdFUxNFVoWXpVYVVRazFBeDRr
+    d2h1dFVsSU4xOGFJS3VMMW5vS01ENUNBaVFFYk41dE11NXF1dnpCL0FIQWZLa0haWER2ZTlhNkJS
+    RnJZbkc0TGU2cDBibFFGK2VKcHh5Z2UraTc5Q3RDSmNJL2REQ285OVJvYzRscmsreTNPQWpCTy9t
+    cmwxZHpzK3pVd29yaEFPRVFxc0tvWUNZOTlWbTg4YXc3eGxpMzFnRGxvRXZlZE5LSHh5WEZ5YklZ
+    OWw3MktpZjVRbnM5SEJ4OUxoZzJKS0lsODI1czFzUnEwdkZ2eDV6b2VhTXUwa3JVZW0zaXRsMEhE
+    aTZBQkxmc09yUlF2TlBTN2hvY1dESjZkVndDNDFpcmtmV1lmdDMrN3A2Qi9aQkdtT1FreHRWRkIr
+    b0JnUENlOE9XeGFCTjBUeHplTHRUdjcyNE1acHZaZ2I4M2NpNWRhWWtRbWdaeFczcVFPa2dNRDNC
+    cUhBTk9veDJhUnF2Z0JyY0prRnNyV0VyR2FoZDVucEZ0b1NWOTRpTURNMDJVbW1SYUlQVDBCZlFv
+    UXVNUnB5bDFRQjVaSGJMZXUyM3lBbTJhZ1NBTmRVR0F0M2ZsZEhnVXY5QWxBTVhMODFPVVRXSzln
+    UWlkY25Ock1ZY1BpYjFCb0hCVklIaFY1V0VBQ09NL3ZZeVA2NEJBMlJJMUNPQ0hZSGk0ckJIb2tJ
+    bXVRR1U4czAyOGFPZC9sYW5tR1Bnak9Ca3NOMHJvemVGRjc0QjNPUzZqbnFyYlFUVWgrd1p0YnVG
+    dzU3dzE5SGNXNm1pb21nNElvdk02UGtHODlCUHM2RVJBVDJKZmxwRFQzVXkweHdGamZkd040L2d1
+    MFovbkhFZHE4TVlrTXFRalV5ZERlck85OWx5bk9nclhzN0dMcm44WXg5SmxSVVZVR0hjU3VJeUZI
+    dWxOeE1McUV6cDE0OWNxdy9wSnVuUGdURGZWV0Q0WmhJU0MydTI1L2ZMbW1RTUYySnZ3TW5SNU11
+    QUpPKzkrdmJTV2ljSFJwTHlmZVBSMU45WkJ0ZklsZEEyZ3dGaENtdG1JSVYwS2lsdlRKQjhoKzR3
+    enVJZW1PMlgvckFvR2JxWG5uendJSDAzWGdiQjZoVkl3Rm9PRDhyeTdpZ3JsVllFaThaTVBBU0NN
+    cTd2ZHNFSU1McHdRVDhHelZuNzhiN2FERDV1Y21hRms3RjAxd00xc2N5QXJjMGxNOTZ3ZWVDdWln
+    YTBDSUZtNmordHB3bFhmTkt0RjRHUXg2Qisycms1c2U2ZHVpdE1PbWJIWENjdllac3c3WnZVVXlm
+    d2kveUIzb0dEdjZVNEZYNmVoVHBDZnp1QlZNYzEyY2JnS2dSOTMybE1nOGtyZURrMnVra1NGbncv
+    YWl4dnpGM20rNW5mL0dEUWFteXFxcmM0Zk45RnZreWxmQkdRY3MyTUgxaEZlb2ZPeEtNcktDekFC
+    eGVFRFdqMS9hOXFUazQ0enk4RC9OZkZmaUwyM3pvdXYrZ25zd094WStMWDlpVkx2OWVqM3haNFk5
+    emowT2ljd0cxMzVJaTBkcnZFMzY3aGNvS3pIcGFvOCtqOW4wb1plSTcwMFl6bXAyZ0VOM2hsZHNJ
+    SnBUZFlsb0l3bURaajBPS3hsVzh3MDdiL3VFckRyZVd1N3FKR3JjenlsTnhNUGwwcGVZNUx2OFRB
+    bTRmQVE4OGFjNVhSSzNCNzZvZ3RUR0lsdlVhaCtPZjlxenN1TkNRMURia1JnVERWU3E1VFRyT0xz
+    N3FwTEtQMVhnSjhYSjIxZnlHQ1Judk0zU2JnT0xiWWY2QThQTEtoR0FUUXByNlExNVZnMXpFSCs3
+    L1dlVWloY29sb2tWYktqS1hRSi9qSFVYak9ZdlBUOEtlSS8vNXhFY0k5cHJDdFljY3dxYmtFZ29P
+    S3lmWHFVRGVuY1NjNjd1ZStBTmlDVHFnSndjOVIzS1lpMkt3K05USVp5R1V3UDJ6b3dSNitoS3Vh
+    YjdIZ2ZrUEtMcHY0N0NDNTV1a0x5NVlQRjlJQW1scmwrd1NQOVNIVTJISytaQ0pIOVJtWERiVmVL
+    SUtTaGR5SUZtR2tlMDlhNGh4TzQ2cmp3ZHllTE44S1pjODBXb2RVVVRGRzZzMVI2TkxCb3dBUXcx
+    TU54TEprakFNRitXbnBWUXgrdE9hQ0lFVElnMGt0dFo5bitCc29Vb2hzcUM4QkVVWXdzeVVWc3d1
+    RGg4SnBPYXNZaUxGUFpqV3htT2FGaDlwZ1ZQNnhiRXJsa2JhQnNTeVlralhiWVpQL251akdQUWto
+    d2s1MkkrNlZCd1VUY2RlM2YrL3MwVkE3Q2gwblB5bkRqbGVIbmtldHBWQ1hnbnZpaEJFc0hYbG1v
+    Nm41UFZOeXg4dFpZTmJnU2F6cEFXcjdIRlZ1VzV0dHluYnpWalJXRmd4RiJ9fSwicm9sZSI6ImFz
+    c2lzdGFudCJ9fV0sImNyZWF0ZWQiOjE3OTQ5OTQyMjksImlkIjoiTW5EOWFzM3RCWUtycXRzUHhm
+    RGNzUWMiLCJtb2RlbCI6ImdlbWluaS0zLjEtZmxhc2gtbGl0ZSIsIm9iamVjdCI6ImNoYXQuY29t
+    cGxldGlvbiIsInVzYWdlIjp7ImNvbXBsZXRpb25fdG9rZW5zIjoxNjgsInByb21wdF90b2tlbnMi
+    OjI4LCJ0b3RhbF90b2tlbnMiOjc1NX19
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-18T09:30:26.030540+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

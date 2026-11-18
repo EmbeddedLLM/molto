@@ -1,0 +1,156 @@
+filename: 2026-11-17-01a1ea37-fe18-7b82-9c77-00130eb66c97
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - id: rs_704a24b85bb445419610b1e5090edd62
+      summary:
+      - text: We need to compute 2+3 = 5 using add. Then add result (5) and 4 => 9.
+          Then give final answer. So we need to call function add twice. Let's do
+          first add.
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-87f4a9b204f8b80f
+      id: fc_dc20d6c680fe4368b4f5b544fcba64dd
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-87f4a9b204f8b80f
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1096'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1ea37-fe18-7b82-9c77-00130eb66c97
+response:
+  body:
+    background: null
+    created_at: 1794930901
+    error: null
+    id: resp_8334e866d522439d8f0a3995b84e1dd7
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - id: rs_c235d3f2dcd9460bab71cc61421c24b7
+      summary:
+      - text: Now we have result 5. Use add with a=5, b=4.
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 5, "b": 4}'
+      call_id: chatcmpl-tool-879d5d7ec08916b9
+      id: fc_5ecc3d5e10194ae387628446f10346f2
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    previous_response_id: null
+    reasoning:
+      effort: low
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 423
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 50
+      output_tokens_details:
+        reasoning_tokens: 18
+      total_tokens: 473
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfODMzNGU4NjZkNTIyNDM5ZDhmMGEzOTk1Yjg0ZTFkZDciLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTQ5MzA5MDEsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoicnNfYzIzNWQzZjJkY2Q5NDYwYmFiNzFjYzYxNDIxYzI0
+    YjciLCJ0eXBlIjoicmVhc29uaW5nIiwic3VtbWFyeSI6W3sidHlwZSI6InN1bW1hcnlfdGV4dCIs
+    InRleHQiOiJOb3cgd2UgaGF2ZSByZXN1bHQgNS4gVXNlIGFkZCB3aXRoIGE9NSwgYj00LiJ9XX0s
+    eyJpZCI6ImZjXzVlY2MzZDVlMTAxOTRhZTM4NzYyODQ0NmYxMDM0NmYyIiwidHlwZSI6ImZ1bmN0
+    aW9uX2NhbGwiLCJjYWxsX2lkIjoiY2hhdGNtcGwtdG9vbC04NzlkNWQ3ZWMwODkxNmI5IiwibmFt
+    ZSI6ImFkZCIsImFyZ3VtZW50cyI6IntcImFcIjogNSwgXCJiXCI6IDR9Iiwic3RhdHVzIjoiY29t
+    cGxldGVkIn1dLCJwcmV2aW91c19yZXNwb25zZV9pZCI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9r
+    ZW5zIjo0MjMsIm91dHB1dF90b2tlbnMiOjUwLCJ0b3RhbF90b2tlbnMiOjQ3MywiaW5wdXRfdG9r
+    ZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnNfZGV0YWlscyI6
+    eyJyZWFzb25pbmdfdG9rZW5zIjoxOH19LCJlcnJvciI6bnVsbCwiaW5jb21wbGV0ZV9kZXRhaWxz
+    IjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRwdXRfdG9rZW5zIjoyMDQ4LCJtYXhf
+    dG9vbF9jYWxscyI6bnVsbCwicGFyYWxsZWxfdG9vbF9jYWxscyI6ZmFsc2UsInJlYXNvbmluZyI6
+    eyJlZmZvcnQiOiJsb3cifSwic3RvcmUiOmZhbHNlLCJ0ZW1wZXJhdHVyZSI6MS4wLCJ0ZXh0Ijp7
+    ImZvcm1hdCI6eyJ0eXBlIjoidGV4dCJ9fSwidG9vbF9jaG9pY2UiOnsidHlwZSI6ImZ1bmN0aW9u
+    IiwibmFtZSI6ImFkZCJ9LCJ0b29scyI6W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFkZCIs
+    ImRlc2NyaXB0aW9uIjoiQWRkIHR3byBpbnRlZ2Vycy4iLCJwYXJhbWV0ZXJzIjp7InR5cGUiOiJv
+    YmplY3QiLCJwcm9wZXJ0aWVzIjp7ImEiOnsidHlwZSI6ImludGVnZXIifSwiYiI6eyJ0eXBlIjoi
+    aW50ZWdlciJ9fSwicmVxdWlyZWQiOlsiYSIsImIiXSwiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZh
+    bHNlfX1dLCJ0b3BfcCI6MC45NSwidG9wX2xvZ3Byb2JzIjpudWxsLCJ0cnVuY2F0aW9uIjoiZGlz
+    YWJsZWQiLCJ1c2VyIjpudWxsLCJiYWNrZ3JvdW5kIjpudWxsLCJtZXRhZGF0YSI6e319
+  headers:
+    connection: keep-alive
+    content-length: '1305'
+    content-type: application/json
+    x-request-id: bc811b03-005a-482b-bf22-8c9a7f082c45
+  status_code: 200
+timestamp: '2026-11-17T15:55:00.504591+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

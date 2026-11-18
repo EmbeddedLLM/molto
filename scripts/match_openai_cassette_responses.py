@@ -195,6 +195,8 @@ def _map_usage(response_usage: dict[str, Any], chat_usage: dict[str, Any]) -> No
     chat_usage["total_tokens"] = response_usage["total_tokens"]
 
     input_details = response_usage.get("input_tokens_details") or {}
+    if "cache_write_tokens" not in input_details and chat_usage.get("prompt_tokens_details"):
+        chat_usage["prompt_tokens_details"].pop("cache_write_tokens", None)
     prompt_details = {
         field: input_details[field]
         for field in ("cache_write_tokens", "cached_tokens")

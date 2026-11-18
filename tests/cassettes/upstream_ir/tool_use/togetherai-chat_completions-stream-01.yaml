@@ -1,0 +1,116 @@
+filename: 2026-11-05-01a1ac2f-ef7d-74d3-a8a3-79e66e3c21e6
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    - annotations: null
+      audio: null
+      content: null
+      function_call: null
+      reasoning_content: null
+      refusal: null
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"path": "index.txt"}'
+          name: read_file
+        id: call_01a1ac2feea07fe2b00e3a32
+        type: function
+    - content: garden.txt
+      role: tool
+      tool_call_id: call_01a1ac2feea07fe2b00e3a32
+    model: Qwen/Qwen3.5-9B
+    parallel_tool_calls: false
+    reasoning:
+      enabled: false
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '987'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ac2f-ef7d-74d3-a8a3-79e66e3c21e6
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: a42f4dd2-aws_as1
+  sse:
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_01a1ac2ff05a7671aecc4e96","type":"function","function":{"name":"read_file"}}],"reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"function":{"arguments":"{\"path\":
+    \"garden.txt\""}}],"reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"function":{"arguments":"}"}}],"reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":null},"logprobs":null,"finish_reason":"tool_calls","matched_stop":248046}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"a42f4dd2-aws_as1","object":"chat.completion.chunk","created":1793890185,"model":"Qwen/Qwen3.5-9B","system_fingerprint":"default","choices":[],"usage":{"prompt_tokens":354,"completion_tokens":27,"total_tokens":381,"prompt_tokens_details":{"cached_tokens":256}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-05T14:49:45.085233+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

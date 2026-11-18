@@ -1,0 +1,139 @@
+filename: 2026-11-18-01a1ee03-ae1f-7dd3-8a79-5a2cfb8dc950
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add for 2 + 3, then use add for that result + 4, then report the
+        final answer.
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: false
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '529'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1ee03-ae1f-7dd3-8a79-5a2cfb8dc950
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: '<thought>**My Calculation Process**
+
+
+          Alright, let''s break this down. My goal is to add some numbers together
+          in a series of steps. It''s a straightforward arithmetic problem, really.
+          I need to use an "add" tool for this, which seems simple enough.
+
+
+          First, I''ll take 2 and 3 and add them together. The system is instructing
+          me to call the "add" function with those specific numbers. The expected
+          outcome here should be 5, which seems correct. I''ll mentally check it to
+          be sure.
+
+
+          Next, I take the result from that first calculation, which is 5, and I add
+          4 to it, again using the "add" tool. I expect to get 9 here.
+
+
+          Finally, I just have to report the final result, which is the 9 from the
+          second calculation. Basically, it’s a two-step process: `add(2, 3)` then
+          `add(result_from_step1, 4)`, and finally, the output.
+
+
+
+          </thought>'
+        extra_content:
+          google:
+            thought: true
+        role: assistant
+        tool_calls:
+        - extra_content:
+            google:
+              thought_signature: EuEECt4EAWkUfROlRmusje4h46Y+IE1KD5GkENSXTTrHbWBVozezh6zEjYscYBgY0QokZRG2eg3DJk8mVSxxDtkhpx1mU1CIgpkcvqdpTK9irMmC7uz+6QEwfofVGiijnm0cr7k1Nlg9qt35+pdIHq1o4dn3B1xn+ouiSq2y69PLSMmjKRstyi1WB87YvrBXLXBbmWJZH0W2/w1OPdVLra69XF5yUj7mSDS3L1Y42LYVAxS1LuG9T3mxwpw/QzGrT61leKL+nAiEgGnmvZCaLjUpoQN2+Bu6sURto5djHLB/RtOkCE6BQ2el1MT2ynR+Sg8x2P1qV/ZCVOnYsua0ALzbpSSGg2MduXwplP6u71YRxuA6aRdFJa29jDZ98T26UwtPCCNn7fdKhGht/cKizhb8Ebj6xBI2F2X1QpQh2p9LxTfgkUPuWHEGYO8DfcHzNjoFz2mkP5QFfDDR0qyooNfGWLM6bczIAXW8Xyr/MN7PNLe8fujNRZCop1DYjBTE4dH5Y67+NJLqdTw6VDCgDTobZQArlHzqNQQyfqU5ttDAlPnyAxKtjl0BdSxHkFQgiVY6j5N5l/p/FqQD+emQP2RqP1YEsJ8BXvMq9Oiga1ncPr3Rxx5fUlBMzy8DrjidQusEuSuEzOCXzeD2n3wUE7Wsehi9TKkVU4aPA3pVSoSa0Vxf5UVtdpXqJiwbYz4LDOlNNqo5UCeuYyCwXwVWnEF4mWrq4G1xb/xQ5R8VIvd30q/Lqk9AlHF+AMYTxzl04UD7yQfsOiY3s9WkuGmkwlimsLGrEVk3RRMOXWHtUSw0cnnb
+          function:
+            arguments: '{"b":3,"a":2}'
+            name: add
+          id: call_1242298174733071490
+          type: function
+    created: 1794994583
+    id: lXH9arrDBbjtz7IPnvqfyAs
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 16
+      prompt_tokens: 77
+      total_tokens: 272
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJtZXNz
+    YWdlIjp7ImNvbnRlbnQiOiI8dGhvdWdodD4qKk15IENhbGN1bGF0aW9uIFByb2Nlc3MqKlxuXG5B
+    bHJpZ2h0LCBsZXQncyBicmVhayB0aGlzIGRvd24uIE15IGdvYWwgaXMgdG8gYWRkIHNvbWUgbnVt
+    YmVycyB0b2dldGhlciBpbiBhIHNlcmllcyBvZiBzdGVwcy4gSXQncyBhIHN0cmFpZ2h0Zm9yd2Fy
+    ZCBhcml0aG1ldGljIHByb2JsZW0sIHJlYWxseS4gSSBuZWVkIHRvIHVzZSBhbiBcImFkZFwiIHRv
+    b2wgZm9yIHRoaXMsIHdoaWNoIHNlZW1zIHNpbXBsZSBlbm91Z2guXG5cbkZpcnN0LCBJJ2xsIHRh
+    a2UgMiBhbmQgMyBhbmQgYWRkIHRoZW0gdG9nZXRoZXIuIFRoZSBzeXN0ZW0gaXMgaW5zdHJ1Y3Rp
+    bmcgbWUgdG8gY2FsbCB0aGUgXCJhZGRcIiBmdW5jdGlvbiB3aXRoIHRob3NlIHNwZWNpZmljIG51
+    bWJlcnMuIFRoZSBleHBlY3RlZCBvdXRjb21lIGhlcmUgc2hvdWxkIGJlIDUsIHdoaWNoIHNlZW1z
+    IGNvcnJlY3QuIEknbGwgbWVudGFsbHkgY2hlY2sgaXQgdG8gYmUgc3VyZS5cblxuTmV4dCwgSSB0
+    YWtlIHRoZSByZXN1bHQgZnJvbSB0aGF0IGZpcnN0IGNhbGN1bGF0aW9uLCB3aGljaCBpcyA1LCBh
+    bmQgSSBhZGQgNCB0byBpdCwgYWdhaW4gdXNpbmcgdGhlIFwiYWRkXCIgdG9vbC4gSSBleHBlY3Qg
+    dG8gZ2V0IDkgaGVyZS5cblxuRmluYWxseSwgSSBqdXN0IGhhdmUgdG8gcmVwb3J0IHRoZSBmaW5h
+    bCByZXN1bHQsIHdoaWNoIGlzIHRoZSA5IGZyb20gdGhlIHNlY29uZCBjYWxjdWxhdGlvbi4gQmFz
+    aWNhbGx5LCBpdOKAmXMgYSB0d28tc3RlcCBwcm9jZXNzOiBgYWRkKDIsIDMpYCB0aGVuIGBhZGQo
+    cmVzdWx0X2Zyb21fc3RlcDEsIDQpYCwgYW5kIGZpbmFsbHksIHRoZSBvdXRwdXQuXG5cblxuPC90
+    aG91Z2h0PiIsImV4dHJhX2NvbnRlbnQiOnsiZ29vZ2xlIjp7InRob3VnaHQiOnRydWV9fSwicm9s
+    ZSI6ImFzc2lzdGFudCIsInRvb2xfY2FsbHMiOlt7ImV4dHJhX2NvbnRlbnQiOnsiZ29vZ2xlIjp7
+    InRob3VnaHRfc2lnbmF0dXJlIjoiRXVFRUN0NEVBV2tVZlJPbFJtdXNqZTRoNDZZK0lFMUtENUdr
+    RU5TWFRUckhiV0JWb3plemg2ekVqWXNjWUJnWTBRb2taUkcyZWczREprOG1WU3h4RHRraHB4MW1V
+    MUNJZ3BrY3ZxZHBUSzlpck1tQzd1eis2UUV3Zm9mVkdpaWpubTBjcjdrMU5sZzlxdDM1K3BkSUhx
+    MW80ZG4zQjF4bitvdWlTcTJ5NjlQTFNNbWpLUnN0eWkxV0I4N1l2ckJYTFhCYm1XSlpIMFcyL3cx
+    T1BkVkxyYTY5WEY1eVVqN21TRFMzTDFZNDJMWVZBeFMxTHVHOVQzbXh3cHcvUXpHclQ2MWxlS0wr
+    bkFpRWdHbm12WkNhTGpVcG9RTjIrQnU2c1VSdG81ZGpITEIvUnRPa0NFNkJRMmVsMU1UMnluUitT
+    Zzh4MlAxcVYvWkNWT25Zc3VhMEFMemJwU1NHZzJNZHVYd3BsUDZ1NzFZUnh1QTZhUmRGSmEyOWpE
+    Wjk4VDI2VXd0UENDTm43ZmRLaEdodC9jS2l6aGI4RWJqNnhCSTJGMlgxUXBRaDJwOUx4VGZna1VQ
+    dVdIRUdZTzhEZmNIek5qb0Z6Mm1rUDVRRmZERFIwcXlvb05mR1dMTTZiY3pJQVhXOFh5ci9NTjdQ
+    TkxlOGZ1ak5SWkNvcDFEWWpCVEU0ZEg1WTY3K05KTHFkVHc2VkRDZ0RUb2JaUUFybEh6cU5RUXlm
+    cVU1dHREQWxQbnlBeEt0amwwQmRTeEhrRlFnaVZZNmo1TjVsL3AvRnFRRCtlbVFQMlJxUDFZRXNK
+    OEJYdk1xOU9pZ2ExbmNQcjNSeHg1ZlVsQk16eThEcmppZFF1c0V1U3VFek9DWHplRDJuM3dVRTdX
+    c2VoaTlUS2tWVTRhUEEzcFZTb1NhMFZ4ZjVVVnRkcFhxSml3Yll6NExET2xOTnFvNVVDZXVZeUN3
+    WHdWV25FRjRtV3JxNEcxeGIveFE1UjhWSXZkMzBxL0xxazlBbEhGK0FNWVR4emwwNFVEN3lRZnNP
+    aVkzczlXa3VHbWt3bGltc0xHckVWazNSUk1PWFdIdFVTdzBjbm5iIn19LCJmdW5jdGlvbiI6eyJh
+    cmd1bWVudHMiOiJ7XCJiXCI6MyxcImFcIjoyfSIsIm5hbWUiOiJhZGQifSwiaWQiOiJjYWxsXzEy
+    NDIyOTgxNzQ3MzMwNzE0OTAiLCJ0eXBlIjoiZnVuY3Rpb24ifV19fV0sImNyZWF0ZWQiOjE3OTQ5
+    OTQ1ODMsImlkIjoibFhIOWFyckRCYmp0ejdJUG52cWZ5QXMiLCJtb2RlbCI6ImdlbWluaS0zLjEt
+    Zmxhc2gtbGl0ZSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbiIsInVzYWdlIjp7ImNvbXBsZXRp
+    b25fdG9rZW5zIjoxNiwicHJvbXB0X3Rva2VucyI6NzcsInRvdGFsX3Rva2VucyI6MjcyfX0=
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-18T09:36:21.023880+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

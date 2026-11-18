@@ -1,0 +1,158 @@
+filename: 2026-11-04-01a1a479-7e00-7951-98ee-32573dd402c6
+request:
+  body:
+    input:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+    tool_choice: required
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '541'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-7e00-7951-98ee-32573dd402c6
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: 846998ef-4b53-41f9-9113-9e716da053f8
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_44b508d0927e47c3bb22f4c79972f083","object":"response","created_at":1793760788,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"required","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_44b508d0927e47c3bb22f4c79972f083","object":"response","created_at":1793760788,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"required","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"function_call","id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","status":"in_progress","call_id":"chatcmpl-tool-a630711f382d718e","name":"add","arguments":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":3,"item_id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","output_index":0,"delta":"{\"a\":
+    "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":4,"item_id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","output_index":0,"delta":"2,
+    \"b\": "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":5,"item_id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","output_index":0,"delta":"3}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":6,"output_index":1,"item":{"type":"function_call","id":"fc_f393ec47f62942a29937cb8dfe7397b0","status":"in_progress","call_id":"chatcmpl-tool-b644be70919a8670","name":"add","arguments":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":7,"item_id":"fc_f393ec47f62942a29937cb8dfe7397b0","output_index":1,"delta":"{\"a\":
+    "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":8,"item_id":"fc_f393ec47f62942a29937cb8dfe7397b0","output_index":1,"delta":"7,
+    \"b\": "}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.delta","sequence_number":9,"item_id":"fc_f393ec47f62942a29937cb8dfe7397b0","output_index":1,"delta":"4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","sequence_number":10,"item_id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","output_index":0,"arguments":"{\"a\":
+    2, \"b\": 3}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":11,"output_index":0,"item":{"type":"function_call","id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","status":"completed","call_id":"chatcmpl-tool-a630711f382d718e","name":"add","arguments":"{\"a\":
+    2, \"b\": 3}"}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.function_call_arguments.done","sequence_number":12,"item_id":"fc_f393ec47f62942a29937cb8dfe7397b0","output_index":1,"arguments":"{\"a\":
+    7, \"b\": 4}"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":13,"output_index":1,"item":{"type":"function_call","id":"fc_f393ec47f62942a29937cb8dfe7397b0","status":"completed","call_id":"chatcmpl-tool-b644be70919a8670","name":"add","arguments":"{\"a\":
+    7, \"b\": 4}"}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":14,"response":{"id":"resp_44b508d0927e47c3bb22f4c79972f083","object":"response","created_at":1793760788,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"fc_9fc68cf37d3c4b2bba4bc3ffcc5479a7","type":"function_call","call_id":"chatcmpl-tool-a630711f382d718e","name":"add","arguments":"{\"a\":
+    2, \"b\": 3}","status":"completed"},{"id":"fc_f393ec47f62942a29937cb8dfe7397b0","type":"function_call","call_id":"chatcmpl-tool-b644be70919a8670","name":"add","arguments":"{\"a\":
+    7, \"b\": 4}","status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":320,"output_tokens":61,"total_tokens":381,"input_tokens_details":{"cached_tokens":319},"output_tokens_details":{"reasoning_tokens":0}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"required","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:53:07.968453+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

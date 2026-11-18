@@ -1,0 +1,89 @@
+filename: 2026-11-17-01a1ea64-559a-7dc2-bfb5-9886b1cf860b
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: openai.gpt-oss-20b
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '564'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea64-559a-7dc2-bfb5-9886b1cf860b
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      logprobs: null
+      message:
+        content: null
+        reasoning: Need to call add twice.
+        refusal: null
+        role: assistant
+        tool_calls:
+        - function:
+            arguments: '{"a":2,"b":3}'
+            name: add
+          id: chatcmpl-tool-83c5f09c50ddba50
+          type: function
+    created: 1794933807
+    id: chatcmpl-ba2e06e1-672e-4011-8deb-fe8476f24a4e
+    model: openai.gpt-oss-20b
+    object: chat.completion
+    service_tier: default
+    usage:
+      completion_tokens: 33
+      prompt_tokens: 150
+      total_tokens: 183
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJsb2dw
+    cm9icyI6bnVsbCwibWVzc2FnZSI6eyJjb250ZW50IjpudWxsLCJyZWFzb25pbmciOiJOZWVkIHRv
+    IGNhbGwgYWRkIHR3aWNlLiIsInJlZnVzYWwiOm51bGwsInJvbGUiOiJhc3Npc3RhbnQiLCJ0b29s
+    X2NhbGxzIjpbeyJmdW5jdGlvbiI6eyJhcmd1bWVudHMiOiJ7XCJhXCI6MixcImJcIjozfSIsIm5h
+    bWUiOiJhZGQifSwiaWQiOiJjaGF0Y21wbC10b29sLTgzYzVmMDljNTBkZGJhNTAiLCJ0eXBlIjoi
+    ZnVuY3Rpb24ifV19fV0sImNyZWF0ZWQiOjE3OTQ5MzM4MDcsImlkIjoiY2hhdGNtcGwtYmEyZTA2
+    ZTEtNjcyZS00MDExLThkZWItZmU4NDc2ZjI0YTRlIiwibW9kZWwiOiJvcGVuYWkuZ3B0LW9zcy0y
+    MGIiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0Iiwi
+    dXNhZ2UiOnsiY29tcGxldGlvbl90b2tlbnMiOjMzLCJwcm9tcHRfdG9rZW5zIjoxNTAsInRvdGFs
+    X3Rva2VucyI6MTgzfX0=
+  headers:
+    connection: keep-alive
+    content-length: '527'
+    content-type: application/json
+    x-request-id: req_kcpg6fylfyfjcnldwnn3adzsl2ppyv7iwovd6ppsszwzanfflamq
+  status_code: 200
+timestamp: '2026-11-17T16:43:26.490140+00:00'
+upstream_url: https://bedrock-mantle.us-west-2.api.aws/v1/chat/completions
