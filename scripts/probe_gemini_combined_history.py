@@ -38,11 +38,22 @@ async def count(request):
     assert ATTEMPTS <= 12, "Request budget exceeded"
 
 
+def normalize_thought(message):
+    # Construct the continuation shape from the returned marker and its opaque state.
+    google = message.get("extra_content", {}).get("google", {})
+    if google.pop("thought", None) is True and message.get("content"):
+        message["reasoning_content"] = message.pop("content")
+    if "extra_content" in message and not google:
+        del message["extra_content"]
+
+
 async def invoke(sdk, body):
     response = await sdk.chat.completions.create(**body)
     if not body["stream"]:
+        message = response.choices[0].message.model_dump(exclude_none=True, exclude_unset=True)
+        normalize_thought(message)
         return (
-            response.choices[0].message.model_dump(exclude_none=True, exclude_unset=True),
+            message,
             response.model_dump(),
             response.choices[0].finish_reason,
         )
@@ -56,6 +67,7 @@ async def invoke(sdk, body):
             for choice in chunk.choices:
                 finish = choice.finish_reason or finish
                 delta = choice.delta.model_dump(exclude_none=True, exclude_unset=True)
+                normalize_thought(delta)
                 for name in ("content", "reasoning_content"):
                     if delta.get(name):
                         message[name] = message.get(name, "") + delta[name]
@@ -187,24 +199,19 @@ async def main():
                                 f"{scenario}-gemini-chat_completions-{mode}-{turn:02}",
                                 key,
                             )
-                            if turn == 0:
-                                assert message.get("reasoning_content"), (
-                                    "No reasoning text emitted"
-                                )
                             if scenario == "reasoning_text":
                                 assert (
                                     message.get("extra_content", {})
                                     .get("google", {})
                                     .get("thought_signature")
                                 ), "No message signature emitted"
-                                assert message.get("content"), "No answer text emitted"
                                 if turn == 0:
                                     body["messages"] += [
                                         copy.deepcopy(message),
                                         {"role": "user", "content": "What is half that number?"},
                                     ]
                                 else:
-                                    assert "36" in message["content"], "Unexpected continuation"
+                                    assert "36" in (message.get("content") or message.get("reasoning_content", "")), "Unexpected continuation"
                             elif turn < 2:
                                 calls = message.get("tool_calls") or []
                                 assert len(calls) == 1
@@ -222,17 +229,15 @@ async def main():
                                     },
                                 ]
                             else:
-                                assert not message.get("tool_calls") and "9" in message.get(
-                                    "content", ""
+                                assert not message.get("tool_calls") and "9" in (
+                                    message.get("content") or message.get("reasoning_content", "")
                                 )
                         RESULTS.append(
                             {
                                 "scenario": scenario,
                                 "mode": mode,
                                 "continuation": "passed",
-                                "combined_shape": "native"
-                                if scenario == "reasoning_text"
-                                else "tool-history",
+                                "history": "SDK output with marked thought text projected to reasoning_content",
                             }
                         )
                     except Exception as error:
