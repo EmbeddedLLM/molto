@@ -15,6 +15,7 @@ import openai
 from anthropic.types import MessageDeltaUsage
 from anthropic.types import Usage as AnthropicUsage
 from httpx import URL, InvalidURL
+from loguru import logger
 from openai.types import CompletionUsage
 from opentelemetry import trace
 from opentelemetry.trace import Span
@@ -103,7 +104,7 @@ ErrorPhase = Literal["setup", "stream"]
 # dropped it without closing it, or it failed. Set on every streaming span, including
 # failures before the first event.
 StreamOutcome = Literal["completed", "closed", "cancelled", "error", "abandoned"]
-# Native extractors can meet a provider that omits a field; `SpanRecorder.set` drops
+# Native extractors can meet a provider that omits a field; `SpanRecorder.set_known` drops
 # the `None` values.
 MaybeAttributes: TypeAlias = dict[str, AttributeValue | None]
 
@@ -183,8 +184,12 @@ def start_attributes(
         value = _field(body, name)
         if _is_int(value) or isinstance(value, float):
             attributes[key] = float(value)
-    # Matches the coordinators, which stream only when `stream` is exactly `True`.
-    if _field(body, "stream") is True:
+    # Matches each route's coordinator. Native passthrough streams for any truthy
+    # `stream`, as the SDKs do; translated routes validate it as `Literal[True, False]`,
+    # which compares by equality, so they stream for `1` and `1.0` but reject strings.
+    stream = _field(body, "stream")
+    native = attributes[MOLTO_ROUTE] == "native"
+    if bool(stream) if native else stream == True:  # noqa: E712
         attributes[GEN_AI_REQUEST_STREAM] = True
     attributes.update(_server_attributes(route.base_url))
     return attributes
@@ -477,7 +482,11 @@ _RESPONSES_CONTENT_DELTAS = frozenset(
         "response.refusal.delta",
     }
 )
-_RESPONSES_TERMINAL_EVENTS = frozenset({"response.completed", "response.incomplete"})
+# The SDK raises only on a separate `error` event, so a `response.failed` that arrives
+# without one passes through native streaming and must still be recorded.
+_RESPONSES_TERMINAL_EVENTS = frozenset(
+    {"response.completed", "response.incomplete", "response.failed"}
+)
 # Messages content-block delta types that carry content, mapped to their text field.
 _MESSAGES_CONTENT_DELTAS = {
     "text_delta": "text",
@@ -493,8 +502,21 @@ async def observe[EventT](
     # Closing this wrapper must close the source and release its HTTP response.
     async with aclosing(events) as source:
         async for event in source:
-            record(event)
+            record_safely(record, event)
             yield event
+
+
+def record_safely[ValueT](record: Callable[[ValueT], None], value: ValueT) -> None:
+    """Pass `value` to `record`; a recording failure loses attributes, never the call.
+
+    Native output is unvalidated, so a provider can send a value no extractor expects.
+    """
+    try:
+        record(value)
+    except Exception as error:
+        # Only the class: loguru's traceback diagnosis prints local values, which can
+        # hold request or completion content.
+        logger.debug("Molto could not record span attributes: {}", type(error).__name__)
 
 
 class SpanRecorder:
@@ -509,52 +531,52 @@ class SpanRecorder:
         self._span = span
         self._streaming = streaming
         self._first_token_recorded = False
+        self._chat_identity: tuple[Any, Any] = (None, None)
         self._chat_finish_reasons: dict[int, str] = {}
         self._messages_usage = MessagesUsage()
 
-    def set(self, attributes: MaybeAttributes) -> None:
-        """Set the attributes whose value is known."""
+    def set_known(self, attributes: MaybeAttributes) -> None:
+        """Set the attributes whose value is known, skipping `None` values."""
         self._span.set_attributes(
             {key: value for key, value in attributes.items() if value is not None}
         )
 
     def record_normalized(self, event: ModelResponseStreamEvent) -> None:
-        self.set(normalized_event_attributes(event))
+        self.set_known(normalized_event_attributes(event))
         if is_normalized_content_delta(event):
             self._record_first_token()
 
     def record_responses_event(self, event: OpenAIResponsesStreamEvent) -> None:
         if getattr(event, "type", None) in _RESPONSES_TERMINAL_EVENTS:
-            self.set(responses_response_attributes(getattr(event, "response", None)))
+            self.set_known(responses_response_attributes(getattr(event, "response", None)))
         elif is_responses_content_delta(event):
             self._record_first_token()
 
     def record_chat_completions_chunk(self, chunk: OpenAIChatCompletionsStreamChunk) -> None:
-        self.set(
-            {
-                GEN_AI_RESPONSE_ID: getattr(chunk, "id", None),
-                GEN_AI_RESPONSE_MODEL: getattr(chunk, "model", None),
-            }
-        )
+        # Every chunk repeats the response identity, so set it only when it changes.
+        identity = (getattr(chunk, "id", None), getattr(chunk, "model", None))
+        if identity != self._chat_identity:
+            self._chat_identity = identity
+            self.set_known({GEN_AI_RESPONSE_ID: identity[0], GEN_AI_RESPONSE_MODEL: identity[1]})
         if is_chat_completions_content_delta(chunk):
             self._record_first_token()
         # Each choice reports its finish reason in its own chunk.
-        self._chat_finish_reasons |= chat_completions_finish_reasons(
+        reasons = self._chat_finish_reasons | chat_completions_finish_reasons(
             getattr(chunk, "choices", None)
         )
-        if self._chat_finish_reasons:
-            reasons = self._chat_finish_reasons
-            self.set({GEN_AI_RESPONSE_FINISH_REASONS: [reasons[i] for i in sorted(reasons)]})
+        if reasons != self._chat_finish_reasons:
+            self._chat_finish_reasons = reasons
+            self.set_known({GEN_AI_RESPONSE_FINISH_REASONS: [reasons[i] for i in sorted(reasons)]})
         # Present only when the caller set `stream_options.include_usage`.
         usage = getattr(chunk, "usage", None)
         if usage is not None:
-            self.set(chat_completions_usage_attributes(usage))
+            self.set_known(chat_completions_usage_attributes(usage))
 
     def record_messages_event(self, event: AnthropicMessagesStreamEvent) -> None:
         event_type = getattr(event, "type", None)
         if event_type == "message_start":
             message = getattr(event, "message", None)
-            self.set(
+            self.set_known(
                 {
                     GEN_AI_RESPONSE_ID: getattr(message, "id", None),
                     GEN_AI_RESPONSE_MODEL: getattr(message, "model", None),
@@ -564,14 +586,14 @@ class SpanRecorder:
         elif event_type == "message_delta":
             stop_reason = getattr(getattr(event, "delta", None), "stop_reason", None)
             if stop_reason:
-                self.set({GEN_AI_RESPONSE_FINISH_REASONS: [stop_reason]})
+                self.set_known({GEN_AI_RESPONSE_FINISH_REASONS: [stop_reason]})
             self._record_messages_usage(getattr(event, "usage", None))
         elif is_messages_content_delta(event):
             self._record_first_token()
 
     def _record_messages_usage(self, usage: AnthropicUsage | MessageDeltaUsage | None) -> None:
         self._messages_usage.update(usage)
-        self.set(self._messages_usage.attributes())
+        self.set_known(self._messages_usage.attributes())
 
     def _record_first_token(self) -> None:
         # Time to first token matters only to a streaming caller.

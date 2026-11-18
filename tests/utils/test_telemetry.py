@@ -154,6 +154,38 @@ def test_non_streaming_request_model_omits_stream(stream: bool | None):
     assert "gen_ai.request.stream" not in _start(body)
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "stream", "expected"),
+    [
+        ("responses", 1, True),
+        ("responses", "true", True),
+        ("responses", 0, None),
+        ("messages", 1, True),
+        ("messages", 1.0, True),
+        ("messages", "true", None),
+    ],
+    ids=[
+        "native-1",
+        "native-string",
+        "native-0",
+        "translated-1",
+        "translated-float",
+        "translated-string",
+    ],
+)
+def test_stream_follows_each_routes_streaming_rule(
+    endpoint: str, stream: object, expected: bool | None
+):
+    """Ensures `gen_ai.request.stream` is set exactly when the route's coordinator streams.
+
+    Native passthrough streams for any truthy value, as the SDKs do; translated
+    validation accepts `1` and `1.0` but rejects strings.
+    """
+    attributes = _start({"model": "gpt-5", "stream": stream}, endpoint=endpoint)
+
+    assert attributes.get("gen_ai.request.stream") is expected
+
+
 def test_unset_optional_fields_are_omitted():
     """Asserts that optional request attributes appear only when the request sets them."""
     attributes = _start(
@@ -233,7 +265,6 @@ def test_mistyped_native_fields_are_omitted_without_raising():
             "max_output_tokens": True,
             "temperature": "0.5",
             "top_p": True,
-            "stream": "true",
         }
     )
 
@@ -242,7 +273,6 @@ def test_mistyped_native_fields_are_omitted_without_raising():
         "gen_ai.request.max_tokens",
         "gen_ai.request.temperature",
         "gen_ai.request.top_p",
-        "gen_ai.request.stream",
     ):
         assert key not in attributes
 
@@ -414,6 +444,25 @@ def _recorded_span(streaming: bool, record) -> Any:
     return finished
 
 
+def test_failed_responses_stream_event_reports_failed():
+    """Ensures a native `response.failed` event records the failed response's end attributes.
+
+    The SDK raises only on a separate `error` event, so a stream ending in
+    `response.failed` alone would otherwise look like a success on its span.
+    """
+    event = SimpleNamespace(
+        type="response.failed",
+        response=SimpleNamespace(
+            id="resp_1", model="gpt-5", status="failed", incomplete_details=None, usage=None
+        ),
+    )
+
+    span = _recorded_span(True, lambda recorder: recorder.record_responses_event(event))
+
+    assert span.attributes["gen_ai.response.id"] == "resp_1"
+    assert span.attributes["gen_ai.response.finish_reasons"] == ("failed",)
+
+
 def _chunk(index: int, *, content: str | None = None, finish_reason: str | None = None):
     delta = SimpleNamespace(content=content, tool_calls=None)
     choice = SimpleNamespace(index=index, delta=delta, finish_reason=finish_reason)
@@ -528,6 +577,23 @@ async def test_observe_closes_its_source_when_closed_early():
 
     assert closed == [True]
     assert recorded == ["a"]
+
+
+async def test_observe_yields_every_event_when_recording_fails():
+    """Asserts that a recorder raising on unexpected output never interrupts the stream.
+
+    Native Messages output is unvalidated, so a non-integer cache count makes usage
+    arithmetic raise; the caller must still receive every event.
+    """
+
+    async def source():
+        yield "a"
+        yield "b"
+
+    def record(event: str) -> None:
+        MessagesUsage(input_tokens=1, cache_read_input_tokens="2").attributes()
+
+    assert [event async for event in observe(source(), record)] == ["a", "b"]
 
 
 async def test_observe_propagates_source_errors_unchanged():

@@ -51,6 +51,7 @@ from molto.utils.telemetry import (
     get_tracer,
     messages_response_attributes,
     observe,
+    record_safely,
     responses_response_attributes,
     span_name,
     start_attributes,
@@ -143,12 +144,15 @@ def _finish_span(
     outcome: StreamOutcome | None = None,
     end_time: int | None = None,
 ) -> None:
-    if outcome is not None:
-        span.set_attribute(MOLTO_STREAM_OUTCOME, outcome)
-    if isinstance(error, Exception):
-        span.set_status(Status(StatusCode.ERROR))
-        span.set_attributes(error_attributes(error, phase))
-        span.record_exception(error, attributes=exception_event_attributes(error))
+    # Without an SDK, or when sampled out, the span is never exported, so skip
+    # building attributes and formatting stack traces for it.
+    if span.is_recording():
+        if outcome is not None:
+            span.set_attribute(MOLTO_STREAM_OUTCOME, outcome)
+        if isinstance(error, Exception):
+            span.set_status(Status(StatusCode.ERROR))
+            span.set_attributes(error_attributes(error, phase))
+            span.record_exception(error, attributes=exception_event_attributes(error))
     span.end(end_time=end_time)
 
 
@@ -212,11 +216,16 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         # `closed` only for a stream the caller stopped before its end.
         self._end_span(outcome="closed")
 
+    def attach_span(self, span: Span) -> None:
+        """Make this stream end `span` when it is exhausted, fails, closes, or is dropped."""
+        self._span = span
+
     def __del__(self) -> None:
         # A dropped, unclosed stream must still be visible (docs/observability.md,
-        # "Streaming lifetime"). `aclose()` cannot be awaited here, so the upstream
-        # response stays open; the span ends at the last event so its duration is not
-        # inflated by when garbage collection happens to run.
+        # "Streaming lifetime"). `aclose()` cannot be awaited here; the event loop's
+        # async-generator finalizer closes the dropped source and releases its response.
+        # The span ends at the last event so its duration is not inflated by when
+        # garbage collection happens to run.
         if getattr(self, "_span", None) is None:
             return
         try:
@@ -234,7 +243,8 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         end_time: int | None = None,
     ) -> None:
         # Exhaustion, an error, `aclose()`, and garbage collection can all reach here;
-        # end the span once. A failure decides the outcome over the given one.
+        # end the span once. A failure decides the outcome over the given one. A failing
+        # `aclose()` also reports phase `stream`: it is raised after the stream returned.
         if self._span is not None:
             span, self._span = self._span, None
             final = _failure_outcome(error) if error is not None else outcome
@@ -251,15 +261,17 @@ async def _run_native[EventT, ResponseT: BaseModel](
 ) -> MoltoStream[EventT] | ResponseT:
     """Pass a same-protocol request through, recording its native output on the span.
 
-    Streaming follows the coordinators' rule: only `body["stream"] is True` streams.
+    The SDKs stream for any truthy `stream` (`stream=stream or False`), so passthrough
+    expects a stream by the same rule; a stricter test would receive a stream it did
+    not expect for values such as `1`.
     """
-    if body.get("stream") is True:
+    if body.get("stream"):
         return await _prefetch_stream(
             adapter.project_native_events(observe(upstream.native_events(body), record_event)),
             upstream.response_headers,
         )
     response = await adapter.project_native_response(upstream.native_response(body))
-    record_response(response)
+    record_safely(record_response, response)
     return response
 
 
@@ -310,7 +322,7 @@ async def _traced[ResultT](
         raise
     if isinstance(result, MoltoStream):
         # The stream outlives this `await`, so it ends the span itself.
-        result._span = span
+        result.attach_span(span)
     else:
         _finish_span(span)
     return result
@@ -434,7 +446,7 @@ class Molto:
                 upstream,
                 body,
                 record_event=recorder.record_responses_event,
-                record_response=lambda response: recorder.set(
+                record_response=lambda response: recorder.set_known(
                     responses_response_attributes(response)
                 ),
             )
@@ -549,7 +561,7 @@ class Molto:
                 upstream,
                 body,
                 record_event=recorder.record_chat_completions_chunk,
-                record_response=lambda response: recorder.set(
+                record_response=lambda response: recorder.set_known(
                     chat_completions_response_attributes(response)
                 ),
             )
@@ -664,7 +676,7 @@ class Molto:
                 upstream,
                 body,
                 record_event=recorder.record_messages_event,
-                record_response=lambda response: recorder.set(
+                record_response=lambda response: recorder.set_known(
                     messages_response_attributes(response)
                 ),
             )

@@ -81,14 +81,15 @@ classifiers = [
 # Re-derive from the suite before widening either bound; see AGENTS.md, "Dependency Versions".
 # opentelemetry-api: the full suite passes on 1.36.0 with the matching SDK and httpx
 # instrumentor; 1.28.0 (pydantic-ai-slim's floor) fails only tests of the test-only
-# instrumentor's API. The <2 ceiling relies on OpenTelemetry's API stability guarantee
-# (no breaking changes within a major version), not a test result.
+# instrumentor's API. The <1.46 ceiling stops just above 1.45.2, the newest
+# release the suite passes on; each SDK release requires the matching API version, so
+# re-derive it with the suite when a new release appears.
 # The test extra pins the exact versions the suite is developed against.
 dependencies = [
     "anthropic>=0.119.0,<0.124",
     "loguru~=0.7",
     "openai>=2.45.0,<3.2",
-    "opentelemetry-api>=1.36.0,<2",
+    "opentelemetry-api>=1.36.0,<1.46",
     "orjson~=3.11",
     "pydantic-ai-slim[retries]~=1.104.0",
     "pydantic-settings~=2.13.1",

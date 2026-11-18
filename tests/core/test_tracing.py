@@ -1196,33 +1196,60 @@ async def test_dropped_stream_ends_its_span_as_abandoned_at_its_last_event(
     assert span.status.status_code is StatusCode.UNSET
 
 
-async def test_dropped_stream_leaves_the_upstream_response_open(
-    exporter: InMemorySpanExporter,
+class _TrackedBody(AsyncByteStream):
+    """A recorded response body that notes when `httpx` releases it."""
+
+    def __init__(self, content: bytes, closed: list[bool]) -> None:
+        self._content = content
+        self._closed = closed
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        # Small chunks, so the dropped stream still has unread body left.
+        for start in range(0, len(self._content), 64):
+            yield self._content[start : start + 64]
+
+    async def aclose(self) -> None:
+        self._closed.append(True)
+
+
+@pytest.mark.parametrize(
+    ("method", "endpoint", "cassette"),
+    [
+        ("responses", "responses", SIMPLE_STREAM),
+        ("chat_completions", "messages", "matched/simple_text/anthropic-messages-stream-00"),
+    ],
+    ids=["native", "translated"],
+)
+async def test_dropped_stream_releases_its_upstream_response(
+    exporter: InMemorySpanExporter, method: str, endpoint: str, cassette: str
 ):
-    """Asserts that garbage collection ends the span but never closes the upstream stream.
+    """Ensures a dropped, unclosed stream still releases its upstream HTTP response.
 
-    Closing needs an `await`, which `__del__` cannot perform, so the leak stays the
-    caller's bug; only the span is ended.
+    `__del__` cannot await `aclose()`, but the event loop's async-generator finalizer
+    closes the dropped source on its next turns, so the docs must not call it a leak.
     """
-    closed = []
+    recorded = _cassette(cassette)
+    closed: list[bool] = []
 
-    class Source:
-        def __aiter__(self) -> "Source":
-            return self
+    def handler(request: Request) -> Response:
+        return Response(
+            200,
+            stream=_TrackedBody("".join(recorded["response"]["sse"]).encode(), closed),
+            headers={"content-type": "text/event-stream"},
+        )
 
-        async def __anext__(self) -> str:
-            return "event"
-
-        async def aclose(self) -> None:
-            closed.append(True)
-
-    stream = await _traced_stream(Source())
-    await anext(stream)
-    del stream
-    gc.collect()
+    async with Molto(http_client=AsyncClient(transport=MockTransport(handler))) as molto:
+        stream = await getattr(molto, method)(
+            body=recorded["request"]["body"], endpoint=endpoint, api_key="test-key"
+        )
+        await anext(stream)
+        del stream
+        gc.collect()
+        for _ in range(5):
+            await asyncio.sleep(0)
 
     assert _outcome(exporter) == "abandoned"
-    assert closed == []
+    assert closed == [True]
 
 
 async def test_dropped_stream_swallows_telemetry_failures(
@@ -1237,11 +1264,14 @@ async def test_dropped_stream_swallows_telemetry_failures(
     monkeypatch.setattr(sys, "unraisablehook", unraisable.append)
 
     class BrokenSpan:
+        def is_recording(self) -> bool:
+            return True
+
         def set_attribute(self, key: str, value: object) -> None:
             raise RuntimeError("exporter already shut down")
 
     stream = MoltoStream([], _events(), Headers())
-    stream._span = BrokenSpan()
+    stream.attach_span(BrokenSpan())
     del stream
     gc.collect()
 
@@ -1306,6 +1336,80 @@ async def test_failed_non_streaming_call_reports_no_stream_outcome(
     span = _molto_span(exporter)
     assert span.attributes["error.type"] == "ResourceNotFoundError"
     assert _outcome(exporter) is None
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "cassette"),
+    [
+        ("responses", SIMPLE_STREAM),
+        ("chat/completions", "matched/simple_text/openai-chat_completions-stream-00"),
+    ],
+    ids=["native", "translated"],
+)
+async def test_integer_stream_is_streamed_and_traced_as_streaming(
+    exporter: InMemorySpanExporter, endpoint: str, cassette: str
+):
+    """Ensures `stream: 1` returns a stream on both routes and is traced as streaming.
+
+    The SDKs stream for any truthy `stream`, so native passthrough must expect a
+    stream rather than fail on it; translated validation also accepts `1`.
+    """
+    body = {**_request_body(NON_STREAM_BODY_CASSETTE), "stream": 1}
+    async with Molto(http_client=_replay(cassette)) as molto:
+        result = await molto.responses(body=body, endpoint=endpoint, api_key="test-key")
+        await _consume(result)
+
+    span = _molto_span(exporter)
+    assert isinstance(result, MoltoStream)
+    assert span.attributes["gen_ai.request.stream"] is True
+    assert _outcome(exporter) == "completed"
+    assert [event.name for event in span.events] == ["molto.first_token"]
+
+
+async def test_recording_failure_never_fails_a_native_call(
+    exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+):
+    """Asserts that an extractor raising on unexpected native output still returns the response.
+
+    Native output is unvalidated, so telemetry may lose attributes but must never turn
+    a successful call into a failure.
+    """
+
+    def broken(response: object) -> dict:
+        raise TypeError("unexpected provider output")
+
+    monkeypatch.setattr("molto.core.responses_response_attributes", broken)
+    async with Molto(http_client=_replay(NON_STREAM_BODY_CASSETTE)) as molto:
+        response = await molto.responses(
+            body=_request_body(NON_STREAM_BODY_CASSETTE), api_key="test-key"
+        )
+
+    assert response.id == _recorded_response_id(NON_STREAM_BODY_CASSETTE)
+    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+
+
+async def test_recording_failure_never_fails_a_native_stream(
+    exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+):
+    """Asserts that a recorder raising on every native event still delivers the whole stream."""
+
+    def broken(recorder: object, event: object) -> None:
+        raise TypeError("unexpected provider output")
+
+    async def read() -> list[Any]:
+        async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+            stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+            return [event async for event in stream]
+
+    expected = await read()
+    monkeypatch.setattr("molto.core.SpanRecorder.record_responses_event", broken)
+    events = await read()
+
+    assert events == expected
+    assert [span.attributes["molto.stream.outcome"] for span in exporter.get_finished_spans()] == [
+        "completed",
+        "completed",
+    ]
 
 
 HTTPX_SCOPE = "opentelemetry.instrumentation.httpx"

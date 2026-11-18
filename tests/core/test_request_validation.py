@@ -144,7 +144,12 @@ async def test_native_requests_preserve_provider_fields_and_sdk_parity(
 async def test_native_non_boolean_stream_preserves_provider_error(
     protocol: Protocol, stream: int | str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Ensures truthy non-booleans use the response path and retain SDK error fidelity."""
+    """Ensures truthy non-booleans take the stream path, as the SDKs do, with SDK error fidelity.
+
+    The SDKs stream for any truthy `stream` (`stream=stream or False`); choosing the
+    response path instead fails with a `TypeError` when a provider accepts the value
+    and returns a stream.
+    """
     path = _matched_cassette_path("error-invalid_request_error", protocol, "stream-00.yaml")
     body = {**deepcopy(_read_cassette(path)["request"]["body"]), "stream": stream}
     error_type = AnthropicBadRequestError if protocol == "messages" else OpenAIBadRequestError
@@ -154,10 +159,10 @@ async def test_native_non_boolean_stream_preserves_provider_error(
         "messages": AnthropicMessagesClient,
     }[protocol]
 
-    def unexpected_stream(*args: Any) -> None:
-        raise AssertionError("Only the boolean True should select native_events")
+    async def unexpected_response(*args: Any) -> None:
+        raise AssertionError("A truthy stream should select native_events, as the SDK streams")
 
-    monkeypatch.setattr(client_type, "native_events", unexpected_stream)
+    monkeypatch.setattr(client_type, "native_response", unexpected_response)
     # Replay an existing provider error to verify forwarding and error handling,
     # without claiming live acceptance of the modified stream value.
     async with _get_http_client([path], protocol, expected_body=body) as http_client:

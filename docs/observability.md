@@ -75,7 +75,7 @@ Molto creates no separate spans for adapters, normalizers, upstream clients, or 
 
 A streaming coordinator returns a `MoltoStream` after prefetching the first event. The span outlives that `await`: it ends exactly once, when the stream is exhausted, fails, is closed with `aclose()`, or is garbage-collected. A failure during prefetch ends the span in the coordinator.
 
-A stream that is neither consumed nor closed leaks its upstream HTTP response, because closing it requires an `await` that garbage collection cannot perform. Use `async with` or `aclose()`. To make the leak visible, a dropped stream ends its span when it is garbage-collected, with `molto.stream.outcome=abandoned`, at the time of the last event the caller received rather than the collection time. CPython collects an object as soon as its last reference goes, later when it is part of a reference cycle, and possibly never at interpreter shutdown, so an abandoned span can arrive late or not at all.
+A stream that is neither consumed nor closed holds its upstream HTTP response until it is garbage-collected. `MoltoStream` cannot await `aclose()` then, but the event loop's async-generator finalizer closes the dropped source on its next turns, which releases the response. Use `async with` or `aclose()` to release it as soon as the caller is done. A dropped stream ends its span when it is garbage-collected, with `molto.stream.outcome=abandoned`, at the time of the last event the caller received rather than the collection time. CPython collects an object as soon as its last reference goes, later when it is part of a reference cycle, and possibly never at interpreter shutdown, so an abandoned span, and the release of its response, can come late or not at all.
 
 Every streaming span records how the stream ended in `molto.stream.outcome`:
 
@@ -85,7 +85,7 @@ Every streaming span records how the stream ended in `molto.stream.outcome`:
 | `closed` | The caller called `aclose()` before the end, for example by leaving `async with` early. |
 | `cancelled` | The caller's task was cancelled, while reading the stream or before the first event arrived. This is how a client hanging up appears. The status stays `UNSET` and the cancellation is re-raised. Any other exit that is not an `Exception`, such as `KeyboardInterrupt`, also reports `cancelled`, because it too is the caller stopping the call rather than the call failing. |
 | `error` | The call failed, while the caller read the stream or before the first event. `molto.error.phase` says which, and the [error attributes](#errors) describe the failure. |
-| `abandoned` | The caller dropped the stream without consuming or closing it. The span ends at the last event received; its upstream response was leaked. |
+| `abandoned` | The caller dropped the stream without consuming or closing it. The span ends at the last event received; its upstream response stayed open until garbage collection. |
 
 Non-streaming spans do not carry the attribute.
 
@@ -101,13 +101,13 @@ Molto resolves these values before transport.
 | `gen_ai.provider.name` | Resolved `provider`: `openai`, `anthropic`, or `vllm` |
 | `gen_ai.request.model` | Request `model` |
 | `gen_ai.request.max_tokens`, `gen_ai.request.temperature`, `gen_ai.request.top_p` | Request fields, only when set with the expected type |
-| `gen_ai.request.stream` | Set only when streaming |
+| `gen_ai.request.stream` | Set only when the coordinator streams the call |
 | `server.address`, `server.port` | Host and port of the effective `base_url`; the scheme's default port when the URL has none |
 | `molto.downstream.protocol` | `responses`, `chat/completions`, or `messages`, from the coordinator |
 | `molto.upstream.endpoint` | Effective `endpoint` |
 | `molto.route` | `native` or `translated` |
 
-Native request bodies reach the SDK unvalidated, so a request field becomes an attribute only when it has the convention's type: a non-empty string model, an integer output-token limit, and numeric sampling values, reported as doubles. Booleans do not count as numbers. Chat Completions reports `max_completion_tokens`, falling back to the deprecated `max_tokens`. A `base_url` without a host, or one `httpx` cannot parse, omits the server attributes and leaves the error to the SDK.
+Native request bodies reach the SDK unvalidated, so a request field becomes an attribute only when it has the convention's type: a non-empty string model, an integer output-token limit, and numeric sampling values, reported as doubles. Booleans do not count as numbers. `stream` follows the coordinator's own rule: native passthrough streams for any truthy value, as the OpenAI and Anthropic SDKs do, while translated routes validate it, streaming for `true`, `1`, or `1.0` and rejecting strings. Chat Completions reports `max_completion_tokens`, falling back to the deprecated `max_tokens`. A `base_url` without a host, or one `httpx` cannot parse, omits the server attributes and leaves the error to the SDK.
 
 `vllm` is not a well-known `gen_ai.provider.name` value; the conventions allow a custom value for other providers. Molto has no separate `molto.provider` attribute, because it would duplicate this value and `server.address` already identifies the host.
 
@@ -117,13 +117,13 @@ Native request bodies reach the SDK unvalidated, so a request field becomes an a
 | --- | --- | --- |
 | `gen_ai.response.id` | `ResponseStartEvent` | SDK response or terminal event |
 | `gen_ai.response.model` | `ResponseStartEvent` | SDK response or terminal event |
-| `gen_ai.response.finish_reasons` | `ResponseEndEvent.termination_reason` | SDK finish or stop reason; for Responses, the incomplete reason or terminal status |
+| `gen_ai.response.finish_reasons` | `ResponseEndEvent.termination_reason` | SDK finish or stop reason; for Responses, the incomplete reason or terminal status, including `failed` |
 | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | `ResponseEndEvent` normalized usage | SDK usage |
 | `gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_write.input_tokens` | Normalized usage details, when non-zero | SDK usage details, when non-zero |
 | `error.type`, `http.response.status_code`, `molto.error.phase` | See [Errors](#errors) | See [Errors](#errors) |
 | `molto.stream.outcome` | Streaming only; see [Streaming lifetime](#streaming-lifetime) | Same |
 
-Translated spans report Molto's normalized termination reason, such as `stop`, `max_output_tokens`, or `tool_call`. Native spans report the provider's own value, such as Chat Completions `stop` or `length` and Messages `end_turn`. The same call can therefore report different finish reasons on its two routes: an Anthropic call that ends normally reports `["end_turn"]` natively and `["stop"]` through a translated route. Group by `molto.route` to compare them. Responses has no finish-reason field, so a native Responses span reports `incomplete_details.reason` for an incomplete response, such as `max_output_tokens`, and the terminal `status`, such as `completed`, otherwise.
+Translated spans report Molto's normalized termination reason, such as `stop`, `max_output_tokens`, or `tool_call`. Native spans report the provider's own value, such as Chat Completions `stop` or `length` and Messages `end_turn`. The same call can therefore report different finish reasons on its two routes: an Anthropic call that ends normally reports `["end_turn"]` natively and `["stop"]` through a translated route. Group by `molto.route` to compare them. Responses has no finish-reason field, so a native Responses span reports `incomplete_details.reason` for an incomplete response, such as `max_output_tokens`, and the terminal `status`, such as `completed` or `failed`, otherwise. A native Responses stream records its terminal response from `response.completed`, `response.incomplete`, or `response.failed`. The SDK raises only on a separate `error` event, so a stream that ends in `response.failed` without one returns normally: its span reports `["failed"]` with `molto.stream.outcome=completed` and `UNSET` status, as the same non-streaming response would.
 
 Normalized usage stores a missing cache count as zero, so both cache attributes appear only when non-zero, on every route, as the conventions recommend. Native cache counts come from Responses `input_tokens_details.cached_tokens` and `cache_write_tokens`, Chat Completions `prompt_tokens_details.cached_tokens` and `cache_write_tokens`, and Messages `cache_read_input_tokens` and `cache_creation_input_tokens`.
 
@@ -141,7 +141,7 @@ On failure, the span status is `ERROR`, the exception is recorded with `record_e
 | --- | --- |
 | `error.type` | The normalized `APIException` subclass name when the exception or its `__cause__` is one, for example `ContextLengthExceededError`; otherwise the raw exception class name, for example `RateLimitError` or `UnsupportedInput` |
 | `http.response.status_code` | Set only from a real upstream error response with status 400 or higher: the normalized cause's `response` when a Molto cause exists, otherwise the status of an SDK `APIStatusError`. Omitted when no such response exists |
-| `molto.error.phase` | `setup` when the failure is raised before the coordinator returns, such as a local rejection, credential error, or HTTP error; `stream` when it is raised while the caller iterates |
+| `molto.error.phase` | `setup` when the failure is raised before the coordinator returns, such as a local rejection, credential error, or HTTP error; `stream` when it is raised after the coordinator returned a stream, while the caller iterates or when `aclose()` fails |
 
 For a recognized upstream failure, the caller receives a downstream SDK exception whose `__cause__` is the normalized Molto exception, so `error.type` checks `__cause__` rather than reporting the caller-specific SDK class. Native and translated routes therefore report the same `error.type` for the same upstream failure. Unknown errors pass through unchanged and have no Molto cause, and `UnsupportedInput` is raised directly, so their own class is the `error.type`. A raw class name such as `RateLimitError` exists in both SDKs; `molto.upstream.endpoint` identifies which SDK raised it. See [Errors](errors.md) for the cause chain and recognition rules.
 
@@ -172,4 +172,4 @@ Empty deltas do not count, and neither do deltas that carry no generated content
 
 Spans never carry prompts, completions, tool arguments, headers, or credentials. Content capture is not available; an opt-in would be a separate, explicitly approved change.
 
-Telemetry is data, not behavior. Span attributes are derived from values the coordinator already resolved or from events the pipeline already emitted. Instrumentation never changes routing, validation, request construction, projection, or errors, and it never reads the `extra_body` or `extra_headers` request extensions. Native passthrough does not validate upstream output, so a field a provider omits is left off the span rather than raising.
+Telemetry is data, not behavior. Span attributes are derived from values the coordinator already resolved or from events the pipeline already emitted. Instrumentation never changes routing, validation, request construction, projection, or errors, and it never reads the `extra_body` or `extra_headers` request extensions. Native passthrough does not validate upstream output, so a field a provider omits is left off the span rather than raising. If recording still fails on output no extractor expects, Molto drops those attributes, logs the exception class, without its message or traceback, at `DEBUG` level through Molto's `loguru` logger, and the call continues unchanged.
