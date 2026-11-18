@@ -249,6 +249,8 @@ The client recognizes completed and incomplete response terminals. A completed r
 
 ### Reasoning representation
 
+See [Reasoning and signatures](../reasoning.md) for current provider profiles, Responses interpretation exceptions, and signature and continuation constraints across protocols.
+
 Responses is explicit where Chat Completions and Messages are ambiguous:
 
 | Responses events or item content | Normalized representation               |

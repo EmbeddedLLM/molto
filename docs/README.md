@@ -91,6 +91,10 @@ Molto never infers provider behavior from a hostname. When `provider` is omitted
 
 Provider capabilities matter even when two implementations expose the same schema. For example, Chat Completions `reasoning_content` and Messages `thinking_delta` do not label their text as raw reasoning or a summary. The provider profile supplies that interpretation: OpenAI and Anthropic profiles classify it as a summary, while vLLM, Together AI, OpenRouter, and Fireworks classify it as raw reasoning. OpenRouter still interprets explicit Responses labels; Fireworks normalizes its observed Responses `summary_text` as raw while preserving that wire shape for continuation.
 
+## Reasoning
+
+See [Reasoning and signatures](reasoning.md) for current raw/summary profiles, Responses wire labels, Chat signature handling by provider and direction, Gemini buffering, unsigned-summary continuation constraints, and SDK accumulation behavior. Native passthrough and translated routes have different guarantees; accepting reasoning output does not imply that every destination can replay its history.
+
 ## How translation works
 
 A translated request crosses a provider-neutral intermediate representation:

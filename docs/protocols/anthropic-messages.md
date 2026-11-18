@@ -298,6 +298,8 @@ It must not mix or switch representations within one block. Output processing ac
 
 ### Opaque thinking state
 
+See [Reasoning and signatures](../reasoning.md) for current provider profiles, signature replacement semantics, and the distinction between accepting output and replaying signed or unsigned history.
+
 A Messages thinking block has an initial `signature` and may later receive a `signature_delta`. The delta is a complete replacement snapshot, not text to append to the initial value: the Anthropic SDK replaces the block's initial signature when it processes a `signature_delta`. Molto stores and reuses the replacement value for block completion and subsequent history.
 
 OpenAI Responses exposes three encrypted snapshots where Messages has only two slots:
