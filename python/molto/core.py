@@ -10,6 +10,7 @@ from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_PROVIDER_BY_ENDPOINT,
     PROVIDER_CAPABILITIES,
+    ChatReasoningField,
     Endpoint,
     Provider,
     ProviderCapabilities,
@@ -202,6 +203,8 @@ class Molto:
         *,
         downstream: Endpoint,
         reasoning_representation: ReasoningRepresentation | None,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
         api_key: str | None,
         base_url: str | None,
         extra_body: Mapping[str, Any] | None,
@@ -213,7 +216,18 @@ class Molto:
             raise ValueError(
                 f"Unsupported upstream endpoint {endpoint!r} for provider {provider!r}."
             )
-        capabilities = client_type.resolve_capabilities(PROVIDER_CAPABILITIES[provider])
+        profile = PROVIDER_CAPABILITIES[provider]
+        if chat_reasoning_field is not None:
+            if chat_reasoning_field not in {"reasoning", "reasoning_content"}:
+                raise ValueError(
+                    "chat_reasoning_field must be 'reasoning' or 'reasoning_content'."
+                )
+            profile = replace(profile, chat_reasoning_field=chat_reasoning_field)
+        if chat_signature_namespace is not None:
+            if not chat_signature_namespace.strip():
+                raise ValueError("chat_signature_namespace must be a nonempty namespace.")
+            profile = replace(profile, chat_signature_namespace=chat_signature_namespace)
+        capabilities = client_type.resolve_capabilities(profile)
         if downstream != endpoint and client_type.REQUIRES_REASONING_REPRESENTATION:
             if reasoning_representation not in {"raw", "summary"}:
                 raise ValueError(
@@ -242,6 +256,8 @@ class Molto:
         extra_headers: Mapping[str, str] | None = None,
         *,
         reasoning_representation: ReasoningRepresentation | None = None,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
@@ -260,7 +276,11 @@ class Molto:
                 headers are removed before the provider request.
             reasoning_representation: Required raw/summary classification when the
                 translated upstream client declares ambiguous reasoning. Other
-                clients retain their fixed profile; native passthrough ignores it.
+                clients retain their fixed profile. Native passthrough ignores it.
+            chat_reasoning_field: Preferred Chat reasoning alias during translation.
+                Set to "reasoning_content" for older vLLM servers.
+            chat_signature_namespace: Chat extension namespace for opaque signatures,
+                such as "google" for Gemini.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
@@ -270,6 +290,8 @@ class Molto:
             resolved_provider,
             downstream="responses",
             reasoning_representation=reasoning_representation,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,
@@ -321,6 +343,8 @@ class Molto:
         extra_headers: Mapping[str, str] | None = None,
         *,
         reasoning_representation: ReasoningRepresentation | None = None,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
@@ -336,6 +360,8 @@ class Molto:
             resolved_provider,
             downstream="chat/completions",
             reasoning_representation=reasoning_representation,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,
@@ -374,6 +400,8 @@ class Molto:
         citation_policy: CitationPolicy = "drop",
         *,
         reasoning_representation: ReasoningRepresentation | None = None,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
@@ -394,6 +422,8 @@ class Molto:
             resolved_provider,
             downstream="messages",
             reasoning_representation=reasoning_representation,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
             api_key=api_key,
             base_url=base_url,
             extra_body=extra_body,

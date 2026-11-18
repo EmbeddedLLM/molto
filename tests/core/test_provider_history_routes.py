@@ -14,7 +14,9 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import (
     AssistantInput,
     NormalizedRequest,
+    PartDeltaEvent,
     PartEndEvent,
+    PartStartEvent,
     ResponseStartEvent,
     TextOutput,
     Thinking,
@@ -484,21 +486,17 @@ async def test_google_translated_parallel_signature_history(coordinator, stream,
         for i in range(2)
     ]
     text_deltas = [{"content": "Checking both."}]
-    deltas = [] if order == "tools-first" else text_deltas.copy()
     if order == "text-first":
-        deltas.append({"extra_content": text_state})
-    elif order == "late-message-signature":
-        deltas.append({"extra_content": {"google": {"thought_signature": "earlier-message"}}})
-    for i, call in enumerate(calls):
+        text_deltas[0]["extra_content"] = text_state
+    deltas = [] if order == "tools-first" else text_deltas.copy()
+    for index, call in enumerate(calls):
         first = deepcopy(call)
-        first["index"] = i
+        first["index"] = index
         first["function"]["arguments"] = '{"n":'
-        first["extra_content"]["google"]["thought_signature"] = f"earlier-{i}"
         deltas.extend(
             [
                 {"tool_calls": [first]},
-                {"tool_calls": [{"index": i, "function": {"arguments": f"{i}}}"}}]},
-                {"tool_calls": [{"index": i, "extra_content": call["extra_content"]}]},
+                {"tool_calls": [{"index": index, "function": {"arguments": f"{index}}}"}}]},
             ]
         )
     if order == "tools-first":
@@ -531,17 +529,19 @@ async def test_google_translated_parallel_signature_history(coordinator, stream,
             await create(body, endpoint="chat/completions", provider="gemini", api_key="test-key")
         )
         if coordinator == "responses":
-            text_types = ["reasoning", "message"]
             call_types = ["reasoning", "function_call"] * 2
-            assert [item.type for item in result.output] == (
-                call_types + text_types if order == "tools-first" else text_types + call_types
-            )
+            expected_types = {
+                "text-first": ["reasoning", "message", *call_types],
+                "late-message-signature": ["message", *call_types, "reasoning"],
+                "tools-first": [*call_types, "message", "reasoning"],
+            }
+            assert [item.type for item in result.output] == expected_types[order]
             assert [
                 item.encrypted_content for item in result.output if item.type == "reasoning"
             ] == (
-                ["call-0", "call-1", " message\n"]
-                if order == "tools-first"
-                else [" message\n", "call-0", "call-1"]
+                [" message\n", "call-0", "call-1"]
+                if order == "text-first"
+                else ["call-0", "call-1", " message\n"]
             )
             history = [item.model_dump(exclude_unset=True) for item in result.output]
             body["input"].extend(history)
@@ -550,15 +550,17 @@ async def test_google_translated_parallel_signature_history(coordinator, stream,
                 for call in calls
             )
         else:
-            text_types = ["thinking", "text"]
             call_types = ["thinking", "tool_use"] * 2
-            assert [item.type for item in result.content] == (
-                call_types + text_types if order == "tools-first" else text_types + call_types
-            )
+            expected_types = {
+                "text-first": ["thinking", "text", *call_types],
+                "late-message-signature": ["text", *call_types, "thinking"],
+                "tools-first": [*call_types, "text", "thinking"],
+            }
+            assert [item.type for item in result.content] == expected_types[order]
             assert [item.signature for item in result.content if item.type == "thinking"] == (
-                ["call-0", "call-1", " message\n"]
-                if order == "tools-first"
-                else [" message\n", "call-0", "call-1"]
+                [" message\n", "call-0", "call-1"]
+                if order == "text-first"
+                else ["call-0", "call-1", " message\n"]
             )
             body["messages"].extend(
                 [
@@ -706,19 +708,12 @@ async def test_google_signatures_normalize_to_ordered_parts(text):
     parts = [event.part for event in ends]
     assert [event.index for event in ends] == list(range(len(ends)))
     assert parts == [
-        *(
-            [
-                Thinking(content="", summary="", signature=" message\n"),
-                TextOutput(content="Checking."),
-            ]
-            if text
-            else []
-        ),
+        *([TextOutput(content="Checking.")] if text else []),
+        Thinking(content="", summary="", signature=" message\n"),
         Thinking(content="", summary="", signature="call-0"),
         ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
         Thinking(content="", summary="", signature="call-1"),
         ToolCall(tool_call_id="call_1", tool_name="lookup", args='{"n":1}'),
-        *([] if text else [Thinking(content="", summary="", signature=" message\n")]),
     ]
     history = NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
     assert GeminiChatCompletionsClient._native_request(history).model_dump()["messages"] == [
@@ -731,17 +726,21 @@ async def test_google_signatures_normalize_to_ordered_parts(text):
     ]
 
 
-def test_google_history_rejects_a_second_signature_for_one_attachment():
-    """Ensures a signature Gemini has no place for is rejected instead of dropped."""
+def test_google_history_separates_two_independent_signature_parts():
+    """Ensures two complete signature parts retain separate assistant entries."""
     parts = [
         Thinking(content="", summary="", signature="first"),
         Thinking(content="", summary="", signature="second"),
         TextOutput(content="Text"),
     ]
-    with pytest.raises(UnsupportedInput, match="at most one"):
-        GeminiChatCompletionsClient._native_request(
-            NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
-        )
+    messages = GeminiChatCompletionsClient._native_request(
+        NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+    ).model_dump()["messages"]
+    assert [message["extra_content"]["google"]["thought_signature"] for message in messages] == [
+        "first",
+        "second",
+    ]
+    assert [message["content"] for message in messages] == [[], "Text"]
 
 
 @pytest.mark.parametrize("coordinator", ["responses", "messages"])
@@ -750,7 +749,7 @@ def test_google_history_rejects_a_second_signature_for_one_attachment():
 async def test_google_late_message_signature_without_text_round_trips(
     coordinator, stream, signed_call
 ):
-    """Ensures late state prefixes an unsigned call or remains separate from an already signed call."""
+    """Ensures a trailing message signature remains attached to the message on continuation."""
     state = {"google": {"thought_signature": " message\n"}}
     call = _google_call(0)
     if not signed_call:
@@ -790,7 +789,7 @@ async def test_google_late_message_signature_without_text_round_trips(
             ] == (
                 [("reasoning", "call-0"), ("function_call", None), ("reasoning", " message\n")]
                 if signed_call
-                else [("reasoning", " message\n"), ("function_call", None)]
+                else [("function_call", None), ("reasoning", " message\n")]
             )
             body["input"].extend(item.model_dump(exclude_unset=True) for item in result.output)
             body["input"].append(
@@ -800,7 +799,7 @@ async def test_google_late_message_signature_without_text_round_trips(
             assert [(item.type, getattr(item, "signature", None)) for item in result.content] == (
                 [("thinking", "call-0"), ("tool_use", None), ("thinking", " message\n")]
                 if signed_call
-                else [("thinking", " message\n"), ("tool_use", None)]
+                else [("tool_use", None), ("thinking", " message\n")]
             )
             body["messages"].extend(
                 [
@@ -823,8 +822,8 @@ async def test_google_late_message_signature_without_text_round_trips(
         {"role": "user", "content": [{"type": "text", "text": "Check."}]},
         {
             "role": "assistant",
-            **({"extra_content": state} if signed_call else {}),
-            "tool_calls": [call if signed_call else {**call, "extra_content": state}],
+            "extra_content": state,
+            "tool_calls": [call],
         },
         {"role": "tool", "tool_call_id": call["id"], "content": [{"type": "text", "text": "ok"}]},
     ]
@@ -910,7 +909,7 @@ async def test_native_history_nulls_reach_only_providers_that_accept_them(
 
 
 async def test_google_cancellation_while_waiting_for_late_signature_closes_response():
-    """Ensures translated text waits for its signature and cancellation releases buffered transport."""
+    """Ensures translated text streams immediately and cancellation releases the transport."""
     waiting = asyncio.Event()
     release = asyncio.Event()
     closed = asyncio.Event()
@@ -944,6 +943,9 @@ async def test_google_cancellation_while_waiting_for_late_signature_closes_respo
         )
         events = client.events(NormalizedRequest(model="model", stream=True))
         assert isinstance(await anext(events), ResponseStartEvent)
+        assert isinstance(await anext(events), PartStartEvent)
+        delta = await anext(events)
+        assert isinstance(delta, PartDeltaEvent) and delta.delta.content_delta == "Pending text"
         pending = asyncio.create_task(anext(events))
         try:
             await asyncio.wait_for(waiting.wait(), timeout=2)
@@ -973,8 +975,7 @@ async def test_google_message_signature_without_text_or_calls(reasoning):
             if isinstance(event, PartEndEvent)
         ]
     assert parts == [
-        *([Thinking(content="", summary="Think")] if reasoning else []),
-        Thinking(content="", summary="", signature="message-state"),
+        Thinking(content="", summary="Think" if reasoning else "", signature="message-state"),
     ]
     history = GeminiChatCompletionsClient._native_request(
         NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
@@ -1056,7 +1057,7 @@ async def test_raw_unknown_format_history_translates_with_recorded_sdk_output(en
             {
                 "role": "assistant",
                 **(
-                    {"reasoning_content": " Think\n"}
+                    {"reasoning": " Think\n"}
                     if endpoint == "chat/completions"
                     else {"content": [{"type": "thinking", "thinking": " Think\n"}]}
                 ),
@@ -1148,8 +1149,8 @@ async def test_google_late_message_signature_prefers_text_over_unsigned_call():
         ]
     assert parts == [
         ToolCall(tool_call_id="call_0", tool_name="lookup", args='{"n":0}'),
-        Thinking(content="", summary="", signature="message-state"),
         TextOutput(content="Checking."),
+        Thinking(content="", summary="", signature="message-state"),
     ]
     assert GeminiChatCompletionsClient._native_request(
         NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
@@ -1161,3 +1162,225 @@ async def test_google_late_message_signature_prefers_text_over_unsigned_call():
             "tool_calls": [call],
         }
     ]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(
+    ("provider", "override", "field", "expected"),
+    [
+        ("vllm", None, "reasoning", "new spelling"),
+        ("vllm", "reasoning_content", "reasoning_content", "old spelling"),
+        ("fireworks", None, "reasoning_content", "old spelling"),
+        ("openai", "reasoning", "reasoning", "new spelling"),
+    ],
+)
+async def test_chat_alias_preference_and_signed_actual_history(
+    provider, override, field, expected, stream
+):
+    """Ensures the selected spelling wins once and genuine message and tool state survive reuse."""
+    namespace = "example"
+    message_state = {namespace: {"thought_signature": "message token"}}
+    call_state = {namespace: {"thought_signature": "tool token"}}
+    call = {
+        "id": "call1",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": "{}"},
+        "extra_content": call_state,
+    }
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        return _google_stream(
+            [
+                {
+                    "reasoning_content": "old spelling",
+                    "reasoning": "new spelling",
+                    "extra_content": message_state,
+                },
+                {"tool_calls": [{**call, "index": 0}]},
+            ]
+        )
+
+    options = {
+        "endpoint": "chat/completions",
+        "provider": provider,
+        "api_key": "test-key",
+        "chat_signature_namespace": namespace,
+        "chat_reasoning_field": override,
+    }
+    body = {"model": "model", "input": [{"role": "user", "content": "Check."}], "stream": stream}
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        result = await molto.responses(body, **options)
+        if stream:
+            async with result:
+                result = collect_sdk_response("responses", [event async for event in result])
+        reasoning, tool_signature, tool = result.output
+        assert [part.text for part in reasoning.content or reasoning.summary] == [expected]
+        assert [reasoning.encrypted_content, tool_signature.encrypted_content] == [
+            "message token",
+            "tool token",
+        ]
+        assert tool.call_id == call["id"]
+        body["input"].extend(item.model_dump(exclude_unset=True) for item in result.output)
+        body["input"].append(
+            {"type": "function_call_output", "call_id": call["id"], "output": "done"}
+        )
+        body["stream"] = False
+        await molto.responses(body, **options)
+    assert requests[1]["messages"][1] == {
+        "role": "assistant",
+        field: expected,
+        "extra_content": message_state,
+        "tool_calls": [call],
+    }
+    assert requests[1]["messages"][2]["tool_call_id"] == call["id"]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_google_marker_and_signature_updates_follow_reasoning_runs(stream):
+    """Ensures markers classify content, empty metadata preserves a run, and its latest token precedes text."""
+
+    def state(token):
+        return {"google": {"thought_signature": token}}
+
+    deltas = [
+        {
+            "content": "marked thought",
+            "extra_content": {"google": {"thought": True, "thought_signature": "A"}},
+        },
+        {"role": "assistant"},
+        {"extra_content": state("B")},
+        {
+            "content": "<reasoning>visible</reasoning>",
+            "extra_content": {"google": {"thought": False}},
+        },
+        {"extra_content": state("C")},
+        {"extra_content": state("D")},
+    ]
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: _google_stream(deltas))
+        )
+    ) as molto:
+        result = await molto.responses(
+            {"model": "model", "input": "Check.", "stream": stream},
+            endpoint="chat/completions",
+            provider="gemini",
+            api_key="test-key",
+        )
+        if stream:
+            async with result:
+                result = collect_sdk_response("responses", [event async for event in result])
+    first, visible, last = result.output
+    assert [part.text for part in first.summary] == ["marked thought"]
+    assert first.encrypted_content == "B"
+    assert visible.content[0].text == "<reasoning>visible</reasoning>"
+    assert not last.summary and last.encrypted_content == "D"
+
+
+@pytest.mark.parametrize("boundary", ["text", "tool"])
+async def test_chat_normalization_flushes_each_signature_before_the_next_part(boundary):
+    """Ensures signature revisions flush once per run before the following text or call."""
+
+    def signature(token):
+        return {"extra_content": {"google": {"thought_signature": token}}}
+
+    following = (
+        {"content": "answer"}
+        if boundary == "text"
+        else {"tool_calls": [{"index": 0, **_google_call(0)}]}
+    )
+    deltas = [
+        signature("A"),
+        {"reasoning": "thinking"},
+        signature("B"),
+        following,
+        signature("C"),
+        {},
+        signature("D"),
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _google_stream(deltas))
+    ) as transport:
+        client = GeminiChatCompletionsClient(
+            transport, api_key="test-key", capabilities=PROVIDER_CAPABILITIES["gemini"]
+        )
+        emissions = []
+        async for event in client.events(NormalizedRequest(model="model", stream=True)):
+            if isinstance(event, PartDeltaEvent) and getattr(event.delta, "signature_delta", None):
+                emissions.append(event.delta.signature_delta)
+            if isinstance(event, PartStartEvent):
+                if isinstance(event.part, Thinking) and event.part.signature:
+                    emissions.append(event.part.signature)
+                if isinstance(event.part, (TextOutput, ToolCall)):
+                    emissions.append(boundary)
+    assert emissions == ["B", *(["call-0"] if boundary == "tool" else []), boundary, "D"]
+
+
+async def test_marked_chat_history_keeps_message_and_part_signatures_on_continuation():
+    """Ensures real returned Chat history can follow independently signed reasoning blocks."""
+    from pathlib import Path
+
+    from molto.utils.io import read_yaml
+
+    cassette = read_yaml(
+        Path(__file__).parents[1]
+        / "cassettes/upstream_ir/text_chat/openai-responses-stream-00.yaml"
+    )
+    requests = []
+
+    def handler(request):
+        requests.append(json_loads(request.content))
+        return httpx.Response(
+            200,
+            text="".join(cassette["response"]["sse"]),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    marked = {
+        "role": "assistant",
+        "extra_content": {"google": {"thought": True, "thought_signature": "message token"}},
+        "content": [
+            {
+                "type": "text",
+                "text": "one",
+                "extra_content": {"google": {"thought_signature": "first token"}},
+            },
+            {
+                "type": "text",
+                "text": "two",
+                "extra_content": {
+                    "google": {"thought": True, "thought_signature": "second token"}
+                },
+            },
+        ],
+    }
+    body = {"model": "model", "messages": [marked, {"role": "user", "content": "Continue."}]}
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as molto:
+        for _ in range(2):
+            reply = await molto.chat_completions(
+                body,
+                endpoint="responses",
+                provider="openai",
+                api_key="test",
+                chat_signature_namespace="google",
+            )
+            returned = {
+                key: value
+                for key, value in _history(reply.choices[0].message).items()
+                if value is not None
+            }
+            body["messages"].extend([returned, {"role": "user", "content": "Continue."}])
+
+    for request in requests:
+        assert [
+            (item["encrypted_content"], [p["text"] for p in item["summary"]])
+            for item in request["input"]
+            if item.get("type") == "reasoning"
+        ] == [("message token", []), ("first token", ["one"]), ("second token", ["two"])]
+    assert requests[1]["input"][-2]["content"][0]["text"] == reply.choices[0].message.content

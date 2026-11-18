@@ -77,11 +77,8 @@ def test_normalization_preserves_unsigned_raw_history(signature_fields):
     ]
 
 
-@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
 @pytest.mark.parametrize("signature_fields", [{}, {"signature": ""}, {"signature": "state"}])
-def test_normalization_preserves_summary_history(
-    signature_fields: dict[str, str], responses_reasoning
-) -> None:
+def test_normalization_preserves_summary_history(signature_fields: dict[str, str]) -> None:
     """Ensures normalization preserves summary history for destination-owned validation."""
     request = _request(
         messages=[
@@ -92,9 +89,7 @@ def test_normalization_preserves_summary_history(
         ]
     )
 
-    normalized = _normalize(
-        request, ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
-    )
+    normalized = _normalize(request, ProviderCapabilities(thinking="summary"))
     assert normalized.input == [
         AssistantInput(
             content=[
@@ -558,12 +553,9 @@ async def test_projection_skips_empty_thinking_delta() -> None:
     assert [event.type for event in events] == ["message_start", "content_block_start"]
 
 
-@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
-async def test_projection_supports_official_empty_summary_start(responses_reasoning) -> None:
+async def test_projection_supports_official_empty_summary_start() -> None:
     """Ensures signed summaries preserve their text and signature under both output policies."""
-    adapter, request = _adapter(
-        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
-    )
+    adapter, request = _adapter(ProviderCapabilities(thinking="summary"))
 
     events = [
         event
@@ -588,32 +580,53 @@ async def test_projection_supports_official_empty_summary_start(responses_reason
     assert [delta.type for delta in deltas] == ["thinking_delta", "signature_delta"]
 
 
-async def test_projection_rejects_reasoning_outside_capability() -> None:
+@pytest.mark.parametrize("first", ["raw", "summary"])
+async def test_projection_streams_first_representation_per_block(first) -> None:
+    """Ensures each block selects text on first arrival and keeps its final signature."""
     adapter, request = _adapter()
 
-    with pytest.raises(ValueError, match="cannot contain raw reasoning"):
-        [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _MESSAGE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="raw")),
-                ),
-                request,
-            )
-        ]
+    def delta(text, raw):
+        return ThinkingDelta(content_delta=text) if raw else ThinkingDelta(summary_delta=text)
 
-
-@pytest.mark.parametrize("responses_reasoning", ["profile", "wire"])
-@pytest.mark.parametrize("signature", [None, ""])
-async def test_projection_preserves_unsigned_summary_completion(
-    signature: str | None, responses_reasoning
-) -> None:
-    """Ensures missing output signatures do not discard streamed reasoning summaries."""
-    adapter, request = _adapter(
-        ProviderCapabilities(thinking="summary", responses_reasoning=responses_reasoning)
+    raw_first = first == "raw"
+    final = Thinking(
+        content="AC!" if raw_first else "B",
+        summary="B" if raw_first else "AC!",
+        signature="signed",
     )
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _MESSAGE_START,
+                PartStartEvent(index=0, part=Thinking(content="", summary="", signature="early")),
+                PartDeltaEvent(index=0, delta=delta("A", raw_first)),
+                PartDeltaEvent(index=0, delta=delta("B", not raw_first)),
+                PartDeltaEvent(index=0, delta=delta("C", raw_first)),
+                PartEndEvent(index=0, part=final),
+                PartStartEvent(index=1, part=Thinking(content="raw", summary="other")),
+                PartEndEvent(index=1, part=Thinking(content="raw", summary="other")),
+                _MESSAGE_END,
+            ),
+            request,
+        )
+    ]
+    result = await adapter.project_response(_native_stream(*events), request)
+    assert [(block.thinking, block.signature) for block in result.content] == [
+        ("AC!", "signed"),
+        ("raw", ""),
+    ]
+    assert [
+        e.delta.thinking
+        for e in events
+        if e.type == "content_block_delta" and e.delta.type == "thinking_delta"
+    ] == ["A", "C", "!"]
+
+
+@pytest.mark.parametrize("signature", [None, ""])
+async def test_projection_preserves_unsigned_summary_completion(signature: str | None) -> None:
+    """Ensures missing output signatures do not discard streamed reasoning summaries."""
+    adapter, request = _adapter(ProviderCapabilities(thinking="summary"))
 
     events = [
         event

@@ -233,9 +233,7 @@ The instructions retain their order relative to each other, but `B` loses its po
 
 The client preserves the response ID, model, and supported block order. Each emitted block keeps a stable index across its lifecycle. Text delta boundaries, thinking delta boundaries, tool call identity, and every partial-JSON delta are also preserved. Anthropic does not provide a creation timestamp, so Molto captures local wall-clock time when it observes `message_start` for downstream protocols that require one.
 
-`thinking_delta` does not say whether its text is raw reasoning or a summary. Molto classifies it using the explicit provider capability profile: Anthropic and OpenAI profiles use summaries, while vLLM, Together AI, OpenRouter, and Fireworks use raw reasoning. The endpoint or base URL does not select this behavior.
-
-When OpenRouter Responses is the upstream, its explicit raw/summary events already determine the normalized representation. Messages output preserves that distinction, including signatures for summaries. Incoming unsigned Messages thinking uses OpenRouter's raw profile, so recorded raw reasoning can continue without a signature. Fireworks also uses raw semantics, including for its summary-labeled Responses output, and restores that provider's recorded `summary_text` request shape on continuation. These are provider-specific policies; they do not weaken the signature requirement for genuine summary history on other Responses or Messages upstreams. Raw-profile Messages input rejects a nonempty signature before HTTP instead of silently removing it; omitted or empty signatures remain accepted.
+Messages `thinking` text uses the provider profile during normalization. A signature remains independent of the resulting raw or summary classification. An OpenRouter Responses summary therefore projects into a Messages thinking block even when its continuation uses the raw profile. See [Reasoning and signatures](../reasoning.md).
 
 A thinking block that starts with text or a signature begins immediately so the observed snapshot cannot be lost. A completely empty thinking start is deferred until a non-empty thinking or signature delta establishes content. If the block stays empty, Molto omits it and assigns dense normalized indexes to the remaining blocks. Native `ping` events are ignored on this semantic path.
 
@@ -273,7 +271,7 @@ Reasoning effort is the portable control. For known Claude model IDs, Molto uses
 
 Any prefix before `claude-` is ignored only for this capability lookup, including vendor names, route names, and Bedrock inference profiles. The original model ID is preserved in the request.
 
-When the application speaks Messages, an inbound thinking block is normalized as summarized reasoning: Molto sets `reasoning.summary="detailed"` on the normalized request for both adaptive and `enabled` manual modes.
+When a Messages request enables adaptive or manual thinking, Molto requests `reasoning.summary="detailed"`. The provider profile separately classifies text in assistant history.
 
 | Normalized effort | Adaptive `output_config.effort`         | Manual `budget_tokens` |
 | ----------------- | --------------------------------------- | ---------------------- |
@@ -288,13 +286,7 @@ When the application speaks Messages, an inbound thinking block is normalized as
 
 Adaptive requests always use summarized display and an explicit effort. A manual `budget_tokens` value must be less than `max_tokens`; Molto rejects the request before transport when the budget is invalid. Reasoning history enables thinking when the current request omits reasoning configuration, using high effort for adaptive models or the default 10,000-token manual budget.
 
-Inbound `thinking_delta` classification is a separate concern from the outbound adaptive-versus-manual model policy. A Messages thinking output lifecycle contains one of:
-
-- raw reasoning without a signature;
-- a reasoning summary with an optional signature; or
-- a signature without reasoning text.
-
-It must not mix or switch representations within one block. Output processing accepts a missing summary signature and projects it as an empty Messages signature without inventing continuation state. Request normalization preserves unsigned summary history for upstream validation. Chat upstreams accept the summary text, while Responses and Messages upstream builders reject it before transport. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
+The shared request builder uses raw content when available and otherwise uses the summary. It includes a supplied signature and accepts unsigned history. Official Anthropic continuation may require the original Anthropic-issued signature.
 
 ### Opaque thinking state
 
@@ -380,7 +372,7 @@ When Messages is the translated upstream and the provider is Anthropic, missing,
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
-A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Unsigned reasoning summary output can pass through Chat Completions, but present signatures cannot because Chat has no signature slot. Unsigned summary history can be translated to a Chat upstream; Responses and Messages upstream builders still require signatures. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider. Gemini signature-only state is supported: a thinking block with empty `thinking` and the original `signature` precedes its associated text or tool-use block, and echoing that order attaches the signature forward. Gemini buffers translated response parts to place late signatures first. Without text, a message-level signature is assigned to the first tool call when it lacks its own signature; see the [Gemini attachment policy](../provider-compatibility.md#provider-differences).
+A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Applications must keep opaque state with its issuing provider. The [reasoning guide](../reasoning.md) covers signed Chat extensions, attachment order, and unsigned continuation.
 
 The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 

@@ -234,7 +234,7 @@ def reconstructable_chat_completions_chunks(
         "total_tokens": usage["total_tokens"],
         "prompt_tokens_details": {
             "cached_tokens": prompt_details.get("cached_tokens") or 0,
-            "cache_write_tokens": prompt_details.get("cache_write_tokens") or 0,
+            "cache_write_tokens": prompt_details.get("cache_write_tokens"),
         },
         "completion_tokens_details": {
             "reasoning_tokens": completion_details.get("reasoning_tokens") or 0,

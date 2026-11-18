@@ -11,6 +11,8 @@ class VLLMResponsesClient(ResponsesClient):
 class VLLMChatCompletionsClient(ChatCompletionsClient):
     """vLLM Chat Completions transport and normalization."""
 
+    REASONING_FIELD = "reasoning"
+
 
 class VLLMMessagesClient(AnthropicMessagesClient):
     """vLLM Messages transport and normalization."""

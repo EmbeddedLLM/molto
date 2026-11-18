@@ -10,7 +10,6 @@ from openai import AsyncOpenAI
 
 from molto import Molto
 from molto.providers import PROVIDER_CAPABILITIES
-from molto.types.exceptions import UnsupportedInput
 from molto.types.normalized import AssistantInput, Thinking
 from molto.upstream.openai import ChatCompletionsClient
 from molto.upstream.registry import CLIENTS
@@ -33,10 +32,10 @@ from molto.utils.test import assert_stream_lifecycle, collect_sdk_response
 )
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("thinking", ["", "Prior thought"])
-async def test_raw_history_rejects_signatures_before_http(
+async def test_raw_history_preserves_signatures_on_the_wire(
     provider, endpoint, stream, thinking, monkeypatch
 ):
-    """Ensures fixed and caller-selected raw profiles cannot silently discard signed history."""
+    """Ensures signed raw history survives fixed and caller-selected profiles on both wires."""
     if provider == "bedrock":
         monkeypatch.setattr(CLIENTS[provider, endpoint], "REQUIRES_REASONING_REPRESENTATION", True)
     body = {
@@ -53,20 +52,48 @@ async def test_raw_history_rejects_signatures_before_http(
         ],
     }
     before = deepcopy(body)
-    async with Molto(
-        http_client=httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _: pytest.fail("Signed raw history reached HTTP"))
+    cassette_protocol = endpoint.replace("/", "_")
+    recording = read_yaml(
+        Path(__file__).parents[1]
+        / f"cassettes/matched/simple_text/openai-{cassette_protocol}-stream-00.yaml"
+    )
+    requests = []
+
+    def handle(request):
+        requests.append(json_loads(request.content))
+        return httpx.Response(
+            200,
+            content="".join(recording["response"]["sse"]),
+            headers={"content-type": "text/event-stream"},
         )
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
     ) as client:
-        with pytest.raises(UnsupportedInput, match="Raw reasoning cannot preserve.*signature"):
-            await client.messages(
-                body,
-                provider=provider,
-                endpoint=endpoint,
-                reasoning_representation="raw",
-                api_key="test-key",
-                base_url="https://example.test",
-            )
+        result = await client.messages(
+            body,
+            provider=provider,
+            endpoint=endpoint,
+            reasoning_representation="raw",
+            chat_signature_namespace="issuer",
+            api_key="test-key",
+            base_url="https://example.test",
+        )
+        if stream:
+            events = [event async for event in result]
+            result = collect_sdk_response("messages", events)
+    assert result.content
+    if endpoint == "responses":
+        (item,) = requests[0]["input"]
+        assert item["encrypted_content"] == "synthetic-state"
+        assert [part["text"] for part in item.get("content", [])] == (
+            [thinking] if thinking else []
+        )
+        assert item["summary"] == []
+    else:
+        (item,) = requests[0]["messages"]
+        assert item["extra_content"] == {"issuer": {"thought_signature": "synthetic-state"}}
+        assert (item.get("reasoning_content") or item.get("reasoning") or "") == thinking
     assert body == before
 
 

@@ -2055,14 +2055,11 @@ def _message_item_events(
 @pytest.mark.parametrize(
     "signature_fields", [{}, {"encrypted_content": None}, {"encrypted_content": ""}]
 )
-async def test_responses_events_omit_completely_empty_reasoning_part(
+async def test_responses_events_preserve_completely_empty_reasoning_part(
     monkeypatch: pytest.MonkeyPatch,
     signature_fields: dict[str, str | None],
 ) -> None:
-    """Ensures absent or empty ciphertext cannot materialize an empty reasoning lifecycle."""
-    # A reasoning item with no content, summary, signature, or deltas carries
-    # nothing to translate, so its part lifecycle is omitted from the IR and the
-    # surviving parts are reindexed to stay dense.
+    """Ensures empty Responses items retain their IDs and position without invented ciphertext."""
     empty_reasoning_item = {
         "id": "rs_123",
         "type": "reasoning",
@@ -2106,9 +2103,11 @@ async def test_responses_events_omit_completely_empty_reasoning_part(
         PartStartEvent(index=0, part=TextOutput(content="", id="msg_a")),
         PartDeltaEvent(index=0, delta=TextDelta(content_delta="Hi")),
         PartEndEvent(index=0, part=TextOutput(content="Hi", id="msg_a")),
-        PartStartEvent(index=1, part=TextOutput(content="", id="msg_b")),
-        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Bye")),
-        PartEndEvent(index=1, part=TextOutput(content="Bye", id="msg_b")),
+        PartStartEvent(index=1, part=Thinking(content="", summary="", id="rs_123")),
+        PartEndEvent(index=1, part=Thinking(content="", summary="", id="rs_123")),
+        PartStartEvent(index=2, part=TextOutput(content="", id="msg_b")),
+        PartDeltaEvent(index=2, delta=TextDelta(content_delta="Bye")),
+        PartEndEvent(index=2, part=TextOutput(content="Bye", id="msg_b")),
     ]
 
 
@@ -2261,42 +2260,31 @@ async def test_responses_events_preserve_reasoning_added_snapshot(
     assert first == PartStartEvent(index=0, part=expected_part)
 
 
-async def test_responses_events_reject_reasoning_outside_capability(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def stub_native_events(
-        native_request: OpenAIResponsesCreateRequest,
-    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-        yield _response_event(
-            {
-                "type": "response.output_item.added",
-                "item": {
-                    "id": "rs_123",
-                    "type": "reasoning",
-                    "content": [{"type": "reasoning_text", "text": "raw"}],
-                    "summary": [],
-                },
-                "output_index": 0,
-                "sequence_number": 0,
-            }
-        )
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        with pytest.raises(ValueError, match="cannot contain raw text"):
-            await anext(client.events(NormalizedRequest(model="m")))
-
-
-def test_responses_client_rejects_unsigned_summary_history() -> None:
-    """Ensures Responses rejects summaries without required opaque state."""
-    request = NormalizedRequest(
-        input=[Thinking(content="", summary="Summary")],
-        model="m",
+@pytest.mark.parametrize(
+    ("content", "summary", "signature"),
+    [
+        ("Raw", "", None),
+        ("", "Summary", None),
+        ("Raw", "Summary", "opaque"),
+        ("Raw", "", "opaque"),
+        ("", "", "opaque"),
+        ("", "", None),
+    ],
+)
+def test_responses_reasoning_history_round_trip(content, summary, signature) -> None:
+    """Ensures Responses normalizes and restores each reasoning field independently."""
+    item = {
+        "type": "reasoning",
+        "content": [{"type": "reasoning_text", "text": content}] if content else [],
+        "summary": [{"type": "summary_text", "text": summary}] if summary else [],
+    }
+    if signature is not None:
+        item["encrypted_content"] = signature
+    normalized = OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(model="m", input=[item])
     )
-
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesClient._native_request(request)
+    assert normalized.input == [Thinking(content=content, summary=summary, signature=signature)]
+    assert OpenAIResponsesClient._native_request(normalized).model_dump()["input"] == [item]
 
 
 @pytest.mark.parametrize(
@@ -2425,11 +2413,11 @@ async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(
     ]
 
 
-async def test_responses_events_defer_completely_empty_reasoning_part_start(
+async def test_responses_events_start_empty_reasoning_immediately(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Only a completely empty reasoning item is deferred; with no further events
-    # it produces nothing at all.
+    """Ensures an empty start preserves the reasoning item identity as soon as it arrives."""
+
     async def stub_native_events(
         native_request: OpenAIResponsesCreateRequest,
     ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
@@ -2446,15 +2434,16 @@ async def test_responses_events_defer_completely_empty_reasoning_part_start(
         client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         stream = client.events(NormalizedRequest(model="m"))
-        with pytest.raises(StopAsyncIteration):
-            await anext(stream)
+        assert await anext(stream) == PartStartEvent(
+            index=0, part=Thinking(content="", summary="", id="rs_123")
+        )
+        await stream.aclose()
 
 
 async def test_responses_events_complete_reasoning_part_without_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A reasoning item whose text only appears in the completed item still gets a
-    # balanced part lifecycle: the deferred start is flushed at completion.
+    """Ensures text present only at completion survives in the final part snapshot."""
     native_events = [
         _response_event(
             {
@@ -2622,11 +2611,7 @@ async def test_responses_adapter_omits_empty_reasoning_part_lifecycle(
 async def test_responses_events_translate_non_empty_part_added_snapshots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Part-added snapshots can carry initial text; translate them as deltas so
-    # the streamed text stays consistent with the completed snapshots. Raw
-    # reasoning and summaries use separate reasoning items, as required by the
-    # Responses lifecycle. Empty part-added echoes remain ignored (see
-    # test_responses_events_ignore_...).
+    """Ensures raw, summary, and answer text present in part-added snapshots reach the IR."""
     native_events = [
         _response_event(
             {
@@ -2790,11 +2775,10 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
     ]
 
 
-async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
+async def test_responses_events_ignore_empty_reasoning_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Empty deltas are lifecycle echoes: they must not materialize a deferred
-    # reasoning part, so the part is still omitted at completion.
+    """Ensures an empty item survives empty delta echoes without creating reasoning text."""
     empty_item = {"id": "rs_123", "type": "reasoning", "content": [], "summary": []}
     native_events = [
         _response_event(
@@ -2846,7 +2830,8 @@ async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
-    assert events == []
+    part = Thinking(id="rs_123", content="", summary="")
+    assert events == [PartStartEvent(index=0, part=part), PartEndEvent(index=0, part=part)]
 
 
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(
@@ -4162,3 +4147,40 @@ async def test_generic_chat_missing_index_fails_instead_of_losing_call():
                 event
                 async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
             ]
+
+
+@pytest.mark.parametrize("usage_only", [True, False])
+async def test_chat_translation_selects_choice_zero_by_index(usage_only):
+    """Ensures alternative completions stay native and their chunks can still report shared usage."""
+    chunks = [_provider_chunk({"content": "first"}), _provider_chunk({"content": "alternative"})]
+    chunks[1]["choices"][0]["index"] = 1
+    mixed = _provider_chunk({"reasoning": "wrong"})
+    mixed["choices"][0]["index"] = 1
+    mixed["choices"].append({"index": 0, "delta": {"content": " choice"}})
+    alternate_end = _provider_chunk({}, "length")
+    alternate_end["choices"][0]["index"] = 1
+    chunks.extend([mixed, _provider_chunk({}, "stop"), alternate_end])
+    if usage_only:
+        chunks.append({**_provider_chunk({}), "choices": []})
+    chunks[-1]["usage"] = {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=OPENAI_CAPABILITIES, api_key="test"
+        )
+        events = [
+            event async for event in client.events(NormalizedRequest(model="m", stream=True))
+        ]
+        native = [
+            event
+            async for event in client.native_events({"model": "m", "messages": [], "stream": True})
+        ]
+    assert [event.part for event in events if isinstance(event, PartEndEvent)] == [
+        TextOutput(content="first choice")
+    ]
+    assert events[-1].termination_reason == "stop"
+    assert events[-1].usage.total_tokens == 3
+    assert [[choice.index for choice in chunk.choices] for chunk in native] == [
+        [choice["index"] for choice in chunk["choices"]] for chunk in chunks
+    ]

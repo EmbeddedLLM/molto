@@ -410,29 +410,8 @@ class AnthropicMessagesClient(
         )
         for item in parts:
             if isinstance(item, Thinking):
-                representation = (
-                    "raw"
-                    if item.content
-                    else "summary"
-                    if item.summary or item.signature
-                    else None
-                )
-                if representation == "summary" and not item.signature:
-                    raise UnsupportedInput("An Anthropic reasoning summary requires a signature.")
-                if (
-                    representation is not None
-                    and capabilities is not None
-                    and representation != capabilities.thinking
-                ):
-                    raise UnsupportedInput(
-                        "Anthropic thinking history does not match the provider's reasoning "
-                        "representation."
-                    )
-                block = {
-                    "type": "thinking",
-                    "thinking": item.content if representation == "raw" else item.summary,
-                }
-                if representation == "summary":
+                block = {"type": "thinking", "thinking": item.content or item.summary}
+                if item.signature:
                     block["signature"] = item.signature
                 blocks.append(block)
             elif isinstance(item, TextOutput):
@@ -677,7 +656,7 @@ class AnthropicMessagesClient(
     async def _events(self, request: NormalizedRequest) -> AsyncIterator[ModelResponseStreamEvent]:
         metadata: ResponseStartEvent | None = None
         input_tokens = 0
-        cache_creation = 0
+        cache_creation: int | None = None
         cache_read = 0
         usage: Usage | None = None
         termination_reason: TerminationReason | None = None
@@ -722,7 +701,7 @@ class AnthropicMessagesClient(
                         service_tier=message.usage.service_tier,
                     )
                     input_tokens = message.usage.input_tokens
-                    cache_creation = message.usage.cache_creation_input_tokens or 0
+                    cache_creation = message.usage.cache_creation_input_tokens
                     cache_read = message.usage.cache_read_input_tokens or 0
                     if message.usage.server_tool_use is not None:
                         search_usage = message.usage.server_tool_use.web_search_requests
@@ -805,8 +784,6 @@ class AnthropicMessagesClient(
                             delta=self._classify_thinking_delta(delta.thinking),
                         )
                     elif delta.type == "signature_delta" and isinstance(part, Thinking):
-                        if self._capabilities.thinking == "raw":
-                            continue
                         # An empty signature carries no state and must not
                         # materialize a deferred block.
                         if not delta.signature and event.index in pending_thinking:
@@ -916,9 +893,10 @@ class AnthropicMessagesClient(
                     reasoning_tokens = (
                         output_details.thinking_tokens if output_details is not None else 0
                     )
+                    total_input = input_tokens + (cache_creation or 0) + cache_read
                     usage = Usage(
                         web_search_requests=search_usage,
-                        input_tokens=input_tokens + cache_creation + cache_read,
+                        input_tokens=total_input,
                         input_tokens_details=InputTokenDetails(
                             cached_tokens=cache_read,
                             cache_write_tokens=cache_creation,
@@ -927,10 +905,7 @@ class AnthropicMessagesClient(
                         output_tokens_details=OutputTokenDetails(
                             reasoning_tokens=reasoning_tokens
                         ),
-                        total_tokens=input_tokens
-                        + cache_creation
-                        + cache_read
-                        + raw_usage.output_tokens,
+                        total_tokens=total_input + raw_usage.output_tokens,
                     )
                 elif isinstance(event, RawMessageStopEvent):
                     if metadata is None:

@@ -1,7 +1,10 @@
 """Bedrock API-key clients; callers supply the regional protocol destination."""
 
+from dataclasses import replace
+
 from anthropic import AsyncAnthropic, omit
 
+from molto.providers import ProviderCapabilities
 from molto.types.exceptions import AuthenticationError
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.openai import ChatCompletionsClient, ResponsesClient
@@ -13,6 +16,12 @@ class BedrockResponsesClient(ResponsesClient):
 
 
 class BedrockChatCompletionsClient(ChatCompletionsClient):
+    REASONING_FIELD = "reasoning"
+
+    @classmethod
+    def resolve_capabilities(cls, profile: ProviderCapabilities) -> ProviderCapabilities:
+        return super().resolve_capabilities(replace(profile, thinking="raw"))
+
     REQUIRED_API_KEY = "AWS_BEARER_TOKEN_BEDROCK"
     REQUIRES_BASE_URL = True
 

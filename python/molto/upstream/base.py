@@ -114,7 +114,7 @@ class BaseClient[
         return Thinking(
             content=text if self._capabilities.thinking == "raw" else "",
             summary=text if self._capabilities.thinking == "summary" else "",
-            signature=(signature or None) if self._capabilities.thinking == "summary" else None,
+            signature=signature or None,
         )
 
     def _classify_thinking_delta(self, text: str) -> ThinkingDelta:

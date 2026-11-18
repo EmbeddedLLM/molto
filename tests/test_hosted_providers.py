@@ -304,7 +304,7 @@ async def test_bedrock_messages_translation_matches_openai_sdk(downstream, strea
                 item.model_dump(exclude={"id", "phase"}) for item in expected.output
             ]
             assert actual_output == expected_output
-            assert actual.usage == expected.usage
+            assert actual.usage.model_dump() == expected.usage.model_dump()
         else:
             assert len(actual.choices) == len(expected.choices) == 1
             assert actual.choices[0].index == expected.choices[0].index

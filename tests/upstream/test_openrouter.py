@@ -4,7 +4,13 @@ import httpx
 import pytest
 
 from molto.providers import PROVIDER_CAPABILITIES, ProviderCapabilities
-from molto.types.normalized import NormalizedRequest, PartEndEvent, Thinking
+from molto.types.normalized import (
+    NormalizedRequest,
+    PartDeltaEvent,
+    PartEndEvent,
+    Thinking,
+    ThinkingDelta,
+)
 from molto.upstream.openrouter import OpenRouterResponsesClient
 from tests.upstream.test_openai import _response_event, _unexpected_http
 
@@ -13,7 +19,7 @@ def test_openrouter_uses_raw_history_profile_with_explicit_response_labels():
     """Ensures ambiguous history is raw while Responses keeps explicit wire labels."""
     profile = ProviderCapabilities(thinking="summary")
     resolved = OpenRouterResponsesClient.resolve_capabilities(profile)
-    assert resolved == ProviderCapabilities(thinking="raw", responses_reasoning="wire")
+    assert resolved == ProviderCapabilities(thinking="raw")
     assert profile.thinking == "summary"
 
 
@@ -83,32 +89,17 @@ async def test_wire_reasoning_preserves_raw_or_summary(monkeypatch, raw, signatu
             {"content": [{"type": "reasoning_text", "text": "Raw"}], "format": "named-v1"},
             "format cannot be translated",
         ),
-        (
-            {
-                "content": [{"type": "reasoning_text", "text": "Raw"}],
-                "summary": [{"type": "summary_text", "text": "Summary"}],
-                "encrypted_content": "opaque",
-            },
-            "both raw reasoning and a summary",
-        ),
-        (
-            {
-                "content": [{"type": "reasoning_text", "text": "Raw"}],
-                "encrypted_content": "opaque",
-            },
-            "signature cannot accompany raw reasoning",
-        ),
     ],
 )
-async def test_wire_reasoning_keeps_format_and_signature_boundaries(monkeypatch, fields, error):
-    """Ensures wire interpretation rejects unsupported opaque formats and mixed parts."""
+async def test_wire_reasoning_rejects_unsupported_formats(monkeypatch, fields, error):
+    """Ensures wire interpretation rejects unsupported opaque formats."""
     with pytest.raises(ValueError, match=error):
         await normalized_events(monkeypatch, [item_event(reasoning_item(**fields), done=True)])
 
 
 @pytest.mark.parametrize("first_raw", [False, True])
-async def test_wire_reasoning_cannot_change_representation_mid_item(monkeypatch, first_raw):
-    """Ensures individually valid deltas cannot mix raw and summarized reasoning in one item."""
+async def test_wire_reasoning_preserves_both_delta_labels(monkeypatch, first_raw):
+    """Ensures both delta labels survive in a single item in either arrival order."""
     deltas = [
         {
             "type": "response.reasoning_text.delta"
@@ -122,5 +113,19 @@ async def test_wire_reasoning_cannot_change_representation_mid_item(monkeypatch,
         }
         for index, raw in enumerate((first_raw, not first_raw))
     ]
-    with pytest.raises(ValueError, match="cannot mix raw text"):
-        await normalized_events(monkeypatch, [item_event(reasoning_item()), *deltas])
+    item = reasoning_item(
+        content=[{"type": "reasoning_text", "text": "Thought"}],
+        summary=[{"type": "summary_text", "text": "Thought"}],
+        encrypted_content="opaque",
+    )
+    events = await normalized_events(
+        monkeypatch, [item_event(reasoning_item()), *deltas, item_event(item, done=True)]
+    )
+    expected = [ThinkingDelta(content_delta="Thought"), ThinkingDelta(summary_delta="Thought")]
+    assert [event.delta for event in events if isinstance(event, PartDeltaEvent)] == [
+        *(expected if first_raw else reversed(expected)),
+        ThinkingDelta(signature_delta="opaque"),
+    ]
+    assert events[-1] == PartEndEvent(
+        index=0, part=Thinking(id="rs_1", content="Thought", summary="Thought", signature="opaque")
+    )

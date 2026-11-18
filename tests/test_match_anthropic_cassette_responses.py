@@ -197,6 +197,16 @@ def test_matches_positive_cache_writes_by_effective_lifetime(
     assert messages == matched
 
 
+def test_missing_cache_write_count_remains_unknown():
+    """Ensures a missing aggregate cannot produce a cache write count or lifetime breakdown."""
+    messages, responses = _cassettes()
+    responses["response"]["body"]["usage"]["input_tokens_details"].pop("cache_write_tokens", None)
+    match_messages_response(messages, responses)
+    usage = messages["response"]["body"]["usage"]
+    assert usage["cache_creation_input_tokens"] is None
+    assert usage.get("cache_creation") is None
+
+
 @pytest.mark.parametrize("cache_write_tokens", [0, 3, 4])
 def test_mixed_cache_lifetimes_preserve_only_observed_distribution(
     cache_write_tokens: int,

@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from openai.lib.streaming.chat import ChatCompletionStreamState
 
 from molto import Molto
+from molto.adapters.openai import OpenAIChatCompletionsAdapter
 from molto.providers import PROVIDER_CAPABILITIES
 from molto.types.normalized import (
     AssistantInput,
@@ -34,6 +35,7 @@ from molto.types.normalized import (
     ToolReturn,
     UserInput,
 )
+from molto.types.openai_chat_completions import OpenAIChatCompletionsCreateRequest
 from molto.upstream.anthropic import AnthropicMessagesClient
 from molto.upstream.bedrock import (
     BedrockChatCompletionsClient,
@@ -142,7 +144,8 @@ def _assert_ir(
     assert usage.output_tokens > 0
     assert usage.total_tokens == usage.input_tokens + usage.output_tokens
     assert 0 <= usage.input_tokens_details.cached_tokens <= usage.input_tokens
-    assert 0 <= usage.input_tokens_details.cache_write_tokens <= usage.input_tokens
+    if usage.input_tokens_details.cache_write_tokens is not None:
+        assert 0 <= usage.input_tokens_details.cache_write_tokens <= usage.input_tokens
     assert 0 <= usage.output_tokens_details.reasoning_tokens <= usage.output_tokens
 
     parts = {}
@@ -449,6 +452,7 @@ PROVIDER_CLIENTS = {
     for client, (provider, endpoint) in CLIENTS.items()
     if client not in CANONICAL_CLIENTS
 }
+GEMINI_COMBINED_SCENARIOS = ("reasoning_combined_control", "reasoning_combined")
 PROVIDER_NATIVE_CONVERSATIONS = [
     pytest.param(
         provider, endpoint, scenario.name, mode, id=f"{provider}-{endpoint}-{scenario.name}-{mode}"
@@ -456,8 +460,13 @@ PROVIDER_NATIVE_CONVERSATIONS = [
     for provider, endpoint in PROVIDER_CLIENTS
     for scenario in sorted(CASSETTE_DIR.iterdir())
     if scenario.is_dir()
-    for mode in ("stream", "non_stream")
+    for mode in ("stream", "non_stream", "mixed")
     if (scenario / f"{provider}-{endpoint}-{mode}-00.yaml").exists()
+] + [
+    # These probes share previously recorded first turns. Only turn 01 is new.
+    pytest.param("gemini", "chat_completions", scenario, mode, id=f"gemini-{scenario}-{mode}")
+    for scenario in GEMINI_COMBINED_SCENARIOS
+    for mode in ("stream", "non_stream")
 ]
 
 PROVIDER_RESPONSES_CONVERSATIONS = [
@@ -477,7 +486,7 @@ def _provider_turns(provider, scenario, mode, endpoint="responses"):
 def _sdk_body(body):
     """Keep provider extensions separate from the SDK's native arguments."""
     body = deepcopy(body)
-    extension_keys = ("provider",) if "input" in body else ("provider", "reasoning")
+    extension_keys = ("provider",) if "input" in body else ("provider", "reasoning", "extra_body")
     extras = {key: body.pop(key) for key in extension_keys if key in body}
     return body, extras
 
@@ -599,6 +608,62 @@ def _chat_history(message, provider, *, omit_output_fields=False):
     return history
 
 
+def _gemini_marked_history(reply):
+    """Normalize the thought marker on the native complete reply used for continuation."""
+    profile = GeminiChatCompletionsClient.resolve_capabilities(PROVIDER_CAPABILITIES["gemini"])
+    message = reply.choices[0].message.model_dump(exclude_unset=True, exclude_none=True)
+    assert message["extra_content"]["google"]["thought"] is True
+    request = OpenAIChatCompletionsCreateRequest(model=reply.model, messages=[message])
+    normalized = OpenAIChatCompletionsAdapter(profile).normalize_request(request)
+    (assistant,) = normalized.input
+    assert isinstance(assistant, AssistantInput)
+    assert not any(isinstance(part, TextOutput) for part in assistant.content)
+    assert assistant.content[0].summary == message["content"]
+    return normalized
+
+
+async def _gemini_combined_history(scenario, recorded):
+    """Rebuild the probe from two independent SDK replies to the same prompt."""
+
+    async def seed(mode):
+        first, second = _provider_turns("gemini", "reasoning_text", mode, "chat_completions")
+        body, extras = _sdk_body(first["request"]["body"])
+        async with AsyncOpenAI(
+            api_key="test-key",
+            http_client=httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda _: _recorded_response(first))
+            ),
+        ) as sdk:
+            reply, _ = await _collect_chat(
+                await sdk.chat.completions.create(**body, extra_body=extras), body["stream"]
+            )
+        return reply.choices[0].message, deepcopy(second["request"]["body"])
+
+    visible, request = await seed("stream")
+    signed = _chat_history(visible, "gemini")
+    assert request["messages"][1] == signed
+    assert visible.content and "reasoning_content" not in signed
+    (signature,) = _google_signatures(visible)
+    parts = []
+    if scenario == "reasoning_combined":
+        marked, prior = await seed("non_stream")
+        assert marked.extra_content["google"]["thought"] is True
+        assert marked.content == prior["messages"][1]["reasoning_content"]
+        assert request["messages"][0] == prior["messages"][0]
+        signed["reasoning_content"] = marked.content
+        parts.append(Thinking(content="", summary=marked.content))
+    parts.extend(
+        [
+            Thinking(content="", summary="", signature=signature),
+            TextOutput(content=visible.content),
+        ]
+    )
+    request["messages"][1] = signed
+    request["stream"] = recorded["stream"]
+    assert request == recorded
+    return request["messages"], NormalizedRequest(input=[AssistantInput(content=parts)])
+
+
 def _chat_input_body(recorded):
     """Omit empty output-only SDK fields from input copies, preserving source cassettes."""
     body = deepcopy(recorded)
@@ -620,7 +685,6 @@ def _chat_input_body(recorded):
 async def test_provider_native_conversation(provider, endpoint, scenario, mode):
     """Ensures native SDK parity and exact actual-output continuation for recorded provider conversations."""
     cassettes = _provider_turns(provider, scenario, mode, endpoint)
-    stream = mode == "stream"
     responses = endpoint == "responses"
     messages = endpoint == "messages"
     history_key = "input" if responses else "messages"
@@ -635,9 +699,12 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
         "messages": _collect_messages,
     }[endpoint]
     history = deepcopy(cassettes[0]["request"]["body"][history_key])
+    if scenario in GEMINI_COMBINED_SCENARIOS:
+        history, _ = await _gemini_combined_history(scenario, cassettes[0]["request"]["body"])
     for turn, cassette in enumerate(cassettes):
         recorded = cassette["request"]["body"]
         base_url = cassette["upstream_url"].removesuffix(path)
+        stream = recorded["stream"]
         assert history == recorded[history_key]
         wire = {**recorded, history_key: history}
         if endpoint == "chat_completions":
@@ -691,7 +758,7 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
                         for field in ("audio", "function_call", "refusal"):
                             message[field] = None
                         message.setdefault("content", None)
-                if stream:
+                if stream and "stream_options" in recorded:
                     molto_body.setdefault("stream_options", {})["include_obfuscation"] = False
             before = deepcopy(molto_body)
             actual, actual_events = await collect(
@@ -705,18 +772,10 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
                 stream,
             )
             assert molto_body == before
-        if stream and responses:
-            # Native streaming documents only this omitted-usage normalization.
-            for event in expected_events:
-                if (
-                    event["type"] == "response.completed"
-                    and event["response"]["usage"]["input_tokens_details"]["cache_write_tokens"]
-                    is None
-                ):
-                    event["response"]["usage"]["input_tokens_details"]["cache_write_tokens"] = 0
-                    expected.usage.input_tokens_details.cache_write_tokens = 0
         assert actual_events == expected_events
         assert actual.model_dump() == expected.model_dump()
+        if scenario in GEMINI_COMBINED_SCENARIOS:
+            assert "36" in actual.choices[0].message.content
         assert len(calls) == 2
         if responses:
             # The reasoning recorder omits output lifecycle status on history.
@@ -727,6 +786,15 @@ async def test_provider_native_conversation(provider, endpoint, scenario, mode):
                 )
                 for item in actual.output
             )
+        elif provider == "gemini" and not stream and "reasoning" in scenario:
+            # The recorder projected genuine marked content into reasoning_content
+            # for continuation. Reconstruct those requests from the returned SDK object.
+            normalized = _gemini_marked_history(actual)
+            profile = GeminiChatCompletionsClient.resolve_capabilities(
+                PROVIDER_CAPABILITIES["gemini"]
+            )
+            wire = GeminiChatCompletionsClient._native_request(normalized, capabilities=profile)
+            history.extend(wire.model_dump(exclude_none=True)["messages"])
         elif messages:
             history.append(_messages_history(actual))
         else:
@@ -791,6 +859,7 @@ def _expected_responses_wire(recorded):
                 part.setdefault("annotations", [])
                 part.setdefault("logprobs", [])
         if item.get("type") == "reasoning":
+            item.setdefault("content", [])
             assert item.pop("format", None) in (None, "unknown")
             item.pop("status", None)
         if item.get("type") == "function_call":
@@ -872,9 +941,7 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
             events = [event async for event in client.events(request)]
             assert request == before
         assert len(calls) == 1
-        raw = provider == "fireworks" or any(
-            item.type == "reasoning" and item.content for item in reference.output
-        )
+        raw = any(item.type == "reasoning" and item.content for item in reference.output)
         parts = _assert_ir(
             events,
             tool_name=request.tools[0].name if request.tools else "read_file",
@@ -904,11 +971,8 @@ async def test_provider_normalized_responses_conversation(provider, scenario, mo
             if isinstance(part, Thinking)
         ] == [
             (
-                "".join(
-                    part.text
-                    for part in (item.content or (item.summary if provider == "fireworks" else []))
-                ),
-                "" if provider == "fireworks" else "".join(part.text for part in item.summary),
+                "".join(part.text for part in item.content or []),
+                "".join(part.text for part in item.summary),
                 item.encrypted_content,
             )
             for item in reference.output
@@ -1000,22 +1064,23 @@ def _messages_caller_input(messages):
 def _google_signatures(message):
     """Read opaque signatures from independently parsed SDK message and tool attachments."""
     return [
-        extra["google"]["thought_signature"]
+        signature
         for attachment in (message, *(message.tool_calls or []))
-        if (extra := getattr(attachment, "extra_content", None))
+        if (
+            signature := (getattr(attachment, "extra_content", {}) or {})
+            .get("google", {})
+            .get("thought_signature")
+        )
     ]
 
 
-def _google_prefix_parts(message):
-    """Build expected prefix attachments from the independently collected Google SDK message."""
+def _google_stream_parts(message):
+    """Reconstruct the recorded trailing message and same-chunk tool signatures."""
     parts = []
     message_signature = (
         getattr(message, "extra_content", {}).get("google", {}).get("thought_signature")
     )
     if message.content:
-        if message_signature:
-            parts.append(Thinking(content="", summary="", signature=message_signature))
-            message_signature = None
         parts.append(TextOutput(content=message.content))
     for index, call in enumerate(message.tool_calls or []):
         signature = getattr(call, "extra_content", {}).get("google", {}).get("thought_signature")
@@ -1038,10 +1103,11 @@ def _google_prefix_parts(message):
     [
         pytest.param(*case.values, downstream, False, id=f"{case.id}-{downstream}")
         for case in PROVIDER_NATIVE_CONVERSATIONS
-        if case.values[1] == "chat_completions" and case.values[3] == "stream"
+        if case.values[1] == "chat_completions" and case.values[3] in {"stream", "mixed"}
         for downstream in (
             ("responses", "messages")
             if case.values[0] in {"gemini", "fireworks", "togetherai"}
+            or "reasoning" in case.values[2]
             else ("responses",)
         )
     ]
@@ -1073,11 +1139,21 @@ async def test_provider_chat_translated_conversation(
     )
     history_key = "input" if responses else "messages"
     caller_input = _responses_caller_input if responses else _messages_caller_input
+    if scenario in GEMINI_COMBINED_SCENARIOS:
+        messages, normalized = await _gemini_combined_history(scenario, first)
+        prior = (
+            OpenAIResponsesClient._process_input(normalized)
+            if responses
+            else AnthropicMessagesClient._request_parts(normalized)[1]
+        )
+        history = [*caller_input(messages[:1]), *prior, *caller_input(messages[2:])]
+    else:
+        history = caller_input(first["messages"])
     body = {
         "model": first["model"],
         "stream": stream,
         "max_output_tokens" if responses else "max_tokens": first["max_completion_tokens"],
-        history_key: caller_input(first["messages"]),
+        history_key: history,
     }
     if first.get("tools"):
         body["tools"] = (
@@ -1106,9 +1182,36 @@ async def test_provider_chat_translated_conversation(
             )
             reference, reference_events = await _collect_chat(
                 await sdk.chat.completions.create(**sdk_body, extra_body=extras),
-                True,
+                recorded["stream"],
                 repair_single_call_index=provider == "gemini",
             )
+            if not recorded["stream"]:
+                async with Molto(http_client=transport) as molto:
+                    first_reply = await molto.chat_completions(
+                        sdk_body,
+                        provider=provider,
+                        api_key="test-key",
+                        base_url=base_url,
+                        extra_body=extras,
+                    )
+                assert first_reply.model_dump() == reference.model_dump()
+        if not recorded["stream"]:
+            # Mixed-mode captures start with a genuine complete, thought-marked reply.
+            # Translate its actual history before requesting the recorded follow-up stream.
+            assert mode == "mixed" and turn == 0
+            normalized = _gemini_marked_history(first_reply)
+            history = (
+                OpenAIResponsesClient._process_input(normalized)
+                if responses
+                else AnthropicMessagesClient._request_parts(normalized)[1]
+            )
+            body[history_key].extend(history)
+            suffix = cassettes[turn + 1]["request"]["body"]["messages"][
+                len(recorded["messages"]) + 1 :
+            ]
+            assert suffix
+            body[history_key].extend(caller_input(suffix))
+            continue
         if unknown_extensions:
             assert any(
                 choice["delta"].get("extra_content")
@@ -1116,6 +1219,7 @@ async def test_provider_chat_translated_conversation(
                 for choice in event["choices"]
             )
         expected = _expected_chat_wire(recorded)
+        expected.setdefault("stream_options", {})["include_usage"] = True
         for tool in expected.get("tools", []):
             # Translated tools make the downstream protocol's default explicit.
             tool["function"].setdefault("strict", responses)
@@ -1138,7 +1242,13 @@ async def test_provider_chat_translated_conversation(
 
         controls = {
             key: recorded[key]
-            for key in ("reasoning", "reasoning_effort", "tool_choice", "parallel_tool_calls")
+            for key in (
+                "reasoning",
+                "reasoning_effort",
+                "tool_choice",
+                "parallel_tool_calls",
+                "extra_body",
+            )
             if key in recorded
         }
         before = deepcopy(body)
@@ -1169,7 +1279,10 @@ async def test_provider_chat_translated_conversation(
         if responses:
             assert actual.status == "completed"
             assert actual.created_at == reference.created
-            assert actual.usage.total_tokens == reference.usage.total_tokens
+            if reference.usage is None:
+                assert actual.usage is None
+            else:
+                assert actual.usage.total_tokens == reference.usage.total_tokens
             text = actual.output_text
             tool_calls = [
                 (item.call_id, item.name, json_loads(item.arguments))
@@ -1188,7 +1301,9 @@ async def test_provider_chat_translated_conversation(
             assert all(
                 item.type in {"message", "function_call", "reasoning"} for item in actual.output
             )
-            usage = (actual.usage.input_tokens, actual.usage.output_tokens)
+            usage = (
+                (actual.usage.input_tokens, actual.usage.output_tokens) if actual.usage else None
+            )
         else:
             assert actual.stop_reason == ("tool_use" if message.tool_calls else "end_turn")
             text = "".join(block.text for block in actual.content if block.type == "text")
@@ -1212,7 +1327,11 @@ async def test_provider_chat_translated_conversation(
             (call.id, call.function.name, json_loads(call.function.arguments))
             for call in message.tool_calls or []
         ]
-        assert reasoning == (getattr(message, "reasoning_content", None) or "")
+        assert reasoning == (
+            getattr(message, "reasoning_content", None)
+            or getattr(message, "reasoning", None)
+            or ""
+        )
         assert signatures == (_google_signatures(message) if provider == "gemini" else [])
         if provider == "gemini":
             types = (
@@ -1221,9 +1340,12 @@ async def test_provider_chat_translated_conversation(
                 else {Thinking: "thinking", TextOutput: "text", ToolCall: "tool_use"}
             )
             assert [item.type for item in (actual.output if responses else actual.content)] == [
-                types[type(part)] for part in _google_prefix_parts(message)
+                types[type(part)] for part in _google_stream_parts(message)
             ]
-        assert usage == (reference.usage.prompt_tokens, reference.usage.completion_tokens)
+        if reference.usage is not None:
+            assert usage == (reference.usage.prompt_tokens, reference.usage.completion_tokens)
+        else:
+            assert usage == (None if responses else (0, 0))
         if turn + 1 < len(cassettes):
             if responses:
                 body[history_key].extend(
@@ -1317,7 +1439,7 @@ async def test_gemini_normalized_signature_conversation(scenario):
             reference.usage.completion_tokens,
             reference.usage.total_tokens,
         )
-        assert parts == _google_prefix_parts(message)
+        assert parts == _google_stream_parts(message)
         if turn + 1 < len(cassettes):
             request.input.append(AssistantInput(content=parts))
             suffix = cassettes[turn + 1]["request"]["body"]["messages"][
@@ -1424,6 +1546,13 @@ async def test_provider_reasoning_public_projection(
             if item.get("type") in {"reasoning", "function_call"}:
                 # Chat and Messages retain call IDs but have no Responses item IDs.
                 item.pop("id", None)
+            if item.get("type") == "reasoning" and item["summary"]:
+                # The downstream protocols return unlabeled text. The raw input
+                # profile restores that text as reasoning_text on continuation.
+                item["content"] = [
+                    {"type": "reasoning_text", "text": part["text"]} for part in item["summary"]
+                ]
+                item["summary"] = []
             if downstream == "messages" and item.get("type") == "function_call":
                 # Messages carries parsed arguments, so JSON whitespace is not retained.
                 item["arguments"] = json_dumps(json_loads(item["arguments"]))
@@ -1508,6 +1637,12 @@ async def test_provider_reasoning_public_projection(
             )
             assert actual.stop_reason == ("tool_use" if calls else "end_turn")
             body["messages"].append(_messages_history(actual))
+        cache_writes = (
+            actual.usage.prompt_tokens_details.cache_write_tokens
+            if downstream == "chat_completions"
+            else actual.usage.cache_creation_input_tokens
+        )
+        assert cache_writes == reference.usage.input_tokens_details.cache_write_tokens
         assert text == reference.output_text
         assert reasoning == "".join(
             part.text
@@ -1708,7 +1843,6 @@ async def test_provider_normalized_messages_conversation(provider, scenario):
         pytest.param(*case.values, downstream, id=f"{case.id}-{downstream}")
         for case in PROVIDER_MESSAGES_CONVERSATIONS
         for downstream in ("responses", "chat_completions")
-        if downstream == "responses" or "reasoning" not in case.values[1]
     ],
 )
 @pytest.mark.parametrize("stream", [False, True])
@@ -1726,7 +1860,10 @@ async def test_provider_messages_translated_conversation(provider, scenario, dow
         history_key: _responses_caller_input(caller) if responses else caller,
     }
     if first.get("thinking"):
-        body["reasoning"] = {"effort": "minimal"}
+        if responses:
+            body["reasoning"] = {"effort": "minimal"}
+        else:
+            body["reasoning_effort"] = "minimal"
     if first.get("tools"):
         functions = [
             {
@@ -1780,6 +1917,7 @@ async def test_provider_messages_translated_conversation(provider, scenario, dow
                 body if responses else _chat_input_body(body),
                 provider=provider,
                 endpoint="messages",
+                chat_signature_namespace="anthropic",
                 api_key="test-key",
                 base_url=cassette["upstream_url"].removesuffix("/v1/messages"),
             )
@@ -1814,6 +1952,16 @@ async def test_provider_messages_translated_conversation(provider, scenario, dow
         else:
             message = actual.choices[0].message
             assert (message.content or "") == expected_text
+            thinking = [block for block in reference.content if block.type == "thinking"]
+            assert (getattr(message, "reasoning_content", "") or "") == "".join(
+                block.thinking for block in thinking
+            )
+            signature = (
+                (getattr(message, "extra_content", {}) or {})
+                .get("anthropic", {})
+                .get("thought_signature")
+            )
+            assert ([signature] if signature else []) == [block.signature for block in thinking]
             assert actual.choices[0].finish_reason == ("tool_calls" if expected_calls else "stop")
             actual_calls = [
                 (call.id, call.function.name, json_loads(call.function.arguments))

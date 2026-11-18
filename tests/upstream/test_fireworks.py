@@ -24,8 +24,8 @@ def test_fireworks_resolves_raw_profile_without_mutating_input(client_type):
     assert profile.thinking == "summary"
 
 
-async def test_summary_labeled_lifecycle_is_raw_at_every_stage(monkeypatch):
-    """Ensures starts, part snapshots, deltas, and ends share Fireworks raw interpretation."""
+async def test_summary_labeled_lifecycle_retains_wire_labels(monkeypatch):
+    """Ensures Fireworks summary labels survive every part of the Responses lifecycle."""
     items = [
         {
             "type": "response.output_item.added",
@@ -65,13 +65,13 @@ async def test_summary_labeled_lifecycle_is_raw_at_every_stage(monkeypatch):
 
     async with httpx.AsyncClient() as transport:
         client = FireworksResponsesClient(
-            transport, capabilities=ProviderCapabilities(thinking="summary")
+            transport, capabilities=ProviderCapabilities(thinking="raw")
         )
         monkeypatch.setattr(client, "native_events", native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
     assert events == [
-        PartStartEvent(index=0, part=Thinking(id="rs_1", content="A", summary="")),
-        PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="B")),
-        PartDeltaEvent(index=0, delta=ThinkingDelta(content_delta="C")),
-        PartEndEvent(index=0, part=Thinking(id="rs_1", content="ABC", summary="")),
+        PartStartEvent(index=0, part=Thinking(id="rs_1", content="", summary="A")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="B")),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(summary_delta="C")),
+        PartEndEvent(index=0, part=Thinking(id="rs_1", content="", summary="ABC")),
     ]

@@ -84,3 +84,32 @@ def test_signature_filtering_preserves_reasoning_order_validation(tool):
     )
     with pytest.raises(UnsupportedInput, match="reasoning order"):
         GeminiChatCompletionsClient._native_request(request)
+
+
+def test_signed_reasoning_parts_stay_in_separate_chat_history_entries():
+    """Ensures each text-bearing reasoning part keeps its own signature and tools retain their IDs."""
+    parts = [
+        Thinking(content="first", summary="discarded summary", signature="s1"),
+        Thinking(content="", summary="second", signature="s2"),
+        TextOutput(content="answer"),
+        Thinking(content="", summary="", signature="tool"),
+        ToolCall(tool_call_id="call_1", tool_name="lookup", args="{}"),
+    ]
+    request = NormalizedRequest(model="model", input=[AssistantInput(content=parts)])
+    first, second = GeminiChatCompletionsClient._native_request(request).model_dump()["messages"]
+    assert first == {
+        "role": "assistant",
+        "reasoning_content": "first",
+        "extra_content": {"google": {"thought_signature": "s1"}},
+    }
+    assert second["reasoning_content"] == "second"
+    assert second["content"] == "answer"
+    assert second["extra_content"] == {"google": {"thought_signature": "s2"}}
+    assert second["tool_calls"] == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "{}"},
+            "extra_content": {"google": {"thought_signature": "tool"}},
+        }
+    ]

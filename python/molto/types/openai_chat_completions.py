@@ -8,7 +8,7 @@ requests and typed result aliases for both response modes.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypeAlias, Union, get_args
+from typing import Annotated, Any, Literal, TypeAlias, Union, get_args
 
 from openai import AsyncStream
 from openai._types import SequenceNotStr
@@ -70,6 +70,50 @@ from pydantic import Field, JsonValue, SerializationInfo, TypeAdapter, field_ser
 from typing_extensions import NotRequired, Required, TypedDict
 
 from molto.types.base import ExcludeNoneModel
+from molto.types.exceptions import UnsupportedInput
+
+
+def chat_reasoning_text(
+    preferred: str | None, reasoning: str | None, reasoning_content: str | None
+) -> str | None:
+    """Read one alias, preferring the configured spelling when both carry text."""
+    if preferred == "reasoning":
+        return reasoning or reasoning_content
+    return reasoning_content or reasoning
+
+
+def chat_thought_state(
+    extra: Any, namespace: str | None, *, history: bool = False
+) -> tuple[bool, str | None]:
+    """Read the Google thought marker and the configured signature attachment."""
+    if not extra:
+        return False, None
+    if not isinstance(extra, dict):
+        if not namespace and not history:
+            return False, None
+        raise UnsupportedInput("Chat Completions extra_content must be an object.")
+    google = extra.get("google", {})
+    marked = isinstance(google, dict) and google.get("thought") is True
+    if marked and namespace is None:
+        namespace = "google"
+    extension = extra.get(namespace, {}) if namespace else {}
+    if not isinstance(extension, dict):
+        raise UnsupportedInput(f"Chat Completions extra_content.{namespace} must be an object.")
+    signature = extension.get("thought_signature")
+    if "thought_signature" in extension and (not isinstance(signature, str) or not signature):
+        raise UnsupportedInput(
+            f"Chat Completions extra_content.{namespace}.thought_signature must be a nonempty string."
+        )
+    if history:
+        # Output may introduce unknown extensions. Caller-supplied history must
+        # retain every extension it accepts through the translated request.
+        for name, values in extra.items():
+            allowed = {"thought"} if name == "google" else set()
+            if name == namespace:
+                allowed.add("thought_signature")
+            if not allowed or not isinstance(values, dict) or values.keys() - allowed:
+                raise UnsupportedInput("Chat Completions extra_content cannot be translated.")
+    return marked, signature
 
 
 class GoogleExtraContent(TypedDict):
@@ -111,7 +155,7 @@ class ChatCompletionRefusalPartParam(ChatCompletionContentPartRefusalParam):
 class ChatCompletionFunctionToolCallParam(ChatCompletionMessageFunctionToolCallParam):
     """A function call retaining provider continuation fields."""
 
-    extra_content: NotRequired[GoogleExtraContent]
+    extra_content: NotRequired[dict[str, dict[str, JsonValue]]]
 
 
 OpenAIChatCompletionContentPartParam: TypeAlias = Union[
@@ -126,7 +170,8 @@ class ChatCompletionAssistantMessageWithReasoningParam(ChatCompletionAssistantMe
     """Provider-compatible assistant message containing either raw reasoning or summary."""
 
     reasoning_content: NotRequired[str]
-    extra_content: NotRequired[GoogleExtraContent]
+    reasoning: NotRequired[str]
+    extra_content: NotRequired[dict[str, dict[str, JsonValue]]]
     tool_calls: NotRequired[
         list[ChatCompletionFunctionToolCallParam | ChatCompletionMessageCustomToolCallParam]
     ]

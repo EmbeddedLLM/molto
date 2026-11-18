@@ -670,7 +670,7 @@ async def test_responses_response_projection_returns_terminal_response() -> None
         request,
     )
 
-    assert type(response) is OpenAIResponsesResponse
+    assert isinstance(response, OpenAIResponsesResponse)
     assert response.id == "resp_123"
     assert response.status == "completed"
     assert response.output[0].content[0].text == "Answer"
@@ -1075,31 +1075,58 @@ async def test_responses_projection_preserves_signature_only_reasoning_snapshots
 
 
 @pytest.mark.parametrize(
-    "deltas",
-    [
-        (
-            ThinkingDelta(content_delta="raw"),
-            ThinkingDelta(summary_delta="summary"),
-        ),
-    ],
+    "capabilities", [PROVIDER_CAPABILITIES["openai"], PROVIDER_CAPABILITIES["vllm"]]
 )
-async def test_responses_projection_rejects_reasoning_outside_capability(
-    deltas: tuple[ThinkingDelta, ...],
+@pytest.mark.parametrize("populated_start", [True, False])
+async def test_responses_projection_preserves_both_text_lifecycles(
+    capabilities, populated_start
 ) -> None:
-    adapter, request = _responses_adapter(_CAPABILITIES)
-
-    with pytest.raises(ValueError, match="cannot contain raw text"):
+    """Ensures each explicit representation has a balanced lifecycle and shares the final signature."""
+    adapter, request = _responses_adapter(capabilities)
+    start = Thinking(
+        content="R" if populated_start else "",
+        summary="S" if populated_start else "",
+        signature="initial",
+    )
+    delta = ThinkingDelta(content_delta="aw", summary_delta="ummary", signature_delta="final")
+    completed = Thinking(content="Raw", summary="Summary", signature="final")
+    events = [
+        event
+        async for event in adapter.project_events(
+            _stream(
+                _RESPONSE_START,
+                PartStartEvent(index=0, part=start),
+                *([PartDeltaEvent(index=0, delta=delta)] if populated_start else []),
+                PartEndEvent(index=0, part=completed),
+                _RESPONSE_END,
+            ),
+            request,
+        )
+    ]
+    assert [
+        (event.type, event.part.text) for event in events if event.type.endswith("part.added")
+    ] == [
+        ("response.content_part.added", start.content),
+        ("response.reasoning_summary_part.added", start.summary),
+    ]
+    assert [(event.type, event.delta) for event in events if event.type.endswith(".delta")] == (
         [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _RESPONSE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    *(PartDeltaEvent(index=0, delta=delta) for delta in deltas),
-                ),
-                request,
-            )
+            ("response.reasoning_text.delta", "aw"),
+            ("response.reasoning_summary_text.delta", "ummary"),
         ]
+        if populated_start
+        else []
+    )
+    assert [
+        (event.type, event.part.text) for event in events if event.type.endswith("part.done")
+    ] == [
+        ("response.content_part.done", "Raw"),
+        ("response.reasoning_summary_part.done", "Summary"),
+    ]
+    item = events[-1].response.output[0]
+    assert item.content[0].text == "Raw"
+    assert item.summary[0].text == "Summary"
+    assert item.encrypted_content == "final"
 
 
 @pytest.mark.parametrize(
@@ -1164,23 +1191,6 @@ async def test_responses_projection_preserves_unsigned_summary_completion(
     assert completed.encrypted_content is None
     assert events[-1].type == "response.completed"
     assert events[-1].response.output[0] == completed
-
-
-async def test_responses_projection_rejects_thinking_part_with_content_and_summary() -> None:
-    adapter, request = _responses_adapter(_CAPABILITIES)
-
-    with pytest.raises(ValueError, match="cannot contain both raw reasoning"):
-        [
-            event
-            async for event in adapter.project_events(
-                _stream(
-                    _RESPONSE_START,
-                    PartStartEvent(index=0, part=Thinking(content="", summary="")),
-                    PartEndEvent(index=0, part=Thinking(content="raw", summary="summary")),
-                ),
-                request,
-            )
-        ]
 
 
 async def test_responses_projection_signature_only_delta_defers_to_completed_item() -> None:
@@ -1630,3 +1640,112 @@ def test_chat_normalizes_marked_text_arrays_without_merging_parts(role):
     ]
     assert normalized.input == ([AssistantInput(content=parts)] if role == "assistant" else parts)
     assert normalized.prompt_cache == PromptCache(mode="implicit", ttl="30m")
+
+
+@pytest.mark.parametrize("raw_first", [True, False], ids=["raw-first", "summary-first"])
+async def test_chat_reasoning_run_signatures_and_collection(raw_first):
+    """Ensures reasoning streams immediately and signatures flush at their attachment boundaries."""
+    adapter, request = _chat_adapter(
+        ProviderCapabilities(
+            thinking="raw", chat_reasoning_field="reasoning", chat_signature_namespace="issuer"
+        )
+    )
+    empty = Thinking(content="", summary="")
+    call = ToolCall(tool_call_id="call1", tool_name="lookup", args="{}")
+
+    def reasoning_delta(text, raw):
+        return ThinkingDelta(content_delta=text) if raw else ThinkingDelta(summary_delta=text)
+
+    events = [
+        _CHAT_START,
+        PartStartEvent(index=0, part=empty),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="A")),
+        PartDeltaEvent(index=0, delta=reasoning_delta("1", raw_first)),
+        PartDeltaEvent(index=0, delta=reasoning_delta("other", not raw_first)),
+        PartDeltaEvent(index=0, delta=ThinkingDelta(signature_delta="B")),
+        PartDeltaEvent(index=0, delta=reasoning_delta("2", raw_first)),
+        PartEndEvent(
+            index=0,
+            part=Thinking(
+                content="12" if raw_first else "other",
+                summary="other" if raw_first else "12",
+                signature="B",
+            ),
+        ),
+        PartStartEvent(index=1, part=TextOutput(content="answer")),
+        PartEndEvent(index=1, part=TextOutput(content="answer")),
+        PartStartEvent(index=2, part=Thinking(content="raw", summary="summary", signature="C")),
+        PartEndEvent(index=2, part=Thinking(content="raw!", summary="summary", signature="D")),
+        PartStartEvent(index=3, part=Thinking(content="", summary="", signature="tool-old")),
+        PartDeltaEvent(index=3, delta=ThinkingDelta(signature_delta="tool-final")),
+        PartEndEvent(index=3, part=Thinking(content="", summary="", signature="tool-final")),
+        PartStartEvent(index=4, part=call),
+        PartEndEvent(index=4, part=call),
+        PartStartEvent(index=5, part=Thinking(content="", summary="", signature="E")),
+        PartDeltaEvent(index=5, delta=ThinkingDelta(signature_delta="F")),
+        PartEndEvent(index=5, part=Thinking(content="", summary="", signature="F")),
+        _RESPONSE_END,
+    ]
+    chunks = [chunk async for chunk in adapter.project_events(_stream(*events), request)]
+    deltas = [chunk.choices[0].delta.model_dump(exclude_none=True) for chunk in chunks]
+
+    def extra(token):
+        return {"issuer": {"thought_signature": token}}
+
+    assert deltas == [
+        {"role": "assistant", "reasoning": ""},
+        {"reasoning": "1"},
+        {"reasoning": "2"},
+        {"extra_content": extra("B")},
+        {"content": "answer"},
+        {"reasoning": "raw"},
+        {"reasoning": "!"},
+        {"extra_content": extra("D")},
+        {
+            "tool_calls": [
+                {
+                    "index": 0,
+                    "id": "call1",
+                    "type": "function",
+                    "function": {"name": "lookup", "arguments": "{}"},
+                    "extra_content": extra("tool-final"),
+                }
+            ]
+        },
+        {"extra_content": extra("F")},
+        {},
+    ]
+    # The stock SDK concatenates values from distinct runs at the same field path.
+    result = await adapter.project_response(_stream(*chunks), request)
+    message = result.choices[0].message
+    assert message.reasoning == "12raw!"
+    assert message.extra_content["issuer"]["thought_signature"] == "BDF"
+    assert message.tool_calls[0].extra_content == extra("tool-final")
+
+
+@pytest.mark.parametrize(
+    "part_fields",
+    [
+        {"extra_content": {"google": {"unrecognized": "state"}}},
+        {"prompt_cache_breakpoint": {"mode": "explicit"}},
+    ],
+)
+@pytest.mark.parametrize("parent_marked", [False, True])
+def test_marked_chat_reasoning_validates_nested_state(part_fields, parent_marked):
+    """Ensures a message or part thought marker never hides unsupported per-part state."""
+    part = {"type": "text", "text": "thought", **part_fields}
+    if not parent_marked:
+        google = part.get("extra_content", {}).get("google", {})
+        part["extra_content"] = {"google": {**google, "thought": True}}
+    request = OpenAIChatCompletionsCreateRequest(
+        model="m",
+        messages=[
+            {
+                "role": "assistant",
+                "content": [part],
+                "extra_content": {"google": {"thought": parent_marked}},
+            }
+        ],
+    )
+    with pytest.raises(UnsupportedInput, match="extra_content|cache breakpoint"):
+        OpenAIChatCompletionsAdapter(_CAPABILITIES).normalize_request(request)

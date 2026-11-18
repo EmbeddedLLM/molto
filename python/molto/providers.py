@@ -5,16 +5,16 @@ Endpoint: TypeAlias = Literal["responses", "chat/completions", "messages"]
 Provider: TypeAlias = Literal[
     "anthropic", "bedrock", "fireworks", "gemini", "openai", "openrouter", "togetherai", "vllm"
 ]
+ChatReasoningField: TypeAlias = Literal["reasoning_content", "reasoning"]
 ReasoningRepresentation: TypeAlias = Literal["raw", "summary"]
 
 
 @dataclass(frozen=True)
 class ProviderCapabilities:
     thinking: ReasoningRepresentation
-    # Only the resolved Responses client can opt into explicit wire labels;
-    # ambiguous Chat/Messages input still uses `thinking`.
-    responses_reasoning: Literal["profile", "wire"] = "profile"
     requires_search_history_state: bool = False
+    chat_reasoning_field: ChatReasoningField | None = None
+    chat_signature_namespace: str | None = None
 
 
 PROVIDER_CAPABILITIES: dict[Provider, ProviderCapabilities] = {

@@ -17,7 +17,7 @@ Every row below holds for a translated route (one protocol to another through th
 | Multipart instruction boundaries | Lost | One `SystemPrompt` per instruction part | Text-part content and markers survive; the enclosing instruction-message boundary does not |
 | Assistant-history message container | Preserved where the target can represent it | One `AssistantInput` per source message | Responses separates reasoning and calls from text messages; Chat rejects incompatible part ordering |
 | Ordered assistant-history parts | Preserved, including multipart text and markers | Ordered `AssistantInput.content` | Responses emits each contiguous text run as one message interleaved with standalone reasoning and calls; generated-output containers remain a separate limitation |
-| Raw versus summary reasoning | Classified by provider capability profile | Capability profile | OpenAI/Anthropic = summary; vLLM/Together/OpenRouter/Fireworks = raw; explicit Responses labels apply except Fireworks' always-raw policy |
+| Raw versus summary reasoning | Responses preserves both explicit labels. Chat and Messages use one text field. | Independent raw and summary fields | The provider profile classifies unlabeled text at ingestion. |
 | Function `call_id`, name, args, results, ordering | Preserved | Portable call identity | Responses output-item `id` is a separate structure with no Chat equivalent |
 | Termination reason | Projected per the shared table | Provider-neutral termination | Pauses retain unfinished generation; other unrepresentable reasons use the documented coercions |
 | Semantic token usage | Preserved | Mapped by meaning, not field spelling | Source-only audio, prediction, cache TTL, geographic, server-tool details are not synthesized; known Responses [search counts](../web-search.md#failures-pauses-and-usage) become Messages `server_tool_use.web_search_requests` |
@@ -40,7 +40,7 @@ Full boundary fidelity would require more than the current normalized representa
 | Streaming events | `ResponseStreamEvent` lifecycles | `ChatCompletionChunk` deltas | `RawMessageStreamEvent` blocks |
 | `created_at` | Source-backed or, from Messages, local `message_start` time | Source-backed; local time from Messages upstream | Captured locally when required by a downstream protocol |
 | Termination | `completed` / `incomplete` with reason | `finish_reason` | `message_delta.stop_reason` |
-| Reasoning representation | Explicit `reasoning_text.*` vs `reasoning_summary_*` | Ambiguous `reasoning_content`, capability-classified | Ambiguous `thinking_delta`, capability-classified |
+| Reasoning representation | Explicit `reasoning_text.*` vs `reasoning_summary_*` | Unlabeled `reasoning` or `reasoning_content`, capability-classified | Ambiguous `thinking_delta`, capability-classified |
 | Service tier (translated) | Target default `default` | Target default `default` | `standard` in `message_start.usage` |
 | Keepalive | None specific on translated output | None specific on translated output | `ping` is transport-only, filtered by the SDK, never synthesized |
 | Multiple candidates | Not supported | Only `choices[0]` normalized; translated requests reject `n` | Not supported |
@@ -51,7 +51,7 @@ Responses is the richer lifecycle protocol. Translating into Responses requires 
 
 ## Hosted-search fidelity
 
-Responses and Messages translate basic search calls, results, and URL attribution. The Anthropic Messages-to-Responses route preserves excerpts and opaque references in `extra_content.anthropic` for callers that echo the extension in history; standard Responses fields alone cannot reconstruct them. Translated Chat rejects signed or encrypted reasoning, including signature-only parts. This prevents translating the OpenAI encrypted-reasoning search stream and Anthropic search turns with signed thinking to Chat; use Responses or Messages downstream instead. Search turns without reasoning or with unsigned reasoning remain representable, retaining answer text and inline links while omitting hosted activity and structured citations. The returned reasoning data determines rejection, not the search declaration. Native Chat passthrough preserves its provider output. See [Hosted web search](../web-search.md) for directional mappings and limitations.
+Responses and Messages translate basic search calls, results, and URL attribution. Messages-to-Responses preserves excerpts and opaque citation references in `extra_content.anthropic` for continuation. Chat output retains answer text and inline links while omitting hosted activity and structured citations. A signed Chat projection requires a signature namespace. See [Hosted web search](../web-search.md).
 
 ## Role and placement
 

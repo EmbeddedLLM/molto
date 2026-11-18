@@ -442,28 +442,18 @@ def test_user_input_preserves_ordered_text_and_image_parts():
     assert message.content[2].content == "after"
 
 
-@pytest.mark.parametrize(
-    "values",
-    [
-        {"content": "raw", "summary": "summary"},
-        {"content": "raw", "summary": "", "signature": "opaque-state"},
-    ],
-)
-def test_thinking_rejects_contradictory_representations(values: dict) -> None:
-    with pytest.raises(ValidationError):
-        Thinking(**values)
-
-
-@pytest.mark.parametrize(
-    "values",
-    [
-        {"content_delta": "raw", "summary_delta": "summary"},
-        {"content_delta": "raw", "signature_delta": "opaque-state"},
-    ],
-)
-def test_thinking_delta_rejects_contradictory_representations(values: dict) -> None:
-    with pytest.raises(ValidationError):
-        ThinkingDelta(**values)
+def test_thinking_preserves_independent_representations_and_signature() -> None:
+    """Ensures a part and its delta can carry raw text, a summary, and opaque state together."""
+    part = Thinking(content="raw", summary="summary", signature="opaque-state")
+    delta = ThinkingDelta(
+        content_delta="raw", summary_delta="summary", signature_delta="opaque-state"
+    )
+    assert (part.content, part.summary, part.signature) == ("raw", "summary", "opaque-state")
+    assert (delta.content_delta, delta.summary_delta, delta.signature_delta) == (
+        "raw",
+        "summary",
+        "opaque-state",
+    )
 
 
 def test_thinking_keeps_protocol_specific_valid_states() -> None:
