@@ -45,9 +45,11 @@ NATIVE_RESPONSES = ResolvedRoute(
 )
 
 
-def _start(body: dict[str, Any] | BaseModel, **route: Any) -> dict[str, Any]:
+def _start(
+    body: dict[str, Any] | BaseModel, *, streaming: bool = False, **route: Any
+) -> dict[str, Any]:
     """Map `body` on the native Responses route, with any route fields overridden."""
-    return start_attributes(replace(NATIVE_RESPONSES, **route), body)
+    return start_attributes(replace(NATIVE_RESPONSES, **route), body, streaming=streaming)
 
 
 def test_native_request_maps_every_start_attribute():
@@ -60,7 +62,8 @@ def test_native_request_maps_every_start_attribute():
             "temperature": 0.5,
             "top_p": 0.9,
             "stream": True,
-        }
+        },
+        streaming=True,
     )
 
     assert attributes == {
@@ -128,7 +131,7 @@ def test_translated_request_models_map_request_fields(
     Translated coordinators pass the validated model rather than a dictionary, so the
     model path must cover each protocol's output-token field and the shared fields.
     """
-    attributes = _start(body, protocol=protocol, endpoint="messages")
+    attributes = _start(body, streaming=True, protocol=protocol, endpoint="messages")
 
     assert attributes["gen_ai.request.max_tokens"] == max_tokens
     assert attributes["gen_ai.request.temperature"] == 0.5
@@ -146,44 +149,14 @@ def test_route_is_translated_when_endpoint_differs_from_protocol():
     assert attributes["molto.route"] == "translated"
 
 
-@pytest.mark.parametrize("stream", [False, None])
-def test_non_streaming_request_model_omits_stream(stream: bool | None):
-    """Ensures `gen_ai.request.stream` is set only for streaming requests, as the convention requires."""
-    body = OpenAIResponsesCreateRequest(model="gpt-5", input="Hello!", stream=stream)
+def test_non_streaming_call_omits_stream():
+    """Ensures `gen_ai.request.stream` is set only for streaming calls, as the convention requires.
 
-    assert "gen_ai.request.stream" not in _start(body)
-
-
-@pytest.mark.parametrize(
-    ("endpoint", "stream", "expected"),
-    [
-        ("responses", 1, True),
-        ("responses", "true", True),
-        ("responses", 0, None),
-        ("messages", 1, True),
-        ("messages", 1.0, True),
-        ("messages", "true", None),
-    ],
-    ids=[
-        "native-1",
-        "native-string",
-        "native-0",
-        "translated-1",
-        "translated-float",
-        "translated-string",
-    ],
-)
-def test_stream_follows_each_routes_streaming_rule(
-    endpoint: str, stream: object, expected: bool | None
-):
-    """Ensures `gen_ai.request.stream` is set exactly when the route's coordinator streams.
-
-    Native passthrough streams for any truthy value, as the SDKs do; translated
-    validation accepts `1` and `1.0` but rejects strings.
+    The coordinator decides whether a call streams; telemetry never reads `stream` itself.
     """
-    attributes = _start({"model": "gpt-5", "stream": stream}, endpoint=endpoint)
+    body = OpenAIResponsesCreateRequest(model="gpt-5", input="Hello!", stream=True)
 
-    assert attributes.get("gen_ai.request.stream") is expected
+    assert "gen_ai.request.stream" not in _start(body, streaming=False)
 
 
 def test_unset_optional_fields_are_omitted():

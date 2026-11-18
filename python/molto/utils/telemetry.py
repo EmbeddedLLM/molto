@@ -152,13 +152,14 @@ class ResolvedRoute:
 
 
 def start_attributes(
-    route: ResolvedRoute, body: Mapping[str, Any] | BaseModel
+    route: ResolvedRoute, body: Mapping[str, Any] | BaseModel, *, streaming: bool
 ) -> dict[str, AttributeValue]:
     """Return the span attributes known before transport.
 
     Args:
         route: The coordinator's resolved route.
         body: Downstream request: a native dictionary or a validated request model.
+        streaming: Whether the coordinator streams the call, decided by its own rule.
     """
     attributes: dict[str, AttributeValue] = {
         GEN_AI_OPERATION_NAME: OPERATION_CHAT,
@@ -184,12 +185,7 @@ def start_attributes(
         value = _field(body, name)
         if _is_int(value) or isinstance(value, float):
             attributes[key] = float(value)
-    # Matches each route's coordinator. Native passthrough streams for any truthy
-    # `stream`, as the SDKs do; translated routes validate it as `Literal[True, False]`,
-    # which compares by equality, so they stream for `1` and `1.0` but reject strings.
-    stream = _field(body, "stream")
-    native = attributes[MOLTO_ROUTE] == "native"
-    if bool(stream) if native else stream == True:  # noqa: E712
+    if streaming:
         attributes[GEN_AI_REQUEST_STREAM] = True
     attributes.update(_server_attributes(route.base_url))
     return attributes

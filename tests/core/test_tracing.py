@@ -29,7 +29,7 @@ from opentelemetry.trace import SpanKind, StatusCode
 from pydantic import SecretStr, ValidationError
 
 from molto.configs import ENV_CONFIG
-from molto.core import Molto, MoltoStream, _prefetch_stream, _traced
+from molto.core import Molto, MoltoStream, _prefetch_stream, _streams, _traced
 from molto.types.exceptions import ContextLengthExceededError
 from molto.utils.io import json_dumps, json_loads, read_yaml
 from molto.utils.telemetry import ATTRIBUTE_KEYS
@@ -1364,6 +1364,42 @@ async def test_integer_stream_is_streamed_and_traced_as_streaming(
     assert span.attributes["gen_ai.request.stream"] is True
     assert _outcome(exporter) == "completed"
     assert [event.name for event in span.events] == ["molto.first_token"]
+
+
+@pytest.mark.parametrize(
+    ("native", "stream", "expected"),
+    [
+        (True, True, True),
+        (True, 1, True),
+        (True, "false", True),
+        (True, 0, False),
+        (True, None, False),
+        (False, True, True),
+        (False, 1, True),
+        (False, 1.0, True),
+        (False, "true", False),
+        (False, 0, False),
+    ],
+    ids=[
+        "native-true",
+        "native-1",
+        "native-string",
+        "native-0",
+        "native-absent",
+        "translated-true",
+        "translated-1",
+        "translated-float",
+        "translated-string",
+        "translated-0",
+    ],
+)
+def test_streaming_rule_matches_each_route(native: bool, stream: object, expected: bool):
+    """Ensures the one streaming rule shared by routing and the span matches each route.
+
+    Native passthrough streams for any truthy value, as the SDKs do; translated
+    validation accepts `1` and `1.0` but rejects strings.
+    """
+    assert _streams({"model": "gpt-5", "stream": stream}, native=native) is expected
 
 
 async def test_recording_failure_never_fails_a_native_call(

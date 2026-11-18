@@ -39,7 +39,6 @@ from molto.upstream.base import BaseClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import request_to_dict
 from molto.utils.telemetry import (
-    GEN_AI_REQUEST_STREAM,
     MOLTO_STREAM_OUTCOME,
     ErrorPhase,
     ResolvedRoute,
@@ -157,7 +156,11 @@ def _finish_span(
 
 
 class MoltoStream[EventT](AsyncIterator[EventT]):
-    """Replay prefetched events and manage the source stream lifecycle."""
+    """Replay prefetched events, manage the source stream lifecycle, and end its span.
+
+    A span attached with `attach_span` ends exactly once, recording how the stream
+    ended: on exhaustion, an error, `aclose()`, or garbage collection of a dropped stream.
+    """
 
     def __init__(
         self,
@@ -259,13 +262,8 @@ async def _run_native[EventT, ResponseT: BaseModel](
     record_event: Callable[[EventT], None],
     record_response: Callable[[ResponseT], None],
 ) -> MoltoStream[EventT] | ResponseT:
-    """Pass a same-protocol request through, recording its native output on the span.
-
-    The SDKs stream for any truthy `stream` (`stream=stream or False`), so passthrough
-    expects a stream by the same rule; a stricter test would receive a stream it did
-    not expect for values such as `1`.
-    """
-    if body.get("stream"):
+    """Pass a same-protocol request through, recording its native output on the span."""
+    if _streams(body, native=True):
         return await _prefetch_stream(
             adapter.project_native_events(observe(upstream.native_events(body), record_event)),
             upstream.response_headers,
@@ -273,6 +271,19 @@ async def _run_native[EventT, ResponseT: BaseModel](
     response = await adapter.project_native_response(upstream.native_response(body))
     record_safely(record_response, response)
     return response
+
+
+def _streams(body: Mapping[str, Any] | BaseModel, *, native: bool) -> bool:
+    """Return whether a coordinator streams `body`, by its route's rule.
+
+    Native passthrough follows the SDKs, which stream for any truthy `stream`
+    (`stream=stream or False`), so Molto expects the response type the SDK returns.
+    Translated routes validate `stream` as `Literal[True, False]`, which compares by
+    equality: `1` and `1.0` stream, strings are rejected. The span starts before that
+    validation, so it applies the same rule to the raw value.
+    """
+    stream = body.get("stream") if isinstance(body, Mapping) else getattr(body, "stream", None)
+    return bool(stream) if native else stream == True  # noqa: E712
 
 
 async def _prefetch_stream[EventT](
@@ -305,11 +316,11 @@ async def _traced[ResultT](
     route = ResolvedRoute(
         protocol, endpoint, provider, _UPSTREAM_CLIENTS[endpoint].resolve_base_url(base_url)
     )
-    attributes = start_attributes(route, body)
+    streaming = _streams(body, native=protocol == endpoint)
+    attributes = start_attributes(route, body, streaming=streaming)
     span = get_tracer().start_span(
         span_name(attributes), kind=SpanKind.CLIENT, attributes=attributes
     )
-    streaming = attributes.get(GEN_AI_REQUEST_STREAM) is True
     recorder = SpanRecorder(span, streaming=streaming)
     try:
         # `_finish_span` sets the status instead of `use_span`, whose ERROR status
