@@ -163,8 +163,8 @@ async def main():
                 max_retries=0,
                 timeout=45,
             )
-            for stream in (True, False):
-                mode = "stream" if stream else "non_stream"
+            for stream in (False,):
+                mode = "mixed"
                 for scenario in ("reasoning_text", "tool_use_reasoning"):
                     try:
                         body = {
@@ -193,6 +193,8 @@ async def main():
                         if scenario == "tool_use_reasoning":
                             body["tools"] = [TOOL]
                         for turn in range(3 if scenario == "tool_use_reasoning" else 2):
+                            # Use the server's complete thought marker as the next streaming request's history.
+                            body["stream"] = turn > 0
                             message = await capture(
                                 sdk,
                                 body,
