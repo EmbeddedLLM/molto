@@ -30,7 +30,7 @@ from pydantic import SecretStr, ValidationError
 
 from molto.configs import ENV_CONFIG
 from molto.core import Molto, MoltoStream, _prefetch_stream, _streams, _traced
-from molto.types.exceptions import ContextLengthExceededError
+from molto.types.exceptions import ContextLengthExceededError, UnsupportedInput
 from molto.utils.io import json_dumps, json_loads, read_yaml
 from molto.utils.telemetry import ATTRIBUTE_KEYS
 from molto.utils.test import replay_transport, replayed_outcomes
@@ -666,6 +666,185 @@ async def test_cached_input_is_reported_alike_on_every_route(exporter: InMemoryS
         assert span.attributes["gen_ai.usage.input_tokens"] == 7474
         assert span.attributes["gen_ai.usage.cache_read.input_tokens"] == 7440
         assert "gen_ai.usage.cache_write.input_tokens" not in span.attributes
+
+
+REASONING = "matched/reasoning_encrypted"
+
+
+@pytest.mark.parametrize(
+    ("method", "endpoint", "request_cassette", "response_cassette", "expected"),
+    [
+        ("responses", "responses", f"{REASONING}/openai-responses-stream-00", None, 36),
+        ("responses", "responses", f"{REASONING}/openai-responses-non_stream-00", None, 110),
+        ("messages", "messages", f"{REASONING}/anthropic-messages-stream-00", None, 36),
+        ("messages", "messages", f"{REASONING}/anthropic-messages-non_stream-00", None, 110),
+        (
+            "responses",
+            "messages",
+            f"{REASONING}/openai-responses-stream-00",
+            f"{REASONING}/anthropic-messages-stream-00",
+            36,
+        ),
+    ],
+)
+async def test_reasoning_tokens_are_reported_alike_on_every_route(
+    exporter: InMemorySpanExporter,
+    method: str,
+    endpoint: str,
+    request_cassette: str,
+    response_cassette: str | None,
+    expected: int,
+):
+    """Asserts that a reasoning call reports the provider's reasoning-token count on every route.
+
+    The matched recordings report the same count as Responses `reasoning_tokens` and
+    Anthropic `thinking_tokens`; both are already part of the output-token count.
+    """
+    await _run_coordinator(method, endpoint, request_cassette, response_cassette)
+
+    span = _molto_span(exporter)
+    reasoning = span.attributes["gen_ai.usage.reasoning.output_tokens"]
+    assert reasoning == expected
+    assert span.attributes["gen_ai.usage.output_tokens"] >= reasoning
+
+
+async def test_native_chat_stream_reports_reasoning_tokens(exporter: InMemorySpanExporter):
+    """Ensures a native Chat Completions stream reports `completion_tokens_details.reasoning_tokens`."""
+    await _run_coordinator(
+        "chat_completions",
+        "chat/completions",
+        "matched/reasoning_raw/vllm-chat_completions-stream-00",
+        None,
+    )
+
+    span = _molto_span(exporter)
+    assert span.attributes["gen_ai.usage.reasoning.output_tokens"] == 15
+
+
+async def test_top_k_is_reported_on_native_messages_and_on_its_translated_rejection(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that `top_k` reaches the span both where it is sent and where it is rejected.
+
+    Native Messages forwards `top_k`; a translated route cannot express it and rejects
+    the call, and the span must show the requested value next to the error.
+    """
+    await _run_coordinator(
+        "messages",
+        "messages",
+        "matched/simple_text/anthropic-messages-stream-00",
+        None,
+        top_k=40,
+    )
+    async with Molto() as molto:
+        with pytest.raises(UnsupportedInput):
+            await molto.messages(
+                body={
+                    "model": "gpt-5",
+                    "max_tokens": 8,
+                    "messages": [{"role": "user", "content": "Hello!"}],
+                    "top_k": 40,
+                },
+                endpoint="responses",
+                api_key="test-key",
+            )
+
+    native, rejected = exporter.get_finished_spans()
+    assert native.attributes["gen_ai.request.top_k"] == 40
+    assert native.status.status_code is StatusCode.UNSET
+    assert rejected.attributes["gen_ai.request.top_k"] == 40
+    assert rejected.status.status_code is StatusCode.ERROR
+    assert rejected.attributes["error.type"] == "UnsupportedInput"
+
+
+WEB_SEARCH = "matched/web_search"
+
+
+@pytest.mark.parametrize(
+    ("method", "endpoint", "request_cassette", "response_cassette"),
+    [
+        ("responses", "responses", f"{WEB_SEARCH}/openai-responses-stream-00", None),
+        ("responses", "responses", f"{WEB_SEARCH}/openai-responses-non_stream-00", None),
+        ("messages", "messages", f"{WEB_SEARCH}/anthropic-messages-stream-00", None),
+        ("messages", "messages", f"{WEB_SEARCH}/anthropic-messages-non_stream-00", None),
+        # The recorded Responses request sets no output-token limit, which a Messages
+        # upstream requires, so the translated case runs from Messages to Responses.
+        (
+            "messages",
+            "responses",
+            f"{WEB_SEARCH}/anthropic-messages-stream-00",
+            f"{WEB_SEARCH}/openai-responses-stream-00",
+        ),
+    ],
+)
+async def test_web_search_requests_are_reported_on_every_route_that_counts_them(
+    exporter: InMemorySpanExporter,
+    method: str,
+    endpoint: str,
+    request_cassette: str,
+    response_cassette: str | None,
+):
+    """Asserts that one recorded web search is reported as one request on native and translated routes.
+
+    Responses reports the count in `tool_usage.web_search.num_requests` and Messages in
+    `usage.server_tool_use.web_search_requests`; translated routes read normalized usage.
+    """
+    await _run_coordinator(method, endpoint, request_cassette, response_cassette)
+
+    span = _molto_span(exporter)
+    assert span.attributes["molto.usage.web_search_requests"] == 1
+
+
+async def test_native_chat_web_search_reports_no_request_count(exporter: InMemorySpanExporter):
+    """Ensures a native Chat search call omits the count, because Chat Completions reports none."""
+    await _run_coordinator(
+        "chat_completions",
+        "chat/completions",
+        f"{WEB_SEARCH}/openai-chat_completions-stream-00",
+        None,
+    )
+
+    assert "molto.usage.web_search_requests" not in _molto_span(exporter).attributes
+
+
+async def test_chat_sampling_controls_reach_the_span_where_sent_and_where_rejected(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that Chat seed, penalties, and choice count are recorded on native and rejected calls.
+
+    Native Chat forwards them; a translated route cannot express them and rejects the
+    call, and the span must show the requested values next to the error.
+    """
+    controls = {"seed": 7, "frequency_penalty": 0.1, "presence_penalty": 0.2, "n": 2}
+    expected = {
+        "gen_ai.request.seed": 7,
+        "gen_ai.request.frequency_penalty": 0.1,
+        "gen_ai.request.presence_penalty": 0.2,
+        "gen_ai.request.choice.count": 2,
+    }
+    await _run_coordinator(
+        "chat_completions",
+        "chat/completions",
+        "matched/simple_text/openai-chat_completions-stream-00",
+        None,
+        **controls,
+    )
+    async with Molto() as molto:
+        with pytest.raises(UnsupportedInput):
+            await molto.chat_completions(
+                body={
+                    "model": "gpt-5",
+                    "messages": [{"role": "user", "content": "Hello!"}],
+                    **controls,
+                },
+                endpoint="messages",
+                api_key="test-key",
+            )
+
+    native, rejected = exporter.get_finished_spans()
+    for span in (native, rejected):
+        assert {key: span.attributes[key] for key in expected} == expected
+    assert rejected.attributes["error.type"] == "UnsupportedInput"
 
 
 async def test_incomplete_native_responses_stream_reports_its_reason(

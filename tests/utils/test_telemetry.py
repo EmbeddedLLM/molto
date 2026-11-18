@@ -225,6 +225,66 @@ def test_integer_sampling_values_are_reported_as_floats():
     assert isinstance(attributes["gen_ai.request.top_p"], float)
 
 
+def test_messages_top_k_is_reported_on_native_and_validated_requests():
+    """Ensures `top_k`, which only Messages defines, is reported as the convention's integer.
+
+    A translated route rejects `top_k`, so its span must still show the field that
+    caused the rejection; that path passes the validated request model.
+    """
+    native = _start(
+        {"model": "claude-sonnet-5", "max_tokens": 8, "top_k": 40},
+        protocol="messages",
+        endpoint="messages",
+        provider="anthropic",
+    )
+    translated = _start(
+        AnthropicMessagesCreateRequest(
+            model="claude-sonnet-5", max_tokens=8, messages=[], top_k=40
+        ),
+        protocol="messages",
+        endpoint="responses",
+    )
+
+    assert native["gen_ai.request.top_k"] == 40
+    assert translated["gen_ai.request.top_k"] == 40
+
+
+def test_chat_sampling_controls_are_reported_with_convention_types():
+    """Ensures Chat penalties, seed, and choice count use the convention's keys and types.
+
+    Penalties are doubles even for integer input, and `seed` and `n` stay integers.
+    """
+    attributes = _start(
+        {
+            "model": "gpt-5",
+            "messages": [],
+            "frequency_penalty": 1,
+            "presence_penalty": 0.5,
+            "seed": 7,
+            "n": 3,
+        },
+        protocol="chat/completions",
+        endpoint="chat/completions",
+    )
+
+    assert attributes["gen_ai.request.frequency_penalty"] == 1.0
+    assert isinstance(attributes["gen_ai.request.frequency_penalty"], float)
+    assert attributes["gen_ai.request.presence_penalty"] == 0.5
+    assert attributes["gen_ai.request.seed"] == 7
+    assert attributes["gen_ai.request.choice.count"] == 3
+
+
+def test_default_choice_count_is_omitted():
+    """Asserts that `n=1` is not reported, since the convention reports only a count other than one."""
+    attributes = _start(
+        {"model": "gpt-5", "messages": [], "n": 1},
+        protocol="chat/completions",
+        endpoint="chat/completions",
+    )
+
+    assert "gen_ai.request.choice.count" not in attributes
+
+
 def test_mistyped_native_fields_are_omitted_without_raising():
     """Asserts that unvalidated native values of the wrong type never become attributes.
 
@@ -238,6 +298,11 @@ def test_mistyped_native_fields_are_omitted_without_raising():
             "max_output_tokens": True,
             "temperature": "0.5",
             "top_p": True,
+            "top_k": 40.0,
+            "frequency_penalty": "0.1",
+            "presence_penalty": False,
+            "seed": "7",
+            "n": True,
         }
     )
 
@@ -246,6 +311,11 @@ def test_mistyped_native_fields_are_omitted_without_raising():
         "gen_ai.request.max_tokens",
         "gen_ai.request.temperature",
         "gen_ai.request.top_p",
+        "gen_ai.request.top_k",
+        "gen_ai.request.frequency_penalty",
+        "gen_ai.request.presence_penalty",
+        "gen_ai.request.seed",
+        "gen_ai.request.choice.count",
     ):
         assert key not in attributes
 
@@ -389,6 +459,61 @@ def test_messages_usage_includes_cached_tokens_in_input():
         "gen_ai.usage.cache_read.input_tokens": 3,
         "gen_ai.usage.cache_write.input_tokens": 2,
     }
+
+
+def test_messages_usage_keeps_thinking_tokens_across_stream_updates():
+    """Ensures native Messages reports thinking tokens, and a later delta without details keeps them.
+
+    `message_delta` usage updates the `message_start` snapshot, so a delta that omits
+    `output_tokens_details` must not erase a count reported earlier.
+    """
+    usage = MessagesUsage()
+    usage.update(
+        SimpleNamespace(
+            input_tokens=10,
+            output_tokens=50,
+            output_tokens_details=SimpleNamespace(thinking_tokens=36),
+        )
+    )
+    usage.update(SimpleNamespace(output_tokens=60, output_tokens_details=None))
+
+    attributes = usage.attributes()
+
+    assert attributes["gen_ai.usage.output_tokens"] == 60
+    assert attributes["gen_ai.usage.reasoning.output_tokens"] == 36
+
+
+def test_messages_usage_reports_web_search_requests():
+    """Ensures native Messages reports `server_tool_use.web_search_requests` as Molto's search count."""
+    usage = MessagesUsage(
+        input_tokens=10,
+        output_tokens=5,
+        server_tool_use=SimpleNamespace(web_search_requests=2),
+    )
+
+    assert usage.attributes()["molto.usage.web_search_requests"] == 2
+
+
+@pytest.mark.parametrize("reasoning_tokens", [0, None])
+def test_zero_or_missing_reasoning_tokens_are_omitted(reasoning_tokens: int | None):
+    """Asserts that reasoning tokens appear only when non-zero, as the convention recommends."""
+    completion = ChatCompletion(
+        id="chatcmpl-1",
+        object="chat.completion",
+        created=0,
+        model="gpt-5",
+        choices=[],
+        usage={
+            "prompt_tokens": 1,
+            "completion_tokens": 2,
+            "total_tokens": 3,
+            "completion_tokens_details": {"reasoning_tokens": reasoning_tokens},
+        },
+    )
+
+    assert "gen_ai.usage.reasoning.output_tokens" not in chat_completions_response_attributes(
+        completion
+    )
 
 
 def test_incomplete_responses_response_reports_its_reason():

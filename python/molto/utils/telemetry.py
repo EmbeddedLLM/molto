@@ -12,7 +12,7 @@ from typing import Any, Literal, TypeAlias
 
 import anthropic
 import openai
-from anthropic.types import MessageDeltaUsage
+from anthropic.types import MessageDeltaUsage, OutputTokensDetails, ServerToolUsage
 from anthropic.types import Usage as AnthropicUsage
 from httpx import URL, InvalidURL
 from loguru import logger
@@ -46,10 +46,15 @@ from molto.version import __version__
 # from a private, Development-status module that lags the current spec.
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
+GEN_AI_REQUEST_CHOICE_COUNT = "gen_ai.request.choice.count"
+GEN_AI_REQUEST_FREQUENCY_PENALTY = "gen_ai.request.frequency_penalty"
 GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
+GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
+GEN_AI_REQUEST_SEED = "gen_ai.request.seed"
 GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
 GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
+GEN_AI_REQUEST_TOP_K = "gen_ai.request.top_k"
 GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
 SERVER_ADDRESS = "server.address"
 SERVER_PORT = "server.port"
@@ -63,6 +68,9 @@ GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+# The conventions define no web-search or server-tool usage count, so this one is Molto's.
+MOLTO_USAGE_WEB_SEARCH_REQUESTS = "molto.usage.web_search_requests"
 ERROR_TYPE = "error.type"
 HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 MOLTO_ERROR_PHASE = "molto.error.phase"
@@ -75,10 +83,15 @@ ATTRIBUTE_KEYS = frozenset(
     {
         GEN_AI_OPERATION_NAME,
         GEN_AI_PROVIDER_NAME,
+        GEN_AI_REQUEST_CHOICE_COUNT,
+        GEN_AI_REQUEST_FREQUENCY_PENALTY,
         GEN_AI_REQUEST_MAX_TOKENS,
         GEN_AI_REQUEST_MODEL,
+        GEN_AI_REQUEST_PRESENCE_PENALTY,
+        GEN_AI_REQUEST_SEED,
         GEN_AI_REQUEST_STREAM,
         GEN_AI_REQUEST_TEMPERATURE,
+        GEN_AI_REQUEST_TOP_K,
         GEN_AI_REQUEST_TOP_P,
         SERVER_ADDRESS,
         SERVER_PORT,
@@ -92,6 +105,8 @@ ATTRIBUTE_KEYS = frozenset(
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
         GEN_AI_USAGE_INPUT_TOKENS,
         GEN_AI_USAGE_OUTPUT_TOKENS,
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        MOLTO_USAGE_WEB_SEARCH_REQUESTS,
         ERROR_TYPE,
         HTTP_RESPONSE_STATUS_CODE,
         MOLTO_ERROR_PHASE,
@@ -181,10 +196,26 @@ def start_attributes(
     for key, name in (
         (GEN_AI_REQUEST_TEMPERATURE, "temperature"),
         (GEN_AI_REQUEST_TOP_P, "top_p"),
+        (GEN_AI_REQUEST_FREQUENCY_PENALTY, "frequency_penalty"),
+        (GEN_AI_REQUEST_PRESENCE_PENALTY, "presence_penalty"),
     ):
         value = _field(body, name)
         if _is_int(value) or isinstance(value, float):
             attributes[key] = float(value)
+    # Only one protocol defines each of these fields (Messages `top_k`, Chat `seed` and
+    # `n`, and the penalties above), and translation rejects them, so they appear on
+    # native spans and on the span of a translated call they caused to be rejected.
+    for key, name in (
+        (GEN_AI_REQUEST_TOP_K, "top_k"),
+        (GEN_AI_REQUEST_SEED, "seed"),
+    ):
+        value = _field(body, name)
+        if _is_int(value):
+            attributes[key] = value
+    # The convention reports a choice count only when it differs from the default of one.
+    choice_count = _field(body, "n")
+    if _is_int(choice_count) and choice_count != 1:
+        attributes[GEN_AI_REQUEST_CHOICE_COUNT] = choice_count
     if streaming:
         attributes[GEN_AI_REQUEST_STREAM] = True
     attributes.update(_server_attributes(route.base_url))
@@ -218,19 +249,29 @@ def usage_attributes(
     output_tokens: int | None,
     cache_read_tokens: int | None = None,
     cache_write_tokens: int | None = None,
+    reasoning_tokens: int | None = None,
+    web_search_requests: int | None = None,
 ) -> dict[str, AttributeValue]:
-    """Return token-usage attributes; `input_tokens` must already include cached tokens."""
+    """Return token-usage attributes.
+
+    `input_tokens` must already include cached tokens and `output_tokens` reasoning
+    tokens, as every provider Molto supports reports them.
+    """
     attributes: dict[str, AttributeValue] = {}
     if _is_int(input_tokens):
         attributes[GEN_AI_USAGE_INPUT_TOKENS] = input_tokens
     if _is_int(output_tokens):
         attributes[GEN_AI_USAGE_OUTPUT_TOKENS] = output_tokens
-    # Normalized usage stores a missing cache count as zero, so cache counts are
+    # Normalized usage stores a missing detail count as zero, so detail counts are
     # reported only when non-zero on every route, as the convention recommends.
-    if _is_int(cache_read_tokens) and cache_read_tokens:
-        attributes[GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS] = cache_read_tokens
-    if _is_int(cache_write_tokens) and cache_write_tokens:
-        attributes[GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS] = cache_write_tokens
+    for key, value in (
+        (GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_tokens),
+        (GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_tokens),
+        (GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_tokens),
+        (MOLTO_USAGE_WEB_SEARCH_REQUESTS, web_search_requests),
+    ):
+        if _is_int(value) and value:
+            attributes[key] = value
     return attributes
 
 
@@ -261,6 +302,8 @@ def normalized_event_attributes(event: ModelResponseStreamEvent) -> dict[str, At
             event.usage.output_tokens,
             details.cached_tokens,
             details.cache_write_tokens,
+            event.usage.output_tokens_details.reasoning_tokens,
+            event.usage.web_search_requests,
         )
     return attributes
 
@@ -297,11 +340,17 @@ def responses_response_attributes(response: OpenAIResponsesResponse) -> MaybeAtt
     usage = getattr(response, "usage", None)
     if usage is not None:
         input_details = getattr(usage, "input_tokens_details", None)
+        output_details = getattr(usage, "output_tokens_details", None)
+        # `tool_usage` is a field the SDK does not model, so it arrives as a plain mapping.
+        tool_usage = getattr(response, "tool_usage", None)
+        web_search = tool_usage.get("web_search") if isinstance(tool_usage, Mapping) else None
         attributes |= usage_attributes(
             getattr(usage, "input_tokens", None),
             getattr(usage, "output_tokens", None),
             getattr(input_details, "cached_tokens", None),
             getattr(input_details, "cache_write_tokens", None),
+            getattr(output_details, "reasoning_tokens", None),
+            web_search.get("num_requests") if isinstance(web_search, Mapping) else None,
         )
     return attributes
 
@@ -316,11 +365,13 @@ def is_responses_content_delta(event: OpenAIResponsesStreamEvent) -> bool:
 def chat_completions_usage_attributes(usage: CompletionUsage) -> dict[str, AttributeValue]:
     """Return token-usage attributes for Chat Completions usage."""
     details = getattr(usage, "prompt_tokens_details", None)
+    completion_details = getattr(usage, "completion_tokens_details", None)
     return usage_attributes(
         getattr(usage, "prompt_tokens", None),
         getattr(usage, "completion_tokens", None),
         getattr(details, "cached_tokens", None),
         getattr(details, "cache_write_tokens", None),
+        getattr(completion_details, "reasoning_tokens", None),
     )
 
 
@@ -376,6 +427,8 @@ class MessagesUsage:
     output_tokens: int | None = None
     cache_read_input_tokens: int | None = None
     cache_creation_input_tokens: int | None = None
+    output_tokens_details: OutputTokensDetails | None = None
+    server_tool_use: ServerToolUsage | None = None
 
     def update(self, usage: AnthropicUsage | MessageDeltaUsage | None) -> None:
         """Take every count `usage` reports, keeping earlier counts it omits."""
@@ -394,7 +447,15 @@ class MessagesUsage:
             if _is_int(self.input_tokens)
             else None
         )
-        return usage_attributes(total_input, self.output_tokens, cache_read, cache_write)
+        return usage_attributes(
+            total_input,
+            self.output_tokens,
+            cache_read,
+            cache_write,
+            # Anthropic `output_tokens` already includes thinking tokens.
+            getattr(self.output_tokens_details, "thinking_tokens", None),
+            getattr(self.server_tool_use, "web_search_requests", None),
+        )
 
 
 def messages_response_attributes(message: AnthropicMessagesResponse) -> MaybeAttributes:
