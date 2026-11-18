@@ -254,10 +254,11 @@ async def test_unsigned_reasoning_output_and_history_match_sdk(
         assert len(requests) == 4
 
 
+@pytest.mark.parametrize("downstream", ["chat/completions", "messages"])
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("populated_start", [False, True])
-async def test_openrouter_summary_projects_to_messages(stream, populated_start):
-    """Ensures OpenRouter summary snapshots and deltas reach Messages with its raw input profile."""
+async def test_openrouter_summary_projects_downstream(downstream, stream, populated_start):
+    """Ensures OpenRouter summary snapshots and deltas reach Chat and Messages despite its raw profile."""
     # This fixture-derived stream tests a wire shape independently of live OpenRouter output.
     events = _unsigned_events("responses")
     if populated_start:
@@ -280,14 +281,14 @@ async def test_openrouter_summary_projects_to_messages(stream, populated_start):
             input="Question", model="test-model", stream=True
         ) as source:
             expected = collect_sdk_response("responses", [event async for event in source])
-        result = await Molto(http_client=transport).messages(
-            _body("messages", stream),
+        result = await _coordinator(Molto(http_client=transport), downstream)(
+            _body(downstream, stream),
             provider="openrouter",
             endpoint="responses",
             api_key="test-key",
         )
         if stream:
             projected = [event async for event in result]
-            assert_stream_lifecycle("messages", projected)
-            result = collect_sdk_response("messages", projected)
-    assert _reasoning_and_text("messages", result) == _reasoning_and_text("responses", expected)
+            assert_stream_lifecycle(downstream, projected)
+            result = collect_sdk_response(downstream, projected)
+    assert _reasoning_and_text(downstream, result) == _reasoning_and_text("responses", expected)
