@@ -490,9 +490,12 @@ def _recorded_response(cassette):
             text="".join(response["sse"]),
             headers={"content-type": "text/event-stream"},
         )
+    body = response["body"]
+    if isinstance(body, (dict, list)):
+        return httpx.Response(response["status_code"], json=body)
     return httpx.Response(
         response["status_code"],
-        content=response["body_bytes"],
+        content=body,
         headers={"content-type": "application/json"},
     )
 

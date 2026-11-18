@@ -86,23 +86,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 56
     user: null
-  body_bytes: !!binary |
-    eyJpZCI6InJlc3BfNjJlZTkzMDhmYTVmNGVmNWE0NGRkZWNmOGVmNDVjMjAiLCJvYmplY3QiOiJy
-    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3MDgsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
-    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
-    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoibXNnXzlhYTRmZDQ2YWY2NTQzM2JiY2JhMDFlYjg1MzM2
-    YWEyIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlw
-    ZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6ImJsdWUgbGFudGVybiIsImFubm90YXRpb25zIjpbXX1d
-    LCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJ1c2Fn
-    ZSI6eyJpbnB1dF90b2tlbnMiOjUzLCJvdXRwdXRfdG9rZW5zIjozLCJ0b3RhbF90b2tlbnMiOjU2
-    LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjoyN30sIm91dHB1dF90b2tl
-    bnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowfX0sImVycm9yIjpudWxsLCJpbmNvbXBs
-    ZXRlX2RldGFpbHMiOm51bGwsImluc3RydWN0aW9ucyI6bnVsbCwibWF4X291dHB1dF90b2tlbnMi
-    OjIwNDgsIm1heF90b29sX2NhbGxzIjpudWxsLCJwYXJhbGxlbF90b29sX2NhbGxzIjp0cnVlLCJy
-    ZWFzb25pbmciOnsiZWZmb3J0Ijoibm9uZSJ9LCJzdG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjox
-    LjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In19LCJ0b29sX2Nob2ljZSI6ImF1dG8i
-    LCJ0b29scyI6W10sInRvcF9wIjowLjk1LCJ0b3BfbG9ncHJvYnMiOm51bGwsInRydW5jYXRpb24i
-    OiJkaXNhYmxlZCIsInVzZXIiOm51bGwsImJhY2tncm91bmQiOm51bGwsIm1ldGFkYXRhIjp7fX0=
   headers:
     connection: keep-alive
     content-length: '911'

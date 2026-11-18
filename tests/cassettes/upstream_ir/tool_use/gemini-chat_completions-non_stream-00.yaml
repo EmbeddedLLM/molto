@@ -63,18 +63,6 @@ response:
       completion_tokens: 18
       prompt_tokens: 75
       total_tokens: 93
-  body_bytes: !!binary |
-    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJtZXNz
-    YWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJ0b29sX2NhbGxzIjpbeyJleHRyYV9jb250ZW50Ijp7
-    Imdvb2dsZSI6eyJ0aG91Z2h0X3NpZ25hdHVyZSI6IkVuTUtjUUZwRkgwVDZTQ0NpbWtoUENRU081
-    ZUd0VkdxNkcwSEJGZENrcHhjYTVBakRicy9zRlNEN1UzbzgrYS9YOHBxallHbUtLdDh4eURiVVNZ
-    RHVNMGtLOE5qZmlScE5DU0phRFF3T0J0Q05NL25aOUErZEtHbEEwUUd5SzlQR1hLdTJMeUpRMFBW
-    aXM2TkFZbjFlaWlxNmR0MCJ9fSwiZnVuY3Rpb24iOnsiYXJndW1lbnRzIjoie1wicGF0aFwiOlwi
-    aW5kZXgudHh0XCJ9IiwibmFtZSI6InJlYWRfZmlsZSJ9LCJpZCI6ImNhbGxfMTQ0NjI4Njc2NjE4
-    NjE3NDAyMzMiLCJ0eXBlIjoiZnVuY3Rpb24ifV19fV0sImNyZWF0ZWQiOjE3OTM5MzgyNDUsImlk
-    IjoiUlZQdGFzRE1GTldFeXRNUHVjR2V3QUkiLCJtb2RlbCI6ImdlbWluaS0zLjEtZmxhc2gtbGl0
-    ZSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbiIsInVzYWdlIjp7ImNvbXBsZXRpb25fdG9rZW5z
-    IjoxOCwicHJvbXB0X3Rva2VucyI6NzUsInRvdGFsX3Rva2VucyI6OTN9fQ==
   headers:
     content-type: application/json
   status_code: 200

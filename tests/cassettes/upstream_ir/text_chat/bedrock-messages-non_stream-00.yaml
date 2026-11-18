@@ -43,18 +43,6 @@ response:
       input_tokens: 15
       output_tokens: 22
       service_tier: standard
-  body_bytes: !!binary |
-    eyJtb2RlbCI6ImFudGhyb3BpYy5jbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxLXYxOjAiLCJpZCI6
-    Im1zZ19iZHJrX3dqZnBiMnVyZm5reW14cmZnZW5seXBpN2NhcXRocHBwbnJ6aHZ1bXR5c2FwcXli
-    YTZoY3EiLCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjpbeyJ0
-    eXBlIjoidGV4dCIsInRleHQiOiJUaGUgb2NlYW4gY292ZXJzIG1vcmUgdGhhbiBzZXZlbnR5IHBl
-    cmNlbnQgb2YgRWFydGgncyBzdXJmYWNlIGFuZCByZW1haW5zIGxhcmdlbHkgdW5leHBsb3JlZC4i
-    fV0sImNvbnRhaW5lciI6bnVsbCwic3RvcF9yZWFzb24iOiJlbmRfdHVybiIsInN0b3Bfc2VxdWVu
-    Y2UiOm51bGwsInN0b3BfZGV0YWlscyI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNSwi
-    Y2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6
-    MCwiY2FjaGVfY3JlYXRpb24iOnsiZXBoZW1lcmFsXzVtX2lucHV0X3Rva2VucyI6MCwiZXBoZW1l
-    cmFsXzFoX2lucHV0X3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjIyLCJzZXJ2aWNlX3RpZXIi
-    OiJzdGFuZGFyZCJ9fQ==
   headers:
     connection: keep-alive
     content-length: '583'

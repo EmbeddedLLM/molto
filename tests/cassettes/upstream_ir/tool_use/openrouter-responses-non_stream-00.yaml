@@ -122,33 +122,6 @@ response:
       output_tokens_details:
         reasoning_tokens: 0
       total_tokens: 341
-  body_bytes: !!binary |
-    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE4NTMtT2tTWEdZUlpLUTljakVUNXNZSXIiLCJv
-    YmplY3QiOiJyZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjE4NTMsIm1vZGVsIjoibnZpZGlh
-    L25lbW90cm9uLTMuNS1saWdodG5pbmc6ZnJlZSIsInN0YXR1cyI6ImNvbXBsZXRlZCIsImNvbXBs
-    ZXRlZF9hdCI6MTc5Mzc2MTg1NCwib3V0cHV0IjpbeyJpZCI6ImZjX3RtcF9na3ZmbGVrOW5rNCIs
-    InR5cGUiOiJmdW5jdGlvbl9jYWxsIiwic3RhdHVzIjoiY29tcGxldGVkIiwiY2FsbF9pZCI6ImNh
-    bGwtOGM4NDRhMjMtMGMwMi00MWE0LTk3N2ItNDQ5MjQ0NzE0NjA3IiwibmFtZSI6ImFkZCIsImFy
-    Z3VtZW50cyI6IntcbiAgXCJhXCI6IDIsXG4gIFwiYlwiOiAzXG59In1dLCJlcnJvciI6bnVsbCwi
-    aW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJhY2Nlc3NfcHJvZ3JhbXMiOm51bGwsInRvb2xzIjpb
-    eyJ0eXBlIjoiZnVuY3Rpb24iLCJuYW1lIjoiYWRkIiwiZGVzY3JpcHRpb24iOiJBZGQgdHdvIGlu
-    dGVnZXJzLiIsInBhcmFtZXRlcnMiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYSI6
-    eyJ0eXBlIjoiaW50ZWdlciJ9LCJiIjp7InR5cGUiOiJpbnRlZ2VyIn19LCJyZXF1aXJlZCI6WyJh
-    IiwiYiJdLCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9LCJzdHJpY3QiOm51bGx9XSwidG9v
-    bF9jaG9pY2UiOnsidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFkZCJ9LCJwYXJhbGxlbF90b29s
-    X2NhbGxzIjpmYWxzZSwibWF4X291dHB1dF90b2tlbnMiOjEwMjQsInRlbXBlcmF0dXJlIjoxLCJ0
-    b3BfcCI6MSwicHJlc2VuY2VfcGVuYWx0eSI6MCwiZnJlcXVlbmN5X3BlbmFsdHkiOjAsInRvcF9s
-    b2dwcm9icyI6MCwibWF4X3Rvb2xfY2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwiYmFja2dyb3Vu
-    ZCI6ZmFsc2UsInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJzZXJ2aWNlX3RpZXIiOiJhdXRv
-    IiwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwic3RvcmUiOmZhbHNlLCJpbnN0cnVjdGlvbnMiOm51
-    bGwsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0ZXh0In19LCJyZWFzb25pbmciOnsiZWZmb3J0
-    Ijoibm9uZSJ9LCJzYWZldHlfaWRlbnRpZmllciI6bnVsbCwicHJvbXB0X2NhY2hlX2tleSI6bnVs
-    bCwicHJvbXB0X2NhY2hlX29wdGlvbnMiOm51bGwsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6MzI0
-    LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowfSwib3V0cHV0X3Rva2Vu
-    cyI6MTcsIm91dHB1dF90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowfSwidG90
-    YWxfdG9rZW5zIjozNDEsImNvc3QiOjAsImlzX2J5b2siOmZhbHNlLCJjb3N0X2RldGFpbHMiOnsi
-    dXBzdHJlYW1faW5mZXJlbmNlX2Nvc3QiOjAsInVwc3RyZWFtX2luZmVyZW5jZV9pbnB1dF9jb3N0
-    IjowLCJ1cHN0cmVhbV9pbmZlcmVuY2Vfb3V0cHV0X2Nvc3QiOjB9fX0=
   headers:
     connection: keep-alive
     content-type: application/json

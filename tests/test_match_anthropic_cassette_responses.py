@@ -32,6 +32,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     """Ensures every discovered conversation turn matches valid native output idempotently."""
     messages = read_yaml(messages_path)
     responses = read_yaml(responses_path)
+    original_responses = deepcopy(responses)
     transport = deepcopy(messages["response"]["headers"])
 
     match_messages_response(messages, responses)
@@ -64,6 +65,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     matched = deepcopy(messages)
     match_messages_response(messages, responses)
     assert messages == matched
+    assert responses == original_responses
 
 
 def test_matches_ordered_content_usage_and_tool_stop() -> None:
@@ -275,17 +277,6 @@ def test_cli_writes_sorted_output_without_mutating_input(tmp_path: Path) -> None
     matched = read_yaml(str(output_path))
     assert matched["response"]["body"]["id"] == responses["response"]["body"]["id"]
     assert output_path.read_text().splitlines()[0].startswith("filename:")
-
-
-def test_matching_discards_stale_raw_response_bytes() -> None:
-    """Ensures deliberately matched JSON replaces raw bytes without mutating the canonical recording."""
-    source, canonical = _cassettes()
-    source["response"]["body_bytes"] = b"old recorded response"
-    canonical["response"]["body_bytes"] = b"canonical original bytes"
-    original = deepcopy(canonical)
-    match_messages_response(source, canonical)
-    assert "body_bytes" not in source["response"]
-    assert canonical == original
 
 
 def _search_cassettes() -> tuple[dict, dict]:

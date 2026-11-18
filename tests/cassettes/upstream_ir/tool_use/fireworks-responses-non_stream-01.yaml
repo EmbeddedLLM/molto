@@ -111,28 +111,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 406
     user: null
-  body_bytes: !!binary |
-    eyJpZCI6InJlc3BfZjU5ZGJhNzliM2EyNGQxN2E0ZTAxNmQyZGU4ODJiYmUiLCJvYmplY3QiOiJy
-    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3NzEsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
-    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
-    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoiZmNfNmU5ZDU5ZjFhOWY5NGY1N2E4MjZmOGVlMTNkOTdm
-    MzUiLCJ0eXBlIjoiZnVuY3Rpb25fY2FsbCIsImNhbGxfaWQiOiJjaGF0Y21wbC10b29sLWJiOTRj
-    ZjRhNjc5NTAzNGYiLCJuYW1lIjoiYWRkIiwiYXJndW1lbnRzIjoie1wiYVwiOiA1LCBcImJcIjog
-    NH0iLCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJ1
-    c2FnZSI6eyJpbnB1dF90b2tlbnMiOjM3NSwib3V0cHV0X3Rva2VucyI6MzEsInRvdGFsX3Rva2Vu
-    cyI6NDA2LCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjozMjR9LCJvdXRw
-    dXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH19LCJlcnJvciI6bnVsbCwi
-    aW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRwdXRf
-    dG9rZW5zIjoyMDQ4LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwicGFyYWxsZWxfdG9vbF9jYWxscyI6
-    ZmFsc2UsInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInN0b3JlIjpmYWxzZSwidGVtcGVy
-    YXR1cmUiOjEuMCwidGV4dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifX0sInRvb2xfY2hvaWNl
-    Ijp7InR5cGUiOiJmdW5jdGlvbiIsIm5hbWUiOiJhZGQifSwidG9vbHMiOlt7InR5cGUiOiJmdW5j
-    dGlvbiIsIm5hbWUiOiJhZGQiLCJkZXNjcmlwdGlvbiI6IkFkZCB0d28gaW50ZWdlcnMuIiwicGFy
-    YW1ldGVycyI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJhIjp7InR5cGUiOiJpbnRl
-    Z2VyIn0sImIiOnsidHlwZSI6ImludGVnZXIifX0sInJlcXVpcmVkIjpbImEiLCJiIl0sImFkZGl0
-    aW9uYWxQcm9wZXJ0aWVzIjpmYWxzZX19XSwidG9wX3AiOjAuOTUsInRvcF9sb2dwcm9icyI6bnVs
-    bCwidHJ1bmNhdGlvbiI6ImRpc2FibGVkIiwidXNlciI6bnVsbCwiYmFja2dyb3VuZCI6bnVsbCwi
-    bWV0YWRhdGEiOnt9fQ==
   headers:
     connection: keep-alive
     content-length: '1153'

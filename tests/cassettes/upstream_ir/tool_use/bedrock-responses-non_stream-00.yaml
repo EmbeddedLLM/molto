@@ -111,33 +111,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 168
     user: null
-  body_bytes: !!binary |
-    eyJiYWNrZ3JvdW5kIjpmYWxzZSwiYmlsbGluZyI6eyJwYXllciI6ImRldmVsb3BlciJ9LCJjb21w
-    bGV0ZWRfYXQiOjE3OTM4NjU2MTIsImNyZWF0ZWRfYXQiOjE3OTM4NjU2MTIsImVycm9yIjpudWxs
-    LCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJpZCI6InJlc3BfbzJsaGdpM2ljcDNnaTJkNmJic2pq
-    Mm9yamZzNnY2bnl4M2RqYWl5bnZkcWpvYXcyYXR2YSIsImluY29tcGxldGVfZGV0YWlscyI6bnVs
-    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwibWF4X3Rvb2xf
-    Y2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYt
-    bHVuYSIsIm9iamVjdCI6InJlc3BvbnNlIiwib3V0cHV0IjpbeyJhcmd1bWVudHMiOiJ7XCJwYXRo
-    XCI6XCJpbmRleC50eHRcIn0iLCJjYWxsX2lkIjoiY2FsbF9kOGNiYzE0YmExNjE1ZDFjYjAwZmY1
-    YWUwNDQwYTA2NCIsImlkIjoiZmNfOTcxOTNkNzU0ZjRiNWJiNWI4NTllMTdjNjZlMTVmZDYiLCJu
-    YW1lIjoicmVhZF9maWxlIiwic3RhdHVzIjoiY29tcGxldGVkIiwidHlwZSI6ImZ1bmN0aW9uX2Nh
-    bGwifV0sInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZhbHNlLCJwcmVzZW5jZV9wZW5hbHR5IjowLjAs
-    InByZXZpb3VzX3Jlc3BvbnNlX2lkIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9t
-    cHRfY2FjaGVfcmV0ZW50aW9uIjoiaW5fbWVtb3J5IiwicmVhc29uaW5nIjp7InN1bW1hcnkiOm51
-    bGwsImVmZm9ydCI6Im5vbmUiLCJjb250ZXh0IjoiYWxsX3R1cm5zIn0sInNhZmV0eV9pZGVudGlm
-    aWVyIjpudWxsLCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0Iiwic3RhdHVzIjoiY29tcGxldGVkIiwi
-    c3RvcmUiOmZhbHNlLCJ0ZW1wZXJhdHVyZSI6MS4wLCJ0ZXh0Ijp7ImZvcm1hdCI6eyJ0eXBlIjoi
-    dGV4dCJ9LCJ2ZXJib3NpdHkiOiJtZWRpdW0ifSwidG9vbF9jaG9pY2UiOiJhdXRvIiwidG9vbHMi
-    Olt7ImRlc2NyaXB0aW9uIjoiUmVhZCBhIGZpbGUgYnkgaXRzIHBhdGguIiwibmFtZSI6InJlYWRf
-    ZmlsZSIsIm91dHB1dF9zY2hlbWEiOm51bGwsInBhcmFtZXRlcnMiOnsiYWRkaXRpb25hbFByb3Bl
-    cnRpZXMiOmZhbHNlLCJwcm9wZXJ0aWVzIjp7InBhdGgiOnsidHlwZSI6InN0cmluZyJ9fSwicmVx
-    dWlyZWQiOlsicGF0aCJdLCJ0eXBlIjoib2JqZWN0In0sInN0cmljdCI6ZmFsc2UsInR5cGUiOiJm
-    dW5jdGlvbiJ9XSwidG9wX2xvZ3Byb2JzIjowLCJ0b3BfcCI6MC45OCwidHJ1bmNhdGlvbiI6ImRp
-    c2FibGVkIiwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNDksImlucHV0X3Rva2Vuc19kZXRhaWxz
-    Ijp7ImNhY2hlX3dyaXRlX3Rva2VucyI6MCwiY2FjaGVkX3Rva2VucyI6MH0sIm91dHB1dF90b2tl
-    bnMiOjE5LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH0sInRv
-    dGFsX3Rva2VucyI6MTY4fSwidXNlciI6bnVsbCwibW9kZXJhdGlvbiI6bnVsbH0=
   headers:
     connection: keep-alive
     content-length: '1472'

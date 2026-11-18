@@ -162,43 +162,39 @@ def _get_http_client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Reques
                 content="".join(cassette_response["sse"]).encode(),
                 headers=headers,
             )
-        if "body_bytes" in cassette_response:
-            return Response(
-                cassette_response["status_code"],
-                content=cassette_response["body_bytes"],
-                headers=headers,
-            )
         body = cassette_response["body"]
-        if isinstance(body, str):
+        if isinstance(body, (dict, list)):
             return Response(
                 cassette_response["status_code"],
-                content=body.encode(),
+                json=body,
                 headers=headers,
             )
         return Response(
             cassette_response["status_code"],
-            json=body,
+            content=body,
             headers=headers,
         )
 
     return AsyncClient(transport=MockTransport(cassette_handler)), requests
 
 
-@pytest.mark.parametrize("body", [b"", b'{ "error": "bad request" }\n', b"\xff\x00"])
-async def test_replay_uses_authoritative_response_bytes(body: bytes) -> None:
-    """Ensures error replay preserves original JSON formatting, empty and binary bodies."""
+@pytest.mark.parametrize("body", [{"error": "bad request"}, [], "", "bad request\n", b"\xff\x00"])
+async def test_replay_preserves_response_body(body: dict | list | str | bytes) -> None:
+    """Ensures error replay preserves parsed JSON, empty, text, and binary bodies."""
     cassette = {
         "response": {
             "status_code": 400,
             "headers": {"content-type": "application/json", "x-request-id": "request-1"},
-            "body": {"error": "parsed value is not authoritative"},
-            "body_bytes": body,
+            "body": body,
         },
     }
     client, _ = _get_http_client(cassette)
     async with client:
         response = await client.post("https://provider.test/v1/responses", json={"model": "m"})
-    assert response.content == body
+    if isinstance(body, (dict, list)):
+        assert response.json() == body
+    else:
+        assert response.content == (body.encode() if isinstance(body, str) else body)
     assert response.status_code == 400
     assert response.headers["x-request-id"] == "request-1"
 

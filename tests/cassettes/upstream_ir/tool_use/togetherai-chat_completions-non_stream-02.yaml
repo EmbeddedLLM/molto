@@ -84,16 +84,6 @@ response:
       prompt_tokens_details:
         cached_tokens: 320
       total_tokens: 424
-  body_bytes: !!binary |
-    eyJpZCI6IjBkY2MyZjVlLWF3c19hczEiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJjcmVh
-    dGVkIjoxNzkzODkwMTg3LCJtb2RlbCI6IlF3ZW4vUXdlbjMuNS05QiIsImNob2ljZXMiOlt7Imlu
-    ZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiVGhlIGZpbGUg
-    ZGVzY3JpYmVzIGEgcm91dGluZSBmb3Igd2F0ZXJpbmcgdG9tYXRvZXMgZGFpbHkgYW5kIGhhcnZl
-    c3RpbmcgdGhlIHJpcGUgb25lcy4iLCJyZWFzb25pbmdfY29udGVudCI6bnVsbH0sImZpbmlzaF9y
-    ZWFzb24iOiJzdG9wIiwibWF0Y2hlZF9zdG9wIjoyNDgwNDZ9XSwidXNhZ2UiOnsicHJvbXB0X3Rv
-    a2VucyI6NDA4LCJjb21wbGV0aW9uX3Rva2VucyI6MTYsInRvdGFsX3Rva2VucyI6NDI0LCJwcm9t
-    cHRfdG9rZW5zX2RldGFpbHMiOnsiY2FjaGVkX3Rva2VucyI6MzIwfX0sInN5c3RlbV9maW5nZXJw
-    cmludCI6ImRlZmF1bHQifQ==
   headers:
     connection: keep-alive
     content-type: application/json

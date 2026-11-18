@@ -104,30 +104,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 381
     user: null
-  body_bytes: !!binary |
-    eyJpZCI6InJlc3BfMjRkNDE2NTY2YzgwNGFlMGE4ZWRiZmQ1ODkyYzM2Y2UiLCJvYmplY3QiOiJy
-    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjA3ODMsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
-    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
-    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoiZmNfOTk1MWM2NTVkNzg3NDY4ODkyNDM3NmEwMjJmODAz
-    NTEiLCJ0eXBlIjoiZnVuY3Rpb25fY2FsbCIsImNhbGxfaWQiOiJjaGF0Y21wbC10b29sLWJiNzlk
-    MGJiMWVmMGQ4NjciLCJuYW1lIjoiYWRkIiwiYXJndW1lbnRzIjoie1wiYVwiOiAyLCBcImJcIjog
-    M30iLCJzdGF0dXMiOiJjb21wbGV0ZWQifSx7ImlkIjoiZmNfMWU0NzQzYjFmZDI5NDhmOWIzMGE3
-    MmZmYWMxOWE0YjUiLCJ0eXBlIjoiZnVuY3Rpb25fY2FsbCIsImNhbGxfaWQiOiJjaGF0Y21wbC10
-    b29sLWFmMGY1NzQzZTYxYjQxNzAiLCJuYW1lIjoiYWRkIiwiYXJndW1lbnRzIjoie1wiYVwiOiA3
-    LCBcImJcIjogNH0iLCJzdGF0dXMiOiJjb21wbGV0ZWQifV0sInByZXZpb3VzX3Jlc3BvbnNlX2lk
-    IjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjMyMCwib3V0cHV0X3Rva2VucyI6NjEsInRv
-    dGFsX3Rva2VucyI6MzgxLCJpbnB1dF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjow
-    fSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9fSwiZXJyb3Ii
-    Om51bGwsImluY29tcGxldGVfZGV0YWlscyI6bnVsbCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhf
-    b3V0cHV0X3Rva2VucyI6MjA0OCwibWF4X3Rvb2xfY2FsbHMiOm51bGwsInBhcmFsbGVsX3Rvb2xf
-    Y2FsbHMiOnRydWUsInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInN0b3JlIjpmYWxzZSwi
-    dGVtcGVyYXR1cmUiOjEuMCwidGV4dCI6eyJmb3JtYXQiOnsidHlwZSI6InRleHQifX0sInRvb2xf
-    Y2hvaWNlIjoicmVxdWlyZWQiLCJ0b29scyI6W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFk
-    ZCIsImRlc2NyaXB0aW9uIjoiQWRkIHR3byBpbnRlZ2Vycy4iLCJwYXJhbWV0ZXJzIjp7InR5cGUi
-    OiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImEiOnsidHlwZSI6ImludGVnZXIifSwiYiI6eyJ0eXBl
-    IjoiaW50ZWdlciJ9fSwicmVxdWlyZWQiOlsiYSIsImIiXSwiYWRkaXRpb25hbFByb3BlcnRpZXMi
-    OmZhbHNlfX1dLCJ0b3BfcCI6MC45NSwidG9wX2xvZ3Byb2JzIjpudWxsLCJ0cnVuY2F0aW9uIjoi
-    ZGlzYWJsZWQiLCJ1c2VyIjpudWxsLCJiYWNrZ3JvdW5kIjpudWxsLCJtZXRhZGF0YSI6e319
   headers:
     connection: keep-alive
     content-length: '1308'

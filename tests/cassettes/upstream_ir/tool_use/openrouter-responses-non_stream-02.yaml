@@ -139,33 +139,6 @@ response:
       output_tokens_details:
         reasoning_tokens: 0
       total_tokens: 154
-  body_bytes: !!binary |
-    CiAgICAgICAgIAp7ImlkIjoiZ2VuLTE3OTM3NjE4NTUtTHpkMVdyR3J1ekpSUGFhcGg3MnMiLCJv
-    YmplY3QiOiJyZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTM3NjE4NTUsIm1vZGVsIjoibnZpZGlh
-    L25lbW90cm9uLTMuNS1saWdodG5pbmc6ZnJlZSIsInN0YXR1cyI6ImNvbXBsZXRlZCIsImNvbXBs
-    ZXRlZF9hdCI6MTc5Mzc2MTg1NSwib3V0cHV0IjpbeyJpZCI6Im1zZ190bXBfanBudHM4M2diMGwi
-    LCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJzdGF0dXMiOiJjb21wbGV0ZWQi
-    LCJjb250ZW50IjpbeyJ0eXBlIjoib3V0cHV0X3RleHQiLCJ0ZXh0IjoiVGhlIGZpbmFsIGFuc3dl
-    ciBpcyA5LiIsImFubm90YXRpb25zIjpbXSwibG9ncHJvYnMiOltdfV19XSwiZXJyb3IiOm51bGws
-    ImluY29tcGxldGVfZGV0YWlscyI6bnVsbCwiYWNjZXNzX3Byb2dyYW1zIjpudWxsLCJ0b29scyI6
-    W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6ImFkZCIsImRlc2NyaXB0aW9uIjoiQWRkIHR3byBp
-    bnRlZ2Vycy4iLCJwYXJhbWV0ZXJzIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImEi
-    OnsidHlwZSI6ImludGVnZXIifSwiYiI6eyJ0eXBlIjoiaW50ZWdlciJ9fSwicmVxdWlyZWQiOlsi
-    YSIsImIiXSwiYWRkaXRpb25hbFByb3BlcnRpZXMiOmZhbHNlfSwic3RyaWN0IjpudWxsfV0sInRv
-    b2xfY2hvaWNlIjoibm9uZSIsInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZhbHNlLCJtYXhfb3V0cHV0
-    X3Rva2VucyI6MTAyNCwidGVtcGVyYXR1cmUiOjEsInRvcF9wIjoxLCJwcmVzZW5jZV9wZW5hbHR5
-    IjowLCJmcmVxdWVuY3lfcGVuYWx0eSI6MCwidG9wX2xvZ3Byb2JzIjowLCJtYXhfdG9vbF9jYWxs
-    cyI6bnVsbCwibWV0YWRhdGEiOnt9LCJiYWNrZ3JvdW5kIjpmYWxzZSwicHJldmlvdXNfcmVzcG9u
-    c2VfaWQiOm51bGwsInNlcnZpY2VfdGllciI6ImF1dG8iLCJ0cnVuY2F0aW9uIjoiZGlzYWJsZWQi
-    LCJzdG9yZSI6ZmFsc2UsImluc3RydWN0aW9ucyI6bnVsbCwidGV4dCI6eyJmb3JtYXQiOnsidHlw
-    ZSI6InRleHQifX0sInJlYXNvbmluZyI6eyJlZmZvcnQiOiJub25lIn0sInNhZmV0eV9pZGVudGlm
-    aWVyIjpudWxsLCJwcm9tcHRfY2FjaGVfa2V5IjpudWxsLCJwcm9tcHRfY2FjaGVfb3B0aW9ucyI6
-    bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjoxNDYsImlucHV0X3Rva2Vuc19kZXRhaWxzIjp7
-    ImNhY2hlZF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zIjo4LCJvdXRwdXRfdG9rZW5zX2RldGFp
-    bHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH0sInRvdGFsX3Rva2VucyI6MTU0LCJjb3N0IjowLCJp
-    c19ieW9rIjpmYWxzZSwiY29zdF9kZXRhaWxzIjp7InVwc3RyZWFtX2luZmVyZW5jZV9jb3N0Ijow
-    LCJ1cHN0cmVhbV9pbmZlcmVuY2VfaW5wdXRfY29zdCI6MCwidXBzdHJlYW1faW5mZXJlbmNlX291
-    dHB1dF9jb3N0IjowfX19
   headers:
     connection: keep-alive
     content-type: application/json

@@ -110,35 +110,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 113
     user: null
-  body_bytes: !!binary |
-    eyJiYWNrZ3JvdW5kIjpmYWxzZSwiYmlsbGluZyI6eyJwYXllciI6ImRldmVsb3BlciJ9LCJjb21w
-    bGV0ZWRfYXQiOjE3OTM4NjU2MDksImNyZWF0ZWRfYXQiOjE3OTM4NjU2MDgsImVycm9yIjpudWxs
-    LCJmcmVxdWVuY3lfcGVuYWx0eSI6MC4wLCJpZCI6InJlc3BfemljMjUzaG9wYW9ic3hnZ3VqaG93
-    amVvbXZiamduaWNicDVmaTdxYmpjZXl3NTZpM3JzYSIsImluY29tcGxldGVfZGV0YWlscyI6bnVs
-    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MTAyNCwibWF4X3Rvb2xf
-    Y2FsbHMiOm51bGwsIm1ldGFkYXRhIjp7fSwibW9kZWwiOiJnbG9iYWwub3BlbmFpLmdwdC01LjYt
-    bHVuYSIsIm9iamVjdCI6InJlc3BvbnNlIiwib3V0cHV0IjpbeyJjb250ZW50IjpbeyJhbm5vdGF0
-    aW9ucyI6W10sImxvZ3Byb2JzIjpbXSwidGV4dCI6IuKAnFJvb3R5IE1jU3Byb3V04oCdIGZpdHMg
-    YmVjYXVzZSBpdCBjb21iaW5lcyB0d28gZ2FyZGVuaW5nIGlkZWFzOlxuXG4tICoq4oCcUm9vdHni
-    gJ0qKiBzdWdnZXN0cyByb290cywgc29pbCwgYW5kIGhlYWx0aHkgcGxhbnQgZ3Jvd3RoLlxuLSAq
-    KuKAnE1jU3Byb3V04oCdKiogZXZva2VzIG5ldyBzZWVkbGluZ3MgYW5kIGdpdmVzIHRoZSByb2Jv
-    dCBhIGZyaWVuZGx5LCBwbGF5ZnVsIHBlcnNvbmFsaXR5LlxuXG5Ub2dldGhlciwgdGhlIG5hbWUg
-    c291bmRzIGNoZWVyZnVsLCBtZW1vcmFibGUsIGFuZCBwZXJmZWN0bHkgc3VpdGVkIHRvIGEgcm9i
-    b3QgdGhhdCBoZWxwcyBwbGFudHMgZ3Jvdy4iLCJ0eXBlIjoib3V0cHV0X3RleHQifV0sImlkIjoi
-    bXNnX2Q3MTQ3OTg4OTU0NDUwOTNiOTVlNmQ1ZjUxZmE1NzJhIiwicGhhc2UiOiJmaW5hbF9hbnN3
-    ZXIiLCJyb2xlIjoiYXNzaXN0YW50Iiwic3RhdHVzIjoiY29tcGxldGVkIiwidHlwZSI6Im1lc3Nh
-    Z2UifV0sInBhcmFsbGVsX3Rvb2xfY2FsbHMiOnRydWUsInByZXNlbmNlX3BlbmFsdHkiOjAuMCwi
-    cHJldmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInByb21wdF9jYWNoZV9rZXkiOm51bGwsInByb21w
-    dF9jYWNoZV9yZXRlbnRpb24iOiJpbl9tZW1vcnkiLCJyZWFzb25pbmciOnsic3VtbWFyeSI6bnVs
-    bCwiZWZmb3J0Ijoibm9uZSIsImNvbnRleHQiOiJhbGxfdHVybnMifSwic2FmZXR5X2lkZW50aWZp
-    ZXIiOm51bGwsInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJz
-    dG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjoxLjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0
-    ZXh0In0sInZlcmJvc2l0eSI6Im1lZGl1bSJ9LCJ0b29sX2Nob2ljZSI6ImF1dG8iLCJ0b29scyI6
-    W10sInRvcF9sb2dwcm9icyI6MCwidG9wX3AiOjAuOTgsInRydW5jYXRpb24iOiJkaXNhYmxlZCIs
-    InVzYWdlIjp7ImlucHV0X3Rva2VucyI6MzYsImlucHV0X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hl
-    X3dyaXRlX3Rva2VucyI6MCwiY2FjaGVkX3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjc3LCJv
-    dXRwdXRfdG9rZW5zX2RldGFpbHMiOnsicmVhc29uaW5nX3Rva2VucyI6MH0sInRvdGFsX3Rva2Vu
-    cyI6MTEzfSwidXNlciI6bnVsbCwibW9kZXJhdGlvbiI6bnVsbH0=
   headers:
     connection: keep-alive
     content-length: '1577'

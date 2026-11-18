@@ -27,21 +27,26 @@ def read_recording(path: Path) -> dict:
 
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
-    ("status", "content_type", "body"),
+    ("status", "content_type", "body", "recorded_body"),
     [
-        (400, "application/json", b""),
-        (502, "text/html", b"<html>Bad gateway</html>\n"),
-        (429, "application/json; charset=utf-8", b'{ "error": "slow down" }\n'),
-        (400, "application/problem+json", b'{"detail":"bad request"}'),
-        (503, "application/json", b"not json"),
-        (400, "application/octet-stream", b"\xff\x00"),
-        (200, "application/json", b'{ "id": "result" }\n'),
+        (400, "application/json", b"", ""),
+        (502, "text/html", b"<html>Bad gateway</html>\n", "<html>Bad gateway</html>\n"),
+        (
+            429,
+            "application/json; charset=utf-8",
+            b'{ "error": "slow down" }\n',
+            {"error": "slow down"},
+        ),
+        (400, "application/problem+json", b'{"detail":"bad request"}', {"detail": "bad request"}),
+        (503, "application/json", b"not json", "not json"),
+        (400, "application/octet-stream", b"\xff\x00", b"\xff\x00"),
+        (200, "application/json", b'{ "id": "result" }\n', {"id": "result"}),
     ],
 )
 async def test_response_bytes_and_errors_survive_proxy(
-    monkeypatch, recording_dir, stream, status, content_type, body
+    monkeypatch, recording_dir, stream, status, content_type, body, recorded_body
 ):
-    """Ensures all result modes retain status, exact body bytes, headers, and one attempt."""
+    """Ensures exact proxy forwarding and one recorded body for JSON, text, and binary errors."""
     requests = []
 
     def handler(request):
@@ -70,11 +75,10 @@ async def test_response_bytes_and_errors_survive_proxy(
     assert response.headers["content-type"] == content_type
     assert response.headers["x-request-id"] == "request-1"
     captured = read_recording(recording_dir)["response"]
-    assert captured["body_bytes"] == body
+    assert captured["body"] == recorded_body
+    assert "body_bytes" not in captured
     assert captured["status_code"] == status
     assert captured["headers"]["retry-after"] == "1"
-    if "json" in content_type and body.startswith(b"{"):
-        assert captured["body"] == json.loads(body)
 
 
 class ProviderStream(httpx.AsyncByteStream):
@@ -247,7 +251,7 @@ async def test_credentials_are_masked_in_recordings_only(
     assert captured["request"]["body"] == payload
     assert captured["request"]["query_params"]["key"] == "***"
     assert captured["request"]["headers"]["authorization"] == "Bearer ***"
-    assert captured["response"]["body_bytes"] == b"*** *** *** opaque-state"
+    assert captured["response"]["body"] == "*** *** *** opaque-state"
     recorded = next(recording_dir.glob("*.yaml")).read_text()
     assert all(secret not in recorded for secret in (header_secret, api_secret, query_secret))
 
@@ -290,7 +294,7 @@ async def test_placeholder_credentials_do_not_rewrite_recorded_content(
     if stream:
         assert "".join(captured["response"]["sse"]) == response_body
     else:
-        assert captured["response"]["body_bytes"] == response_body.encode()
+        assert captured["response"]["body"] == response_body
 
 
 @pytest.mark.parametrize("content_type", ["application/json", "text/html"])
@@ -310,7 +314,6 @@ async def test_partial_non_streaming_error_retains_received_bytes(
             await recorder_proxy.proxy_request(proxy_request(), "v1/responses")
     captured = read_recording(recording_dir)["response"]
     assert captured["status_code"] == 502
-    assert captured["body_bytes"] == body
     assert captured["body"] == body.decode()
     assert captured["transport_error"] == "ReadError"
     assert source.closed

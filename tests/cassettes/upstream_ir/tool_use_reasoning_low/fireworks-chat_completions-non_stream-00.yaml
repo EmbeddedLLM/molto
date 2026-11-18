@@ -79,23 +79,6 @@ response:
       prompt_tokens_details:
         cached_tokens: 324
       total_tokens: 410
-  body_bytes: !!binary |
-    eyJpZCI6ImNoYXRjbXBsLTg2YzBiNjE5NmNkYzRlOWZiNjRlNjlhNzk4OTUyYTU0Iiwib2JqZWN0
-    IjoiY2hhdC5jb21wbGV0aW9uIiwiY3JlYXRlZCI6MTc5NDkzMDkwNCwibW9kZWwiOiJhY2NvdW50
-    cy9maXJld29ya3MvbW9kZWxzL25lbW90cm9uLWxpZ2h0bmluZy0zcDUtMzBiLWEzYiIsImNob2lj
-    ZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50Ijoi
-    IiwicmVhc29uaW5nX2NvbnRlbnQiOiJXZSBuZWVkIHRvIGZpcnN0IGFkZCAyIGFuZCAzIHVzaW5n
-    IHRoZSBhZGQgZnVuY3Rpb24sIGdldCByZXN1bHQgNS4gVGhlbiBhZGQgdGhhdCByZXN1bHQgKDUp
-    IGFuZCA0IHVzaW5nIGFkZCwgZ2V0IDkuIFRoZW4gZ2l2ZSBmaW5hbCBhbnN3ZXIuXG5cbldlIG5l
-    ZWQgdG8gY2FsbCBhZGQgdHdpY2UuIFVzZSBmdW5jdGlvbiBjYWxscy4iLCJ0b29sX2NhbGxzIjpb
-    eyJpbmRleCI6MCwiaWQiOiJjaGF0Y21wbC10b29sLWI4MGIxODdjMjBhZWZmNjUiLCJ0eXBlIjoi
-    ZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJuYW1lIjoiYWRkIiwiYXJndW1lbnRzIjoie1wiYVwiOiAy
-    LCBcImJcIjogM30ifSwibmFtZSI6bnVsbH1dLCJ0b29scyI6bnVsbH0sImZpbmlzaF9yZWFzb24i
-    OiJ0b29sX2NhbGxzIn1dLCJ1c2FnZSI6eyJwcm9tcHRfdG9rZW5zIjozMjUsInRvdGFsX3Rva2Vu
-    cyI6NDEwLCJjb21wbGV0aW9uX3Rva2VucyI6ODUsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJj
-    YWNoZWRfdG9rZW5zIjozMjR9LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmlu
-    Z190b2tlbnMiOjUzfSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMi
-    OjUzfX19
   headers:
     connection: keep-alive
     content-length: '861'

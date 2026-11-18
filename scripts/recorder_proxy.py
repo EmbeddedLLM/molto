@@ -289,7 +289,6 @@ async def proxy_request(request: Request, path: str) -> Response:
         # Retain bytes received before a read failure as incomplete evidence too.
         response_body = b"".join(chunks)
         result["body"] = decode_body(response_body, media_type)
-        result["body_bytes"] = response_body
         with CancelScope(shield=True):
             await response.aclose()
             save_recording(mask_secrets(recording, secrets), filename)

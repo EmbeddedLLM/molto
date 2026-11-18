@@ -140,33 +140,6 @@ response:
         reasoning_tokens: 0
       total_tokens: 274
     user: null
-  body_bytes: !!binary |
-    eyJpZCI6InJlc3BfMDFhMWE5Y2MtYjIwYi03MWYxLTg4ZTAtN2Y4ZDg3MGJjMTQ4Iiwib2JqZWN0
-    IjoicmVzcG9uc2UiLCJjcmVhdGVkX2F0IjoxNzkzODUwMTI2LCJjb21wbGV0ZWRfYXQiOjE3OTM4
-    NTAxMjcsImJhY2tncm91bmQiOmZhbHNlLCJzdGF0dXMiOiJjb21wbGV0ZWQiLCJlcnJvciI6bnVs
-    bCwiaW5jb21wbGV0ZV9kZXRhaWxzIjpudWxsLCJpbnN0cnVjdGlvbnMiOm51bGwsIm1heF9vdXRw
-    dXRfdG9rZW5zIjoxMDI0LCJtYXhfdG9vbF9jYWxscyI6bnVsbCwibW9kZWwiOiJ6YWktb3JnL0dM
-    TS01LjIiLCJvdXRwdXQiOlt7InR5cGUiOiJtZXNzYWdlIiwiaWQiOiJtc2dfOTJjYmNlYmUtYXdz
-    X2FzMS0wMWExYTljYy1iMjBjLTdhOTAtODE1Ni1jZmE1MWY2ZjZjMWMiLCJyb2xlIjoiYXNzaXN0
-    YW50IiwiY29udGVudCI6W3sidHlwZSI6Im91dHB1dF90ZXh0IiwidGV4dCI6IioqU3VtbWFyeToq
-    KiBUaGUgZmlsZSBwcm92aWRlcyBzaW1wbGUgZ2FyZGVuaW5nIGluc3RydWN0aW9ucyB0byB3YXRl
-    ciB0aGUgdG9tYXRvZXMgZXZlcnkgbW9ybmluZyBhbmQgaGFydmVzdCB0aGUgcmlwZSBmcnVpdC4i
-    LCJhbm5vdGF0aW9ucyI6W119XSwic3RhdHVzIjoiY29tcGxldGVkIn1dLCJwYXJhbGxlbF90b29s
-    X2NhbGxzIjpmYWxzZSwicHJldmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInByb21wdF9jYWNoZV9r
-    ZXkiOm51bGwsInByb21wdF9jYWNoZV9yZXRlbnRpb24iOm51bGwsInJlYXNvbmluZyI6eyJlZmZv
-    cnQiOiJtaW5pbWFsIiwic3VtbWFyeSI6bnVsbH0sInNlcnZpY2VfdGllciI6ImRlZmF1bHQiLCJz
-    dG9yZSI6ZmFsc2UsInRlbXBlcmF0dXJlIjoxLjAsInRleHQiOnsiZm9ybWF0Ijp7InR5cGUiOiJ0
-    ZXh0In0sInZlcmJvc2l0eSI6Im1lZGl1bSJ9LCJ0b29sX2Nob2ljZSI6ImF1dG8iLCJ0b29scyI6
-    W3sidHlwZSI6ImZ1bmN0aW9uIiwibmFtZSI6InJlYWRfZmlsZSIsImRlc2NyaXB0aW9uIjoiUmVh
-    ZCBhIGZpbGUgYnkgaXRzIHBhdGguIiwicGFyYW1ldGVycyI6eyJhZGRpdGlvbmFsUHJvcGVydGll
-    cyI6ZmFsc2UsInByb3BlcnRpZXMiOnsicGF0aCI6eyJ0eXBlIjoic3RyaW5nIn19LCJyZXF1aXJl
-    ZCI6WyJwYXRoIl0sInR5cGUiOiJvYmplY3QifSwic3RyaWN0IjpmYWxzZX1dLCJ0b3BfbG9ncHJv
-    YnMiOjAsInRvcF9wIjoxLjAsInRydW5jYXRpb24iOiJkaXNhYmxlZCIsInVzYWdlIjp7ImlucHV0
-    X3Rva2VucyI6MjUyLCJvdXRwdXRfdG9rZW5zIjoyMiwidG90YWxfdG9rZW5zIjoyNzQsImlucHV0
-    X3Rva2Vuc19kZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjE5MiwiY2FjaGVfd3JpdGVfdG9rZW5z
-    IjowfSwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMiOjB9fSwidXNl
-    ciI6bnVsbCwic2FmZXR5X2lkZW50aWZpZXIiOm51bGwsImZyZXF1ZW5jeV9wZW5hbHR5IjowLjAs
-    InByZXNlbmNlX3BlbmFsdHkiOjAuMCwibWV0YWRhdGEiOnt9fQ==
   headers:
     connection: keep-alive
     content-type: application/json

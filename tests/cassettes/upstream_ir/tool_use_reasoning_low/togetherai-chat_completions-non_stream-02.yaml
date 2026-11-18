@@ -103,21 +103,6 @@ response:
         audio_tokens: 0
         cached_tokens: 0
       total_tokens: 195
-  body_bytes: !!binary |
-    eyJpZCI6ImYwNjIwNGQwZmI0ZjRjMDJiZGY2OTIyOGZkMWVmMTY0LWF3c19hczEiLCJvYmplY3Qi
-    OiJjaGF0LmNvbXBsZXRpb24iLCJjcmVhdGVkIjoxNzk0OTMzNDI0LCJtb2RlbCI6InphaS1vcmcv
-    R0xNLTUuMiIsImNob2ljZXMiOlt7ImluZGV4IjowLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3Rh
-    bnQiLCJjb250ZW50IjoiVGhlIGZpbmFsIGFuc3dlciBpcyAqKjkqKi5cblxuSGVyZSdzIHRoZSBz
-    dGVwLWJ5LXN0ZXAgYnJlYWtkb3duOlxuMS4gMiArIDMgPSA1XG4yLiA1ICsgNCA9IDkiLCJyZWZ1
-    c2FsIjpudWxsLCJhbm5vdGF0aW9ucyI6W10sInJlYXNvbmluZ19jb250ZW50IjoiVGhlIHNlY29u
-    ZCByZXN1bHQgaXMgOS4gU28gdGhlIGZpbmFsIGFuc3dlciBpcyA5LiJ9LCJsb2dwcm9icyI6bnVs
-    bCwiZmluaXNoX3JlYXNvbiI6InN0b3AiLCJtYXRjaGVkX3N0b3AiOjE1NDgyN31dLCJ1c2FnZSI6
-    eyJwcm9tcHRfdG9rZW5zIjoxNDEsImNvbXBsZXRpb25fdG9rZW5zIjo1NCwidG90YWxfdG9rZW5z
-    IjoxOTUsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowLCJhdWRpb190
-    b2tlbnMiOjB9LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRhaWxzIjp7InJlYXNvbmluZ190b2tlbnMi
-    OjE2LCJhdWRpb190b2tlbnMiOjAsImFjY2VwdGVkX3ByZWRpY3Rpb25fdG9rZW5zIjowLCJyZWpl
-    Y3RlZF9wcmVkaWN0aW9uX3Rva2VucyI6MH19LCJzeXN0ZW1fZmluZ2VycHJpbnQiOiJkZWZhdWx0
-    Iiwic2VydmljZV90aWVyIjoiZGVmYXVsdCJ9
   headers:
     connection: keep-alive
     content-type: application/json
