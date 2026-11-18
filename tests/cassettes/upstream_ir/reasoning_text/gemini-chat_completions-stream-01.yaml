@@ -1,0 +1,87 @@
+filename: 2026-11-18-01a1edfe-2aef-7d13-bd61-beffb232653c
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Find the smallest positive integer divisible by 6, 8 and 9. Explain
+        briefly.
+      role: user
+    - content: 'The smallest positive integer divisible by 6, 8, and 9 is **72**.
+
+
+        **Explanation:**
+
+        To find the smallest number divisible by a set of numbers, you need to find
+        their **Least Common Multiple (LCM)**. You can do this by looking at the prime
+        factorization of each number:
+
+
+        *   **6** = 2 × 3
+
+        *   **8** = 2³
+
+        *   **9** = 3²
+
+
+        To calculate the LCM, take the highest power of each prime factor present
+        in the numbers:
+
+        *   The highest power of 2 is **2³ (8)**.
+
+        *   The highest power of 3 is **3² (9)**.
+
+
+        Multiply these together: **8 × 9 = 72**.'
+      extra_content:
+        google:
+          thought_signature: EtoHCtcHAWkUfRP/lJD4/ar0NXLDacHcmtfTzS0w+RWIb/cAXJPPhZOlPfzfLSlB/rsUfTMie4HMTpLfy7ayDDH9LVyPOnMHrQAVxkAjpEdy0MEDZTG+2rg5x0SsEfxY9cBWRSSw09ZZkRmaP2b2ab4PA0b8qCr8WonzWLg+QG1AYQ2PsMoopuC+i43951NKDFXEyLFs+Q+lr8sFK9VQi073xaF8Bve8yUtTgCcC42vBQ2O1e/1AWmtCCMamgN2qBP7BHjR6irMtSYmqOsZ/jfVQi0eIkxLiLAISJLbmzcSX0Rnp1P2GbS8UNtWfL4CeCR9rIK6PpzUpfuiZlXWmKQWYxD6XWCzt6MLCm5xVFDRk+tXZqjwRWX9sA1NXZIwSAjG7VmNSlIEV5/TxeECZ4yKMDRWN6MDxDA/1ZJwyzHIkN/Nqcn9IAvY2ImOvmenZHKG0VC5o2XfYwbRMz0C4lEMC4FnvSz8twiKksoyAibxCpe4Ox4EO7R47g1ltsG8hmrX662CyIm86iIiBrBbQfp20Jk3MAQT7RIaYZ/05SQJCOKMpaXECOr9GXy++D5MtykcTYzBXiDSMMoaYvYw920EcwUvbsBalilPtB5NLuMoR1lMg9uFyMT6lKCKlBeS7srtQ1/uwb65RCJ+p5DofTxHPEeoUZyjiZF7NJqxgR1rQ47AbJUMrJGF19Uef0O8vD/parv/YQ5fEkLcmljWlqrqMrFVjPLNNPe8rLcZSYnyuI1ABZvY2eqjTgvcWZ2Q1ErESSRvlp6hexQ/HLWNGXlgYkelIlUw5FY8rmIW6+GARYoAr4cK4XtD+eBt4C1iSMnwgcOFhTAYB76leabxkrpzW1+34+2j4D7K2a8IHR4oPdYxhVcKf0d6BaMn39tMNZxrTn8hjnifaAMmjEq0N+JwKIekJcVrriNsVsF63L4AYDX6LihKMaqF6bpSAL6CdLE/VcoNyEzqNDTbSqRvBjIduwz+MAVsCZOJylF/TE4Se1a5vNk6fqPQX+0Ezt5Sm1Tumy1LxbJ6dymdF7EqAWbox6owNV1EIHLPhJm078JPOs81kMyy+STS5q/0HGgPaf7+z827vQrkS0LT1Xg+8yPbqD935m3o8Do1o6pEM++99spgoP7aMceeVSZCTijPheCIXBcMyR+bnvDjUqudHKdlufn6CKMOVKOjzRmDWT9BrwOBUOLoJKQvD1RhTK7b3F7kwiQTDDz2SfWI+Oi1NdzlOJJoU2A7jXcgHmzFF94pL/oPgQoiublewyd9BpnRTaRjuU8wYpmEVfpx46SusQ7Lrxg6ZpL3yTqGegak=
+      role: assistant
+    - content: What is half that number?
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '2303'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1edfe-2aef-7d13-bd61-beffb232653c
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"Half of 72 is **36**.","role":"assistant"},"index":0}],"created":1794994220,"id":"K3D9aoa3M_6fz7IP0ea76A0","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EsECCr4CAWkUfRML2qWjmi1EJp4PAD6s1iceljjOjNniy9ATibB5NzrXbrfEdmn/6z3ZJV/lkWKeYHcjI7ZWfTskJt1h0wG40sZ2qkrzE4+0Q3leS3aWgpWp7XPv0QUGemik9bikeOGX/MTh+oqwuXQgOHK8O7qvQ6Lf1WSOF9xHQxz8FQSXUrSQZe/X01sCuV0kxbsgb+4fqbNzJdb9F45OhQebhliH9hl6IIgo6cgXRQdoX/BDFlf6YbpoooF+Z9Wmau+ZX1ufKLxYbMu8Vi0+hQsGI8EQkdX5ImTY7DaKD+MyEzpW2mkznbv5jO1moS/jjp0gQh1GUZJ96OBZHkq762BYNmY68xutHxFNYteCl3P5GvsiUPBS2aLFEO1kDFDOzHEArO2E3PqTZRPrV2dYNUPJVLBP7YQTLvvhF3p4VGv0"}},"role":"assistant"},"finish_reason":"stop","index":0}],"created":1794994220,"id":"K3D9aoa3M_6fz7IP0ea76A0","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-18T09:30:19.759890+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

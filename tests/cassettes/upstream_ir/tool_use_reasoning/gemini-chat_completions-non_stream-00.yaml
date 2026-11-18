@@ -1,0 +1,146 @@
+filename: 2026-11-18-01a1edfe-523a-7f81-b266-3d88c2d0beb4
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add for 2 + 3, then use add for that result + 4, then report the
+        final answer.
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: false
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '529'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1edfe-523a-7f81-b266-3d88c2d0beb4
+response:
+  body:
+    choices:
+    - finish_reason: tool_calls
+      index: 0
+      message:
+        content: '<thought>Okay, let''s break this down systematically. Here''s what
+          I''m thinking:
+
+
+          **My Computational Approach**
+
+
+          Alright, I''m presented with a straightforward arithmetic problem disguised
+          as a series of function calls. My immediate approach is to break it down
+          into a sequence of operations. The core of the issue is multi-step addition,
+          to be carried out programmatically.
+
+
+          First, I need to execute a function call, `add(a=2, b=3)`. That''s the initial
+          calculation. I expect a result of 5. Seems simple enough.
+
+
+          Next, the prompt instructs me to take the *result* from the previous step
+          (which I just calculated in my head and confirmed), and use it in another
+          function call: `add(a=5, b=4)`. This is a clear indicator of a sequential
+          dependency. Now, with the result of `5` from the first call, `add(5, 4)`
+          should yield `9`.
+
+
+          Finally, after these two steps are complete, I have to state the *final
+          answer* explicitly. So, from `add(a=5, b=4)` I arrive at `9`, and that is
+          my final response to the problem. The goal is to obtain `9` and report it.
+
+
+
+          </thought>'
+        extra_content:
+          google:
+            thought: true
+        role: assistant
+        tool_calls:
+        - extra_content:
+            google:
+              thought_signature: Es0DCsoDAWkUfROwLl4EXnEvffvRw6/YVLSRIGUzjSYkEDtoKPYmG6IXrHMgNmyaK02e1Ka5ZjMDmdZL3kBBu5+u1JCp7hozMm8uYaZBcAHVpnZerQFY6dSzLiPwzIfU++GwosYg/2CGku3fYcDNfF9nPAm0nXNRUn1ozTAm9V9g0WnnfrD+7842sr/BzGfclmXS2xNv4JeLhunaDB2peujcomFIqkmHCJOCCiBj1qOiwWR7G5rtKLNP64CFw8fPxq3BZJBSvyEFt6cL6NYEGroOg7aLjsmcdtiMwD+6Gya7X6MBwQzWy6Cvc2nyyYpGctd1mVpxmRs7DScRS1ByzQ8hr2qBNKe3a5Iy4yei737lfLEkCBWJ0w/OBrf4w0M/cx+fIM4NqJD4PuMB6yrmjc8/o5DBOSXJ8estqvsFGvl12JA+AwGQ+09Xuy7OsbIx7mBElmx5ejDiH2GRgVYCvwwOhBNWE8RPzXjdiWTkkBP22E57ZxxEe2vK+VR38EjendNke2PZ0ohn8uY6Fto3pt/T6MozGZbcH0LHvO+cvNAHWy6SmO9pLBXyJ6y2VAJUr+GKTuBpkvbM3WMZLB/OYSjjuPXki9NMCWjHrvEx9CQ=
+          function:
+            arguments: '{"b":3,"a":2}'
+            name: add
+          id: call_11668853144820697279
+          type: function
+    created: 1794994232
+    id: NXD9aqKVNdiGz7IPjZOosQs
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 16
+      prompt_tokens: 77
+      total_tokens: 213
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoidG9vbF9jYWxscyIsImluZGV4IjowLCJtZXNz
+    YWdlIjp7ImNvbnRlbnQiOiI8dGhvdWdodD5Pa2F5LCBsZXQncyBicmVhayB0aGlzIGRvd24gc3lz
+    dGVtYXRpY2FsbHkuIEhlcmUncyB3aGF0IEknbSB0aGlua2luZzpcblxuKipNeSBDb21wdXRhdGlv
+    bmFsIEFwcHJvYWNoKipcblxuQWxyaWdodCwgSSdtIHByZXNlbnRlZCB3aXRoIGEgc3RyYWlnaHRm
+    b3J3YXJkIGFyaXRobWV0aWMgcHJvYmxlbSBkaXNndWlzZWQgYXMgYSBzZXJpZXMgb2YgZnVuY3Rp
+    b24gY2FsbHMuIE15IGltbWVkaWF0ZSBhcHByb2FjaCBpcyB0byBicmVhayBpdCBkb3duIGludG8g
+    YSBzZXF1ZW5jZSBvZiBvcGVyYXRpb25zLiBUaGUgY29yZSBvZiB0aGUgaXNzdWUgaXMgbXVsdGkt
+    c3RlcCBhZGRpdGlvbiwgdG8gYmUgY2FycmllZCBvdXQgcHJvZ3JhbW1hdGljYWxseS5cblxuRmly
+    c3QsIEkgbmVlZCB0byBleGVjdXRlIGEgZnVuY3Rpb24gY2FsbCwgYGFkZChhPTIsIGI9MylgLiBU
+    aGF0J3MgdGhlIGluaXRpYWwgY2FsY3VsYXRpb24uIEkgZXhwZWN0IGEgcmVzdWx0IG9mIDUuIFNl
+    ZW1zIHNpbXBsZSBlbm91Z2guXG5cbk5leHQsIHRoZSBwcm9tcHQgaW5zdHJ1Y3RzIG1lIHRvIHRh
+    a2UgdGhlICpyZXN1bHQqIGZyb20gdGhlIHByZXZpb3VzIHN0ZXAgKHdoaWNoIEkganVzdCBjYWxj
+    dWxhdGVkIGluIG15IGhlYWQgYW5kIGNvbmZpcm1lZCksIGFuZCB1c2UgaXQgaW4gYW5vdGhlciBm
+    dW5jdGlvbiBjYWxsOiBgYWRkKGE9NSwgYj00KWAuIFRoaXMgaXMgYSBjbGVhciBpbmRpY2F0b3Ig
+    b2YgYSBzZXF1ZW50aWFsIGRlcGVuZGVuY3kuIE5vdywgd2l0aCB0aGUgcmVzdWx0IG9mIGA1YCBm
+    cm9tIHRoZSBmaXJzdCBjYWxsLCBgYWRkKDUsIDQpYCBzaG91bGQgeWllbGQgYDlgLlxuXG5GaW5h
+    bGx5LCBhZnRlciB0aGVzZSB0d28gc3RlcHMgYXJlIGNvbXBsZXRlLCBJIGhhdmUgdG8gc3RhdGUg
+    dGhlICpmaW5hbCBhbnN3ZXIqIGV4cGxpY2l0bHkuIFNvLCBmcm9tIGBhZGQoYT01LCBiPTQpYCBJ
+    IGFycml2ZSBhdCBgOWAsIGFuZCB0aGF0IGlzIG15IGZpbmFsIHJlc3BvbnNlIHRvIHRoZSBwcm9i
+    bGVtLiBUaGUgZ29hbCBpcyB0byBvYnRhaW4gYDlgIGFuZCByZXBvcnQgaXQuXG5cblxuPC90aG91
+    Z2h0PiIsImV4dHJhX2NvbnRlbnQiOnsiZ29vZ2xlIjp7InRob3VnaHQiOnRydWV9fSwicm9sZSI6
+    ImFzc2lzdGFudCIsInRvb2xfY2FsbHMiOlt7ImV4dHJhX2NvbnRlbnQiOnsiZ29vZ2xlIjp7InRo
+    b3VnaHRfc2lnbmF0dXJlIjoiRXMwRENzb0RBV2tVZlJPd0xsNEVYbkV2ZmZ2Unc2L1lWTFNSSUdV
+    empTWWtFRHRvS1BZbUc2SVhySE1nTm15YUswMmUxS2E1WmpNRG1kWkwza0JCdTUrdTFKQ3A3aG96
+    TW04dVlhWkJjQUhWcG5aZXJRRlk2ZFN6TGlQd3pJZlUrK0d3b3NZZy8yQ0drdTNmWWNETmZGOW5Q
+    QW0wblhOUlVuMW96VEFtOVY5ZzBXbm5mckQrNzg0MnNyL0J6R2ZjbG1YUzJ4TnY0SmVMaHVuYURC
+    MnBldWpjb21GSXFrbUhDSk9DQ2lCajFxT2l3V1I3RzVydEtMTlA2NENGdzhmUHhxM0JaSkJTdnlF
+    RnQ2Y0w2TllFR3JvT2c3YUxqc21jZHRpTXdEKzZHeWE3WDZNQndReld5NkN2YzJueXlZcEdjdGQx
+    bVZweG1SczdEU2NSUzFCeXpROGhyMnFCTktlM2E1SXk0eWVpNzM3bGZMRWtDQldKMHcvT0JyZjR3
+    ME0vY3grZklNNE5xSkQ0UHVNQjZ5cm1qYzgvbzVEQk9TWEo4ZXN0cXZzRkd2bDEySkErQXdHUSsw
+    OVh1eTdPc2JJeDdtQkVsbXg1ZWpEaUgyR1JnVllDdnd3T2hCTldFOFJQelhqZGlXVGtrQlAyMkU1
+    N1p4eEVlMnZLK1ZSMzhFamVuZE5rZTJQWjBvaG44dVk2RnRvM3B0L1Q2TW96R1piY0gwTEh2Tytj
+    dk5BSFd5NlNtTzlwTEJYeUo2eTJWQUpVcitHS1R1QnBrdmJNM1dNWkxCL09ZU2pqdVBYa2k5Tk1D
+    V2pIcnZFeDlDUT0ifX0sImZ1bmN0aW9uIjp7ImFyZ3VtZW50cyI6IntcImJcIjozLFwiYVwiOjJ9
+    IiwibmFtZSI6ImFkZCJ9LCJpZCI6ImNhbGxfMTE2Njg4NTMxNDQ4MjA2OTcyNzkiLCJ0eXBlIjoi
+    ZnVuY3Rpb24ifV19fV0sImNyZWF0ZWQiOjE3OTQ5OTQyMzIsImlkIjoiTlhEOWFxS1ZOZGlHejdJ
+    UGpaT29zUXMiLCJtb2RlbCI6ImdlbWluaS0zLjEtZmxhc2gtbGl0ZSIsIm9iamVjdCI6ImNoYXQu
+    Y29tcGxldGlvbiIsInVzYWdlIjp7ImNvbXBsZXRpb25fdG9rZW5zIjoxNiwicHJvbXB0X3Rva2Vu
+    cyI6NzcsInRvdGFsX3Rva2VucyI6MjEzfX0=
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-18T09:30:29.818811+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

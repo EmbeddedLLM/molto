@@ -1,0 +1,187 @@
+filename: 2026-11-18-01a1edfe-62d4-7690-9a3f-58bf31512fa7
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add for 2 + 3, then use add for that result + 4, then report the
+        final answer.
+      role: user
+    - reasoning_content: '<thought>Okay, let''s break this down systematically. Here''s
+        what I''m thinking:
+
+
+        **My Computational Approach**
+
+
+        Alright, I''m presented with a straightforward arithmetic problem disguised
+        as a series of function calls. My immediate approach is to break it down into
+        a sequence of operations. The core of the issue is multi-step addition, to
+        be carried out programmatically.
+
+
+        First, I need to execute a function call, `add(a=2, b=3)`. That''s the initial
+        calculation. I expect a result of 5. Seems simple enough.
+
+
+        Next, the prompt instructs me to take the *result* from the previous step
+        (which I just calculated in my head and confirmed), and use it in another
+        function call: `add(a=5, b=4)`. This is a clear indicator of a sequential
+        dependency. Now, with the result of `5` from the first call, `add(5, 4)` should
+        yield `9`.
+
+
+        Finally, after these two steps are complete, I have to state the *final answer*
+        explicitly. So, from `add(a=5, b=4)` I arrive at `9`, and that is my final
+        response to the problem. The goal is to obtain `9` and report it.
+
+
+
+        </thought>'
+      role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: Es0DCsoDAWkUfROwLl4EXnEvffvRw6/YVLSRIGUzjSYkEDtoKPYmG6IXrHMgNmyaK02e1Ka5ZjMDmdZL3kBBu5+u1JCp7hozMm8uYaZBcAHVpnZerQFY6dSzLiPwzIfU++GwosYg/2CGku3fYcDNfF9nPAm0nXNRUn1ozTAm9V9g0WnnfrD+7842sr/BzGfclmXS2xNv4JeLhunaDB2peujcomFIqkmHCJOCCiBj1qOiwWR7G5rtKLNP64CFw8fPxq3BZJBSvyEFt6cL6NYEGroOg7aLjsmcdtiMwD+6Gya7X6MBwQzWy6Cvc2nyyYpGctd1mVpxmRs7DScRS1ByzQ8hr2qBNKe3a5Iy4yei737lfLEkCBWJ0w/OBrf4w0M/cx+fIM4NqJD4PuMB6yrmjc8/o5DBOSXJ8estqvsFGvl12JA+AwGQ+09Xuy7OsbIx7mBElmx5ejDiH2GRgVYCvwwOhBNWE8RPzXjdiWTkkBP22E57ZxxEe2vK+VR38EjendNke2PZ0ohn8uY6Fto3pt/T6MozGZbcH0LHvO+cvNAHWy6SmO9pLBXyJ6y2VAJUr+GKTuBpkvbM3WMZLB/OYSjjuPXki9NMCWjHrvEx9CQ=
+        function:
+          arguments: '{"b":3,"a":2}'
+          name: add
+        id: call_11668853144820697279
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: call_11668853144820697279
+    - reasoning_content: '<thought>Okay, here''s my take on those thoughts, tailored
+        for an expert audience:
+
+
+        **Internal Arithmetic and Incremental Calculation**
+
+
+        Alright, so the initial operation, 2 + 3, that''s straightforward - we arrive
+        at 5. No surprises there. The interesting part, from my perspective, is the
+        *immediacy* of the next step. It''s not just a declaration of the outcome
+        of the first operation; it''s the *imperative* to increment that result by
+        4. This signifies a fundamental understanding of sequential computation. We''re
+        not revisiting the initial operands or seeking an alternative path; we''re
+        using the previous outcome as the explicit input for the next operation. This
+        approach highlights an efficient and direct method, reflecting procedural
+        thinking. It''s a foundational process to any more complex computation.
+
+
+
+        </thought>'
+      role: assistant
+      tool_calls:
+      - extra_content:
+          google:
+            thought_signature: EtoBCtcBAWkUfRP4qlwQiw2zyqBRctLaCpa2vntiAZwS2cW1oIi1kNNCKBI6HTozzX4zINOJYt4jyCpUGQ5CYuEsxbO+d8DmiZUCi6XKvNfV7IJd/AAQVuPzij8Yd4Pz98isvJ/3F7zz5AvY9dj4aJUupWCHnY3uchNzTFSh6N+ScBfiRkUWgmDLcMsf6cVCFv+jQ49hEvOJKT7zJjRuTsIxovtJI7A5OdCJ+7YZYMVSMzRHmzOabRLxuDCs6icxQrK1LBReGUQOYFQoH715ZR6JPs3thdBtIFZz3VE=
+        function:
+          arguments: '{"b":4,"a":5}'
+          name: add
+        id: call_1952945104862225886
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: call_1952945104862225886
+    model: gemini-3.1-flash-lite
+    stream: false
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '3934'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1edfe-62d4-7690-9a3f-58bf31512fa7
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: '<thought>Here''s my attempt at summarizing the thought process,
+          tailored for an expert audience:
+
+
+          **Procedural Verification and Resultant Value**
+
+
+          Alright, let''s break this down. My internal state at this point is pretty
+          straightforward. I''ve initiated a computation: 5 + 4. The mechanics are
+          simple – applying the addition operation to the operands. I''ve executed
+          the operation, and arrived at the final digit, "9." This outcome represents
+          the validated result of the initial equation. It''s confirmation that the
+          system is functioning as expected and adheres to the established mathematical
+          principles. I can move on, as the process is complete.
+
+
+
+          </thought>The final answer is 9.'
+        extra_content:
+          google:
+            thought: true
+            thought_signature: EtIBCs8BAWkUfRPMcl8JM4TblPsD0j2mYAbBiQcp2RObG9bwb+iGLQeLZ8xt/84VlZQZ2s60VOJRaULSahahlKDUlNsY7Aw/jCqYRqzCFu5/Z5fUkfj+c85SIUhI/QQkJNmyt8HLghyWAxlXPDu1QV3nZ9aU6uf9TrMR41+rcPusPS9HjSsoMIV+1BufoHZ+oo+IOy9llIqlQcz1UZjpuzoutU0OgPMaIkflZjKwQAr6RlMjOzInXRuPaoxsizELCLvsAAka0fO5wDAbkBHetklIGYlP
+        role: assistant
+    created: 1794994235
+    id: OnD9auXdBubVz7IPz57J8QE
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 7
+      prompt_tokens: 277
+      total_tokens: 303
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImNvbnRlbnQiOiI8dGhvdWdodD5IZXJlJ3MgbXkgYXR0ZW1wdCBhdCBzdW1tYXJpemluZyB0aGUg
+    dGhvdWdodCBwcm9jZXNzLCB0YWlsb3JlZCBmb3IgYW4gZXhwZXJ0IGF1ZGllbmNlOlxuXG4qKlBy
+    b2NlZHVyYWwgVmVyaWZpY2F0aW9uIGFuZCBSZXN1bHRhbnQgVmFsdWUqKlxuXG5BbHJpZ2h0LCBs
+    ZXQncyBicmVhayB0aGlzIGRvd24uIE15IGludGVybmFsIHN0YXRlIGF0IHRoaXMgcG9pbnQgaXMg
+    cHJldHR5IHN0cmFpZ2h0Zm9yd2FyZC4gSSd2ZSBpbml0aWF0ZWQgYSBjb21wdXRhdGlvbjogNSAr
+    IDQuIFRoZSBtZWNoYW5pY3MgYXJlIHNpbXBsZSDigJMgYXBwbHlpbmcgdGhlIGFkZGl0aW9uIG9w
+    ZXJhdGlvbiB0byB0aGUgb3BlcmFuZHMuIEkndmUgZXhlY3V0ZWQgdGhlIG9wZXJhdGlvbiwgYW5k
+    IGFycml2ZWQgYXQgdGhlIGZpbmFsIGRpZ2l0LCBcIjkuXCIgVGhpcyBvdXRjb21lIHJlcHJlc2Vu
+    dHMgdGhlIHZhbGlkYXRlZCByZXN1bHQgb2YgdGhlIGluaXRpYWwgZXF1YXRpb24uIEl0J3MgY29u
+    ZmlybWF0aW9uIHRoYXQgdGhlIHN5c3RlbSBpcyBmdW5jdGlvbmluZyBhcyBleHBlY3RlZCBhbmQg
+    YWRoZXJlcyB0byB0aGUgZXN0YWJsaXNoZWQgbWF0aGVtYXRpY2FsIHByaW5jaXBsZXMuIEkgY2Fu
+    IG1vdmUgb24sIGFzIHRoZSBwcm9jZXNzIGlzIGNvbXBsZXRlLlxuXG5cbjwvdGhvdWdodD5UaGUg
+    ZmluYWwgYW5zd2VyIGlzIDkuIiwiZXh0cmFfY29udGVudCI6eyJnb29nbGUiOnsidGhvdWdodCI6
+    dHJ1ZSwidGhvdWdodF9zaWduYXR1cmUiOiJFdElCQ3M4QkFXa1VmUlBNY2w4Sk00VGJsUHNEMGoy
+    bVlBYkJpUWNwMlJPYkc5YndiK2lHTFFlTFo4eHQvODRWbFpRWjJzNjBWT0pSYVVMU2FoYWhsS0RV
+    bE5zWTdBdy9qQ3FZUnF6Q0Z1NS9aNWZVa2ZqK2M4NVNJVWhJL1FRa0pObXl0OEhMZ2h5V0F4bFhQ
+    RHUxUVYzblo5YVU2dWY5VHJNUjQxK3JjUHVzUFM5SGpTc29NSVYrMUJ1Zm9IWitvbytJT3k5bGxJ
+    cWxRY3oxVVpqcHV6b3V0VTBPZ1BNYUlrZmxaakt3UUFyNlJsTWpPekluWFJ1UGFveHNpekVMQ0x2
+    c0FBa2EwZk81d0RBYmtCSGV0a2xJR1lsUCJ9fSwicm9sZSI6ImFzc2lzdGFudCJ9fV0sImNyZWF0
+    ZWQiOjE3OTQ5OTQyMzUsImlkIjoiT25EOWF1WGRCdWJWejdJUHo1N0o4UUUiLCJtb2RlbCI6Imdl
+    bWluaS0zLjEtZmxhc2gtbGl0ZSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbiIsInVzYWdlIjp7
+    ImNvbXBsZXRpb25fdG9rZW5zIjo3LCJwcm9tcHRfdG9rZW5zIjoyNzcsInRvdGFsX3Rva2VucyI6
+    MzAzfX0=
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-18T09:30:34.068362+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

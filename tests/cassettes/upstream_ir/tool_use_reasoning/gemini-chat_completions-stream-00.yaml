@@ -1,0 +1,71 @@
+filename: 2026-11-18-01a1edfe-2df1-7220-97c6-9947867dc6e9
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add for 2 + 3, then use add for that result + 4, then report the
+        final answer.
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: true
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '528'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1edfe-2df1-7220-97c6-9947867dc6e9
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":"EpsECpgEAWkUfRMaa4l7GL2O/RbefI5wzWz/3Pl5njQH3LZ03VrIfCEKUrrs5ttOJg+AbeulKTfOhIvTWfgVCYNbYoI8gC0jpV6KdBCTp369TIlE/dPyMGewAF9y8YFnyevSgaPeVwiKazcxnzpME5ocLVl+wNbjgVmD21Bp1qJotDXnw3S90d4/HmRX0jaylK9hrVDeowebcU09qk0MGt9AuiYYoEBLrU5CeeU4GGoNGcxn6a/qveuzlT2M95GJcqL587W4ZTAO20/9Bi3ZCSilroaCkyQ99DMcUtOKRrM2LH1x/f2LckfgAFUEf6RHZA/dR5pr1OaPEuoxl0glv44M2pqPFBkuQZzNg2hADX+vPNBmbMSJn8DQZ5Kz/G6Idq05sLU2YsrBSeCHi7nyzfA78sgTwRHAuvDMy90tNg6vVrND47F3VJfQiOKWXzKquHM1LPuwPnukE5xkbsIqUnotFahkoihkQnezjmSDy/WktqgMws6y/652287/fs+laLmIlbmYw02IK92TfQXrGWvTuVXSHrj3476nRJFu0HFcWAq4jvvH2hwhdDLuDWn7FL2/mcRpruE8H3S9Psf1ugCKcxqrzKFXOk6o5aMnOp9mAAPg5WI/8Z0/g1vaEFwzTDU8ue0WSrw+Fp8Lgfn7kNkfPI8qGt3kIFrDYLYm1VmLNdD1cH/F0++4WSHotWJ+5ZqWkx1VV4NWep9niZ8="}},"function":{"arguments":"{\"b\":3,\"a\":2}","name":"add"},"id":"call_3788929684196399234","type":"function"}]},"index":0}],"created":1794994221,"id":"LHD9aseMJcqtmtkP4qnqgQE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":"stop","index":0}],"created":1794994221,"id":"LHD9aseMJcqtmtkP4qnqgQE","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-18T09:30:20.529458+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

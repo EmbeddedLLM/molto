@@ -1,0 +1,290 @@
+filename: 2026-11-17-01a1ea37-f827-7da2-97e7-161d911d7340
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - id: rs_41c356bb10094db899af23d02ef569ff
+      summary:
+      - text: 'We need to compute (2+3)=5, then add 5+4 =9. Use the add tool twice.
+
+
+          We must call function add with a=2 b=3. Then call again with a=result b=4.
+          Then give final answer.
+
+
+          We''ll need to output calls.'
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-97dd83b08a8858b6
+      id: fc_a5b8cb0550f74a028cd6b040ecd59d2b
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-97dd83b08a8858b6
+      output: '5'
+      type: function_call_output
+    - id: rs_8b44eb4be0d7479393272d7ed578fd01
+      summary:
+      - text: We got result 5. Now add 5 and 4.
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 5, "b": 4}'
+      call_id: chatcmpl-tool-8b5f27737986ef19
+      id: fc_03b10d96cd204c678c9a34b9a35c34e8
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-8b5f27737986ef19
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: true
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1508'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1ea37-f827-7da2-97e7-161d911d7340
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: d81073e7-027c-4fb5-a3ce-498b223c8b66
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_51babd1901754d3a8e1067f99e3ed278","object":"response","created_at":1794930899,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_51babd1901754d3a8e1067f99e3ed278","object":"response","created_at":1794930899,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"reasoning","id":"rs_ee40dc39a4c642b69815e694a3243f58","status":"in_progress","summary":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.added","sequence_number":3,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":4,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"We"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":5,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    have"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":6,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    final"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":7,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    answer"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":8,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    9"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":9,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":10,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    Provide"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":11,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    final"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":12,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"
+    answer"}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.delta","sequence_number":13,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"delta":"."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":14,"output_index":1,"item":{"type":"message","id":"msg_2011d9b6f32948a081d2fd8b22cb4213","status":"in_progress","role":"assistant","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":15,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":16,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"The","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":17,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"
+    final","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":18,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"
+    answer","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":19,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"
+    is","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":20,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"
+    ","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":21,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":"9","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":22,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"delta":".","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_text.done","sequence_number":23,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"text":"We
+    have final answer 9. Provide final answer."}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.reasoning_summary_part.done","sequence_number":24,"item_id":"rs_ee40dc39a4c642b69815e694a3243f58","output_index":0,"summary_index":0,"part":{"type":"summary_text","text":"We
+    have final answer 9. Provide final answer."}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":25,"output_index":0,"item":{"type":"reasoning","id":"rs_ee40dc39a4c642b69815e694a3243f58","status":"completed","summary":[{"type":"summary_text","text":"We
+    have final answer 9. Provide final answer."}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":26,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"text":"The
+    final answer is 9.","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":27,"item_id":"msg_2011d9b6f32948a081d2fd8b22cb4213","output_index":1,"content_index":0,"part":{"type":"output_text","text":"The
+    final answer is 9.","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":28,"output_index":1,"item":{"type":"message","id":"msg_2011d9b6f32948a081d2fd8b22cb4213","status":"completed","role":"assistant","content":[{"type":"output_text","text":"The
+    final answer is 9.","annotations":[]}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":29,"response":{"id":"resp_51babd1901754d3a8e1067f99e3ed278","object":"response","created_at":1794930899,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"rs_ee40dc39a4c642b69815e694a3243f58","type":"reasoning","summary":[{"type":"summary_text","text":"We
+    have final answer 9. Provide final answer."}]},{"id":"msg_2011d9b6f32948a081d2fd8b22cb4213","type":"message","role":"assistant","content":[{"type":"output_text","text":"The
+    final answer is 9.","annotations":[]}],"status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":224,"output_tokens":20,"total_tokens":244,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":11}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"low"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-17T15:54:58.983363+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses
