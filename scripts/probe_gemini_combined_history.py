@@ -35,7 +35,7 @@ TOOL = {
 async def count(request):
     global ATTEMPTS
     ATTEMPTS += 1
-    assert ATTEMPTS <= 12, "Request budget exceeded"
+    assert ATTEMPTS <= 4, "Request budget exceeded"
 
 
 def normalize_thought(message):
@@ -163,97 +163,38 @@ async def main():
                 max_retries=0,
                 timeout=45,
             )
-            for stream in (False,):
-                mode = "mixed"
-                for scenario in ("reasoning_text", "tool_use_reasoning"):
-                    try:
-                        body = {
-                            "model": MODEL,
-                            "stream": stream,
-                            "max_completion_tokens": 2048,
-                            "extra_body": {
-                                "extra_body": {
-                                    "google": {
-                                        "thinking_config": {
-                                            "thinking_level": "medium",
-                                            "include_thoughts": True,
-                                        }
-                                    }
-                                }
-                            },
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": "Use add for 2 + 3, then use add for that result + 4, then report the final answer."
-                                    if scenario == "tool_use_reasoning"
-                                    else "Find the smallest positive integer divisible by 6, 8 and 9. Explain briefly.",
-                                }
-                            ],
-                        }
-                        if scenario == "tool_use_reasoning":
-                            body["tools"] = [TOOL]
-                        for turn in range(3 if scenario == "tool_use_reasoning" else 2):
-                            # Use the server's complete thought marker as the next streaming request's history.
-                            body["stream"] = turn > 0
-                            message = await capture(
-                                sdk,
-                                body,
-                                f"{scenario}-gemini-chat_completions-{mode}-{turn:02}",
-                                key,
-                            )
-                            if scenario == "reasoning_text":
-                                assert (
-                                    message.get("extra_content", {})
-                                    .get("google", {})
-                                    .get("thought_signature")
-                                ), "No message signature emitted"
-                                if turn == 0:
-                                    body["messages"] += [
-                                        copy.deepcopy(message),
-                                        {"role": "user", "content": "What is half that number?"},
-                                    ]
-                                else:
-                                    assert "36" in (message.get("content") or message.get("reasoning_content", "")), "Unexpected continuation"
-                            elif turn < 2:
-                                calls = message.get("tool_calls") or []
-                                assert len(calls) == 1
-                                call = calls[0]
-                                args = json.loads(call["function"]["arguments"])
-                                assert args == (
-                                    {"a": 2, "b": 3} if turn == 0 else {"a": 5, "b": 4}
-                                )
-                                body["messages"] += [
-                                    copy.deepcopy(message),
-                                    {
-                                        "role": "tool",
-                                        "tool_call_id": call["id"],
-                                        "content": str(args["a"] + args["b"]),
-                                    },
-                                ]
-                            else:
-                                assert not message.get("tool_calls") and "9" in (
-                                    message.get("content") or message.get("reasoning_content", "")
-                                )
-                        RESULTS.append(
-                            {
-                                "scenario": scenario,
-                                "mode": mode,
-                                "continuation": "passed",
-                                "history": "SDK output with marked thought text projected to reasoning_content",
-                            }
-                        )
-                    except Exception as error:
-                        RESULTS.append(
-                            {
-                                "scenario": scenario,
-                                "mode": mode,
-                                "error": type(error).__name__,
-                                "status": getattr(error, "status_code", None),
-                                "reason": str(error)
-                                if isinstance(error, AssertionError)
-                                else None,
-                            }
-                        )
+            # Each source is a genuine assistant message returned for the same prompt.
+            # Keep the visible answer and its original signature together in both arms.
+            seeds = Path("/tmp/molto-gemini-history-seeds")
+
+            def prior_request(mode):
+                path = seeds / f"reasoning_text-gemini-chat_completions-{mode}-01.yaml"
+                return yaml.safe_load(path.read_text())["request"]["body"]
+
+            visible = prior_request("stream")
+            marked = prior_request("non_stream")
+            assert visible["messages"][0] == marked["messages"][0]
+            signed = visible["messages"][1]
+            assert signed["content"] and signed["extra_content"]["google"]["thought_signature"]
+            reasoning = marked["messages"][1]["reasoning_content"]
+            assert reasoning and "reasoning_content" not in signed
+            for stream in (False, True):
+                for combined in (False, True):
+                    wire = copy.deepcopy(visible)
+                    wire["stream"] = stream
+                    if combined:
+                        wire["messages"][1]["reasoning_content"] = reasoning
+                    # The recorded wire has a top-level extra_body key used by Google's API.
+                    wire["extra_body"] = {"extra_body": wire["extra_body"]}
+                    mode = "stream" if stream else "non_stream"
+                    scenario = "combined" if combined else "control"
+                    reply = await capture(
+                        sdk, wire, f"{scenario}-gemini-chat_completions-{mode}-01", key
+                    )
+                    assert "36" in (reply.get("content") or reply.get("reasoning_content", "")), (
+                        "Unexpected continuation"
+                    )
+                    RESULTS.append({"scenario": scenario, "mode": mode, "continuation": "passed"})
     finally:
         await recorder.HTTP_CLIENT.aclose()
         report = {
