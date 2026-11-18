@@ -1,0 +1,125 @@
+filename: 2026-11-18-01a1ee14-093f-75e3-9895-a44e48f0aebb
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Find the smallest positive integer divisible by 6, 8 and 9. Explain
+        briefly.
+      role: user
+    - content: 'The smallest positive integer divisible by 6, 8, and 9 is **72**.
+
+
+        **Explanation:**
+
+        To find the smallest number divisible by a set of numbers, you need to find
+        their **Least Common Multiple (LCM)**. You can do this by looking at the prime
+        factorization of each number:
+
+
+        *   **6** = 2 × 3
+
+        *   **8** = 2³
+
+        *   **9** = 3²
+
+
+        To calculate the LCM, take the highest power of each prime factor present
+        in the numbers:
+
+        *   The highest power of 2 is **2³ (8)**.
+
+        *   The highest power of 3 is **3² (9)**.
+
+
+        Multiply these together: **8 × 9 = 72**.'
+      extra_content:
+        google:
+          thought_signature: EtoHCtcHAWkUfRP/lJD4/ar0NXLDacHcmtfTzS0w+RWIb/cAXJPPhZOlPfzfLSlB/rsUfTMie4HMTpLfy7ayDDH9LVyPOnMHrQAVxkAjpEdy0MEDZTG+2rg5x0SsEfxY9cBWRSSw09ZZkRmaP2b2ab4PA0b8qCr8WonzWLg+QG1AYQ2PsMoopuC+i43951NKDFXEyLFs+Q+lr8sFK9VQi073xaF8Bve8yUtTgCcC42vBQ2O1e/1AWmtCCMamgN2qBP7BHjR6irMtSYmqOsZ/jfVQi0eIkxLiLAISJLbmzcSX0Rnp1P2GbS8UNtWfL4CeCR9rIK6PpzUpfuiZlXWmKQWYxD6XWCzt6MLCm5xVFDRk+tXZqjwRWX9sA1NXZIwSAjG7VmNSlIEV5/TxeECZ4yKMDRWN6MDxDA/1ZJwyzHIkN/Nqcn9IAvY2ImOvmenZHKG0VC5o2XfYwbRMz0C4lEMC4FnvSz8twiKksoyAibxCpe4Ox4EO7R47g1ltsG8hmrX662CyIm86iIiBrBbQfp20Jk3MAQT7RIaYZ/05SQJCOKMpaXECOr9GXy++D5MtykcTYzBXiDSMMoaYvYw920EcwUvbsBalilPtB5NLuMoR1lMg9uFyMT6lKCKlBeS7srtQ1/uwb65RCJ+p5DofTxHPEeoUZyjiZF7NJqxgR1rQ47AbJUMrJGF19Uef0O8vD/parv/YQ5fEkLcmljWlqrqMrFVjPLNNPe8rLcZSYnyuI1ABZvY2eqjTgvcWZ2Q1ErESSRvlp6hexQ/HLWNGXlgYkelIlUw5FY8rmIW6+GARYoAr4cK4XtD+eBt4C1iSMnwgcOFhTAYB76leabxkrpzW1+34+2j4D7K2a8IHR4oPdYxhVcKf0d6BaMn39tMNZxrTn8hjnifaAMmjEq0N+JwKIekJcVrriNsVsF63L4AYDX6LihKMaqF6bpSAL6CdLE/VcoNyEzqNDTbSqRvBjIduwz+MAVsCZOJylF/TE4Se1a5vNk6fqPQX+0Ezt5Sm1Tumy1LxbJ6dymdF7EqAWbox6owNV1EIHLPhJm078JPOs81kMyy+STS5q/0HGgPaf7+z827vQrkS0LT1Xg+8yPbqD935m3o8Do1o6pEM++99spgoP7aMceeVSZCTijPheCIXBcMyR+bnvDjUqudHKdlufn6CKMOVKOjzRmDWT9BrwOBUOLoJKQvD1RhTK7b3F7kwiQTDDz2SfWI+Oi1NdzlOJJoU2A7jXcgHmzFF94pL/oPgQoiublewyd9BpnRTaRjuU8wYpmEVfpx46SusQ7Lrxg6ZpL3yTqGegak=
+      role: assistant
+    - content: What is half that number?
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '2304'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1ee14-093f-75e3-9895-a44e48f0aebb
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: '<thought>Okay, here''s my summary, tailored as if I were considering
+          this myself:
+
+
+          **Calculating the Requested Value**
+
+
+          Right, the previous response I gave was 72. The user has specifically requested
+          "half that number". So, a straightforward calculation is needed. Half of
+          something is simply the value divided by two. Therefore, I need to perform
+          a division: 72 divided by 2. That calculation is easy enough. 72 / 2 equals
+          36. Now, I should state the result clearly. No need for complex explanations
+          or hedging – just give the answer.
+
+
+
+          </thought>Half of 72 is **36**.'
+        extra_content:
+          google:
+            thought: true
+            thought_signature: EqsCCqgCAWkUfRMNCtUKDE2ysGnENqUK/FOZXEBEZtruNn6brw+r4gphYbm6h0VviosKKyic7X6C93djFTYIG5k+mb2yY8/ow35fHw5qiQ6XaEhnPgTLqckKyBZRjTsiHjl8OYTBP3vrr5QKtjHSPwuT8iF1kOAxLcLw46VtAkviBJqgiOGwpH7AzUaBR2K75nE43P3Wz+RqUovzGmNuEYxrjrzgUgkf8hk9aCAzSjLcmqMp2mx/Qwe7qBXah5DPHvDIppKe1+R81a1hjz/Dnx7fGEjM5XK/mkdgA8oOENGvSYIiIQ+h4KF4Em4g8OR/g3NyDmBHvaCVl93UWk3nSiHMODt5tJpilt7BoBeeJWFiNtCEek/CvZVpgbjz35naOLTc3kUWffxqjGfcvgI=
+        role: assistant
+    created: 1794995654
+    id: xXX9atnCA8aHz7IP3ML1sQs
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 10
+      prompt_tokens: 192
+      total_tokens: 249
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7
+    ImNvbnRlbnQiOiI8dGhvdWdodD5Pa2F5LCBoZXJlJ3MgbXkgc3VtbWFyeSwgdGFpbG9yZWQgYXMg
+    aWYgSSB3ZXJlIGNvbnNpZGVyaW5nIHRoaXMgbXlzZWxmOlxuXG4qKkNhbGN1bGF0aW5nIHRoZSBS
+    ZXF1ZXN0ZWQgVmFsdWUqKlxuXG5SaWdodCwgdGhlIHByZXZpb3VzIHJlc3BvbnNlIEkgZ2F2ZSB3
+    YXMgNzIuIFRoZSB1c2VyIGhhcyBzcGVjaWZpY2FsbHkgcmVxdWVzdGVkIFwiaGFsZiB0aGF0IG51
+    bWJlclwiLiBTbywgYSBzdHJhaWdodGZvcndhcmQgY2FsY3VsYXRpb24gaXMgbmVlZGVkLiBIYWxm
+    IG9mIHNvbWV0aGluZyBpcyBzaW1wbHkgdGhlIHZhbHVlIGRpdmlkZWQgYnkgdHdvLiBUaGVyZWZv
+    cmUsIEkgbmVlZCB0byBwZXJmb3JtIGEgZGl2aXNpb246IDcyIGRpdmlkZWQgYnkgMi4gVGhhdCBj
+    YWxjdWxhdGlvbiBpcyBlYXN5IGVub3VnaC4gNzIgLyAyIGVxdWFscyAzNi4gTm93LCBJIHNob3Vs
+    ZCBzdGF0ZSB0aGUgcmVzdWx0IGNsZWFybHkuIE5vIG5lZWQgZm9yIGNvbXBsZXggZXhwbGFuYXRp
+    b25zIG9yIGhlZGdpbmcg4oCTIGp1c3QgZ2l2ZSB0aGUgYW5zd2VyLlxuXG5cbjwvdGhvdWdodD5I
+    YWxmIG9mIDcyIGlzICoqMzYqKi4iLCJleHRyYV9jb250ZW50Ijp7Imdvb2dsZSI6eyJ0aG91Z2h0
+    Ijp0cnVlLCJ0aG91Z2h0X3NpZ25hdHVyZSI6IkVxc0NDcWdDQVdrVWZSTU5DdFVLREUyeXNHbkVO
+    cVVLL0ZPWlhFQkVadHJ1Tm42YnJ3K3I0Z3BoWWJtNmgwVnZpb3NLS3lpYzdYNkM5M2RqRlRZSUc1
+    ayttYjJ5WTgvb3czNWZIdzVxaVE2WGFFaG5QZ1RMcWNrS3lCWlJqVHNpSGpsOE9ZVEJQM3ZycjVR
+    S3RqSFNQd3VUOGlGMWtPQXhMY0x3NDZWdEFrdmlCSnFnaU9Hd3BIN0F6VWFCUjJLNzVuRTQzUDNX
+    eitScVVvdnpHbU51RVl4cmpyemdVZ2tmOGhrOWFDQXpTakxjbXFNcDJteC9Rd2U3cUJYYWg1RFBI
+    dkRJcHBLZTErUjgxYTFoanovRG54N2ZHRWpNNVhLL21rZGdBOG9PRU5HdlNZSWlJUStoNEtGNEVt
+    NGc4T1IvZzNOeURtQkh2YUNWbDkzVVdrM25TaUhNT0R0NXRKcGlsdDdCb0JlZUpXRmlOdENFZWsv
+    Q3ZaVnBnYmp6MzVuYU9MVGMza1VXZmZ4cWpHZmN2Z0k9In19LCJyb2xlIjoiYXNzaXN0YW50In19
+    XSwiY3JlYXRlZCI6MTc5NDk5NTY1NCwiaWQiOiJ4WFg5YXRuQ0E4YUh6N0lQM01MMXNRcyIsIm1v
+    ZGVsIjoiZ2VtaW5pLTMuMS1mbGFzaC1saXRlIiwib2JqZWN0IjoiY2hhdC5jb21wbGV0aW9uIiwi
+    dXNhZ2UiOnsiY29tcGxldGlvbl90b2tlbnMiOjEwLCJwcm9tcHRfdG9rZW5zIjoxOTIsInRvdGFs
+    X3Rva2VucyI6MjQ5fX0=
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-18T09:54:12.927819+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
