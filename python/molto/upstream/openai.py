@@ -325,6 +325,14 @@ def _merge_search_result(items: list[dict[str, Any]], result: SearchResult) -> N
         ]
 
 
+def responses_web_search_requests(response: OpenAIResponsesResponse) -> int | None:
+    """Return the web search requests a Responses response reports, or None when absent."""
+    # Dump the response so an SDK-typed `tool_usage` and today's untyped extra field
+    # read the same way.
+    tool_usage = response.model_dump().get("tool_usage") or {}
+    return (tool_usage.get("web_search") or {}).get("num_requests")
+
+
 def _responses_usage(raw_usage: Any) -> Usage | None:
     """Project Responses usage into normalized usage, preserving absent usage."""
     if raw_usage is None:
@@ -892,10 +900,7 @@ class OpenAIResponsesClient(
                             termination_reason = incomplete_details.reason
                     usage = _responses_usage(metadata.usage)
                     if usage is not None:
-                        # Dump metadata so both SDK-typed fields and extras have the same shape.
-                        tool_usage = metadata.model_dump().get("tool_usage") or {}
-                        search_usage = tool_usage.get("web_search") or {}
-                        usage.web_search_requests = search_usage.get("num_requests")
+                        usage.web_search_requests = responses_web_search_requests(metadata)
                     yield ResponseEndEvent(
                         id=metadata.id,
                         created_at=int(metadata.created_at),

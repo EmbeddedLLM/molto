@@ -1,9 +1,14 @@
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from time import time_ns
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
+from opentelemetry import trace
+from opentelemetry.trace import Span, SpanKind, Status, StatusCode
+from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
+from molto.adapters.base import BaseAdapter
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
 from molto.configs import ENV_CONFIG
 from molto.providers import (
@@ -30,10 +35,36 @@ from molto.types.openai_responses import (
     has_anthropic_search_metadata,
 )
 from molto.upstream.anthropic import AnthropicMessagesClient
+from molto.upstream.base import BaseClient
 from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
 from molto.utils.io import request_to_dict
+from molto.utils.telemetry import (
+    MOLTO_STREAM_OUTCOME,
+    ErrorPhase,
+    ResolvedRoute,
+    SpanRecorder,
+    StreamOutcome,
+    chat_completions_response_attributes,
+    error_attributes,
+    exception_event_attributes,
+    get_tracer,
+    messages_response_attributes,
+    observe,
+    record_safely,
+    responses_response_attributes,
+    span_name,
+    start_attributes,
+)
 
 VLLM_DUMMY_API_KEY = "EMPTY"
+
+# Each endpoint's client, used to resolve the effective destination for span attributes
+# exactly as the client will before transport.
+_UPSTREAM_CLIENTS: dict[Endpoint, type[BaseClient]] = {
+    "responses": OpenAIResponsesClient,
+    "chat/completions": OpenAIChatCompletionsClient,
+    "messages": AnthropicMessagesClient,
+}
 
 _CREDENTIAL_HEADERS = frozenset(
     {
@@ -98,8 +129,38 @@ def _upstream_headers(extra_headers: Mapping[str, str] | None) -> dict[str, str]
     return {name: value for name, value in headers.items() if name.lower() not in excluded}
 
 
+def _failure_outcome(error: BaseException) -> StreamOutcome:
+    # Cancellation, and any other exit that is not an `Exception` (such as
+    # `KeyboardInterrupt`), is the caller stopping the call, not the call failing: it
+    # leaves the status UNSET and reports `cancelled` (docs/observability.md).
+    return "error" if isinstance(error, Exception) else "cancelled"
+
+
+def _finish_span(
+    span: Span,
+    error: BaseException | None = None,
+    phase: ErrorPhase = "setup",
+    outcome: StreamOutcome | None = None,
+    end_time: int | None = None,
+) -> None:
+    # Without an SDK, or when sampled out, the span is never exported, so skip
+    # building attributes and formatting stack traces for it.
+    if span.is_recording():
+        if outcome is not None:
+            span.set_attribute(MOLTO_STREAM_OUTCOME, outcome)
+        if isinstance(error, Exception):
+            span.set_status(Status(StatusCode.ERROR))
+            span.set_attributes(error_attributes(error, phase))
+            span.record_exception(error, attributes=exception_event_attributes(error))
+    span.end(end_time=end_time)
+
+
 class MoltoStream[EventT](AsyncIterator[EventT]):
-    """Replay prefetched events and manage the source stream lifecycle."""
+    """Replay prefetched events, manage the source stream lifecycle, and end its span.
+
+    A span attached with `attach_span` ends exactly once, recording how the stream
+    ended: on exhaustion, an error, `aclose()`, or garbage collection of a dropped stream.
+    """
 
     def __init__(
         self,
@@ -110,6 +171,10 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         self._events = events
         self._stream = stream
         self._closed = False
+        self._span: Span | None = None
+        # When the caller last received an event; an abandoned stream's span ends here.
+        # The prefetch has just received the first event.
+        self._last_event_ns = time_ns()
         self.response_headers = Headers(response_headers)
 
     def __aiter__(self) -> AsyncIterator[EventT]:
@@ -119,8 +184,18 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         if self._closed:
             raise StopAsyncIteration
         if self._events:
+            self._last_event_ns = time_ns()
             return self._events.pop()
-        return await anext(self._stream)
+        try:
+            event = await anext(self._stream)
+            self._last_event_ns = time_ns()
+            return event
+        except StopAsyncIteration:
+            self._end_span()
+            raise
+        except BaseException as error:
+            self._end_span(error)
+            raise
 
     async def __aenter__(self) -> Self:
         return self
@@ -134,8 +209,81 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         self._closed = True
         self._events.clear()
         close = getattr(self._stream, "aclose", None)
-        if close is not None:
-            await close()
+        try:
+            if close is not None:
+                await close()
+        except BaseException as error:
+            self._end_span(error)
+            raise
+        # A stream already exhausted or failed has ended its span, so this records
+        # `closed` only for a stream the caller stopped before its end.
+        self._end_span(outcome="closed")
+
+    def attach_span(self, span: Span) -> None:
+        """Make this stream end `span` when it is exhausted, fails, closes, or is dropped."""
+        self._span = span
+
+    def __del__(self) -> None:
+        # A dropped, unclosed stream must still be visible (docs/observability.md,
+        # "Streaming lifetime"). `aclose()` cannot be awaited here; the event loop's
+        # async-generator finalizer closes the dropped source and releases its response.
+        # The span ends at the last event so its duration is not inflated by when
+        # garbage collection happens to run.
+        if getattr(self, "_span", None) is None:
+            return
+        try:
+            self._end_span(outcome="abandoned", end_time=self._last_event_ns)
+        except Exception:
+            # Exceptions in `__del__` are only printed, and at interpreter shutdown the
+            # SDK or exporter may already be gone; telemetry must not add noise here.
+            pass
+
+    def _end_span(
+        self,
+        error: BaseException | None = None,
+        outcome: StreamOutcome = "completed",
+        *,
+        end_time: int | None = None,
+    ) -> None:
+        # Exhaustion, an error, `aclose()`, and garbage collection can all reach here;
+        # end the span once. A failure decides the outcome over the given one. A failing
+        # `aclose()` also reports phase `stream`: it is raised after the stream returned.
+        if self._span is not None:
+            span, self._span = self._span, None
+            final = _failure_outcome(error) if error is not None else outcome
+            _finish_span(span, error, "stream", final, end_time)
+
+
+async def _run_native[EventT, ResponseT: BaseModel](
+    adapter: BaseAdapter[Any, EventT, ResponseT],
+    upstream: BaseClient[Any, EventT, ResponseT],
+    body: dict[str, Any],
+    *,
+    record_event: Callable[[EventT], None],
+    record_response: Callable[[ResponseT], None],
+) -> MoltoStream[EventT] | ResponseT:
+    """Pass a same-protocol request through, recording its native output on the span."""
+    if _streams(body, native=True):
+        return await _prefetch_stream(
+            adapter.project_native_events(observe(upstream.native_events(body), record_event)),
+            upstream.response_headers,
+        )
+    response = await adapter.project_native_response(upstream.native_response(body))
+    record_safely(record_response, response)
+    return response
+
+
+def _streams(body: Mapping[str, Any] | BaseModel, *, native: bool) -> bool:
+    """Return whether a coordinator streams `body`, by its route's rule.
+
+    Native passthrough follows the SDKs, which stream for any truthy `stream`
+    (`stream=stream or False`), so Molto expects the response type the SDK returns.
+    Translated routes validate `stream` as `Literal[True, False]`, which compares by
+    equality: `1` and `1.0` stream, strings are rejected. The span starts before that
+    validation, so it applies the same rule to the raw value.
+    """
+    stream = body.get("stream") if isinstance(body, Mapping) else getattr(body, "stream", None)
+    return bool(stream) if native else stream == True  # noqa: E712
 
 
 async def _prefetch_stream[EventT](
@@ -147,6 +295,48 @@ async def _prefetch_stream[EventT](
     except StopAsyncIteration:
         return MoltoStream([], stream, response_headers)
     return MoltoStream([first_event], stream, response_headers)
+
+
+async def _traced[ResultT](
+    protocol: Endpoint,
+    endpoint: Endpoint,
+    provider: Provider,
+    base_url: str | None,
+    body: Mapping[str, Any] | BaseModel,
+    call: Callable[[SpanRecorder], Awaitable[ResultT]],
+) -> ResultT:
+    """Run one coordinator call inside its span.
+
+    The span starts in the caller's context, so it parents to the caller's active
+    span. It is current only while `call` sends the upstream request (the whole call
+    when non-streaming, the prefetch when streaming), so instrumented `httpx` spans
+    nest under it. `call` records end attributes through its `SpanRecorder`; a
+    returned stream ends the span itself.
+    """
+    route = ResolvedRoute(
+        protocol, endpoint, provider, _UPSTREAM_CLIENTS[endpoint].resolve_base_url(base_url)
+    )
+    streaming = _streams(body, native=protocol == endpoint)
+    attributes = start_attributes(route, body, streaming=streaming)
+    span = get_tracer().start_span(
+        span_name(attributes), kind=SpanKind.CLIENT, attributes=attributes
+    )
+    recorder = SpanRecorder(span, streaming=streaming)
+    try:
+        # `_finish_span` sets the status instead of `use_span`, whose ERROR status
+        # description would carry the exception message.
+        with trace.use_span(span, record_exception=False, set_status_on_exception=False):
+            result = await call(recorder)
+    except BaseException as error:
+        # A streaming call that ends before its first event still reports how it ended.
+        _finish_span(span, error, outcome=_failure_outcome(error) if streaming else None)
+        raise
+    if isinstance(result, MoltoStream):
+        # The stream outlives this `await`, so it ends the span itself.
+        result.attach_span(span)
+    else:
+        _finish_span(span)
+    return result
 
 
 class Molto:
@@ -212,6 +402,36 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIResponsesCreateRequest.")
+        return await _traced(
+            "responses",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda recorder: self._run_responses(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+                recorder=recorder,
+            ),
+        )
+
+    async def _run_responses(
+        self,
+        body: OpenAIResponsesCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+        recorder: SpanRecorder,
+    ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -232,12 +452,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIResponsesAdapter(capabilities)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_responses_event,
+                record_response=lambda response: recorder.set_known(
+                    responses_response_attributes(response)
+                ),
+            )
 
         request = OpenAIResponsesCreateRequest.model_validate(body)
         preserve_search_metadata = endpoint == "messages" and resolved_provider == "anthropic"
@@ -271,7 +494,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:
@@ -297,6 +523,36 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIChatCompletionsCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIChatCompletionsCreateRequest.")
+        return await _traced(
+            "chat/completions",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda recorder: self._run_chat_completions(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+                recorder=recorder,
+            ),
+        )
+
+    async def _run_chat_completions(
+        self,
+        body: OpenAIChatCompletionsCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+        recorder: SpanRecorder,
+    ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -311,12 +567,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_chat_completions_chunk,
+                record_response=lambda response: recorder.set_known(
+                    chat_completions_response_attributes(response)
+                ),
+            )
 
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         adapter = OpenAIChatCompletionsAdapter(capabilities)
@@ -342,7 +601,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:
@@ -374,6 +636,38 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, AnthropicMessagesCreateRequest)):
             raise TypeError("body must be a dictionary or AnthropicMessagesCreateRequest.")
+        return await _traced(
+            "messages",
+            endpoint,
+            resolved_provider,
+            base_url,
+            body,
+            lambda recorder: self._run_messages(
+                body,
+                endpoint=endpoint,
+                resolved_provider=resolved_provider,
+                api_key=api_key,
+                base_url=base_url,
+                extra_body=extra_body,
+                extra_headers=extra_headers,
+                citation_policy=citation_policy,
+                recorder=recorder,
+            ),
+        )
+
+    async def _run_messages(
+        self,
+        body: AnthropicMessagesCreateRequest | dict[str, Any],
+        *,
+        endpoint: Endpoint,
+        resolved_provider: Provider,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+        citation_policy: CitationPolicy,
+        recorder: SpanRecorder,
+    ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
         capabilities = PROVIDER_CAPABILITIES[resolved_provider]
         upstream_headers = _upstream_headers(extra_headers)
@@ -388,12 +682,15 @@ class Molto:
                 extra_headers=upstream_headers,
             )
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
-            if body.get("stream") is True:
-                return await _prefetch_stream(
-                    adapter.project_native_events(upstream.native_events(body)),
-                    upstream.response_headers,
-                )
-            return await adapter.project_native_response(upstream.native_response(body))
+            return await _run_native(
+                adapter,
+                upstream,
+                body,
+                record_event=recorder.record_messages_event,
+                record_response=lambda response: recorder.set_known(
+                    messages_response_attributes(response)
+                ),
+            )
 
         request = AnthropicMessagesCreateRequest.model_validate(body)
         # Chat normalization drops annotations, so buffering cannot recover citations.
@@ -423,7 +720,10 @@ class Molto:
         else:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
-            upstream.events(normalized_request.model_copy(update={"stream": True})),
+            observe(
+                upstream.events(normalized_request.model_copy(update={"stream": True})),
+                recorder.record_normalized,
+            ),
             normalized_request,
         )
         if request.stream is True:

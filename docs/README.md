@@ -25,7 +25,7 @@ Cross-protocol semantic input rejections raise `molto.types.exceptions.Unsupport
 
 Native same-protocol routes preserve request dictionaries, including unknown properties, nested extensions, and explicit nulls, without validating them against Molto's protocol models. The SDK and upstream provider own request validation. Explicit `extra_body` overrides take precedence over fields supplied in `body`. Molto still enforces the destination restriction on its own [Anthropic search metadata extension](web-search.md#preserving-anthropic-search-history).
 
-Native coordinators select streaming only when `body["stream"]` is the boolean `True`. Other values are forwarded unchanged for SDK and provider validation; values such as `1` or `"false"` do not select Molto's streaming path.
+Native coordinators select streaming when `body["stream"]` is truthy, the same rule the OpenAI and Anthropic SDKs use (`stream=stream or False`), so Molto always expects the response type the SDK returns. The value is forwarded unchanged for provider validation; `1` or `"false"` therefore streams, and a provider that rejects the value raises its own error.
 
 Each coordinator accepts a dictionary or its corresponding Molto request model. Serialize caller-defined Pydantic models to dictionaries before passing them to Molto. On native routes, Molto request models use their normal `model_dump()` behavior, which omits unset and `None`-valued fields. Model serialization can discard unknown fields, including extras accepted through `extra="allow"`; use a dictionary to preserve unknown fields and explicit nulls. SDK models nested in native request dictionaries retain their SDK serialization behavior.
 
@@ -73,6 +73,10 @@ asyncio.run(main())
 Use the same protocol for the method and `endpoint` to select native passthrough. Each protocol guide includes native and translated examples.
 
 `Molto` owns its shared `httpx.AsyncClient`. A returned stream releases its response when its context exits, including after early termination. Closing `Molto`, either with `async with` or `await molto.aclose()`, closes the shared HTTP client.
+
+## Observability
+
+Molto emits one OpenTelemetry span per coordinator call, using only `opentelemetry-api`; the application configures export. The [observability contract](observability.md) defines the span, its attributes and events, and its content policy.
 
 ## Routing
 
