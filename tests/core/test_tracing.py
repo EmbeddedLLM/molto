@@ -1,9 +1,11 @@
 import asyncio
+import gc
 import subprocess
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from time import time_ns
 from typing import Any, NamedTuple
 
 import openai
@@ -82,7 +84,7 @@ def _molto_span(exporter: InMemorySpanExporter) -> ReadableSpan:
 
 
 def _assert_cancelled(span: ReadableSpan) -> None:
-    """Cancellation ends the span as UNSET, recording no error (decision 9)."""
+    """Cancellation ends the span as UNSET with no error (docs/observability.md)."""
     assert span.status.status_code is StatusCode.UNSET
     assert "error.type" not in span.attributes
     assert "molto.error.phase" not in span.attributes
@@ -898,6 +900,18 @@ class _StalledStream(AsyncByteStream):
         await asyncio.Event().wait()
 
 
+SIMPLE_STREAM = "matched/simple_text/openai-responses-stream-00"
+
+
+def _first_event(name: str) -> bytes:
+    """The first recorded SSE event, after which a stalled upstream stops responding."""
+    return ("".join(_cassette(name)["response"]["sse"]).split("\n\n")[0] + "\n\n").encode()
+
+
+def _outcome(exporter: InMemorySpanExporter) -> str | None:
+    return _molto_span(exporter).attributes.get("molto.stream.outcome")
+
+
 def _stalled_client(head: bytes, sent: asyncio.Event) -> AsyncClient:
     def handler(request: Request) -> Response:
         return Response(
@@ -912,7 +926,11 @@ def _stalled_client(head: bytes, sent: asyncio.Event) -> AsyncClient:
 async def test_cancelling_a_coordinator_call_ends_its_span_without_error(
     exporter: InMemorySpanExporter,
 ):
-    """Ensures cancelling a real coordinator call before its first event ends its span as UNSET."""
+    """Ensures cancelling a real coordinator call before its first event ends its span as UNSET.
+
+    It reports `molto.stream.outcome=cancelled`, so a client hanging up before the
+    first token looks the same as one hanging up mid-generation.
+    """
     sent = asyncio.Event()
     async with Molto(http_client=_stalled_client(b"", sent)) as molto:
         call = asyncio.create_task(
@@ -923,25 +941,28 @@ async def test_cancelling_a_coordinator_call_ends_its_span_without_error(
         with pytest.raises(asyncio.CancelledError):
             await call
 
+    assert _outcome(exporter) == "cancelled"
     _assert_cancelled(_molto_span(exporter))
 
 
 async def test_cancelling_a_coordinator_stream_ends_its_span_without_error(
     exporter: InMemorySpanExporter,
 ):
-    """Ensures cancelling the task iterating a real coordinator stream ends its span once, as UNSET."""
-    name = "matched/simple_text/openai-responses-stream-00"
-    # The first recorded SSE event, after which the upstream stops responding.
-    first_event = "".join(_cassette(name)["response"]["sse"]).split("\n\n")[0] + "\n\n"
+    """Ensures cancelling the task iterating a real coordinator stream ends its span once, as UNSET.
+
+    It reports `molto.stream.outcome=cancelled`: a client hanging up mid-generation,
+    not an upstream failure.
+    """
     sent = asyncio.Event()
-    async with Molto(http_client=_stalled_client(first_event.encode(), sent)) as molto:
-        stream = await molto.responses(body=_request_body(name), api_key="test-key")
+    async with Molto(http_client=_stalled_client(_first_event(SIMPLE_STREAM), sent)) as molto:
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
         consumer = asyncio.create_task(_consume(stream))
         await sent.wait()
         consumer.cancel()
         with pytest.raises(asyncio.CancelledError):
             await consumer
 
+    assert _outcome(exporter) == "cancelled"
     _assert_cancelled(_molto_span(exporter))
 
 
@@ -1088,6 +1109,203 @@ def test_spans_use_the_application_tracer_provider():
     )
 
     assert result == {"name": "chat gpt-4.1-nano", "scope": "molto", "version": __version__}
+
+
+async def test_consumed_stream_reports_completed(exporter: InMemorySpanExporter):
+    """Ensures a stream the caller reads to its end reports `molto.stream.outcome=completed`."""
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        await _consume(
+            await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        )
+
+    assert _outcome(exporter) == "completed"
+    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+
+
+async def test_stream_closed_before_its_end_reports_closed(exporter: InMemorySpanExporter):
+    """Ensures a stream the caller closes before its end reports `molto.stream.outcome=closed`."""
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        await anext(stream)
+        await stream.aclose()
+
+    assert _outcome(exporter) == "closed"
+    assert _molto_span(exporter).status.status_code is StatusCode.UNSET
+
+
+async def test_closing_a_finished_stream_keeps_completed(exporter: InMemorySpanExporter):
+    """Asserts that closing a stream after its end does not relabel it `closed`."""
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        [event async for event in stream]
+        await stream.aclose()
+
+    assert _outcome(exporter) == "completed"
+
+
+async def test_stream_failing_mid_generation_reports_error(exporter: InMemorySpanExporter):
+    """Asserts that an upstream failure while the caller reads a stream reports `error`."""
+    name = "errors/context_length_exceeded/openai-responses-stream-00"
+    async with Molto(http_client=_replay(name)) as molto:
+        stream = await molto.responses(body=_request_body(name), api_key="test-key")
+        with pytest.raises(openai.APIError):
+            await _consume(stream)
+
+    span = _molto_span(exporter)
+    assert span.attributes["molto.stream.outcome"] == "error"
+    assert span.attributes["molto.error.phase"] == "stream"
+    assert span.status.status_code is StatusCode.ERROR
+
+
+async def test_streaming_call_failing_before_its_first_event_reports_error(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that a streaming call failing before it returns a stream reports `error`."""
+    name = "errors/not_found/openai-responses-stream-00"
+    async with Molto(http_client=_replay(name)) as molto:
+        with pytest.raises(openai.NotFoundError):
+            await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+
+    span = _molto_span(exporter)
+    assert span.attributes["molto.stream.outcome"] == "error"
+    assert span.attributes["molto.error.phase"] == "setup"
+
+
+async def test_dropped_stream_ends_its_span_as_abandoned_at_its_last_event(
+    exporter: InMemorySpanExporter,
+):
+    """Ensures a stream dropped without being consumed or closed still ends its span.
+
+    A leaked stream reports `molto.stream.outcome=abandoned` when it is garbage
+    collected, ending at the last event the caller received rather than at collection
+    time, so its duration is not inflated.
+    """
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        await anext(stream)
+        before_last_event = time_ns()
+        await anext(stream)
+        after_last_event = time_ns()
+        await asyncio.sleep(0.05)
+        del stream
+        gc.collect()
+        span = _molto_span(exporter)
+
+    assert span.attributes["molto.stream.outcome"] == "abandoned"
+    assert before_last_event <= span.end_time <= after_last_event
+    assert span.status.status_code is StatusCode.UNSET
+
+
+async def test_dropped_stream_leaves_the_upstream_response_open(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that garbage collection ends the span but never closes the upstream stream.
+
+    Closing needs an `await`, which `__del__` cannot perform, so the leak stays the
+    caller's bug; only the span is ended.
+    """
+    closed = []
+
+    class Source:
+        def __aiter__(self) -> "Source":
+            return self
+
+        async def __anext__(self) -> str:
+            return "event"
+
+        async def aclose(self) -> None:
+            closed.append(True)
+
+    stream = await _traced_stream(Source())
+    await anext(stream)
+    del stream
+    gc.collect()
+
+    assert _outcome(exporter) == "abandoned"
+    assert closed == []
+
+
+async def test_dropped_stream_swallows_telemetry_failures(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Ensures a failure while ending an abandoned span never escapes `__del__`.
+
+    Python only prints exceptions from `__del__`, and at interpreter shutdown the SDK
+    or exporter may already be gone, so telemetry must stay silent there.
+    """
+    unraisable = []
+    monkeypatch.setattr(sys, "unraisablehook", unraisable.append)
+
+    class BrokenSpan:
+        def set_attribute(self, key: str, value: object) -> None:
+            raise RuntimeError("exporter already shut down")
+
+    stream = MoltoStream([], _events(), Headers())
+    stream._span = BrokenSpan()
+    del stream
+    gc.collect()
+
+    assert unraisable == []
+
+
+async def test_unread_dropped_stream_ends_at_its_first_event(exporter: InMemorySpanExporter):
+    """Ensures a stream dropped before any read ends at the prefetched first event."""
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        before_call = time_ns()
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        after_call = time_ns()
+        await asyncio.sleep(0.05)
+        del stream
+        gc.collect()
+        span = _molto_span(exporter)
+
+    assert span.attributes["molto.stream.outcome"] == "abandoned"
+    assert before_call <= span.end_time <= after_call
+
+
+@pytest.mark.parametrize("close", [False, True], ids=["consumed", "closed"])
+async def test_dropping_a_finished_stream_keeps_its_outcome(
+    exporter: InMemorySpanExporter, close: bool
+):
+    """Asserts that garbage collection never relabels or re-ends a stream that already ended."""
+    async with Molto(http_client=_replay(SIMPLE_STREAM)) as molto:
+        stream = await molto.responses(body=_request_body(SIMPLE_STREAM), api_key="test-key")
+        if close:
+            await stream.aclose()
+        else:
+            [event async for event in stream]
+        del stream
+        gc.collect()
+
+    assert _outcome(exporter) == ("closed" if close else "completed")
+
+
+NON_STREAM_BODY_CASSETTE = "matched/simple_text/openai-responses-non_stream-00"
+
+
+async def test_successful_non_streaming_call_reports_no_stream_outcome(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that `molto.stream.outcome` is absent from a successful non-streaming span."""
+    async with Molto(http_client=_replay(NON_STREAM_BODY_CASSETTE)) as molto:
+        await molto.responses(body=_request_body(NON_STREAM_BODY_CASSETTE), api_key="test-key")
+
+    assert _outcome(exporter) is None
+
+
+async def test_failed_non_streaming_call_reports_no_stream_outcome(
+    exporter: InMemorySpanExporter,
+):
+    """Asserts that `molto.stream.outcome` is absent from a failed non-streaming span."""
+    async with Molto(
+        http_client=_replay("errors/not_found/openai-responses-non_stream-00")
+    ) as molto:
+        with pytest.raises(openai.NotFoundError):
+            await molto.responses(body=_request_body(NON_STREAM_BODY_CASSETTE), api_key="test-key")
+
+    span = _molto_span(exporter)
+    assert span.attributes["error.type"] == "ResourceNotFoundError"
+    assert _outcome(exporter) is None
 
 
 HTTPX_SCOPE = "opentelemetry.instrumentation.httpx"

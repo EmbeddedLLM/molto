@@ -73,9 +73,21 @@ Molto creates no separate spans for adapters, normalizers, upstream clients, or 
 
 ### Streaming lifetime
 
-A streaming coordinator returns a `MoltoStream` after prefetching the first event. The span outlives that `await`: it ends exactly once, when the stream is exhausted, fails, or is closed with `aclose()`. A failure during prefetch ends the span in the coordinator.
+A streaming coordinator returns a `MoltoStream` after prefetching the first event. The span outlives that `await`: it ends exactly once, when the stream is exhausted, fails, is closed with `aclose()`, or is garbage-collected. A failure during prefetch ends the span in the coordinator.
 
-A stream that is neither consumed nor closed leaves its span unended, and the span is not exported, just as its upstream response is not released. Use `async with` or `aclose()`.
+A stream that is neither consumed nor closed leaks its upstream HTTP response, because closing it requires an `await` that garbage collection cannot perform. Use `async with` or `aclose()`. To make the leak visible, a dropped stream ends its span when it is garbage-collected, with `molto.stream.outcome=abandoned`, at the time of the last event the caller received rather than the collection time. CPython collects an object as soon as its last reference goes, later when it is part of a reference cycle, and possibly never at interpreter shutdown, so an abandoned span can arrive late or not at all.
+
+Every streaming span records how the stream ended in `molto.stream.outcome`:
+
+| Value | When |
+| --- | --- |
+| `completed` | The caller read the stream to its end. Closing it afterwards keeps `completed`. |
+| `closed` | The caller called `aclose()` before the end, for example by leaving `async with` early. |
+| `cancelled` | The caller's task was cancelled, while reading the stream or before the first event arrived. This is how a client hanging up appears. The status stays `UNSET` and the cancellation is re-raised. Any other exit that is not an `Exception`, such as `KeyboardInterrupt`, also reports `cancelled`, because it too is the caller stopping the call rather than the call failing. |
+| `error` | The call failed, while the caller read the stream or before the first event. `molto.error.phase` says which, and the [error attributes](#errors) describe the failure. |
+| `abandoned` | The caller dropped the stream without consuming or closing it. The span ends at the last event received; its upstream response was leaked. |
+
+Non-streaming spans do not carry the attribute.
 
 The span starts in the caller's context, so iterating the stream from another task does not reparent it. The Molto span is current only while the upstream request is sent: for the whole call when non-streaming and for the prefetch when streaming. It is not current while the caller iterates the stream.
 
@@ -109,6 +121,7 @@ Native request bodies reach the SDK unvalidated, so a request field becomes an a
 | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | `ResponseEndEvent` normalized usage | SDK usage |
 | `gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_write.input_tokens` | Normalized usage details, when non-zero | SDK usage details, when non-zero |
 | `error.type`, `http.response.status_code`, `molto.error.phase` | See [Errors](#errors) | See [Errors](#errors) |
+| `molto.stream.outcome` | Streaming only; see [Streaming lifetime](#streaming-lifetime) | Same |
 
 Translated spans report Molto's normalized termination reason, such as `stop`, `max_output_tokens`, or `tool_call`. Native spans report the provider's own value, such as Chat Completions `stop` or `length` and Messages `end_turn`. The same call can therefore report different finish reasons on its two routes: an Anthropic call that ends normally reports `["end_turn"]` natively and `["stop"]` through a translated route. Group by `molto.route` to compare them. Responses has no finish-reason field, so a native Responses span reports `incomplete_details.reason` for an incomplete response, such as `max_output_tokens`, and the terminal `status`, such as `completed`, otherwise.
 

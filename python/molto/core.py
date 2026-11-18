@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from time import time_ns
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
@@ -39,9 +40,11 @@ from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesCl
 from molto.utils.io import request_to_dict
 from molto.utils.telemetry import (
     GEN_AI_REQUEST_STREAM,
+    MOLTO_STREAM_OUTCOME,
     ErrorPhase,
     ResolvedRoute,
     SpanRecorder,
+    StreamOutcome,
     chat_completions_response_attributes,
     error_attributes,
     exception_event_attributes,
@@ -126,16 +129,27 @@ def _upstream_headers(extra_headers: Mapping[str, str] | None) -> dict[str, str]
     return {name: value for name, value in headers.items() if name.lower() not in excluded}
 
 
+def _failure_outcome(error: BaseException) -> StreamOutcome:
+    # Cancellation, and any other exit that is not an `Exception` (such as
+    # `KeyboardInterrupt`), is the caller stopping the call, not the call failing: it
+    # leaves the status UNSET and reports `cancelled` (docs/observability.md).
+    return "error" if isinstance(error, Exception) else "cancelled"
+
+
 def _finish_span(
-    span: Span, error: BaseException | None = None, phase: ErrorPhase = "setup"
+    span: Span,
+    error: BaseException | None = None,
+    phase: ErrorPhase = "setup",
+    outcome: StreamOutcome | None = None,
+    end_time: int | None = None,
 ) -> None:
-    # Cancellation is the caller stopping the call, not the call failing, so only an
-    # `Exception` marks the span as an error (docs/observability.md).
+    if outcome is not None:
+        span.set_attribute(MOLTO_STREAM_OUTCOME, outcome)
     if isinstance(error, Exception):
         span.set_status(Status(StatusCode.ERROR))
         span.set_attributes(error_attributes(error, phase))
         span.record_exception(error, attributes=exception_event_attributes(error))
-    span.end()
+    span.end(end_time=end_time)
 
 
 class MoltoStream[EventT](AsyncIterator[EventT]):
@@ -151,6 +165,9 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         self._stream = stream
         self._closed = False
         self._span: Span | None = None
+        # When the caller last received an event; an abandoned stream's span ends here.
+        # The prefetch has just received the first event.
+        self._last_event_ns = time_ns()
         self.response_headers = Headers(response_headers)
 
     def __aiter__(self) -> AsyncIterator[EventT]:
@@ -160,9 +177,12 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         if self._closed:
             raise StopAsyncIteration
         if self._events:
+            self._last_event_ns = time_ns()
             return self._events.pop()
         try:
-            return await anext(self._stream)
+            event = await anext(self._stream)
+            self._last_event_ns = time_ns()
+            return event
         except StopAsyncIteration:
             self._end_span()
             raise
@@ -188,13 +208,37 @@ class MoltoStream[EventT](AsyncIterator[EventT]):
         except BaseException as error:
             self._end_span(error)
             raise
-        self._end_span()
+        # A stream already exhausted or failed has ended its span, so this records
+        # `closed` only for a stream the caller stopped before its end.
+        self._end_span(outcome="closed")
 
-    def _end_span(self, error: BaseException | None = None) -> None:
-        # Exhaustion, an error, and `aclose()` can all reach here; end the span once.
+    def __del__(self) -> None:
+        # A dropped, unclosed stream must still be visible (docs/observability.md,
+        # "Streaming lifetime"). `aclose()` cannot be awaited here, so the upstream
+        # response stays open; the span ends at the last event so its duration is not
+        # inflated by when garbage collection happens to run.
+        if getattr(self, "_span", None) is None:
+            return
+        try:
+            self._end_span(outcome="abandoned", end_time=self._last_event_ns)
+        except Exception:
+            # Exceptions in `__del__` are only printed, and at interpreter shutdown the
+            # SDK or exporter may already be gone; telemetry must not add noise here.
+            pass
+
+    def _end_span(
+        self,
+        error: BaseException | None = None,
+        outcome: StreamOutcome = "completed",
+        *,
+        end_time: int | None = None,
+    ) -> None:
+        # Exhaustion, an error, `aclose()`, and garbage collection can all reach here;
+        # end the span once. A failure decides the outcome over the given one.
         if self._span is not None:
             span, self._span = self._span, None
-            _finish_span(span, error, "stream")
+            final = _failure_outcome(error) if error is not None else outcome
+            _finish_span(span, error, "stream", final, end_time)
 
 
 async def _run_native[EventT, ResponseT: BaseModel](
@@ -253,14 +297,16 @@ async def _traced[ResultT](
     span = get_tracer().start_span(
         span_name(attributes), kind=SpanKind.CLIENT, attributes=attributes
     )
-    recorder = SpanRecorder(span, streaming=attributes.get(GEN_AI_REQUEST_STREAM) is True)
+    streaming = attributes.get(GEN_AI_REQUEST_STREAM) is True
+    recorder = SpanRecorder(span, streaming=streaming)
     try:
         # `_finish_span` sets the status instead of `use_span`, whose ERROR status
         # description would carry the exception message.
         with trace.use_span(span, record_exception=False, set_status_on_exception=False):
             result = await call(recorder)
     except BaseException as error:
-        _finish_span(span, error)
+        # A streaming call that ends before its first event still reports how it ended.
+        _finish_span(span, error, outcome=_failure_outcome(error) if streaming else None)
         raise
     if isinstance(result, MoltoStream):
         # The stream outlives this `await`, so it ends the span itself.

@@ -65,6 +65,7 @@ GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 ERROR_TYPE = "error.type"
 HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 MOLTO_ERROR_PHASE = "molto.error.phase"
+MOLTO_STREAM_OUTCOME = "molto.stream.outcome"
 FIRST_TOKEN_EVENT = "molto.first_token"
 
 # Every span attribute the contract defines. Spans carry no other keys, so no
@@ -93,10 +94,15 @@ ATTRIBUTE_KEYS = frozenset(
         ERROR_TYPE,
         HTTP_RESPONSE_STATUS_CODE,
         MOLTO_ERROR_PHASE,
+        MOLTO_STREAM_OUTCOME,
     }
 )
 
 ErrorPhase = Literal["setup", "stream"]
+# How a streaming call ended: the caller consumed it, closed it early, cancelled it, or
+# dropped it without closing it, or it failed. Set on every streaming span, including
+# failures before the first event.
+StreamOutcome = Literal["completed", "closed", "cancelled", "error", "abandoned"]
 # Native extractors can meet a provider that omits a field; `SpanRecorder.set` drops
 # the `None` values.
 MaybeAttributes: TypeAlias = dict[str, AttributeValue | None]
