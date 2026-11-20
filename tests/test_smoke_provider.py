@@ -116,6 +116,23 @@ async def test_smoke_bounds_requests_and_does_not_print_provider_errors(monkeypa
     assert "HTTP attempts: 1/1" in output
 
 
+async def test_smoke_reports_exhausted_budget_instead_of_connection_error(monkeypatch, capsys):
+    """Ensures a run that outgrows its budget names the budget, not a provider connection error."""
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return chat_response(request)
+
+    mock_http(monkeypatch, handle)
+    assert await smoke_provider.run(options(max_requests=17)) == 1
+    assert len(requests) == 17
+    output = capsys.readouterr().out
+    assert "FAIL messages stream tool: HTTP request budget exhausted" in output
+    assert "APIConnectionError" not in output
+    assert "HTTP attempts: 17/17; failed cases: 1" in output
+
+
 async def test_smoke_detects_incorrect_messages_tool_termination(monkeypatch, capsys):
     """Ensures an end_turn response containing a tool call fails the translated smoke check."""
     mock_http(monkeypatch, lambda request: chat_response(request, tool_finish="stop"))

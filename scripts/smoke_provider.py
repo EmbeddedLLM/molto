@@ -145,11 +145,13 @@ async def complete(client, protocol, body, options):
 async def run(args):
     """Run native and selected translated checks with finite HTTP and wall-clock budgets."""
     request_count = 0
+    budget_exhausted = False
     failures = 0
 
     async def count_request(request):
-        nonlocal request_count
+        nonlocal request_count, budget_exhausted
         if request_count >= args.max_requests:
+            budget_exhausted = True
             raise RuntimeError("Smoke HTTP request budget exhausted")
         request_count += 1
 
@@ -193,6 +195,11 @@ async def run(args):
                             print(f"PASS {label}", flush=True)
                         except Exception as error:
                             failures += 1
+                            if budget_exhausted:
+                                # The SDK reports the hook's error as APIConnectionError,
+                                # which would misattribute the failure to the provider.
+                                print(f"FAIL {label}: HTTP request budget exhausted", flush=True)
+                                return 1
                             status = getattr(error, "status_code", None)
                             print(
                                 f"FAIL {label}: {type(error).__name__} status={status}", flush=True
