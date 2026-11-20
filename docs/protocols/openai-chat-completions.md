@@ -92,7 +92,7 @@ Transport chunk boundaries are observable but are not conversation-message bound
 
 ## Native passthrough
 
-When both sides use Chat Completions, Molto preserves the request dictionary and calls the OpenAI SDK's `chat.completions.create()` without local protocol-model validation. Unknown properties, nested extensions, and explicit nulls are retained for SDK and provider validation. It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
+When both sides use Chat Completions, Molto preserves the request dictionary and calls the OpenAI SDK's `chat.completions.create()` without local protocol-model validation. Unknown properties, nested extensions, and explicit nulls are retained for SDK and provider validation. The exception is the Gemini and Fireworks Chat clients, which omit null top-level message fields and `stream_options.include_obfuscation` because their endpoints reject them; nested values are unchanged. See [provider differences](../provider-compatibility.md#provider-differences). It yields `ChatCompletionChunk` objects directly for a streaming request and returns the SDK `ChatCompletion` directly for a non-streaming request. Neither path crosses Molto's normalized representation.
 
 This path preserves system and developer instruction arrays, native choices, result fields, event order, usage placement, service tier, and provider extensions accepted by the pinned SDK. Errors follow the [shared policy](../errors.md). Passthrough is typed SDK processing rather than a byte proxy: Molto does not promise the original JSON or SSE byte representation.
 
@@ -123,7 +123,7 @@ The translated path currently maps these request semantics:
 | `parallel_tool_calls`                | Preserved; Messages later expresses it by inverting `disable_parallel_tool_use`          |
 | Function `tools`                     | Preserves name, description, parameters, and strict validation                           |
 | `tool_choice`                        | Preserves `auto`, `none`, `required`, or a named function through target-specific shapes |
-| `stream_options.include_obfuscation` | Preserved where the upstream protocol represents it                                      |
+| `stream_options.include_obfuscation` | Preserved where the upstream represents it; the Gemini and Fireworks clients omit it     |
 | `prompt_cache_*`                     | Becomes the portable prompt-cache intent                                                 |
 
 One user message becomes one normalized user input. Ordered text and image parts remain ordered, and consecutive user messages remain separate. Scalar user text becomes one text part.
