@@ -20,7 +20,7 @@ The `thinking` profile only classifies text that Chat or Messages leaves unlabel
 
 A Responses summary projected into Chat or Messages loses its wire label. If returned as history through a raw profile, the next Responses request carries that text as `reasoning_text`. This applies to OpenRouter and Fireworks. Molto preserves the text without inferring how the provider will use it.
 
-The coordinator option `reasoning_representation` selects `raw` or `summary` only for translated routes whose client declares `REQUIRES_REASONING_REPRESENTATION`. The registered clients use fixed profiles. Native same-protocol requests bypass reasoning translation.
+The registered clients use fixed profiles. Native same-protocol requests bypass reasoning translation.
 
 ## Chat fields and signatures
 
