@@ -2,7 +2,7 @@
 
 These YAML files capture sanitized HTTP requests and provider responses for deterministic test playback. Most cassettes are faithful recordings apart from secret masking and the filtering of unstable transport metadata.
 
-Normal test runs are playback-only. Do not record or rewrite cassettes during a test run. Pytest has no recording option or cassette manager; its default async HTTP transport is blocked unconditionally. Approved recordings use standalone tooling such as `scripts/recorder_proxy.py`, which retains its authorization masking and retry policy.
+Normal test runs are playback-only. Do not record or rewrite cassettes during a test run. Pytest has no recording option or cassette manager; its default async HTTP transport is blocked unconditionally. Approved recordings use standalone tooling such as `scripts/recorder_proxy.py`, which masks authorization. The proxy forwards each request once, without retries, so each recording is one real upstream exchange. A failed attempt, such as a `429`, is recorded as-is; discard it and record again. Recording drivers must also disable SDK retries, because each SDK retry would become a separate recording.
 
 ## Conversation discovery
 
@@ -26,6 +26,17 @@ Malformed filenames, duplicate numeric identities, missing turns or required cou
 OpenAI captures include text and token-ID inputs, single inputs and batches, omitted/float/base64 encoding, explicit/default dimensions, and real request errors. Public native replay compares against the parsed pinned OpenAI SDK on the same evidence. Cohere v2 captures cover query/document/classification/clustering tasks, dimensions, float/base64, and a missing-model error. VoyageAI captures use `voyage-4-lite` and cover default/query/document intent, dimensions, float/base64, and an unsupported-model `400`. Each Voyage vector item includes `text: null`, which is retained as vector metadata.
 
 `embeddings/synthetic/` contains explicitly hand-authored schema fixtures. Infinity and vLLM manifests pin the reviewed server source versions; these fixtures establish local request/response and SDK parity, not live server/model compatibility. VoyageAI synthetic cases additionally cover out-of-order indices, which the live captures do not exercise. The [support matrix](../../docs/provider-embeddings.md) records the remaining access and deployment gaps. Existing conversational cassettes are unchanged.
+
+### Matched embedding cassettes
+
+`embeddings/matched/{scenario}/{provider}-{endpoint}.yaml` holds deliberately edited embedding fixtures. The endpoint name replaces `/` with `_`. OpenAI Embeddings is the canonical reference. Each scenario sends the same inputs, 256 dimensions, the same vector encoding, and no truncation through each provider's official SDK:
+
+- `query-float` and `documents-float` cover OpenAI and Cohere.
+- `query-base64` and `documents-base64` cover OpenAI, Cohere, and VoyageAI. The Voyage SDK always requests base64 on the wire and decodes it locally, so it cannot produce the float scenarios. The faithful recordings under `embeddings/recorded/voyageai/` cover Voyage float output.
+
+`scripts/record_embedding_cassettes.py` records the scenarios through `scripts/recorder_proxy.py`, with SDK retries disabled. The unchanged recordings are committed first. `scripts/match_embedding_cassettes.py` then copies the requested model, the vectors, the response model, and the input token count from the OpenAI cassette into each Cohere and Voyage cassette. Every other field stays as recorded. The script rejects a pair whose inputs, dimensions, or encoding differ.
+
+`tests/test_embedding_matched.py` sends each OpenAI request through every route. It asserts the exact upstream request against the provider cassette and compares the result with the OpenAI SDK's parsed reference response, excluding `provider_metadata`.
 
 ## Recorded cassettes
 

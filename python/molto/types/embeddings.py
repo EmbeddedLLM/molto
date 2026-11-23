@@ -1,4 +1,4 @@
-"""Embedding-specific options and normalized dense output.
+"""Embedding-specific options and validated upstream vectors.
 
 Task names and truncation controls remain protocol-specific because their
 semantics are not interchangeable between providers.
@@ -22,18 +22,8 @@ class VoyageEmbeddingOptions(StrictModel):
 
 
 class EmbeddingVector(StrictModel):
+    """One upstream vector, strictly validated before it becomes an OpenAI `Embedding`."""
+
     index: StrictInt
     embedding: list[StrictFloat] | StrictStr
-    provider_metadata: dict[str, Any] = {}
-
-
-class EmbeddingUsage(StrictModel):
-    prompt_tokens: StrictInt | None = None
-    total_tokens: StrictInt | None = None
-
-
-class NormalizedEmbeddingResponse(StrictModel):
-    model: StrictStr
-    data: list[EmbeddingVector]
-    usage: EmbeddingUsage | None = None
     provider_metadata: dict[str, Any] = {}

@@ -356,7 +356,7 @@ For open-weight models, the selected renderer or chat template is the most autho
 
 OpenAI request wrappers track the exact SDK version pinned in `pyproject.toml`. OpenAI result and event types are SDK aliases rather than duplicated Molto models, except two narrow Responses event replacements: `OpenAIResponseCompletedEvent` (sets a `null` `cache_write_tokens` to `0`) and `OpenAIResponseFunctionCallArgumentsDoneEvent` (relaxes the required `name`). Compatible-provider extensions are modeled narrowly; accepting an extension must not weaken every message or event to an untyped dictionary.
 
-Responses is the canonical behavioral reference for matched cross-protocol cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
+Responses is the canonical behavioral reference for matched cross-protocol cassettes. OpenAI Embeddings is the canonical reference for matched embedding cassettes. Same-protocol tests compare native request bodies and parsed SDK events. Translated tests compare reconstructable semantics and separately validate lifecycle ordering, generated identifiers, target defaults, and exact upstream request construction. Normal test runs replay committed cassettes and never record or rewrite them.
 
 Implementation and maintenance details remain canonical in:
 

@@ -85,7 +85,8 @@ async def test_cohere_recorded_public_translation(scenario, encoding):
     assert result.model == wire["model"]
     assert [item.index for item in result.data] == list(range(len(wire["texts"])))
     assert [item.embedding for item in result.data] == native["embeddings"][actual_encoding]
-    assert result.usage is None
+    tokens = native["meta"]["billed_units"]["input_tokens"]
+    assert result.usage.model_dump() == {"prompt_tokens": tokens, "total_tokens": tokens}
     assert result.provider_metadata == {
         key: value for key, value in native.items() if key != "embeddings"
     }
@@ -104,7 +105,8 @@ async def test_cohere_recorded_public_translation(scenario, encoding):
 async def test_voyage_recorded_public_translation(scenario, encoding):
     """Ensures Voyage's live native schema preserves task, vectors, order, dimensions, and metadata.
 
-    Voyage reports only `total_tokens`, so `prompt_tokens` stays unknown rather than inferred.
+    Voyage reports only `total_tokens`; an embedding has no output tokens, so it is also the
+    prompt token count.
     """
     cassette = _recording("voyageai", scenario)
     wire = cassette["request"]["body"]
@@ -131,8 +133,8 @@ async def test_voyage_recorded_public_translation(scenario, encoding):
     assert [item.provider_metadata for item in result.data] == [
         {"text": item["text"]} for item in native["data"]
     ]
-    assert result.usage.prompt_tokens is None
-    assert result.usage.total_tokens == native["usage"]["total_tokens"]
+    tokens = native["usage"]["total_tokens"]
+    assert result.usage.model_dump() == {"prompt_tokens": tokens, "total_tokens": tokens}
     assert result.provider_metadata == {
         key: value for key, value in native.items() if key != "data"
     }
@@ -181,7 +183,7 @@ async def test_recorded_native_errors(provider, error_type, normalized):
 @pytest.mark.parametrize("encoding", [None, "float", "base64"])
 @pytest.mark.parametrize("input_type", [None, "query", "document"])
 async def test_voyage_schema_translation_synthetic(encoding, input_type):
-    """Ensures Voyage's documented schema preserves reordered vectors without invented prompt usage.
+    """Ensures Voyage's documented schema preserves reordered vectors and reports its token count.
 
     This is deliberate synthetic schema coverage, not a successful live Voyage
     capture: https://docs.voyageai.com/reference/embeddings-api.
@@ -228,8 +230,7 @@ async def test_voyage_schema_translation_synthetic(encoding, input_type):
         item["embedding"] for item in native["data"]
     ]
     assert [item.provider_metadata for item in result.data] == [{"trace": 1}, {"trace": 0}]
-    assert result.usage.prompt_tokens is None
-    assert result.usage.total_tokens == 7
+    assert result.usage.model_dump() == {"prompt_tokens": 7, "total_tokens": 7}
     assert result.provider_metadata == {
         key: value for key, value in native.items() if key != "data"
     }
@@ -337,9 +338,12 @@ async def test_native_extra_body_overrides_are_applied_before_output_projection(
     assert all(isinstance(item.embedding, str) for item in result.data)
 
 
-@pytest.mark.parametrize("corruption", ["missing", "nested", "dimensions", "multiple"])
+@pytest.mark.parametrize("corruption", ["missing", "nested", "dimensions", "multiple", "usage"])
 async def test_cohere_malformed_output_rejects_without_coercion(corruption):
-    """Ensures incomplete, multi-vector, wrong-sized, or quantized responses cannot look valid."""
+    """Ensures incomplete, multi-vector, wrong-sized, quantized, or usage-less responses fail.
+
+    A missing billed input token count must not become `None` or zero usage.
+    """
     fixture = _recording("cohere", "batch-document")
     native = fixture["response"]["body"]
     if corruption == "missing":
@@ -348,6 +352,8 @@ async def test_cohere_malformed_output_rejects_without_coercion(corruption):
         native["embeddings"]["float"][0] = [[0.5], [0.25]]
     elif corruption == "dimensions":
         native["embeddings"]["float"][0].pop()
+    elif corruption == "usage":
+        del native["meta"]["billed_units"]["input_tokens"]
     else:
         native["embeddings"]["int8"] = [[1, 2], [3, 4]]
     wire = fixture["request"]["body"]

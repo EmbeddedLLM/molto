@@ -8,14 +8,10 @@ from typing import Any, NoReturn
 from openai import APIStatusError, AsyncOpenAI, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import NotFoundError as OpenAINotFoundError
+from openai.types import Embedding
+from openai.types.create_embedding_response import Usage
 
-from molto.types.embeddings import (
-    CohereEmbeddingOptions,
-    EmbeddingUsage,
-    EmbeddingVector,
-    NormalizedEmbeddingResponse,
-    VoyageEmbeddingOptions,
-)
+from molto.types.embeddings import CohereEmbeddingOptions, EmbeddingVector, VoyageEmbeddingOptions
 from molto.types.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -87,6 +83,39 @@ def _validate_vectors(
             raise ValueError("Embedding output must contain one dense vector per input.")
         if dimensions is not None and size != dimensions:
             raise ValueError("Embedding output dimensions do not match the request.")
+
+
+def _openai_response(
+    *,
+    model: str,
+    vectors: list[EmbeddingVector],
+    input_tokens: Any,
+    provider_metadata: dict[str, Any],
+) -> OpenAIEmbeddingsResponse:
+    """Express a translated embedding result as the OpenAI SDK response.
+
+    An embedding request has no output tokens, so the provider's input token count
+    is both `prompt_tokens` and `total_tokens`. `Usage` validation rejects a missing count.
+    `model_construct` matches the SDK's own parsing, which keeps base64 strings
+    that the `list[float]` annotation of `Embedding.embedding` does not describe.
+    """
+    return OpenAIEmbeddingsResponse.model_construct(
+        object="list",
+        model=model,
+        data=[
+            Embedding.model_construct(
+                object="embedding",
+                index=item.index,
+                embedding=item.embedding,
+                **(
+                    {"provider_metadata": item.provider_metadata} if item.provider_metadata else {}
+                ),
+            )
+            for item in vectors
+        ],
+        usage=Usage(prompt_tokens=input_tokens, total_tokens=input_tokens),
+        provider_metadata=provider_metadata,
+    )
 
 
 class _EmbeddingsClient(BaseHTTPClient):
@@ -200,7 +229,7 @@ class CohereEmbeddingsClient(_EmbeddingsClient):
 
     async def response(
         self, request: OpenAIEmbeddingsCreateRequest, options: CohereEmbeddingOptions | None
-    ) -> NormalizedEmbeddingResponse:
+    ) -> OpenAIEmbeddingsResponse:
         value = _text_input(request)
         if options is None:
             raise UnsupportedInput("Cohere requires explicit CohereEmbeddingOptions.input_type.")
@@ -232,16 +261,17 @@ class CohereEmbeddingsClient(_EmbeddingsClient):
         _validate_vectors(
             data, count=len(texts), dimensions=body.get("output_dimension"), encoding=encoding
         )
-        # Billed units describe billing, not actual prompt/total token usage.
         metadata = {key: value for key, value in result.items() if key != "embeddings"}
         embedding_metadata = {
             key: value for key, value in result["embeddings"].items() if key != encoding
         }
         if embedding_metadata:
             metadata["embeddings"] = embedding_metadata
-        return NormalizedEmbeddingResponse(
+        # Cohere returns no model identity, so the effective requested model is reported.
+        return _openai_response(
             model=body["model"],
-            data=data,
+            vectors=data,
+            input_tokens=result.get("meta", {}).get("billed_units", {}).get("input_tokens"),
             provider_metadata=metadata,
         )
 
@@ -252,7 +282,7 @@ class VoyageAIEmbeddingsClient(_EmbeddingsClient):
 
     async def response(
         self, request: OpenAIEmbeddingsCreateRequest, options: VoyageEmbeddingOptions | None
-    ) -> NormalizedEmbeddingResponse:
+    ) -> OpenAIEmbeddingsResponse:
         body: dict[str, Any] = {
             "model": request.model,
             "input": _text_input(request),
@@ -292,17 +322,9 @@ class VoyageAIEmbeddingsClient(_EmbeddingsClient):
             dimensions=body.get("output_dimension"),
             encoding=body.get("encoding_format"),
         )
-        usage = result.get("usage")
-        return NormalizedEmbeddingResponse(
+        return _openai_response(
             model=result.get("model", body["model"]),
-            data=data,
-            usage=(
-                EmbeddingUsage(
-                    prompt_tokens=usage.get("prompt_tokens"),
-                    total_tokens=usage.get("total_tokens"),
-                )
-                if usage is not None
-                else None
-            ),
+            vectors=data,
+            input_tokens=result.get("usage", {}).get("total_tokens"),
             provider_metadata={key: value for key, value in result.items() if key != "data"},
         )

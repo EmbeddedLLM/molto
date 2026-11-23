@@ -5,7 +5,6 @@ from httpx import AsyncClient, Headers
 from pydantic import BaseModel
 
 from molto.adapters.anthropic import AnthropicMessagesAdapter, CitationPolicy
-from molto.adapters.embeddings import project_embeddings_response
 from molto.adapters.openai import (
     OpenAIChatCompletionsAdapter,
     OpenAIResponsesAdapter,
@@ -227,7 +226,7 @@ class Molto:
             else:
                 if options is not None and not isinstance(options, VoyageEmbeddingOptions):
                     raise UnsupportedInput("Voyage embeddings require VoyageEmbeddingOptions.")
-            return project_embeddings_response(await upstream.response(request, options))
+            return await upstream.response(request, options)
         except Exception as error:
             _raise_openai_error(error)
 

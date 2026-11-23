@@ -2,7 +2,7 @@
 
 `await Molto.embeddings(...)` accepts an OpenAI-shaped embedding request and returns an OpenAI SDK `CreateEmbeddingResponse`. It supports dense text embeddings through five explicit provider integrations. It does not stream, split batches, tokenize, truncate, pool vectors, or submit asynchronous jobs. An ordinary asynchronous Python call waits for one upstream HTTP response.
 
-The implementation and offline coverage extend beyond the available live evidence. OpenAI, Cohere, and VoyageAI have successful live recordings. Infinity and vLLM have pinned schema references and synthetic coverage, but **no live-tested server version or model**. These gaps remain part of [issue #93](https://github.com/EmbeddedLLM/molto/issues/93).
+The implementation and offline coverage extend beyond the available live evidence. OpenAI, Cohere, and VoyageAI have successful live recordings. Matched OpenAI, Cohere, and VoyageAI recordings, aligned to the OpenAI result, also verify each translated request and result. Infinity and vLLM have pinned schema references and synthetic coverage, but **no live-tested server version or model**. These gaps remain part of [issue #93](https://github.com/EmbeddedLLM/molto/issues/93).
 
 ## Public contract
 
@@ -64,7 +64,7 @@ Each vector retains its input index. Native indexed responses retain their respo
 
 Native responses preserve the returned model, usage, and SDK extension fields. Translated results retain native response metadata under `provider_metadata`, including Cohere's ID, echoed texts, and `meta`, and VoyageAI's unmapped fields and vector metadata. When a native response omits the model name, as Cohere does, its result identifies the effective requested model; Molto does not invent a resolved model revision.
 
-Missing token usage remains unknown. In particular, Cohere's `meta.billed_units` is preserved as billing metadata and is not relabeled as actual token usage; the OpenAI-shaped `usage` is `None`. VoyageAI's reported `total_tokens` is preserved, while `prompt_tokens` remains `None` when unavailable. These `None` values are intentional extensions to the SDK's static annotations. Do not replace them with zero or infer that vectors from different models inhabit the same space.
+Translated results always report usage. An embedding request has no output tokens, so the provider's input token count is both `prompt_tokens` and `total_tokens`. For Cohere, the count is `meta.billed_units.input_tokens`. For VoyageAI, it is `usage.total_tokens`. A translated response without that count raises an output validation error rather than returning unknown or zero usage. The original Cohere `meta` also remains in `provider_metadata`. Do not infer that vectors from different models inhabit the same space.
 
 ## Native task and truncation controls
 
