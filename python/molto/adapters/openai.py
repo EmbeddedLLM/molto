@@ -403,7 +403,7 @@ class OpenAIResponsesAdapter(
             call = search_call_from_responses(message)
             sources = (message.get("action") or {}).get("sources") or []
             # Neither Messages nor Chat can represent a source without a URL.
-            if any(source["type"] == "api" for source in sources):
+            if any(source.get("url") is None for source in sources):
                 raise UnsupportedInput("Only URL web search sources can be translated.")
             parts = [call]
             if call.action == "search" and call.status in {"completed", "failed"}:

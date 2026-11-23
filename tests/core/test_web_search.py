@@ -4,6 +4,7 @@ import asyncio
 from contextlib import aclosing
 from copy import deepcopy
 from itertools import product
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -35,11 +36,11 @@ from tests.core.test_interface import (
     PROTOCOLS,
     RESPONSES_MESSAGES_PROTOCOLS,
     Protocol,
+    _completed_responses_body,
     _coordinator,
     _get_http_client,
     _matched_cassette_path,
     _read_cassette,
-    _recorded_responses_output,
     _sse_records,
 )
 
@@ -82,12 +83,13 @@ def _request_pair(downstream: Protocol, upstream: Protocol, stream: bool):
     return body, expected
 
 
-async def _sdk_result(protocol: Protocol, stream: bool):
-    path = _path(protocol, stream)
+async def _sdk_result(protocol: Protocol, stream: bool, *, cassette_path: Path | None = None):
+    path = cassette_path or _path(protocol, stream)
+    body = deepcopy(_read_cassette(path)["request"]["body"])
     async with _get_http_client([path], protocol) as http_client:
         if protocol == "messages":
             client = AsyncAnthropic(api_key="test-api-key", http_client=http_client)
-            result = await client.messages.create(**_body(protocol, stream))
+            result = await client.messages.create(**body)
         else:
             client = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
             create = (
@@ -95,7 +97,7 @@ async def _sdk_result(protocol: Protocol, stream: bool):
                 if protocol == "responses"
                 else client.chat.completions.create
             )
-            result = await create(**_body(protocol, stream))
+            result = await create(**body)
         if not stream:
             return result
         async with result:
@@ -314,6 +316,7 @@ async def test_translated_search_matches_sdk(
 
 @pytest.mark.parametrize("downstream", ["messages", "chat/completions"])
 @pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.filterwarnings("error::UserWarning")
 async def test_translated_search_tolerates_recorded_api_source(downstream: Protocol, stream: bool):
     """Ensures a recorded non-URL Responses source does not break translated output.
 
@@ -327,11 +330,13 @@ async def test_translated_search_tolerates_recorded_api_source(downstream: Proto
     """
     upstream_path = CASSETTE_DIR / "native/web_search_api_source/openai-responses-stream-00.yaml"
     upstream = _read_cassette(upstream_path)
-    output = _recorded_responses_output(upstream)
-    (search,) = [item for item in output if item["type"] == "web_search_call"]
-    assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
-    (message,) = [item for item in output if item["type"] == "message"]
-    (answer,) = message["content"]
+    output = _completed_responses_body(upstream_path)["output"]
+    (recorded_search,) = [item for item in output if item["type"] == "web_search_call"]
+    assert recorded_search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
+    expected = collect_sdk_response(
+        "responses", await _sdk_result("responses", True, cassette_path=upstream_path)
+    )
+    (search,) = [item for item in expected.output if item.type == "web_search_call"]
 
     prompt = "What's the weather in Kuala Lumpur today?"
     body, expected_request = _request_pair(downstream, "responses", stream)
@@ -359,12 +364,12 @@ async def test_translated_search_tolerates_recorded_api_source(downstream: Proto
 
     if downstream == "messages":
         calls = [block.id for block in result.content if block.type == "server_tool_use"]
-        assert calls[0] == search["id"]
+        assert calls == [search.id]
         assert not [block for block in result.content if block.type == "web_search_tool_result"]
         text = "".join(block.text for block in result.content if block.type == "text")
     else:
         text = result.choices[0].message.content
-    assert text == answer["text"]
+    assert text == expected.output_text
 
 
 @pytest.mark.parametrize("stream", [True, False])

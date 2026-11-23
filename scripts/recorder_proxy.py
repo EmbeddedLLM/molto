@@ -10,6 +10,7 @@ python scripts/recorder_proxy.py
 
 import argparse
 import json
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,8 +27,6 @@ from starlette.types import Send
 from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 from uuid_utils import uuid7
 from yaml import dump as yaml_dump
-
-from molto.utils.test import filter_headers
 
 # Defaults
 OUTPUT_DIR = Path("tests") / "cassettes/matched/tool_call"
@@ -68,6 +67,45 @@ EXCLUDED_RESPONSE_HEADERS = {
     "transfer-encoding",  # Handled by the server
     "connection",  # Let the server handle this
 }
+
+
+# Request and response headers retained in cassette recordings.
+RECORDED_HEADERS = {
+    "content-type",
+    "content-length",
+    "authorization",
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "cache-control",
+    "connection",
+    # Helpful for grouping multi-request tool loops into a single "run"
+    "x-run-id",
+}
+
+
+def mask_authorization(value: str) -> str:
+    """
+    Mask Authorization header values in recordings.
+
+    Cassettes are intended to be shareable "golden" artifacts; never write any
+    API key material to disk (even partially).
+    """
+    if not value:
+        return value
+    lower = value.lower()
+    if lower.startswith("bearer "):
+        return "Bearer ***"
+    return "***"
+
+
+def filter_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Filter headers to only include whitelisted ones."""
+    return {
+        k: v if k.lower() != "authorization" else mask_authorization(v)
+        for k, v in headers.items()
+        if k.lower() in RECORDED_HEADERS
+    }
 
 
 def filter_response_headers(headers) -> dict:

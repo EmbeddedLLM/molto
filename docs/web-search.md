@@ -136,6 +136,8 @@ OpenAI can also return sources that are not web pages, such as `{"type": "api", 
 
 Neither Messages nor Chat can represent a source without a URL, so translated output projects only URL sources. A search answered solely by non-URL sources has an unknown result: Messages keeps the `server_tool_use` block but omits its result, rather than reporting an empty result list as if nothing were found. A mixed result lists only its URL sources, classified by URL presence because compatible providers may omit `type`. Translated input is lossless-or-rejected, so Responses search history that carries an `api` source raises `UnsupportedInput` before transport.
 
+If a caller sends a translated Messages response back as history after a search backed only by non-URL sources, the history contains the search call without a result block. Molto sends that call to Responses with status `in_progress`. OpenAI's acceptance of that translated continuation has yet to be verified live.
+
 Translated Messages omits Responses `open_page` and `find_in_page` operations, retaining the answer and citations.
 
 ## Failures, pauses, and usage
