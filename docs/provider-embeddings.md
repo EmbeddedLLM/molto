@@ -2,7 +2,7 @@
 
 `await Molto.embeddings(...)` accepts an OpenAI-shaped embedding request and returns an OpenAI SDK `CreateEmbeddingResponse`. It supports dense text embeddings through five explicit provider integrations. It does not stream, split batches, tokenize, truncate, pool vectors, or submit asynchronous jobs. An ordinary asynchronous Python call waits for one upstream HTTP response.
 
-The implementation and offline coverage extend beyond the available live evidence. OpenAI and Cohere have successful live recordings. VoyageAI has authentication-error recordings and synthetic success coverage. Infinity and vLLM have pinned schema references and synthetic coverage, but **no live-tested server version or model**. These gaps remain part of [issue #93](https://github.com/EmbeddedLLM/molto/issues/93).
+The implementation and offline coverage extend beyond the available live evidence. OpenAI, Cohere, and VoyageAI have successful live recordings. Infinity and vLLM have pinned schema references and synthetic coverage, but **no live-tested server version or model**. These gaps remain part of [issue #93](https://github.com/EmbeddedLLM/molto/issues/93).
 
 ## Public contract
 
@@ -46,7 +46,7 @@ Evidence was collected on 2026-11-03. A schema reference is not a claim that its
 | --- | --- | --- | --- | --- |
 | OpenAI | `embeddings`; `https://api.openai.com/v1/embeddings` | Bearer; `OPENAI_API_KEY` | Live `text-embedding-3-small`; parsed SDK 2.53.0 | Scalar/batched text, single/batched token IDs, omitted/float/base64 encoding, default 1536 and explicit 8 dimensions, `user`, native usage, 400/404 errors. |
 | Cohere | `cohere/embed`; `https://api.cohere.com/v2/embed` | Bearer; `COHERE_API_KEY` | Live `embed-v4.0`, API v2; official native response schema | Text query/document, classification/clustering, `truncate` values `NONE`/`START`/`END`, 256 dimensions, float/base64, billed-unit metadata, model error. |
-| VoyageAI | `voyage/embeddings`; `https://api.voyageai.com/v1/embeddings` | Bearer; `VOYAGE_API_KEY` | Live attempts returned 401; successful response behavior is synthetic, schema-based | Text query/document intent, dimensions, float/base64, truncation, source-backed token totals and native metadata. No successful live model verification. |
+| VoyageAI | `voyage/embeddings`; `https://api.voyageai.com/v1/embeddings` | Bearer; `VOYAGE_API_KEY` | Live recordings with `voyage-4-lite`: query/default/document intent, float/base64, dimensions, and an unsupported-model 400 | Text query/document intent, dimensions, float/base64, truncation, source-backed token totals and native metadata. |
 | Infinity | `embeddings`; caller-supplied base ending in `/v1`, then `/embeddings` | Configured bearer or `EMPTY` | Schema pinned to **3.0.0**, commit `09acbe5`; no live server/model test | Synthetic dense text and token-ID forms, dimensions, encoding defaults/overrides, `user`, usage, and native errors. |
 | vLLM | `embeddings`; caller-supplied base ending in `/v1`, then `/embeddings` | Configured bearer or `EMPTY` | Schema pinned to **0.33.0**, commit `4ba787e`; configured server connection timed out | Synthetic dense text and token-ID forms, dimensions, encoding defaults/overrides, special-token/truncation controls, native indices, usage, IDs, timestamps, and errors. |
 
@@ -85,7 +85,7 @@ async with Molto() as molto:
     )
 ```
 
-The Voyage example describes the implemented API; its success has not been verified with the available credentials.
+Live Voyage recordings verify this request shape with `voyage-4-lite`.
 
 Cohere options use its native `input_type`: `search_query`, `search_document`, `classification`, or `clustering`. An input type is required. `truncate` accepts `NONE`, `START`, or `END`; omission leaves the upstream default. The input string or list becomes `texts`, `dimensions` becomes `output_dimension`, and the requested encoding selects one `embedding_types` entry.
 

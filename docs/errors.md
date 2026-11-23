@@ -61,7 +61,7 @@ Embedding clients reuse OpenAI SDK HTTP transport for all three wire protocols. 
 
 Missing embedding keys fail locally before the SDK can fall back to an unrelated OpenAI environment key, using the same synthetic-401 convention above. Self-hosted routes require an explicit base URL and use the non-secret `EMPTY` key when none is supplied. Unsupported task options, input forms, or output encodings raise `UnsupportedInput` or public request validation errors before HTTP; malformed output or inconsistent vector correspondence raises output-side validation errors.
 
-Embedding replay covers real OpenAI invalid-dimensions/missing-model errors, Cohere missing-model errors, and VoyageAI authentication failures. Engine validation errors and unavailable native-provider success cases use explicitly synthetic schema fixtures; they are not live verification. See the [embedding evidence matrix](provider-embeddings.md).
+Embedding replay covers real OpenAI invalid-dimensions/missing-model errors, Cohere missing-model errors, and VoyageAI unsupported-model errors. VoyageAI's `400` carries no error code, so it passes through as the SDK's `BadRequestError`. Engine validation errors and unavailable native-provider success cases use explicitly synthetic schema fixtures; they are not live verification. See the [embedding evidence matrix](provider-embeddings.md).
 
 ## Implementation and verification
 

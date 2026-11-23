@@ -82,7 +82,7 @@ async with Molto() as molto:
         print(item.index, len(item.embedding))
 ```
 
-The [embedding guide and support matrix](docs/provider-embeddings.md) covers OpenAI, Cohere, VoyageAI, Infinity, and vLLM, including native task options and evidence limitations. OpenAI and Cohere have successful live recordings; VoyageAI, Infinity, and vLLM require further live verification. Embeddings use one ordinary asynchronous request, without streaming or automatic batching.
+The [embedding guide and support matrix](docs/provider-embeddings.md) covers OpenAI, Cohere, VoyageAI, Infinity, and vLLM, including native task options and evidence limitations. OpenAI, Cohere, and VoyageAI have successful live recordings; Infinity and vLLM require further live verification. Embeddings use one ordinary asynchronous request, without streaming or automatic batching.
 
 ## Error handling
 

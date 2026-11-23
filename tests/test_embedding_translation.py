@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
-from openai import AuthenticationError, NotFoundError
+from openai import AuthenticationError, BadRequestError, NotFoundError
 from pydantic import SecretStr
 
 from molto import Molto
@@ -95,22 +95,63 @@ async def test_cohere_recorded_public_translation(scenario, encoding):
 
 
 @pytest.mark.parametrize(
-    ("provider", "scenario", "error_type"),
-    [("cohere", "invalid-model", NotFoundError)]
-    + [
-        ("voyageai", name, AuthenticationError)
-        for name in (
-            "single-default",
-            "single-query",
-            "batch-document",
-            "batch-base64",
-            "invalid-model",
-        )
-    ],
+    ("scenario", "encoding"),
+    [
+        (scenario, encoding)
+        for scenario in ["single-default", "single-query", "batch-document"]
+        for encoding in [None, "float"]
+    ]
+    + [("batch-base64", "base64")],
 )
-async def test_recorded_native_errors(provider, scenario, error_type):
-    """Ensures actual Cohere 404 and Voyage 401 bodies survive the shared error cause chain."""
-    cassette = _recording(provider, scenario)
+async def test_voyage_recorded_public_translation(scenario, encoding):
+    """Ensures Voyage's live native schema preserves task, vectors, order, dimensions, and metadata.
+
+    Voyage reports only `total_tokens`, so `prompt_tokens` stays unknown rather than inferred.
+    """
+    cassette = _recording("voyageai", scenario)
+    wire = cassette["request"]["body"]
+    body = {"model": wire["model"], "input": wire["input"], "dimensions": wire["output_dimension"]}
+    if encoding is not None:
+        body["encoding_format"] = encoding
+    seen = []
+    async with Molto(httpx.AsyncClient(transport=_replay(cassette, seen))) as molto:
+        result = await molto.embeddings(
+            body,
+            endpoint="voyage/embeddings",
+            api_key="test-key",
+            options=VoyageEmbeddingOptions(
+                input_type=wire.get("input_type"), truncation=wire["truncation"]
+            ),
+        )
+    native = cassette["response"]["body"]
+    assert result.object == "list"
+    assert result.model == native["model"]
+    assert [item.index for item in result.data] == [item["index"] for item in native["data"]]
+    assert [item.embedding for item in result.data] == [
+        item["embedding"] for item in native["data"]
+    ]
+    assert [item.provider_metadata for item in result.data] == [
+        {"text": item["text"]} for item in native["data"]
+    ]
+    assert result.usage.prompt_tokens is None
+    assert result.usage.total_tokens == native["usage"]["total_tokens"]
+    assert result.provider_metadata == {
+        key: value for key, value in native.items() if key != "data"
+    }
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    ("provider", "error_type", "normalized"),
+    [("cohere", NotFoundError, True), ("voyageai", BadRequestError, False)],
+)
+async def test_recorded_native_errors(provider, error_type, normalized):
+    """Ensures actual Cohere 404 and Voyage 400 invalid-model bodies reach the caller intact.
+
+    Cohere's 404 is a recognized SDK not-found error and gains a normalized cause.
+    Voyage's 400 has no error code, so it passes through without guessed classification.
+    """
+    cassette = _recording(provider, "invalid-model")
     wire = cassette["request"]["body"]
     cohere = provider == "cohere"
     body = {"model": wire["model"], "input": wire["texts"] if cohere else wire["input"]}
@@ -135,7 +176,7 @@ async def test_recorded_native_errors(provider, scenario, error_type):
                 options=options,
             )
     assert caught.value.response.json() == cassette["response"]["body"]
-    assert isinstance(caught.value.__cause__, APIException)
+    assert isinstance(caught.value.__cause__, APIException) is normalized
     assert len(seen) == 1
 
 
