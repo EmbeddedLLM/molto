@@ -166,6 +166,7 @@ The adapter currently applies these rules:
 - Custom tool definitions preserve name, description, input schema, and strict validation. Unsupported custom-tool fields and non-custom tools are rejected.
 - `tool_choice` preserves `auto` and `none`, maps `any` to required use, and maps a named `tool` to a named function. `disable_parallel_tool_use` becomes the inverse `parallel_tool_calls` value.
 - `max_tokens`, model, stream mode, temperature, `top_p`, and normalized reasoning effort are retained.
+- Enabled or adaptive `thinking` must use the default `summarized` display; other `display` values are rejected.
 - Top-level `cache_control` becomes the normalized prompt-cache intent: its presence selects provider-chosen (implicit) breakpoints, and its `ttl` carries the requested lifetime.
 
 Within a user message, tool results must precede ordinary user content for the current normalized path. A failed Messages tool result is representable inside Molto, but OpenAI request histories have no equivalent failed outcome, so a Messages-to-OpenAI route rejects it rather than silently changing its meaning.
@@ -207,6 +208,7 @@ The client applies these Messages-specific rules:
 - Tool parameters become `input_schema`; required use becomes `any`; and parallel-call control becomes the inverse `disable_parallel_tool_use` value.
 - Tool choice has edge rules: a required or named choice with no tools raises; when only parallelism is set, `disable_parallel_tool_use` rides on an explicit `auto` choice; the flag is omitted when tool use is disabled; and `tool_choice` is dropped entirely when no tools are present.
 - Implicit normalized cache intent becomes top-level automatic `cache_control: {type: ephemeral}`. Lifetimes `5m` and `1h` pass through; OpenAI's `30m` minimum maps to `1h`. OpenAI marker presence resolves an omitted lifetime to `30m` before projection; without markers, omission uses Anthropic's five-minute default. A caller-defined cache key is silently dropped without enabling caching or discarding the remaining options. Explicit mode omits top-level `cache_control` but preserves marked blocks, which inherit the request lifetime unless they specify their own. Retention policies are rejected.
+- The client also rejects a `concise` reasoning summary, tool-result names such as the optional `name` on a Responses `function_call_output`, `max_tool_calls` without a hosted search tool, and stream obfuscation.
 
 Messages requires an integer `max_tokens`. Responses and Chat Completions make their corresponding output-token limit optional, but a translated route targeting Messages must provide it so Molto can construct a valid Messages request. If the downstream request omits the limit, validation fails before transport.
 

@@ -14,6 +14,7 @@ Discovery has separate purposes for each root:
 - `native/` holds [native-only feature recordings](#native-only-feature-recordings) and optionally faithful provider-deviation recordings, for native SDK parity in supported scenarios. They do not require matched counterparts or establish translated behavior.
 - `errors/` supplies only the explicitly registered `ERROR_SCENARIOS`. The Responses-only incomplete-result recordings retain their focused interface tests.
 - `upstream_ir/` retains its separate projection and continuation runner; archives and legacy provider directories do not join generic discovery.
+- `anthropic/web_search/` holds the [Anthropic hosted-search recordings](#anthropic-hosted-search-recordings) for their focused tests; it does not join generic discovery.
 
 Each additional matched upstream provider runs against the canonical downstream companion and Responses reference, preferring the endpoint's default provider or requiring a unique available conversation. Native routes use that upstream provider's own request and SDK result. This preserves the existing routes without taking a cross-product of providers. Both native SDK runners pass the discovered provider explicitly. The existing native SDK baseline scenarios remain selected; other supported matched scenarios retain their native public-route assertions.
 
@@ -21,7 +22,7 @@ Malformed filenames, duplicate numeric identities, missing turns or required cou
 
 ## Recorded cassettes
 
-Faithful originals live under `native/`, `upstream_ir/`, or `errors/`, according to their test purpose. Preserve each original separately from any deliberately edited matched companion. Authorization values are masked, and only selected headers are retained so the fixtures remain safe and deterministic. Review request bodies for secrets before retaining recordings.
+Faithful originals live under `native/`, `upstream_ir/`, `errors/`, or `anthropic/web_search/`, according to their test purpose. Preserve each original separately from any deliberately edited matched companion. Authorization values are masked, and only selected headers are retained so the fixtures remain safe and deterministic. Review request bodies for secrets before retaining recordings.
 
 For each provider deviation or native-only feature recording, a nearby README must identify the source provider, endpoint, model and server version when available, response mode, purpose, and recording provenance. Retain the complete sanitized conversation. Native tests compare requests and SDK-parsed results with that original, asserting the observed deviation separately from any documented Molto adjustment. If translation is affected, retain the difference in the upstream replay and compare against Responses-referenced expectations; matching must not erase the deviation under test.
 
@@ -171,11 +172,12 @@ In the current recordings the three ciphertexts cover the same number of reasoni
 
 ### Scenario listing
 
-The `matched/{scenario}/` directories currently exercise these scenarios. One scenario may span several turns, so each turn subfile carries `-01`, `-02`, and so on:
+The `matched/{scenario}/` directories currently exercise these scenarios. One scenario may span several turns, so each turn subfile carries `-00`, `-01`, and so on:
 
 | Scenario | What it exercises |
 | --- | --- |
 | `simple_text` | Two plain-text turns over every protocol pair, carrying actual returned history. |
+| `sampling_tests` | Two plain-text turns carrying `temperature` and then `top_p` across all three protocols. |
 | `reasoning_raw` | Raw reasoning projected through Chat and Messages as well as Responses. Uses `vllm-*` filenames (`provider="vllm"`); see below. |
 | `reasoning_encrypted` | A summarized reasoning item whose continuation is opaque encrypted state, exercising the encrypted-snapshot mapping. |
 | `input_image_base64` | Base64-data-URL image user input. |

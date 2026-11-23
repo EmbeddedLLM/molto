@@ -117,6 +117,7 @@ The translated path currently maps these request semantics:
 | ------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `model`, `stream`                    | Preserved                                                                                |
 | `max_completion_tokens`              | Becomes the portable output-token limit                                                  |
+| Deprecated `max_tokens`              | Becomes the portable output-token limit; supplying both limits is rejected               |
 | `reasoning_effort`                   | Becomes portable reasoning effort                                                        |
 | `temperature`, `top_p`               | Preserved                                                                                |
 | `parallel_tool_calls`                | Preserved; Messages later expresses it by inverting `disable_parallel_tool_use`          |
@@ -169,6 +170,8 @@ An upstream Chat client converts another downstream protocol's normalized reques
 | Prompt cache                | `prompt_cache_key`, `prompt_cache_options`, `prompt_cache_retention`               |
 | Content cache breakpoint    | `prompt_cache_breakpoint` on supported text/image parts                            |
 
+The client rejects normalized settings that Chat cannot represent: hosted search declarations, selections, and search history; `max_tool_calls`; a `concise` reasoning summary; and tool-result names, such as the optional `name` on a Responses `function_call_output`.
+
 The client preserves every explicit assistant-history message boundary. Within one message, Chat accepts runs of reasoning, text, and tool-call parts in that order; each run is optional. Adjacent reasoning parts concatenate into `reasoning_content` in order with a newline separator. Multiple text parts remain an ordered content array with their individual markers; one unmarked text part uses scalar content. Multiple tool calls remain separate entries in one `tool_calls` array, retaining their call IDs.
 
 These examples apply within one explicit assistant message:
@@ -219,9 +222,9 @@ The first native chunk supplies response ID, creation time, model, and source se
 | Ordered user text and image parts    | Preserved                                                                             |
 | `system` versus `developer` identity | Collapsed into one instruction type                                                   |
 | Instruction position                 | Preserved for Responses and Chat targets; hoisted for Messages                        |
-| Assistant message container          | Lost in normalization                                                                 |
+| Assistant message container          | Preserved as one `AssistantInput`; Responses splits text around reasoning and calls   |
 | `reasoning_content` followed by text | Retained as adjacent reasoning and text; commonly reconstructed into one Chat message |
-| Multiple assistant text items        | May become multiple Chat assistant messages                                           |
+| Multiple assistant text items        | Retained as ordered text parts of one assistant message                               |
 | Chat choice index                    | Only index `0` is currently normalized                                                |
 
 The provider or model renderer can still merge, move, or reinterpret accepted wire messages before tokenization. Those model-visible transformations are outside the endpoint schema and are covered in the [provider and renderer discussion](../README.md#provider-and-model-renderers).
@@ -251,7 +254,7 @@ With markers present, omitted OpenAI mode resolves to `implicit` and omitted lif
 | `tool_calls` or legacy `function_call` | `tool_call`         | `tool_calls`            |
 | `content_filter`                       | `content_filter`    | `content_filter`        |
 
-Other normalized reasons use `stop` when Chat has no exact finish reason. This keeps the stream consumable but loses the source distinction. Native Chat passthrough does not apply this coercion.
+A normalized `pause` uses `length`, and other normalized reasons use `stop` when Chat has no exact finish reason. This keeps the stream consumable but loses the source distinction. Native Chat passthrough does not apply this coercion.
 
 Usage maps semantically rather than by dumping provider objects:
 
@@ -300,7 +303,7 @@ Native Chat routes forward `web_search_options` from the request or `extra_body`
 
 Use `web_search_options: {}` with a Responses or Messages upstream to require hosted search. Translated routes targeting a Chat upstream reject hosted search before transport.
 
-Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned raw reasoning remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
+Translated Chat raises `ValueError("Chat Completions cannot preserve reasoning signatures.")` when upstream output contains signed thinking or encrypted reasoning, including signature-only parts. The OpenAI hosted-search streaming recording contains encrypted reasoning; Anthropic hosted-search turns with signed thinking have the same limitation. Use Responses or Messages downstream for these turns. Search without reasoning or with unsigned reasoning remains representable; enabling search alone does not cause rejection. Native Chat passthrough is unaffected.
 
 For representable output, translated Chat retains answer text and inline links while omitting hosted activity and structured citations. See [Hosted web search](../web-search.md) for tool selection, option mappings, and continuation limits.
 
@@ -308,13 +311,13 @@ For representable output, translated Chat retains answer text and inline links w
 
 These are implementation gaps rather than inherent claims about the Chat protocol:
 
-- An upstream Chat stream silently uses `choices[0]`; additional choices are not rejected and are lost. Requests with `n > 1` should not use translation.
+- Translated Chat requests reject `n`, so Molto never requests multiple choices. An upstream Chat stream that still returns them, for example through `extra_body`, is read only from `choices[0]`; additional choices are not rejected and are lost.
 - Chat cannot carry signed reasoning output or history. Unsigned summary output and history are supported, but Responses and Messages upstream builders still require signatures when replaying summary history.
-- Refusals, hosted tools other than basic web search, moderation, non-web annotations, audio, prediction output, and log probabilities are not carried through the normalized path. Hosted-search structured annotations are deliberately omitted from translated Chat output.
+- Refusals, hosted tools other than basic web search, redacted thinking, structured output, moderation, non-web annotations, image output, audio, prediction output, and log probabilities are not carried through the normalized path. Hosted-search structured annotations are deliberately omitted from translated Chat output.
 - Chat text chunks therefore use `logprobs=None`, even when another protocol could theoretically represent compatible token log probabilities.
 - Chat has no normalized per-part status. Target lifecycle and status fields are synthesized where required, and pauses map to `finish_reason="length"`; other terminal reasons without an exact Chat mapping become `finish_reason="stop"`.
 - The downstream adapter rejects image content in native Chat tool messages. Image relocation exists only when Chat is the upstream target.
-- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as deprecated `max_tokens`, `metadata`, `service_tier`, `store`, `top_logprobs`, and `verbosity` must not be assumed to work on translated routes.
+- Cross-protocol request forwarding is limited to the fields listed in this guide. Accepted fields such as `metadata`, `service_tier`, `store`, `top_logprobs`, and `verbosity` must not be assumed to work on translated routes.
 - There is no focused regression coverage for role-preserving instruction round trips, multiple choices, or model-template-specific role rewriting. On the Responses/Chat translated paths, mid-sequence and multipart instruction messages also lack focused coverage; those cases are covered only for top-level system blocks and for the Messages path.
 
 ## Compatibility and references
@@ -332,7 +335,7 @@ Repository references:
 - [Chat upstream client](../../python/molto/upstream/openai.py)
 - [Protocol coordination](../../python/molto/core.py)
 - [Interface parity tests](../../tests/core/test_interface.py)
-- [OpenAI cassette matcher](../../scripts/match_openai_cassette_events.py) and its [reconstructable Chat Completions canonicalization helpers](../../python/molto/utils/test.py#reconstructable_chat_completions_chunks)
+- [OpenAI cassette matcher](../../scripts/match_openai_cassette_events.py) and its reconstructable Chat Completions canonicalization helper, `reconstructable_chat_completions_chunks` in [`molto/utils/test.py`](../../python/molto/utils/test.py)
 - [Cassette policy](../../tests/cassettes/README.md)
 - [Cross-protocol comparison](comparison.md)
 

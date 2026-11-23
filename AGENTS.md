@@ -42,7 +42,7 @@ The user's job as a senior software engineer is dependent on you implementing cl
   3. Establish the intended production contract before changing a public API. Tests should verify that contract, not define new requirements implicitly. Explain any change to the contract.
   4. Verify affected defaults, preset inheritance, override detection, and serialization across consumers, not only the originally failing path.
 
-- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets. When validating Compose files that use environment files, use `docker compose config --quiet`; do not print fully resolved Compose configuration because it can expand secret environment values into command output.
+- **Protect Secrets in Command Output**: Never print resolved configuration, environment variables, credentials, or command output that may expose secrets.
 
 ## Workflow Orchestration
 
@@ -154,7 +154,7 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - Never describe a skipped, incomplete, or failing check as passing.
 - In the final handoff, list the verification, test, formatting, linting, and static-analysis commands run, together with their outcomes.
 
-### 8. Repository Safety
+### 9. Repository Safety
 
 - Inspect `git status` and the relevant diff before editing.
 - Preserve existing uncommitted changes and never overwrite work you did not create.
@@ -199,7 +199,7 @@ Do not format unrelated files merely to make a repository-wide check pass.
 - When writing prompts, avoid using non-ASCII symbols.
 - Follow the existing code style in each file.
 - Use meaningful variable and function names.
-- **Dependency versions**: Pin exact versions (e.g. `"2.0.0"`) in `package.json` and in the `test` extra of `pyproject.toml`. Core `dependencies` may use ranges, because they describe what a consumer may install rather than what this repository is tested against. Never use caret (`^`) or tilde (`~`) ranges for a pinned dependency, and never widen a range without re-deriving it from the test suite. See [Dependency Versions](#dependency-versions).
+- **Dependency versions**: Pin exact versions (e.g. `==2.0.0`) in the `test` extra of `pyproject.toml`. Core `dependencies` may use ranges, because they describe what a consumer may install rather than what this repository is tested against. Never use caret (`^`) or tilde (`~`) ranges for a pinned dependency, and never widen a range without re-deriving it from the test suite. See [Dependency Versions](#dependency-versions).
 
 ### Dependency Versions
 
@@ -211,9 +211,14 @@ Do not format unrelated files merely to make a repository-wide check pass.
 
 Because CI is pinned, the rest of each range is not continuously verified: a new SDK release inside a window can break consumers without turning CI red. Validate a bound explicitly, by installing that single version into a throwaway `uv` environment and running the whole suite there, rather than trusting the range.
 
-`dependency-version.md` is an uncommitted, local analysis of the provider SDK windows. It records the floor and ceiling each SDK passes the offline replay suite on with the failing test or `ImportError` behind every bound, why each bound exists (a hard imported SDK symbol versus test-level schema drift versus structural breakage no test update can fix), the `uv` per-candidate methodology used to derive them, and how to re-derive or lift a bound.
+When deriving or changing a provider SDK window, record in the pull request the floor and ceiling the offline replay suite passes on, the failing test or `ImportError` behind each bound, and why the bound exists: a hard imported SDK symbol, test-level schema drift, or structural breakage that no test update can fix. Treat that evidence as a dated snapshot. SDK releases appear continuously, so re-derive any bound with the suite before changing it. `pyproject.toml` remains authoritative.
 
-Treat it as a dated snapshot, not a source of truth. SDK releases appear continuously, so re-derive any bound with the suite before changing it. This file and `pyproject.toml` remain authoritative.
+### Writing and Communication
+
+- Apply ASD-STE100 Simplified Technical English principles to all written output, including replies to the user, documentation, code comments, commit messages, PR titles and descriptions, and review comments.
+- Write for understanding on the first read. Use familiar words, concrete and consistent terms, and simple sentence structures. Use code identifiers when they are more precise than a general description.
+- Express one main idea per sentence. Prefer active voice and make conditions, actions, and consequences explicit. Present ideas in the order the reader needs to understand them.
+- Include the information needed to understand the reasoning. Remove detail that distracts from it. Keep the text succinct without omitting necessary context or sacrificing technical accuracy.
 
 ### Code Comments
 
@@ -227,9 +232,27 @@ Treat it as a dated snapshot, not a source of truth. SDK releases appear continu
   - depends on subtle assumptions, ordering requirements, external behavior, or non-obvious invariants;
   - is sufficiently complex that its intent or correctness would otherwise be difficult to verify.
 
-- Comments should explain **why** the implementation exists, what constraint or decision led to it, and, when useful, what could go wrong if it is changed.
+- In general, state the problem or purpose first. Then briefly explain what must be done or how the solution resolves the issue. State the consequence of the problem or of violating the requirement. Use only as many sentences as needed to explain these points clearly.
+- When wrapping comments, prefer line breaks at punctuation, such as sentence endings or commas. Keep related phrases together rather than filling each line to the maximum width. Respect the project's line-length limit.
 - Do not add comments that simply restate the code, narrate each operation, or compensate for unnecessarily complicated implementation.
 - Keep comments accurate when modifying the associated code. Remove comments that are obsolete, misleading, or no longer useful.
+
+For example, "credential version" makes the reader infer which value matters and why. Name `refresh_counter` and explain the race and its consequence.
+
+Unclear:
+
+```python
+# Keep the credential version that was authenticated under the account lock.
+# Reloading it after commit could turn an old password into a new valid session.
+```
+
+Clearer:
+
+```python
+# Guards against a login racing with a concurrent password reset.
+# The session must retain the `refresh_counter` value read when its password was verified.
+# Otherwise it may allow a session authenticated with the old password to survive the reset.
+```
 
 ## Code Review and Refactoring Guidelines
 
