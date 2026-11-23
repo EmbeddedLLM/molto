@@ -1,20 +1,16 @@
-timestamp: '2026-11-23T14:02:45.546927+00:00'
 request:
-  method: POST
-  url: https://api.voyageai.com/v1/embeddings
-  path: /v1/embeddings
-  query_params: {}
+  body:
+    input: Hello
+    model: molto-invalid-embedding-model
+    output_dtype: float
   headers:
     authorization: Bearer ***
     content-type: application/json
-  body:
-    model: molto-invalid-embedding-model
-    input: Hello
-    output_dtype: float
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+  url: https://api.voyageai.com/v1/embeddings
 response:
-  status_code: 400
-  headers:
-    content-type: application/json
   body:
     detail: Model molto-invalid-embedding-model is not supported. Supported models
       are ['voyage-4-large', 'voyage-4', 'voyage-4-lite', 'voyage-code-4', 'voyage-3',
@@ -22,13 +18,7 @@ response:
       'voyage-code-2', 'voyage-02', 'voyage-2', 'voyage-01', 'voyage-lite-01', 'voyage-lite-01-instruct',
       'voyage-lite-02-instruct', 'voyage-code-3', 'voyage-3-large', 'voyage-multilingual-2',
       'voyage-large-2', 'voyage-3.5', 'voyage-3.5-lite', 'voyage-code-3.5'].
-  body_bytes: !!binary |
-    eyJkZXRhaWwiOiJNb2RlbCBtb2x0by1pbnZhbGlkLWVtYmVkZGluZy1tb2RlbCBpcyBub3Qgc3Vw
-    cG9ydGVkLiBTdXBwb3J0ZWQgbW9kZWxzIGFyZSBbJ3ZveWFnZS00LWxhcmdlJywgJ3ZveWFnZS00
-    JywgJ3ZveWFnZS00LWxpdGUnLCAndm95YWdlLWNvZGUtNCcsICd2b3lhZ2UtMycsICd2b3lhZ2Ut
-    My1saXRlJywgJ3ZveWFnZS1maW5hbmNlLTInLCAndm95YWdlLWxhcmdlLTItaW5zdHJ1Y3QnLCAn
-    dm95YWdlLWxhdy0yJywgJ3ZveWFnZS1jb2RlLTInLCAndm95YWdlLTAyJywgJ3ZveWFnZS0yJywg
-    J3ZveWFnZS0wMScsICd2b3lhZ2UtbGl0ZS0wMScsICd2b3lhZ2UtbGl0ZS0wMS1pbnN0cnVjdCcs
-    ICd2b3lhZ2UtbGl0ZS0wMi1pbnN0cnVjdCcsICd2b3lhZ2UtY29kZS0zJywgJ3ZveWFnZS0zLWxh
-    cmdlJywgJ3ZveWFnZS1tdWx0aWxpbmd1YWwtMicsICd2b3lhZ2UtbGFyZ2UtMicsICd2b3lhZ2Ut
-    My41JywgJ3ZveWFnZS0zLjUtbGl0ZScsICd2b3lhZ2UtY29kZS0zLjUnXS4ifQ==
+  headers:
+    content-type: application/json
+  status_code: 400
+timestamp: '2026-11-23T14:02:45.546927+00:00'

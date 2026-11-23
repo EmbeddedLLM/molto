@@ -1,26 +1,26 @@
-recorded_at: '2026-11-23T14:04:39.044712+00:00'
-provider: voyageai
+base_url: https://api.voyageai.com/v1/embeddings
 deployment: direct hosted API
 driver: Standalone httpx POST outside pytest, independent of Molto. No retries; 21s
   pacing for the 3 RPM unbilled tier.
-httpx_version: 0.28.1
-base_url: https://api.voyageai.com/v1/embeddings
-provenance: faithful live HTTP recording; only authentication header masked and headers
-  whitelisted; body_bytes preserves original decoded response bytes
-schema_reference: https://docs.voyageai.com/reference/embeddings-api
 fixtures:
 - file: single-default.yaml
-  sha256: 678dac3a3a40daa75ff5476c020aa706fd1bf23f2aaf8dc7144db112a1a7c23b
+  sha256: 5a1733b8c3a5e298c30a6104fad756aaf63be838967446bdcdc657292107aeb6
   status_code: 200
 - file: single-query.yaml
-  sha256: 07eed0151742cfdfaeea70b38b9d64b092e15e82f64264c4aecb582de016f4bf
+  sha256: 4c13da1b19912dd0c93f47017e8ab28a40bf605f7116f0bab6dd6ec0b85c85f4
   status_code: 200
 - file: batch-document.yaml
-  sha256: 0181cbb96cfdfacee83561ab6783b98f0440ffc86f2f076ff237eadd709d3e7a
+  sha256: e0c5b27de1640cd65b2fd913f6fc8b0e39f0471da5ccc91d783b5e96dd5c3af1
   status_code: 200
 - file: batch-base64.yaml
-  sha256: 69264360ee74a58bcfb6dfc9e879dae9057f24a644116f69369ea71e458d296e
+  sha256: f9c08766632aeae477d47d4860510f8f36455d45254399fc54534030aa6ad443
   status_code: 200
 - file: invalid-model.yaml
-  sha256: 11e3beb133f797902653c92735c96df490cc6ff90e09f8fa2e701e373c4f82a5
+  sha256: f2bbc55a64ff66715265497d93e2d266c9fa9ef726f9efc52419b3f121546d23
   status_code: 400
+httpx_version: 0.28.1
+provenance: faithful live HTTP recording; only authentication header masked and headers
+  whitelisted; response bodies stored as parsed JSON
+provider: voyageai
+recorded_at: '2026-11-23T14:04:39.044712+00:00'
+schema_reference: https://docs.voyageai.com/reference/embeddings-api

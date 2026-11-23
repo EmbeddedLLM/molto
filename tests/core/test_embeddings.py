@@ -53,7 +53,7 @@ def _client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Request]]:
         return Response(
             recorded["status_code"],
             headers=recorded["headers"],
-            content=recorded["body_bytes"],
+            json=recorded["body"],
             request=request,
         )
 
@@ -62,11 +62,9 @@ def _client(cassette: dict[str, Any]) -> tuple[AsyncClient, list[Request]]:
 
 @pytest.mark.parametrize("case", MANIFEST["scenarios"], ids=lambda case: case["scenario"])
 def test_recorded_embedding_evidence_integrity(case: dict[str, Any]) -> None:
-    """Ensures promoted HTTP bytes still match the independent recording manifest."""
+    """Ensures each promoted recording still matches the independent recording manifest."""
     source = (CASSETTE_DIR / case["file"]).read_bytes()
     assert hashlib.sha256(source).hexdigest() == case["sha256"]
-    cassette = read_yaml(CASSETTE_DIR / case["file"])
-    assert json.loads(cassette["response"]["body_bytes"]) == cassette["response"]["body"]
 
 
 @pytest.mark.parametrize("case", SUCCESS_CASES, ids=lambda case: case["scenario"])
@@ -279,7 +277,7 @@ async def test_embeddings_native_preserves_reordered_results_and_extensions() ->
     payload["data"][0]["provider_metadata"] = {"source": "second input"}
     payload["usage"]["billable_units"] = 7
     payload["provider_request_id"] = "synthetic-request"
-    cassette["response"]["body_bytes"] = json.dumps(payload).encode()
+    cassette["response"]["body"] = payload
     reference_client, _ = _client(cassette)
     async with reference_client:
         reference = await AsyncOpenAI(
