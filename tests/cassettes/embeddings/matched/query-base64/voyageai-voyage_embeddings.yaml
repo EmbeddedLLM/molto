@@ -1,0 +1,39 @@
+filename: 2026-11-23-01a208ef-36ab-7723-8fd6-7ee19a250693
+request:
+  body:
+    encoding_format: base64
+    input:
+    - Where do penguins live?
+    input_type: query
+    model: voyage-4-lite
+    output_dimension: 256
+    output_dtype: float
+    truncation: false
+  headers:
+    accept: '*/*'
+    accept-encoding: gzip, deflate, zstd
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '187'
+    content-type: application/json
+    user-agent: voyageai-python/0.6.0 CPython/3.14.7 Linux
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+request_id: 01a208ef-36ab-7723-8fd6-7ee19a250693
+response:
+  body:
+    data:
+    - embedding: sJgVvSDB4b1l9Ca96pe1vGDH1LzP3B+8m4NUvKWSBDwYd6a9CsySPOdN1D3/lkg9dCBtvYsMmj3KXXW8d4CXvO/EB71l/4Y9V0xMPeOaCzyaHco7jomAPa8Ouz3N4Mc9S4MgvbJxMDlQHTm+nR3uvAk0lj0cDY88ZFqWvbJkhD2M2ss9LOgJPGz9ur1US4M8xjHLvX+TgT2e58G95ATruo1KiD3dbt68DhcZPe2vtrwlPdk91SWtPFe19Lwo1MK9uE74vR4mrL3Ffri9IoiFvUHBpr1SAqy9dQXyPPPH9r2tFzq9d5utPZ5O1rxT9KQ87o69vV4rAz5mBY48s4qpPOKoEr2ZaTa9kbuWvJI7Lb1WF489IFm6vQZt6TxoJj29wzXzPDL9h73W7wA9vm+vPafeHb3D6v68TgQlvHbqybxvba08ocogPb4aDL3LTic9D30jvRR5lrzDuCG9CATTPN1VSjvkmh08AziRPDUaer34XWi9PJNKvFRmmT3XJb86PCw/Pbschb0w5jS9JjBlvTcUIz3J0oE9Z8JhvZ/8gDwiYyI9OkeePSOpKz3UDKs8+cC5vb5raT2/dBE+5d6APDUxxLx6HHu978jlPJkphb2GTRa9XWT6PdZXH7xi97K9mxmHvEFzlL26COI9L5kRPAG5hDxUmjE8+cC5Pb/vM70T6tk9pGRnvXwvi7y18MU9JwjSvAN5Jj5QObI9JjiDPbg7sT0SlCM6nQApvQHxcT2N1a+9uTcJvTTA6zyYTxg8AeaLvWBfvz1B3MW90XjovIB6Izwjv9Y999u9O2JHfT2VIoo9VkGOPOvEPL2Pop291VtZu2mtj7u8UlU9DWa1u3YedL0OVog83jvQPVhLyzzqDA69KVANPUnUmbxp2+y6+DNpvV/ATDxfk7M84EDxPOtJGj0wgKG8iSaUPRVgrz3BnNo8XGJUPU2/pT1gXqy8tdn7vEASez11QZa9/aVivcFOPzutKuQ9uLxaPL3RRjwJtBq93ADqPLjJ4DvFGua8JSivPQEjyT1u0wo799IPPQE6pb1CjsU9JLymvHGdAj7Yvbu9mRGoPZoCoj3dAmg9kdSPPWklKjyFX8w8EABqO6vOCz2d/oK9zJGQvXAHPj39lSO95eUIPc+PDr6jlj69/e8fvooZlz0vmRq9b1MYvVLOJb4p08G6lMWQPfwN7z0HdAY9YdNrvbvRK717TMc79I4IvVYklb3/IBo8rLhdvQ6a1r3YCik9HaeovANVVr0hI448zkbtvQ/ZYD250Qc99acBPNJD2DwxGTE9m02NO3GfOr2JTjm9AziRu6tFzT3v4cy7jmMKPcbJGjve1N+9H4wtPbDlaT0UivG9TXrcvQ==
+      index: 0
+      object: embedding
+      text: null
+    model: voyage-4-lite
+    object: list
+    usage:
+      total_tokens: 5
+  headers:
+    content-length: '1505'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-23T15:03:44.555909+00:00'

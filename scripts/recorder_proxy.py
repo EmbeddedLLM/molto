@@ -19,11 +19,9 @@ import uvicorn
 from anyio import CancelScope
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from httpx import AsyncClient, HTTPStatusError
+from httpx import AsyncClient
 from loguru import logger
-from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 from starlette.types import Send
-from tenacity import retry_if_exception_type, stop_after_attempt, wait_exponential
 from uuid_utils import uuid7
 from yaml import dump as yaml_dump
 
@@ -33,31 +31,10 @@ TARGET_HOST = "https://api.openai.com"
 TIMEOUT = 60 * 5  # 5 minutes
 
 
-def should_retry_status(response) -> None:
-    """Raise exceptions for retryable HTTP status codes."""
-    if response.status_code in (429, 502, 503, 504):
-        response.raise_for_status()  # This will raise HTTPStatusError
-
-
-HTTP_CLIENT = AsyncClient(
-    timeout=TIMEOUT,
-    transport=AsyncTenacityTransport(
-        config=RetryConfig(
-            # Retry on HTTP errors and connection issues
-            retry=retry_if_exception_type((HTTPStatusError, ConnectionError)),
-            # Smart waiting: respects Retry-After headers, falls back to exponential backoff
-            wait=wait_retry_after(
-                fallback_strategy=wait_exponential(multiplier=1, max=60),
-                max_wait=300,
-            ),
-            # Stop after 5 attempts
-            stop=stop_after_attempt(5),
-            # Re-raise the last exception if all retries fail
-            reraise=True,
-        ),
-        validate_response=should_retry_status,
-    ),
-)
+# Each client request is forwarded once, so every recording is one real upstream exchange.
+# A failed attempt, such as a 429, is recorded as-is for the operator to discard and rerun.
+# Recording drivers should also disable SDK retries, otherwise each retry becomes its own file.
+HTTP_CLIENT = AsyncClient(timeout=TIMEOUT)
 
 # Headers to record (whitelist)
 RECORDED_HEADERS = {

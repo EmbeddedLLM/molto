@@ -1,0 +1,36 @@
+filename: 2026-11-23-01a208ee-cf3b-7322-9f51-5b9774d07206
+request:
+  body:
+    dimensions: 256
+    encoding_format: base64
+    input:
+    - Where do penguins live?
+    model: text-embedding-3-small
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, zstd
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '114'
+    content-type: application/json
+    user-agent: OpenAI/Python 2.53.0
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+request_id: 01a208ee-cf3b-7322-9f51-5b9774d07206
+response:
+  body:
+    data:
+    - embedding: AGBqPQDg57wAABI+AKD/PQBgyrsAIKY9AADYuwAgKz0AIE+8ACCXvQAAjr0AwFM9AGBNPQDAzrwAQBm9AOCePQBgH7wAQA08AKDMPACAyD0A4GO7AIC4vQAArL0AIHi9AAAavQCA9D0AIKi9ACCzPQCARD0AAOY9AACyPAAgfL0AgLe9AKB/PQDAMj0AYIk9AEADvQCAwbwAgIi9AMASvQCA1rwAgHm8AICevQBgrz0AwLo8AGDaPQCghLwAQE+8AIB3PAAAjT0AgEk9AAD1PQCAO70AIMm9ACAuPQCgTz0AwHK9AOC6vQCA2T0AgIy9AACCvACg3D0AwNM9AKAZPQDgyzwAYJY9AIBnvACA+D0AYI69AKC7vQDAo7sAIBi9AMD7PQDA2LwAYBi+ACDuPQBgkjsAQH29AECouwBAqr0AIBi9AKAaPQDgeb0AoNe7AACgvADgh70AgMg9AGATvQDAPL0AgMk8AGCePQDAEr0A4Li9AADVvQBAuD0AwH08AGCZPQDgYz0AwJk9AICcvACgSb0AoDu+AEAcPADgszwA4ES9AIDJvQAglbwAIOg9AADVOwDgybwAgB+9AABuvQAgrDwAQIs9AIDZvQCg2j0AwHg9AECxvADgFz4AINg9AEBPPQCguTsA4C49ACBevQDAcr0A4Dc9AGAaPQCg0b0AAJI9AOA+vQBga70AYGs7AIDTvACAkLwAgAu9AIAdPQDAw7wAoIu9AIBwPQBAUT0AgDg9ACBUPACgFT0AYI09AAA2vQCg0bwAIA69ACAvPADgDz0A4IO9AIBQuwAAfj0AoO88AADlPQBggr0A4OM8AMAKPQBAUj0AYJo7AGAHvABAkr0AgOc8AAAivABAybwAAFs9AEAyvQBAXz0AAMq8AGB1vQBgbrwAYH29AGDdvADAjj0A4Jq8AIBBPAAA3r0AAOA9AIAIPADgQL0AwJw9AAAbvABALD4AQEI9AOB7vQAgYz0AYDI+ACBDPQBAcr0AQJO8AGDSPQAgdL0AwPW8AEAIPQAA5jsAAGi9ACBBPQAg2D0AwOA7AEDBvACgCT4AQM+7AOC0vADg+bwAQIs8AACavADgybwAIAC9AGDjvADgnT0AYLO9AOCLuwCAuDwAICg9AOAOvABAqTwAoBe9AKCuvQDgx7wAIAu8AKDCPADgk70AIAk8AGCjPQBgaz0AQHc8ACADPQBghD0AoAK9AKAXPQBg4DwAAHY8AKAWPQDApTwAoMy9AICDvQCAbr0AIHO9AEAZvQBgjr0AYFY9AKA/vACgWj0AgEg9AAA9PAAAJjwAAEq9AODEuwBguTwA4Ou8AMCivQBAM70AIBU9AOD5PQAAnrwA4E89AAAdvQ==
+      index: 0
+      object: embedding
+    model: text-embedding-3-small
+    object: list
+    usage:
+      prompt_tokens: 6
+      total_tokens: 6
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-23T15:03:18.075495+00:00'

@@ -1,0 +1,44 @@
+filename: 2026-11-23-01a208ef-8cfd-7831-af2a-01393825fb6a
+request:
+  body:
+    encoding_format: base64
+    input:
+    - Penguins live in the Southern Hemisphere.
+    - Polar bears live in the Arctic.
+    input_type: document
+    model: voyage-4-lite
+    output_dimension: 256
+    output_dtype: float
+    truncation: false
+  headers:
+    accept: '*/*'
+    accept-encoding: gzip, deflate, zstd
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '243'
+    content-type: application/json
+    user-agent: voyageai-python/0.6.0 CPython/3.14.7 Linux
+  method: POST
+  path: /v1/embeddings
+  query_params: {}
+request_id: 01a208ef-8cfd-7831-af2a-01393825fb6a
+response:
+  body:
+    data:
+    - embedding: vB+evb6D871/Ejy8JMFVPKd6XrsuIZ27Xz4pvaDalDpMdh68NTMIPUdnqz0Sh4M9oLmWvayM2z0Q/FS9hzC9vBWeYLzdYkE93dmePdlrk7yWVAG9s5fIPV96CL3bTz89DnowvQ9/Wr1uaAq+LOv1vGcOmD0jHpg9NsnZvJhtDj0Zt0k90VjZu6eptL0Iyt49TkSjvUzWhT1DaZE7ql/Hu9jhYj08HYA9JiJqPaCW+ryeYno9vOLvPAQ1Qb2yEOq8w9y5vVSdRr0XyAS+Xh3PPDtxyr00GCe+eKrxPM9Hmby3+T08ZueOPQx0t70F0dy89P7AvXHb4z26lp+8skSMvP6lW711B3O9NzIVvWXtPbwRlJ49eIujOuwBvrxGx1O9Ty87vCnigrwbE7Q9qsHgPZauTTwQLIM9oZBLPV1Tmr2CW4A87IRDPQpz+rzc62w9L8Q/vd5hYD0zt4A8yWW6vUU6F7v2VA66oZiYOjNUGD2uOIi9pAVMPbJRlT0TCSi80aZ9vbLMTbuAlS+9ATeevWzeoT2iqfM9QuW8vdJlULzJNRw9QpvzPLROaT2o0Yw9uytYvbBEHj2KNw4+tetlOBJ/SLz4p9y9I2eJPf6ZqjyNVWC92rjEPYqSIDt/3Ug9cDIkvAc8gL3yjnw9t4K8PICi5rwgnJe9kOW4PK09Vr2DS5w9CSCsvSags7vl2908zE3IvNgb0T1rQM09Zmj2PLmU7z2tOJq8+j4zPRdeAj3g34W92vloPTPryjyu7W89z72VvQSjeT2McEG92Z6MvbI2Ij0ChR4+ZoSmPfcrQz1tS7g9kWmNPXpBWj1nqy++sH+lPbuVrLwN2zE9Gb14vCtO5zyWf3c8qxmoPcGCSb2RYqE9VIuBPUg41T00u1u9tcYMvcyCRL24E6y8K36ePconsrx4awa98EBzvRckBj5j7rA8JTQ2PTIIuD0Lhau93xOqvbeDnT1zCha9zzd/vWctZr3Axnc9UABlPJ4BQr35ADQ9SnlMPXmdaLw5CFe9i7OePVvUQD03gCc9kaSUPSo2qb2WUCg9oEoGPCYp1jwZ8fi9XG6EPGnXYj1a9zg9aKWAPVchgD1SYfk7Ogr3vBK6NDzx4IC9+FJMvSCwlbopi7m9jawOvW4Rwb3J5Oa8BNocvp2SsbqfDrm9wnmiu1VU3rzj5B09sAhIPZAbhD19r/e8leQPvW97DLxlL5+9BiKAu307mbw48Ji8gprZOekPur3SdAk99erLOiwVBzxb96Y6MRHxvfxrNbz+0vg8FVgJPpdzPT3ykYS83O0lPXIrFLpCzIK9niJAPcVIeD2B1gk8f9KBPUqVxrzE9am8YYmfPVTFsD3WMDm+WUAzvQ==
+      index: 0
+      object: embedding
+      text: null
+    - embedding: 0yY4vbtEGL55ehU9rVWAPdfkSr3M8cS9/GQZvTcuvbzdQg48Zid1PdJH3z0Lc4E5pdiOvQ06/zy4EXy9Ac4+vWi3DbtZ5AI9x9PEPWaBHLxl/H08WzMQPuG8cr2fZFQ8fowKvRaBmr1ercO9TwVhvdy7Fz3U0pA9xtSOut3HDj6Fzdc8yzLmvLFVL73NoPE9zyvUvcUR9D3OwbS8Mt6FvetgCT0zgL88eNdgPXhy2bw0Goy56qmDPR/TlL2lsgC8OKGxvSvKh7wc5ey9bJOkPdHnj71Wjc69T43SPEKiJjwmjQg89X8BPaf2Eb7y3dy9K6h6vaIiBj4eWRE7fHHcvDRdUzvgTI29zNofvRkN2zwmSqM9PGMxvVxu/Tz8kQm9xl+kvNa8Rz0zG4c9HLvYPXRrfjyD8MM9uRz4PatqYb2yhT49xYH3PKJ32b1O5YQ93J87vYSSfT3e+wk92PHuvGnGJr3/lKq9++sUPT5saD2WXcq9T3eQPeovsD1QhUe9CHu/vV4N4rnxVgS9Clw/vYQqVD2Vnjk9SDe5vZKweDypZUk9z1ytPKTjbj3yvi09dj2yvdglCDsxDsc9UzghvZpFjzxqZuq9jACjPdmw/7wfZD69O7zBPW7n+zx/yrc9UEnBO+lZXb1+/D49RKvdPISfvrusydO95cmxugRAtryzkyu7YLpmvWChGT2zKQw8geurO56lEr0r+pY9kfC7PKN8jz0hvke98lqhPfKaFT1/yTy94Bo5vJNNhbzMclg9hZaHvSv4oD3snme9uSIpvSMQxrwac6o9drgxPU8vKj1G6tQ9XmfUPS6/azz5Exq+Yy2oPS+bUz3fbi89pAuRPchbZ70ShzE9OO6XPXGPA71uCbs9HKCVO7OUJj26i5y8cnWdvYc5bb3pBLu9SWb+PAmGbDuQWAO93GVEvf6HuD0laxm8JKBCPVoCaTwVgse9z/yOvAzq9jwoiJ88mrcgvgzqdr01MOY8bib0vMvqBL4OR0A9tgzkuze89LxmE8C79/2iPYTMqz274mU9NSU5PYgPwL3Yc/47s9ZyvOqCq7yOAvu9Gn5XPWgFID1vSqk9aB5tPaKUsLrVk/m7+nSkPEAnWj0tGvK98hRLvVjx2Lwoo7G9cdnau4qCgTxbbCW9bnQkvg/9yrwC4kC8dFSnPRdOSrzZsck8sidHPTf1pzxviKa9qIYmvfXLHb1lvVW8cnXOvO/o2rxLR/48N6hyPTRmqLyYUSA9n+HJvPgIhrypUJs7tjO8vbpkRL2Ibeg7FvcAPhyiizzHgmW94q7SvIEimjzecdO5kKvgPCOM8TxdtFO9HM6uPEx8w7y+EZa9Biu3PZRL8T0ViNy9YBQOvQ==
+      index: 1
+      object: embedding
+      text: null
+    model: voyage-4-lite
+    object: list
+    usage:
+      total_tokens: 12
+  headers:
+    content-length: '2934'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-23T15:04:06.653517+00:00'
