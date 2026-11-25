@@ -4,6 +4,7 @@ import asyncio
 from contextlib import aclosing
 from copy import deepcopy
 from itertools import product
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -31,9 +32,11 @@ from molto.utils.test import (
     reconstructable_chat_completions_chunks,
 )
 from tests.core.test_interface import (
+    CASSETTE_DIR,
     PROTOCOLS,
     RESPONSES_MESSAGES_PROTOCOLS,
     Protocol,
+    _completed_responses_body,
     _coordinator,
     _get_http_client,
     _matched_cassette_path,
@@ -80,12 +83,13 @@ def _request_pair(downstream: Protocol, upstream: Protocol, stream: bool):
     return body, expected
 
 
-async def _sdk_result(protocol: Protocol, stream: bool):
-    path = _path(protocol, stream)
+async def _sdk_result(protocol: Protocol, stream: bool, *, cassette_path: Path | None = None):
+    path = cassette_path or _path(protocol, stream)
+    body = deepcopy(_read_cassette(path)["request"]["body"])
     async with _get_http_client([path], protocol) as http_client:
         if protocol == "messages":
             client = AsyncAnthropic(api_key="test-api-key", http_client=http_client)
-            result = await client.messages.create(**_body(protocol, stream))
+            result = await client.messages.create(**body)
         else:
             client = AsyncOpenAI(api_key="test-api-key", http_client=http_client)
             create = (
@@ -93,7 +97,7 @@ async def _sdk_result(protocol: Protocol, stream: bool):
                 if protocol == "responses"
                 else client.chat.completions.create
             )
-            result = await create(**_body(protocol, stream))
+            result = await create(**body)
         if not stream:
             return result
         async with result:
@@ -308,6 +312,64 @@ async def test_translated_search_matches_sdk(
         assert actual_semantics == expected_semantics
     else:
         assert _messages_semantics(actual) == _messages_semantics(expected)
+
+
+@pytest.mark.parametrize("downstream", ["messages", "chat/completions"])
+@pytest.mark.parametrize("stream", [True, False])
+@pytest.mark.filterwarnings("error::UserWarning")
+async def test_translated_search_tolerates_recorded_api_source(downstream: Protocol, stream: bool):
+    """Ensures a recorded non-URL Responses source does not break translated output.
+
+    OpenAI answered a weather search with only `{"type": "api", "name": "oai-weather"}`.
+    Neither downstream can represent it. Messages keeps the search call but omits its
+    result, which is unknown rather than empty, and Chat returns the answer text alone.
+    The expected request is the matched `web_search` translation with only the model,
+    prompt, and Chat token limit substituted, so it is independent of the translator.
+    The recording sent exactly that Messages translation; Chat's differs only by
+    leaving stream obfuscation at the provider default.
+    """
+    upstream_path = CASSETTE_DIR / "native/web_search_api_source/openai-responses-stream-00.yaml"
+    upstream = _read_cassette(upstream_path)
+    output = _completed_responses_body(upstream_path)["output"]
+    (recorded_search,) = [item for item in output if item["type"] == "web_search_call"]
+    assert recorded_search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
+    expected = collect_sdk_response(
+        "responses", await _sdk_result("responses", True, cassette_path=upstream_path)
+    )
+    (search,) = [item for item in expected.output if item.type == "web_search_call"]
+
+    prompt = "What's the weather in Kuala Lumpur today?"
+    body, expected_request = _request_pair(downstream, "responses", stream)
+    body["model"] = expected_request["model"] = "gpt-5.1"
+    body["messages"] = [{"role": "user", "content": prompt}]
+    expected_request["input"][0]["content"][0]["text"] = prompt
+    if downstream == "chat/completions":
+        body["max_completion_tokens"] = expected_request["max_output_tokens"] = 4096
+    recorded = upstream["request"]["body"]
+    assert expected_request == {
+        key: value
+        for key, value in recorded.items()
+        if downstream == "messages" or key != "stream_options"
+    }
+    async with _get_http_client(
+        [upstream_path], "responses", expected_body=expected_request
+    ) as http_client:
+        result = await _coordinator(Molto(http_client=http_client), downstream)(
+            body=body, endpoint="responses", api_key="test-api-key"
+        )
+        if stream:
+            events = [event async for event in result]
+            _assert_search_lifecycle(downstream, events)
+            result = collect_sdk_response(downstream, events)
+
+    if downstream == "messages":
+        calls = [block.id for block in result.content if block.type == "server_tool_use"]
+        assert calls == [search.id]
+        assert not [block for block in result.content if block.type == "web_search_tool_result"]
+        text = "".join(block.text for block in result.content if block.type == "text")
+    else:
+        text = result.choices[0].message.content
+    assert text == expected.output_text
 
 
 @pytest.mark.parametrize("stream", [True, False])

@@ -8,11 +8,9 @@ import pytest
 from anthropic import AsyncAnthropic
 from anthropic import AsyncStream as AnthropicAsyncStream
 from anthropic import BadRequestError as AnthropicBadRequestError
-from anthropic.lib.streaming._messages import accumulate_event
 from httpx import AsyncClient, MockTransport, Request, Response
 from openai import AsyncOpenAI, AsyncStream
 from openai import BadRequestError as OpenAIBadRequestError
-from openai.lib.streaming.chat import ChatCompletionStreamState
 from pydantic import BaseModel, ValidationError
 
 from molto import Molto
@@ -24,11 +22,12 @@ from molto.types.exceptions import UnsupportedInput
 from molto.types.openai_chat_completions import (
     OpenAIChatCompletionsResponse,
 )
-from molto.types.openai_responses import OpenAIResponsesResponse
+from molto.types.openai_responses import OpenAIResponsesCreateRequest, OpenAIResponsesResponse
 from molto.utils.io import dumps_sse, json_loads, load_sse, read_yaml
 from molto.utils.test import (
     assert_contains_expected,
     assert_responses_stream_invariants,
+    collect_sdk_response,
     reconstructable_anthropic_event,
     reconstructable_chat_completions_chunks,
     reconstructable_responses_event,
@@ -750,11 +749,24 @@ async def test_responses_translation_ignores_disabled_store(upstream: Protocol):
         assert [event async for event in stream]
 
 
-@pytest.mark.parametrize(
-    "conversation",
-    [c for c in NATIVE_SDK_CONVERSATIONS if c.mode == "stream"],
-    ids=lambda c: f"{c.paths[0].parent.parent.name}-{c.id}",
-)
+def _native_sdk_cases(mode: Mode):
+    # The SDK's URL-only schema warns when the native parity test dumps this recorded source.
+    api_source_warning = pytest.mark.filterwarnings(
+        r"ignore:(?s)Pydantic serializer warnings.*Expected `literal\['url'\]`.*input_value='api':"
+        r"UserWarning:pydantic.main"
+    )
+    return [
+        pytest.param(
+            c,
+            id=f"{c.paths[0].parent.parent.name}-{c.id}",
+            marks=(api_source_warning,) if c.scenario == "web_search_api_source" else (),
+        )
+        for c in NATIVE_SDK_CONVERSATIONS
+        if c.mode == mode
+    ]
+
+
+@pytest.mark.parametrize("conversation", _native_sdk_cases("stream"))
 async def test_native_stream_matches_provider_sdk(conversation: Conversation):
     """Ensures every discovered native turn preserves parsed SDK events and provider selection."""
     for cassette_path in conversation.paths:
@@ -809,11 +821,7 @@ async def _assert_native_stream_matches_provider_sdk(cassette_path: Path, protoc
     ]
 
 
-@pytest.mark.parametrize(
-    "conversation",
-    [c for c in NATIVE_SDK_CONVERSATIONS if c.mode == "non_stream"],
-    ids=lambda c: f"{c.paths[0].parent.parent.name}-{c.id}",
-)
+@pytest.mark.parametrize("conversation", _native_sdk_cases("non_stream"))
 async def test_native_non_streaming_responses_match_provider_sdk(conversation: Conversation):
     """Ensures discovered complete native responses retain SDK parity and provider selection."""
     protocol = conversation.endpoint
@@ -903,6 +911,186 @@ async def test_discovered_native_runners_forward_provider(
     else:
         await test_native_non_streaming_responses_match_provider_sdk(conversation)
     assert providers == ["vllm"]
+
+
+async def _native_result(
+    scenario: str, protocol: Literal["responses", "chat/completions"], mode: Mode
+) -> tuple[dict[str, Any], Any]:
+    """Replay a single-turn native OpenAI recording through Molto and return its request and result.
+
+    The replay transport rejects any outgoing body that differs from the recording, so
+    each caller also proves the native options were forwarded exactly.
+    """
+    conversation = select_conversation(NATIVE_CONVERSATIONS, scenario, protocol, mode)
+    (cassette_path,) = conversation.paths
+    body = deepcopy(_read_cassette(cassette_path)["request"]["body"])
+    async with _get_http_client([cassette_path], protocol) as http_client:
+        coordinator = _coordinator(Molto(http_client=http_client), protocol)
+        result = await coordinator(
+            body=body,
+            endpoint=protocol,
+            provider=conversation.provider,
+            api_key="test-api-key",
+        )
+        if mode == "non_stream":
+            return body, result
+        events = [event async for event in result]
+    return body, _final_stream_result(events, protocol)
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+@pytest.mark.parametrize(
+    "scenario", ["response_format_json_object", "response_format_json_schema"]
+)
+async def test_native_chat_response_format_returns_requested_json(
+    scenario: str, mode: Mode
+) -> None:
+    """Ensures native Chat response formats return a JSON object.
+
+    A JSON-schema format must also return exactly the schema's required fields.
+    """
+    body, completion = await _native_result(scenario, "chat/completions", mode)
+    output = json_loads(completion.choices[0].message.content)
+    assert isinstance(output, dict)
+    schema = body["response_format"].get("json_schema", {}).get("schema")
+    if schema is not None:
+        assert set(output) == set(schema["required"])
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_chat_model_settings_return_logprobs(mode: Mode) -> None:
+    """Ensures explicit native Chat settings return token logprobs with the requested alternatives."""
+    body, completion = await _native_result("model_settings", "chat/completions", mode)
+    logprobs = completion.choices[0].logprobs
+    assert logprobs is not None and logprobs.content
+    assert (
+        "".join(token.token for token in logprobs.content) == completion.choices[0].message.content
+    )
+    assert all(len(token.top_logprobs) == body["top_logprobs"] for token in logprobs.content)
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_chat_required_tool_choice_returns_a_tool_call(mode: Mode) -> None:
+    """Ensures a native Chat required tool choice returns a call to a requested tool."""
+    body, completion = await _native_result("tool_choice_required", "chat/completions", mode)
+    assert body["tool_choice"] == "required"
+    (choice,) = completion.choices
+    assert choice.finish_reason == "tool_calls"
+    (call,) = choice.message.tool_calls
+    assert call.function.name in {tool["function"]["name"] for tool in body["tools"]}
+    assert isinstance(json_loads(call.function.arguments), dict)
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_responses_text_format_returns_requested_json(mode: Mode) -> None:
+    """Ensures a native Responses JSON-schema format is echoed and returns its required fields."""
+    body, response = await _native_result("text_format_json_schema", "responses", mode)
+    requested = body["text"]["format"]
+    assert response.text.format.model_dump(by_alias=True, exclude_unset=True) == requested
+    assert response.text.verbosity == "medium"
+    assert set(json_loads(response.output_text)) == set(requested["schema"]["required"])
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_responses_model_settings_are_echoed_with_logprobs_and_sources(
+    mode: Mode,
+) -> None:
+    """Ensures explicit native Responses settings are echoed and requested includes are returned."""
+    body, response = await _native_result("model_settings", "responses", mode)
+    for setting in (
+        "instructions",
+        "max_output_tokens",
+        "max_tool_calls",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "prompt_cache_retention",
+        "safety_identifier",
+        "service_tier",
+        "store",
+        "temperature",
+        "tool_choice",
+        "top_logprobs",
+        "top_p",
+        "truncation",
+    ):
+        assert getattr(response, setting) == body[setting], setting
+    (message,) = [item for item in response.output if item.type == "message"]
+    (text,) = message.content
+    assert text.logprobs
+    assert all(len(token.top_logprobs) == body["top_logprobs"] for token in text.logprobs)
+    (search,) = [item for item in response.output if item.type == "web_search_call"]
+    assert search.status == "completed"
+    assert search.action.sources
+    assert {source.type for source in search.action.sources} == {"url"}
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+def test_typed_responses_request_preserves_recorded_api_source_history(mode: Mode) -> None:
+    """Ensures the typed Responses request preserves recorded `api` source history.
+
+    OpenAI answers a weather search with `{"type": "api", "name": "oai-weather"}`, which
+    the pinned SDK does not declare. The second turn sends that output back as history,
+    and OpenAI accepted it. The generic native runners replay both turns through Molto
+    with exact request-body and SDK parity checks.
+    """
+    conversation = select_conversation(
+        NATIVE_CONVERSATIONS, "web_search_api_source", "responses", mode
+    )
+    first_path, second_path = conversation.paths
+    first, second = (_read_cassette(path) for path in conversation.paths)
+    first_output = _completed_responses_body(first_path)["output"]
+    for output in (first_output, _completed_responses_body(second_path)["output"]):
+        (search,) = [item for item in output if item["type"] == "web_search_call"]
+        assert search["status"] == "completed"
+        assert search["action"]["sources"] == [{"type": "api", "name": "oai-weather"}]
+    body = second["request"]["body"]
+    assert body["input"] == [
+        *first["request"]["body"]["input"],
+        *first_output,
+        {"role": "user", "content": "And tomorrow?"},
+    ]
+    assert OpenAIResponsesCreateRequest.model_validate(body).model_dump() == body
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_responses_web_search_options_are_echoed(mode: Mode) -> None:
+    """Ensures native web-search options are echoed and unrequested sources stay omitted."""
+    body, response = await _native_result("web_search_tool_options", "responses", mode)
+    (requested,) = body["tools"]
+    (tool,) = response.tools
+    assert {
+        key: value for key, value in tool.model_dump().items() if key in requested
+    } == requested
+    searches = [item for item in response.output if item.type == "web_search_call"]
+    assert searches
+    for search in searches:
+        assert search.status == "completed"
+        assert search.action.type == "search" and search.action.queries
+        assert search.action.sources is None
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_responses_conversation_id_is_forwarded(mode: Mode) -> None:
+    """Ensures a provider-managed conversation ID is forwarded and returned with its history."""
+    body, response = await _native_result("conversation_id", "responses", mode)
+    setup = _read_cassette(
+        CASSETTE_DIR / "native/conversation_id/setup" / f"openai-conversations-{mode}.yaml"
+    )
+    # Each mode created its own conversation; never pair one mode's ID with the other.
+    assert body["conversation"] == setup["response"]["body"]["id"]
+    assert response.conversation.id == body["conversation"]
+    assert "scarecrow" in response.output_text.lower()
+
+
+@pytest.mark.parametrize("mode", ["stream", "non_stream"])
+async def test_native_responses_required_tool_choice_returns_a_function_call(mode: Mode) -> None:
+    """Ensures a native Responses required tool choice returns a call to a requested tool."""
+    body, response = await _native_result("tool_choice_required", "responses", mode)
+    assert response.tool_choice == "required"
+    (call,) = response.output
+    assert call.type == "function_call"
+    assert call.name in {tool["name"] for tool in body["tools"]}
+    assert isinstance(json_loads(call.arguments), dict)
 
 
 def _assert_matched_response(
@@ -1288,21 +1476,16 @@ def _response_history(response: BaseModel, protocol: Protocol) -> list[dict[str,
     return [{"role": response.role, "content": content}]
 
 
+def _final_stream_result(events: list[BaseModel], protocol: Protocol) -> BaseModel:
+    """Accumulate returned SDK events with SDK helpers, independently of Molto's collectors."""
+    if protocol == "messages":
+        assert events[-1].type == "message_stop"
+    return collect_sdk_response(protocol, events)
+
+
 def _stream_history(events: list[BaseModel], protocol: Protocol) -> list[dict[str, Any]]:
     """Collect returned SDK events independently of Molto's adapters and collectors."""
-    if protocol == "responses":
-        assert events[-1].type in {"response.completed", "response.incomplete"}
-        return _response_history(events[-1].response, protocol)
-    if protocol == "chat/completions":
-        state = ChatCompletionStreamState()
-        for event in events:
-            state.handle_chunk(event.model_copy(deep=True))
-        return _response_history(state.get_final_completion(), protocol)
-    snapshot = None
-    for event in events:
-        snapshot = accumulate_event(event=event.model_copy(deep=True), current_snapshot=snapshot)
-    assert events[-1].type == "message_stop" and snapshot is not None
-    return _response_history(snapshot, protocol)
+    return _response_history(_final_stream_result(events, protocol), protocol)
 
 
 def _comparable_history(
