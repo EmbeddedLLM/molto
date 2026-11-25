@@ -1983,3 +1983,99 @@ async def test_provider_messages_translated_conversation(provider, scenario, dow
             assert suffix
             caller = _chat_caller_from_messages(suffix)
             body[history_key].extend(_responses_caller_input(caller) if responses else caller)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+async def test_messages_empty_thinking_replays_recorded_responses_history(stream):
+    """Ensures an empty Messages thinking block replays as the reasoning item OpenAI accepted.
+
+    The recording holds a deliberately constructed history: an ID-less reasoning item with no
+    summary, content, or encrypted state. OpenAI accepted it, so Molto must send that exact
+    request and project the recorded reply with OpenAI SDK parity.
+    """
+    cassette = read_yaml(
+        CASSETTE_DIR / "empty_reasoning_history" / "openai-responses-stream-00.yaml"
+    )
+    recorded = cassette["request"]["body"]
+    assert {"type": "reasoning", "summary": [], "content": []} in recorded["input"]
+    body = {
+        "model": recorded["model"],
+        "max_tokens": recorded["max_output_tokens"],
+        "stream": stream,
+        "messages": [
+            {"role": "user", "content": "What is 17 * 23? Reply with only the number."},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "", "signature": ""},
+                    {"type": "text", "text": "391"},
+                ],
+            },
+            {"role": "user", "content": "Add 9 to that result. Reply with only the number."},
+        ],
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _recorded_response(cassette))
+    ) as transport:
+        sdk = AsyncOpenAI(
+            api_key="test-key",
+            http_client=transport,
+            max_retries=0,
+            base_url=cassette["upstream_url"].removesuffix("/responses"),
+        )
+        reference, events = await _collect_responses(await sdk.responses.create(**recorded), True)
+    # A thinking block starts with the item-added ciphertext, and its signature_delta
+    # replaces it with the item-done ciphertext. The terminal response carries a third,
+    # separately observed snapshot that Messages has no slot for.
+    signatures = {"added": {}, "done": {}}
+    for event in events:
+        slot = event["type"].removeprefix("response.output_item.")
+        if slot in signatures and event["item"]["type"] == "reasoning":
+            signatures[slot][event["item"]["id"]] = event["item"]["encrypted_content"] or ""
+
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        assert str(request.url) == cassette["upstream_url"]
+        assert json_loads(request.content) == recorded
+        return _recorded_response(cassette)
+
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    ) as molto:
+        result = await molto.messages(
+            body, endpoint="responses", provider="openai", api_key="test-key"
+        )
+        actual, actual_events = await _collect_messages(result, stream)
+
+    assert len(calls) == 1
+    assert (actual.id, actual.model) == (reference.id, reference.model)
+    if stream:
+        assert [
+            event["content_block"]["signature"]
+            for event in actual_events
+            if event["type"] == "content_block_start"
+            and event["content_block"]["type"] == "thinking"
+        ] == list(signatures["added"].values())
+        assert [
+            event["delta"]["signature"]
+            for event in actual_events
+            if event["type"] == "content_block_delta"
+            and event["delta"]["type"] == "signature_delta"
+        ] == list(signatures["done"].values())
+    assert [block.model_dump(exclude_none=True) for block in actual.content] == [
+        {
+            "type": "thinking",
+            "thinking": "".join(part.text for part in item.summary),
+            "signature": signatures["done"][item.id],
+        }
+        if item.type == "reasoning"
+        else {"type": "text", "text": "".join(part.text for part in item.content)}
+        for item in reference.output
+    ]
+    assert actual.stop_reason == "end_turn"
+    assert (actual.usage.input_tokens, actual.usage.output_tokens) == (
+        reference.usage.input_tokens,
+        reference.usage.output_tokens,
+    )

@@ -261,6 +261,15 @@ Responses is explicit where Chat Completions and Messages are ambiguous:
 
 A single item can carry raw text, a summary, both, or neither, along with optional opaque state. Each text field with data has its own part lifecycle. Unsigned history omits encrypted state. When translated through Chat or Messages, reasoning uses the [single-field projection and continuation rules](../reasoning.md#protocol-mapping).
 
+### Empty reasoning items in history
+
+An empty unsigned reasoning part becomes a reasoning item with empty `summary` and `content` and no `encrypted_content`. For example, a Messages `thinking` block with empty `thinking` and `signature` produces this item. Molto adds an `id` only when the normalized part has one. On November 25, 2026, OpenAI `gpt-5-mini` accepted both of these forms as history:
+
+- `{"type": "reasoning", "summary": [], "content": []}`
+- The same item with the `id` of a reasoning item that OpenAI stored
+
+An `id` that OpenAI has not stored fails with HTTP 404 `invalid_request_error` and the message `Item with id '...' not found.` These requests show that OpenAI accepts empty items. They do not show that OpenAI emits empty items.
+
 ### Opaque continuation state
 
 Responses can expose three encrypted snapshots for one reasoning item:

@@ -304,6 +304,8 @@ OpenAI Responses exposes three encrypted snapshots where Messages has only two s
 
 Molto does not buffer the whole stream to reproduce the third ciphertext. This mapping is valid only under an explicit same-provider contract in which the provider defines both fields as the same opaque continuation state. The matched fixtures make that assumption because OpenAI serves both endpoints. Molto currently does not track or enforce the issuer and will mechanically project the value. Callers must not reuse translated continuation state across providers: an Anthropic-issued signature is not valid OpenAI `encrypted_content`, and an OpenAI-issued value is not valid for continuation against Anthropic merely because the wire fields look similar.
 
+An empty thinking block with an empty signature replays to Responses as a reasoning item with empty `summary` and `content`, and without an ID or `encrypted_content`. OpenAI accepts this history. See [empty reasoning items in history](openai-responses.md#empty-reasoning-items-in-history).
+
 ### Termination and service tier
 
 The [shared termination table](../README.md#termination) defines every route. For Messages, normal completion is `end_turn`, output exhaustion is `max_tokens`, a matched stop sequence is `stop_sequence`, and a function call ends with `tool_use`. The matched sequence is retained separately. A source reason with no Messages equivalent is deliberately coerced to `end_turn` so the stream remains consumable; the source distinction is then lost.
