@@ -10,7 +10,6 @@ python scripts/recorder_proxy.py
 
 import argparse
 import json
-from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,16 +59,7 @@ HTTP_CLIENT = AsyncClient(
     ),
 )
 
-# Headers to exclude when forwarding response (they're handled by httpx/client)
-EXCLUDED_RESPONSE_HEADERS = {
-    "content-encoding",  # Already decoded by httpx
-    "content-length",  # Will be recalculated
-    "transfer-encoding",  # Handled by the server
-    "connection",  # Let the server handle this
-}
-
-
-# Request and response headers retained in cassette recordings.
+# Headers to record (whitelist)
 RECORDED_HEADERS = {
     "content-type",
     "content-length",
@@ -81,6 +71,14 @@ RECORDED_HEADERS = {
     "connection",
     # Helpful for grouping multi-request tool loops into a single "run"
     "x-run-id",
+}
+
+# Headers to exclude when forwarding response (they're handled by httpx/client)
+EXCLUDED_RESPONSE_HEADERS = {
+    "content-encoding",  # Already decoded by httpx
+    "content-length",  # Will be recalculated
+    "transfer-encoding",  # Handled by the server
+    "connection",  # Let the server handle this
 }
 
 
@@ -99,7 +97,7 @@ def mask_authorization(value: str) -> str:
     return "***"
 
 
-def filter_headers(headers: Mapping[str, str]) -> dict[str, str]:
+def filter_headers(headers) -> dict:
     """Filter headers to only include whitelisted ones."""
     return {
         k: v if k.lower() != "authorization" else mask_authorization(v)

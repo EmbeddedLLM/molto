@@ -1025,7 +1025,7 @@ async def test_native_responses_model_settings_are_echoed_with_logprobs_and_sour
 
 
 @pytest.mark.parametrize("mode", ["stream", "non_stream"])
-def test_native_responses_api_search_source_history_is_recorded(mode: Mode) -> None:
+def test_typed_responses_request_preserves_recorded_api_source_history(mode: Mode) -> None:
     """Ensures the typed Responses request preserves recorded `api` source history.
 
     OpenAI answers a weather search with `{"type": "api", "name": "oai-weather"}`, which
