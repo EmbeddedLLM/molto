@@ -1893,14 +1893,14 @@ async def test_separate_reasoning_and_text_history_messages(
 async def test_chat_keeps_consecutive_reasoning_parts_separate(
     with_text_and_tools: bool, reasoning_parts: list[str]
 ) -> None:
-    """Ensures independent reasoning parts keep separate entries and the last can own text and tools."""
+    """Ensures independent reasoning parts, including empty ones, keep separate reasoning entries.
+
+    The last entry can also own text and tools.
+    """
     parts: list[dict[str, Any]] = [
         {"type": "thinking", "thinking": text} for text in reasoning_parts
     ]
-    expected = [
-        {"role": "assistant", **({"reasoning": text} if text else {"content": []})}
-        for text in reasoning_parts
-    ]
+    expected = [{"role": "assistant", "reasoning": text} for text in reasoning_parts]
     expected_message = expected[-1]
     if with_text_and_tools:
         text_parts = [{"type": "text", "text": text} for text in ("Answer ", "continued")]
@@ -1936,6 +1936,49 @@ async def test_chat_keeps_consecutive_reasoning_parts_separate(
             "reasoning_effort": "none",
         },
         provider="vllm",
+    )
+
+
+async def test_chat_keeps_empty_responses_reasoning_item_as_empty_field() -> None:
+    """Ensures an empty Responses reasoning item becomes an empty `reasoning_content` entry.
+
+    Guards against an assistant message with empty `content` in place of the reasoning field.
+    """
+    await _assert_request_parity(
+        "responses",
+        "chat/completions",
+        {
+            "input": [
+                {"type": "reasoning", "id": "rs_empty", "summary": []},
+                {
+                    "type": "reasoning",
+                    "id": "rs_text",
+                    "summary": [],
+                    "content": [{"type": "reasoning_text", "text": "Prior thought"}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {"type": "output_text", "text": "Prior answer", "annotations": []}
+                    ],
+                },
+            ],
+            "reasoning": {"effort": "none"},
+        },
+        {
+            "messages": [
+                {"role": "assistant", "reasoning_content": ""},
+                {
+                    "role": "assistant",
+                    "reasoning_content": "Prior thought",
+                    "content": "Prior answer",
+                },
+            ],
+            "reasoning_effort": "none",
+        },
+        provider="openai",
     )
 
 

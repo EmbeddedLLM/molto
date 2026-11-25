@@ -179,6 +179,7 @@ These examples apply within one explicit assistant message:
 | Ordered parts                             | Chat projection                                                                           |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `Thinking("First") -> Thinking("second")` | Preserved as separate assistant entries.                                                  |
+| `Thinking("") -> Thinking("second")`      | Preserved as separate assistant entries; the first has an empty reasoning field.          |
 | `Text("First") -> Text("Second")`         | Accepted as two ordered parts in one `content` array; each part retains its cache marker. |
 | `ToolCall(id="a") -> ToolCall(id="b")`    | Accepted as two entries in one `tool_calls` array; IDs `a` and `b` remain distinct.       |
 | `Text -> Thinking`                        | Rejected: Chat has no slot for reasoning after text.                                      |
@@ -186,7 +187,7 @@ These examples apply within one explicit assistant message:
 | `ToolCall -> Text`                        | Accepted as `tool_calls` plus `content`; their relative order is lost.                    |
 | `Text A -> Call 1 -> Text B -> Call 2`    | Accepted as text `[A, B]` and calls `[1, 2]`; their interleaving is lost.                 |
 
-A signature-only part can carry message state or prefix a tool call. Text and tool interleaving is lost because Chat stores them in separate fields. A reasoning-only message uses the configured reasoning field.
+A signature-only part can carry message state or prefix a tool call. Text and tool interleaving is lost because Chat stores them in separate fields. A reasoning-only message uses the configured reasoning field. An empty unsigned reasoning part, such as an empty Responses reasoning item, keeps its boundary as that field with an empty string, for example `{"role": "assistant", "reasoning_content": ""}`.
 
 OpenAI Chat tool messages cannot carry images. For a normalized image tool result, Molto leaves a text notice in the `tool` message and emits the image in a later `user` message labeled with the call ID. This relocation follows the approach in [github/copilot-sdk#1922](https://github.com/github/copilot-sdk/issues/1922). It first emits every tool response belonging to the preceding assistant call block, then emits all relocated image prompts. For two parallel calls, the valid order is:
 
