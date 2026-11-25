@@ -1,5 +1,6 @@
 import inspect
 from copy import deepcopy
+from pathlib import Path
 from typing import get_args
 
 import pytest
@@ -17,6 +18,7 @@ from openai.types.responses.response_stream_event import ResponseStreamEvent
 from pydantic import TypeAdapter, ValidationError, create_model
 
 from molto.types.openai_responses import (
+    OpenAICompatibleResponsesResponse,
     OpenAIResponsesCreateRequest,
     OpenAIResponsesInputItemParam,
     OpenAIResponsesResponse,
@@ -28,6 +30,26 @@ from molto.types.openai_responses import (
     ResponseOutputMessageOptionalIDParam,
     ResponseReasoningItemOptionalIDParam,
 )
+from molto.utils.io import read_yaml
+
+
+@pytest.mark.parametrize("strictness", [{}, {"strict": False}, {"strict": True}, {"strict": None}])
+def test_function_tool_preserves_optional_strictness(strictness):
+    """Ensures omitted strictness stays omitted and explicit values retain existing serialization."""
+    tool = {"type": "function", "name": "add", "parameters": {}, **strictness}
+    request = OpenAIResponsesCreateRequest(model="m", tools=[tool])
+    expected = {key: value for key, value in tool.items() if value is not None}
+    assert request.model_dump()["tools"] == [expected]
+    assert request.model_dump()["tools"] == [expected]
+
+
+@pytest.mark.parametrize("field", ["type", "name", "parameters"])
+def test_function_tool_still_requires_sdk_identity_and_schema(field):
+    """Ensures optional strictness does not loosen other required function definition fields."""
+    tool = {"type": "function", "name": "add", "parameters": {}}
+    del tool[field]
+    with pytest.raises(ValidationError):
+        OpenAIResponsesCreateRequest(model="m", tools=[tool])
 
 
 def test_request_fields_match_responses_create_body_parameters():
@@ -471,6 +493,31 @@ def test_non_streaming_response_uses_sdk_model():
 
     assert response.id == "resp_123"
     assert response.model_dump()["object"] == "response"
+
+
+@pytest.mark.parametrize("writes", [{}, {"cache_write_tokens": None}, {"cache_write_tokens": 0}])
+def test_compatible_response_preserves_reported_cache_writes(writes):
+    """Ensures only the optional cache-write count differs from the pinned SDK schema."""
+    path = (
+        Path(__file__).parents[1]
+        / "cassettes/upstream_ir/tool_use_reasoning_low/fireworks-responses-non_stream-00.yaml"
+    )
+    body = read_yaml(path)["response"]["body"]
+    details = body["usage"]["input_tokens_details"]
+    assert "cache_write_tokens" not in details
+    details.update(writes)
+    response = OpenAICompatibleResponsesResponse.model_validate(body)
+    assert response.usage.input_tokens_details.cache_write_tokens == writes.get(
+        "cache_write_tokens"
+    )
+    for kind in ("completed", "created", "failed", "in_progress", "incomplete", "queued"):
+        event = OpenAIResponsesStreamEventAdapter.validate_python(
+            {"type": f"response.{kind}", "sequence_number": 0, "response": body}
+        )
+        assert event.response.usage.input_tokens_details == response.usage.input_tokens_details
+    del details["cached_tokens"]
+    with pytest.raises(ValidationError, match="cached_tokens"):
+        OpenAICompatibleResponsesResponse.model_validate(body)
 
 
 def test_stream_event_union_wraps_every_sdk_event_and_field():

@@ -1,0 +1,151 @@
+filename: 2026-11-17-01a1ea5e-7519-7a90-9037-0bf3a0d9a4ed
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - text: 'The user wants me to:
+
+          1. Add 2 and 3
+
+          2. Then add the result of that with 4
+
+          3. Give the final answer
+
+
+          Let me start with the first call.'
+        type: reasoning_text
+      id: rs_0423dab93ad247b9b1d25b8a75264422-aws_as1-01a1ea5e-731b-7dd3-bb71-42bcc0e7ee65
+      summary: []
+      type: reasoning
+    - arguments: '{"a":2,"b":3}'
+      call_id: call_01a1ea5e73ac7001900e935a
+      id: fc_call_01a1ea5e73ac7001900e935a
+      name: add
+      type: function_call
+    - call_id: call_01a1ea5e73ac7001900e935a
+      output: '5'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1094'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1ea5e-7519-7a90-9037-0bf3a0d9a4ed
+response:
+  body:
+    background: false
+    completed_at: 1794933421
+    created_at: 1794933421
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1ea5e-756b-7a02-b7f0-d5a732e15c83
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - text: The result of adding 2 and 3 is 5. Now I need to add 5 and 4.
+        type: reasoning_text
+      id: rs_cc6ffc065fa6461fbe2171ddf175abb9-aws_as1-01a1ea5e-756c-7113-8122-4ca13ae298bf
+      status: completed
+      summary: []
+      type: reasoning
+    - arguments: '{"a":5,"b":4}'
+      call_id: call_01a1ea5e75da7e52ae4c7c2c
+      id: fc_call_01a1ea5e75da7e52ae4c7c2c
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: low
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice:
+      name: add
+      type: function
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 262
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 192
+      output_tokens: 41
+      output_tokens_details:
+        reasoning_tokens: 25
+      total_tokens: 303
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: cc6ffc065fa6461fbe2171ddf175abb9-aws_as1
+  status_code: 200
+timestamp: '2026-11-17T16:37:01.337333+00:00'
+upstream_url: https://api.together.ai/v1/responses

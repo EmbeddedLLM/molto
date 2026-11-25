@@ -1,0 +1,114 @@
+filename: 2026-11-04-01a1a479-66a6-7e01-bebc-bc8af91a976e
+request:
+  body:
+    input:
+    - content: 'Call add twice in parallel: first 2 and 3, then 7 and 4. Then give
+        both results.'
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: true
+    reasoning:
+      effort: none
+    store: false
+    stream: false
+    tool_choice: required
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '542'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-66a6-7e01-bebc-bc8af91a976e
+response:
+  body:
+    background: null
+    created_at: 1793760783
+    error: null
+    id: resp_24d416566c804ae0a8edbfd5892c36ce
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-bb79d0bb1ef0d867
+      id: fc_9951c655d7874688924376a022f80351
+      name: add
+      status: completed
+      type: function_call
+    - arguments: '{"a": 7, "b": 4}'
+      call_id: chatcmpl-tool-af0f5743e61b4170
+      id: fc_1e4743b1fd2948f9b30a72ffac19a4b5
+      name: add
+      status: completed
+      type: function_call
+    parallel_tool_calls: true
+    previous_response_id: null
+    reasoning:
+      effort: none
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice: required
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 320
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 61
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 381
+    user: null
+  headers:
+    connection: keep-alive
+    content-length: '1308'
+    content-type: application/json
+    x-request-id: 4896f76d-35c8-468c-9b45-b00e930065bf
+  status_code: 200
+timestamp: '2026-11-04T02:53:01.990733+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

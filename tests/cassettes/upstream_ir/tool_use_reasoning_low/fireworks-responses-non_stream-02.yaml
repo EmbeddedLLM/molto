@@ -1,0 +1,167 @@
+filename: 2026-11-17-01a1ea38-013c-7ed2-b05d-f20913ada630
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - id: rs_704a24b85bb445419610b1e5090edd62
+      summary:
+      - text: We need to compute 2+3 = 5 using add. Then add result (5) and 4 => 9.
+          Then give final answer. So we need to call function add twice. Let's do
+          first add.
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-87f4a9b204f8b80f
+      id: fc_dc20d6c680fe4368b4f5b544fcba64dd
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-87f4a9b204f8b80f
+      output: '5'
+      type: function_call_output
+    - id: rs_c235d3f2dcd9460bab71cc61421c24b7
+      summary:
+      - text: Now we have result 5. Use add with a=5, b=4.
+        type: summary_text
+      type: reasoning
+    - arguments: '{"a": 5, "b": 4}'
+      call_id: chatcmpl-tool-879d5d7ec08916b9
+      id: fc_5ecc3d5e10194ae387628446f10346f2
+      name: add
+      type: function_call
+    - call_id: chatcmpl-tool-879d5d7ec08916b9
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1471'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1ea38-013c-7ed2-b05d-f20913ada630
+response:
+  body:
+    background: null
+    created_at: 1794930901
+    error: null
+    id: resp_ce60a8edf1c043d5bb7546e01c5e2e21
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    object: response
+    output:
+    - id: rs_7e0009329f4c4e30aa04b935b5cfd786
+      summary:
+      - text: 'We need to give final answer: 9.'
+        type: summary_text
+      type: reasoning
+    - content:
+      - annotations: []
+        text: The final answer is 9.
+        type: output_text
+      id: msg_b3c914f414b047b28e07e5d7d5cbb80a
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    previous_response_id: null
+    reasoning:
+      effort: low
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: null
+    top_p: 0.95
+    truncation: disabled
+    usage:
+      input_tokens: 213
+      input_tokens_details:
+        cached_tokens: 0
+      output_tokens: 19
+      output_tokens_details:
+        reasoning_tokens: 10
+      total_tokens: 232
+    user: null
+  body_bytes: !!binary |
+    eyJpZCI6InJlc3BfY2U2MGE4ZWRmMWMwNDNkNWJiNzU0NmUwMWM1ZTJlMjEiLCJvYmplY3QiOiJy
+    ZXNwb25zZSIsImNyZWF0ZWRfYXQiOjE3OTQ5MzA5MDEsInN0YXR1cyI6ImNvbXBsZXRlZCIsIm1v
+    ZGVsIjoiYWNjb3VudHMvZmlyZXdvcmtzL21vZGVscy9uZW1vdHJvbi1saWdodG5pbmctM3A1LTMw
+    Yi1hM2IiLCJvdXRwdXQiOlt7ImlkIjoicnNfN2UwMDA5MzI5ZjRjNGUzMGFhMDRiOTM1YjVjZmQ3
+    ODYiLCJ0eXBlIjoicmVhc29uaW5nIiwic3VtbWFyeSI6W3sidHlwZSI6InN1bW1hcnlfdGV4dCIs
+    InRleHQiOiJXZSBuZWVkIHRvIGdpdmUgZmluYWwgYW5zd2VyOiA5LiJ9XX0seyJpZCI6Im1zZ19i
+    M2M5MTRmNDE0YjA0N2IyOGUwN2U1ZDdkNWNiYjgwYSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6
+    ImFzc2lzdGFudCIsImNvbnRlbnQiOlt7InR5cGUiOiJvdXRwdXRfdGV4dCIsInRleHQiOiJUaGUg
+    ZmluYWwgYW5zd2VyIGlzIDkuIiwiYW5ub3RhdGlvbnMiOltdfV0sInN0YXR1cyI6ImNvbXBsZXRl
+    ZCJ9XSwicHJldmlvdXNfcmVzcG9uc2VfaWQiOm51bGwsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6
+    MjEzLCJvdXRwdXRfdG9rZW5zIjoxOSwidG90YWxfdG9rZW5zIjoyMzIsImlucHV0X3Rva2Vuc19k
+    ZXRhaWxzIjp7ImNhY2hlZF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsicmVh
+    c29uaW5nX3Rva2VucyI6MTB9fSwiZXJyb3IiOm51bGwsImluY29tcGxldGVfZGV0YWlscyI6bnVs
+    bCwiaW5zdHJ1Y3Rpb25zIjpudWxsLCJtYXhfb3V0cHV0X3Rva2VucyI6MjA0OCwibWF4X3Rvb2xf
+    Y2FsbHMiOm51bGwsInBhcmFsbGVsX3Rvb2xfY2FsbHMiOmZhbHNlLCJyZWFzb25pbmciOnsiZWZm
+    b3J0IjoibG93In0sInN0b3JlIjpmYWxzZSwidGVtcGVyYXR1cmUiOjEuMCwidGV4dCI6eyJmb3Jt
+    YXQiOnsidHlwZSI6InRleHQifX0sInRvb2xfY2hvaWNlIjoibm9uZSIsInRvb2xzIjpbeyJ0eXBl
+    IjoiZnVuY3Rpb24iLCJuYW1lIjoiYWRkIiwiZGVzY3JpcHRpb24iOiJBZGQgdHdvIGludGVnZXJz
+    LiIsInBhcmFtZXRlcnMiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYSI6eyJ0eXBl
+    IjoiaW50ZWdlciJ9LCJiIjp7InR5cGUiOiJpbnRlZ2VyIn19LCJyZXF1aXJlZCI6WyJhIiwiYiJd
+    LCJhZGRpdGlvbmFsUHJvcGVydGllcyI6ZmFsc2V9fV0sInRvcF9wIjowLjk1LCJ0b3BfbG9ncHJv
+    YnMiOm51bGwsInRydW5jYXRpb24iOiJkaXNhYmxlZCIsInVzZXIiOm51bGwsImJhY2tncm91bmQi
+    Om51bGwsIm1ldGFkYXRhIjp7fX0=
+  headers:
+    connection: keep-alive
+    content-length: '1274'
+    content-type: application/json
+    x-request-id: 4896976e-3ae1-4e25-9480-3e6a4c8409fa
+  status_code: 200
+timestamp: '2026-11-17T15:55:01.308323+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

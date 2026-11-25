@@ -1,0 +1,192 @@
+filename: 2026-11-04-01a1a479-5646-7cf0-8750-549f9e33ed1e
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - arguments: '{"a": 2, "b": 3}'
+      call_id: chatcmpl-tool-bf4314efe4595302
+      id: fc_885d0b3c71cf42a5a856d31915d77ece
+      name: add
+      status: completed
+      type: function_call
+    - call_id: chatcmpl-tool-bf4314efe4595302
+      output: '5'
+      type: function_call_output
+    - arguments: '{"a": 5, "b": 4}'
+      call_id: chatcmpl-tool-bde540262d899c7f
+      id: fc_b965613629284107a80239de17b03e8d
+      name: add
+      status: completed
+      type: function_call
+    - call_id: chatcmpl-tool-bde540262d899c7f
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    parallel_tool_calls: false
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1097'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-5646-7cf0-8750-549f9e33ed1e
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: 559cdcfe-8fb9-4b9a-8410-12048f7d13f7
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_0c90cf2322234b22ad5183d9b59861a2","object":"response","created_at":1793760777,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_0c90cf2322234b22ad5183d9b59861a2","object":"response","created_at":1793760777,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"message","id":"msg_eeedea70eadd486083e1cf10ab828020","status":"in_progress","role":"assistant","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"The","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"
+    final","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":6,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"
+    answer","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":7,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"
+    is","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":8,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"
+    ","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":9,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"9","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":10,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":".","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":11,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"  ","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":12,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"\n","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":13,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"delta":"6","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":14,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"text":"The
+    final answer is 9.  \n6","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":15,"item_id":"msg_eeedea70eadd486083e1cf10ab828020","output_index":0,"content_index":0,"part":{"type":"output_text","text":"The
+    final answer is 9.  \n6","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":16,"output_index":0,"item":{"type":"message","id":"msg_eeedea70eadd486083e1cf10ab828020","status":"completed","role":"assistant","content":[{"type":"output_text","text":"The
+    final answer is 9.  \n6","annotations":[]}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":17,"response":{"id":"resp_0c90cf2322234b22ad5183d9b59861a2","object":"response","created_at":1793760778,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"msg_eeedea70eadd486083e1cf10ab828020","type":"message","role":"assistant","content":[{"type":"output_text","text":"The
+    final answer is 9.  \n6","annotations":[]}],"status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":146,"output_tokens":11,"total_tokens":157,"input_tokens_details":{"cached_tokens":145},"output_tokens_details":{"reasoning_tokens":0}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":false,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"none","tools":[{"type":"function","name":"add","description":"Add
+    two integers.","parameters":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"additionalProperties":false}}],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:52:57.798928+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

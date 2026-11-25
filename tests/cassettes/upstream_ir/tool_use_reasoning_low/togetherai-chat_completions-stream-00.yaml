@@ -1,0 +1,183 @@
+filename: 2026-11-17-01a1ea5e-783d-78f0-b766-5b3ba69ba190
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice:
+      function:
+        name: add
+      type: function
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '600'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea5e-783d-78f0-b766-5b3ba69ba190
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1
+  sse:
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"The"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    user wants me to add "},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"2
+    and 3 first,"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    then take"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    that"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    result and add 4 to"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    it. I"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    need to do these"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    sequentially since the second"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    call depends on the result"},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"reasoning_content":"
+    of the first."},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_01a1ea5e799979a1974ed250","type":"function","function":{"name":"add"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"a\":2"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\"b\":3}"}}]},"logprobs":null,"finish_reason":null}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls","matched_stop":154829}]}
+
+    '
+  - '
+
+    '
+  - 'data: {"id":"eb248ad8a8ee48ddbe64eeb311b442e0-aws_as1","object":"chat.completion.chunk","created":1794933422,"model":"zai-org/GLM-5.2","system_fingerprint":"default","choices":[],"usage":{"prompt_tokens":198,"completion_tokens":59,"total_tokens":257,"prompt_tokens_details":{"cached_tokens":192,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":43,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-17T16:37:02.142005+00:00'
+upstream_url: https://api.together.ai/v1/chat/completions

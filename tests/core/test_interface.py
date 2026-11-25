@@ -1109,7 +1109,7 @@ def _assert_matched_response(
     assert expected_usage is not None
     expected_input_details = expected_usage.input_tokens_details
     expected_output_details = expected_usage.output_tokens_details
-    cache_write_tokens = expected_input_details.cache_write_tokens or 0
+    cache_write_tokens = expected_input_details.cache_write_tokens
     cached_tokens = expected_input_details.cached_tokens
     reasoning_tokens = expected_output_details.reasoning_tokens
     response_type = {
@@ -1117,7 +1117,7 @@ def _assert_matched_response(
         "chat/completions": OpenAIChatCompletionsResponse,
         "messages": AnthropicMessagesResponse,
     }[downstream]
-    assert type(response) is response_type
+    assert isinstance(response, response_type)
     assert response.id == expected_response.id
     assert response.model == expected_response.model
 
@@ -1148,7 +1148,7 @@ def _assert_matched_response(
         assert response.usage.output_tokens == expected_usage.output_tokens
         assert response.usage.total_tokens == expected_usage.total_tokens
         assert response.usage.input_tokens_details.cached_tokens == cached_tokens
-        assert (response.usage.input_tokens_details.cache_write_tokens or 0) == cache_write_tokens
+        assert response.usage.input_tokens_details.cache_write_tokens == cache_write_tokens
         assert response.usage.output_tokens_details.reasoning_tokens == reasoning_tokens
     elif downstream == "chat/completions":
         assert isinstance(response, OpenAIChatCompletionsResponse)
@@ -1178,7 +1178,7 @@ def _assert_matched_response(
         assert response.usage.completion_tokens == expected_usage.output_tokens
         assert response.usage.total_tokens == expected_usage.total_tokens
         assert response.usage.prompt_tokens_details.cached_tokens == cached_tokens
-        assert (response.usage.prompt_tokens_details.cache_write_tokens or 0) == cache_write_tokens
+        assert response.usage.prompt_tokens_details.cache_write_tokens == cache_write_tokens
         assert response.usage.completion_tokens_details.reasoning_tokens == reasoning_tokens
     else:
         assert isinstance(response, AnthropicMessagesResponse)
@@ -1211,7 +1211,7 @@ def _assert_matched_response(
         assert response.stop_reason == "end_turn"
         assert response.stop_sequence is None
         assert response.usage.input_tokens == (
-            expected_usage.input_tokens - cache_write_tokens - cached_tokens
+            expected_usage.input_tokens - (cache_write_tokens or 0) - cached_tokens
         )
         assert response.usage.cache_creation_input_tokens == cache_write_tokens
         assert response.usage.cache_read_input_tokens == cached_tokens
@@ -1599,8 +1599,8 @@ async def _assert_matched_non_stream(
             history = request_body[key] + _response_history(response, downstream)
 
 
-async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
-    """Ensures the matched omission parses in the SDK and receives only the documented adjustment."""
+async def test_responses_native_stream_preserves_omitted_cache_write_tokens():
+    """Ensures native streaming preserves the same absent cache-write count as the SDK."""
     cassette_path = _matched_cassette_path("reasoning_raw", "responses", "stream-00.yaml")
     cassette = _read_cassette(cassette_path)
     request_body = deepcopy(cassette["request"]["body"])
@@ -1614,7 +1614,6 @@ async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
     sdk_completed = next(event for event in sdk_events if event.type == "response.completed")
     assert sdk_completed.response.usage.input_tokens_details.cache_write_tokens is None
     expected = [event.model_dump(mode="json", exclude_unset=True) for event in sdk_events]
-    expected[-1]["response"]["usage"]["input_tokens_details"]["cache_write_tokens"] = 0
 
     async with _get_http_client([cassette_path], "responses") as http_client:
         client = Molto(http_client=http_client)
@@ -1629,7 +1628,7 @@ async def test_responses_native_stream_normalizes_omitted_cache_write_tokens():
     assert [event.model_dump(mode="json", exclude_unset=True) for event in events] == expected
     completed = next(event for event in events if event.type == "response.completed")
     assert completed.response.usage is not None
-    assert completed.response.usage.input_tokens_details.cache_write_tokens == 0
+    assert completed.response.usage.input_tokens_details.cache_write_tokens is None
 
 
 async def _assert_stream_events(
@@ -1681,9 +1680,28 @@ async def _assert_stream_events(
                 endpoint=upstream,
                 provider=provider,
                 api_key="test-api-key",
+                # The recorded vLLM server used the older Chat spelling.
+                chat_reasoning_field="reasoning_content" if scenario == "reasoning_raw" else None,
             )
             events = [event async for event in response]
             expected_sse_events = _sse_records(cassette, downstream)
+            if scenario == "reasoning_raw" and upstream != downstream:
+                # These matched Messages fixtures report zero writes. Their OpenAI
+                # counterparts omit the count. Translation preserves the source value.
+                cache_writes = 0 if upstream == "messages" else None
+                for index, record in enumerate(expected_sse_events):
+                    event = load_sse(record)
+                    if event.get("type") == "response.completed":
+                        details = event["response"]["usage"]["input_tokens_details"]
+                        details["cache_write_tokens"] = cache_writes
+                    elif event.get("type") == "message_delta":
+                        event["usage"]["cache_creation_input_tokens"] = cache_writes
+                    elif downstream == "chat/completions" and event.get("usage"):
+                        details = event["usage"].setdefault("prompt_tokens_details", {})
+                        details["cache_write_tokens"] = cache_writes
+                    else:
+                        continue
+                    expected_sse_events[index] = dumps_sse(event)
             actual_sse_events = []
             for event in events:
                 assert isinstance(event, BaseModel)
@@ -1932,7 +1950,7 @@ async def test_reasoning_only_history(
     additions: dict[Protocol, dict[str, Any]] = {
         "responses": {"input": [responses_item], "reasoning": {"effort": "none"}},
         "chat/completions": {
-            "messages": [{"role": "assistant", "reasoning_content": reasoning}],
+            "messages": [{"role": "assistant", "reasoning": reasoning}],
             "reasoning_effort": "none",
         },
         "messages": {
@@ -1952,7 +1970,7 @@ async def test_reasoning_only_history(
         upstream,
         additions[downstream],
         additions[upstream],
-        provider="openai" if signed else "vllm",
+        provider=DEFAULT_PROVIDER_BY_ENDPOINT[upstream] if signed else "vllm",
     )
 
 
@@ -2008,7 +2026,7 @@ async def test_separate_reasoning_and_text_history_messages(
     history: dict[Protocol, dict[str, Any]] = {
         "chat/completions": {
             "messages": [
-                {"role": "assistant", "reasoning_content": "Prior thought"},
+                {"role": "assistant", "reasoning": "Prior thought"},
                 {"role": "assistant", "content": "Prior answer"},
             ],
             "reasoning_effort": "none",
@@ -2054,21 +2072,19 @@ async def test_separate_reasoning_and_text_history_messages(
 
 
 @pytest.mark.parametrize("with_text_and_tools", [False, True])
-@pytest.mark.parametrize(
-    ("reasoning_parts", "expected_reasoning"),
-    [(["First", "second"], "First\nsecond"), (["First", "", "second"], "First\n\nsecond")],
-)
-async def test_chat_groups_consecutive_assistant_parts(
-    with_text_and_tools: bool, reasoning_parts: list[str], expected_reasoning: str
+@pytest.mark.parametrize("reasoning_parts", [["First", "second"], ["First", "", "second"]])
+async def test_chat_keeps_consecutive_reasoning_parts_separate(
+    with_text_and_tools: bool, reasoning_parts: list[str]
 ) -> None:
-    """Ensures reasoning joins with newlines while parts stay within their source message."""
+    """Ensures independent reasoning parts, including empty ones, keep separate reasoning entries.
+
+    The last entry can also own text and tools.
+    """
     parts: list[dict[str, Any]] = [
         {"type": "thinking", "thinking": text} for text in reasoning_parts
     ]
-    expected_message: dict[str, Any] = {
-        "role": "assistant",
-        "reasoning_content": expected_reasoning,
-    }
+    expected = [{"role": "assistant", "reasoning": text} for text in reasoning_parts]
+    expected_message = expected[-1]
     if with_text_and_tools:
         text_parts = [{"type": "text", "text": text} for text in ("Answer ", "continued")]
         calls = [
@@ -2097,13 +2113,125 @@ async def test_chat_groups_consecutive_assistant_parts(
         },
         {
             "messages": [
-                expected_message,
-                {"role": "assistant", "reasoning_content": "Separate"},
+                *expected,
+                {"role": "assistant", "reasoning": "Separate"},
             ],
             "reasoning_effort": "none",
         },
         provider="vllm",
     )
+
+
+async def test_chat_keeps_empty_responses_reasoning_item_as_empty_field() -> None:
+    """Ensures an empty Responses reasoning item becomes an empty `reasoning_content` entry.
+
+    Guards against an assistant message with empty `content` in place of the reasoning field.
+    """
+    await _assert_request_parity(
+        "responses",
+        "chat/completions",
+        {
+            "input": [
+                {"type": "reasoning", "id": "rs_empty", "summary": []},
+                {
+                    "type": "reasoning",
+                    "id": "rs_text",
+                    "summary": [],
+                    "content": [{"type": "reasoning_text", "text": "Prior thought"}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {"type": "output_text", "text": "Prior answer", "annotations": []}
+                    ],
+                },
+            ],
+            "reasoning": {"effort": "none"},
+        },
+        {
+            "messages": [
+                {"role": "assistant", "reasoning_content": ""},
+                {
+                    "role": "assistant",
+                    "reasoning_content": "Prior thought",
+                    "content": "Prior answer",
+                },
+            ],
+            "reasoning_effort": "none",
+        },
+        provider="openai",
+    )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("order", [(0, 1, 2, 3), (2, 0, 3, 1), (0, 2, 1, 3), (2, 3, 0, 1)])
+async def test_chat_groups_interleaved_text_and_calls(order, stream) -> None:
+    """Ensures shared Chat grouping preserves per-kind order, markers, boundaries, and results."""
+    text_parts = [
+        {"type": "text", "text": "First", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "Second"},
+    ]
+    calls = [
+        {"type": "tool_use", "id": call_id, "name": "lookup", "input": {}}
+        for call_id in ("c1", "c2")
+    ]
+    parts = [*text_parts, *calls]
+    additions = {
+        "messages": [
+            {"role": "assistant", "content": [parts[index] for index in order]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": call["id"], "content": call["id"]}
+                    for call in calls
+                ],
+            },
+            {"role": "assistant", "content": [{"type": "text", "text": "Separate"}]},
+        ],
+    }
+    original = deepcopy(additions)
+    await _assert_request_parity(
+        "messages",
+        "chat/completions",
+        additions,
+        {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "First",
+                            "prompt_cache_breakpoint": {"mode": "explicit"},
+                        },
+                        {"type": "text", "text": "Second"},
+                    ],
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": call["id"],
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                        for call in calls
+                    ],
+                },
+                *[
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": [{"type": "text", "text": call["id"]}],
+                    }
+                    for call in calls
+                ],
+                {"role": "assistant", "content": "Separate"},
+            ],
+            "prompt_cache_options": {"mode": "explicit"},
+        },
+        stream=stream,
+    )
+    assert additions == original
 
 
 @pytest.mark.parametrize(
@@ -2119,13 +2247,6 @@ async def test_chat_groups_consecutive_assistant_parts(
                 {"type": "thinking", "thinking": "After tool"},
             ],
             "cannot preserve this assistant reasoning order",
-        ),
-        (
-            [
-                {"type": "tool_use", "id": "c1", "name": "lookup", "input": {}},
-                {"type": "text", "text": "After tool"},
-            ],
-            "cannot preserve assistant text after tool calls",
         ),
     ],
 )
@@ -2415,6 +2536,48 @@ async def test_translated_top_level_instructions(upstream: Protocol) -> None:
         else {"system": "\n\n".join(instructions), "messages": [user]}
     )
     await _assert_request_parity("responses", upstream, additions, expected)
+
+
+@pytest.mark.parametrize("downstream", ["responses", "chat/completions"])
+@pytest.mark.parametrize("upstream", PROTOCOLS)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_stream", "stream"])
+@pytest.mark.parametrize(
+    "strictness",
+    [{}, {"strict": None}, {"strict": False}, {"strict": True}],
+    ids=["omitted", "null", "false", "true"],
+)
+async def test_function_tool_strictness_defaults(
+    downstream: Protocol, upstream: Protocol, stream: bool, strictness: dict[str, Any]
+) -> None:
+    """Ensures protocol defaults preserve explicit choices and native SDK request/output parity."""
+    parameters = {"type": "object", "properties": {}, "additionalProperties": False}
+    function = {"name": "lookup", "parameters": parameters, **strictness}
+    additions = {
+        "tools": [
+            {"type": "function", **function}
+            if downstream == "responses"
+            else {"type": "function", "function": function}
+        ]
+    }
+    if downstream == upstream:
+        expected = additions
+    else:
+        strict = strictness.get("strict")
+        if strict is None:
+            strict = downstream == "responses"
+        if upstream == "messages":
+            tool = {"name": "lookup", "input_schema": parameters}
+            if strict:
+                tool["strict"] = True
+        else:
+            function = {"name": "lookup", "parameters": parameters, "strict": strict}
+            tool = (
+                {"type": "function", **function}
+                if upstream == "responses"
+                else {"type": "function", "function": function}
+            )
+        expected = {"tools": [tool]}
+    await _assert_request_parity(downstream, upstream, additions, expected, stream=stream)
 
 
 @pytest.mark.parametrize(("downstream", "upstream"), ROUTES)

@@ -1,0 +1,71 @@
+filename: 2026-11-06-01a1af0d-3d24-76b3-977f-82ee94478583
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: text
+      role: user
+    model: gemini-3.1-flash-lite
+    parallel_tool_calls: false
+    reasoning_effort: minimal
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: auto
+    tools:
+    - function:
+        description: Read a file by its path.
+        name: read_file
+        parameters:
+          additionalProperties: false
+          properties:
+            path:
+              type: string
+          required:
+          - path
+          type: object
+        strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '633'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-3d24-76b3-977f-82ee94478583
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":"EnMKcQFpFH0TBCf3MhrW5EPapkFsL4ST3JJ/OPCqi+MtWEkiDq6ffxc2TtAGZA20egiuVTqmyyVEVJRJjpRSBolUxs+eN0OyqdD72aLBfG1HI8aZE/pvrFgRsgl7AMl5WR7u3T3qTpGOcMcU7QX7pVP7dD9l"}},"function":{"arguments":"{\"path\":\"index.txt\"}","name":"read_file"},"id":"call_17906014837408201138","type":"function"}]},"index":0}],"created":1793938243,"id":"Q1Ptapm3A9-xuMYPz9-jsAI","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":18,"prompt_tokens":75,"total_tokens":93}}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":"stop","index":0}],"created":1793938243,"id":"Q1Ptapm3A9-xuMYPz9-jsAI","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk","usage":{"completion_tokens":18,"prompt_tokens":75,"total_tokens":93}}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-06T04:10:42.852359+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

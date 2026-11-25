@@ -1,0 +1,155 @@
+filename: 2026-11-17-01a1ea62-aba2-70f0-ab77-3eeffd03e4ec
+request:
+  body:
+    max_tokens: 2048
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    - content:
+      - signature: EqQECoQBCBMQARgCKkDmNra/T7rjoPCwfpZdSdYGKJpzkE/Fw2IC/rtE1GJYsJ5v16g4lCV1Pw/+D2uRC5XRR/FAtdOVw35u7u6eMKl5MhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgwxOTgzMzMzNDQxOTWoAcCH8tcGEgzW8/mjpQksZv12aNYaDFMapqRfR4yeTAQu1SIwG5eQHOSwFCuc0g1zxHDjhBZ2uw1KK5QyUCIm7qq86Fn2K6DVYwfwL4Prc4AxAcR9KswCx2uDppXFtsPSnT/NnlISqGkd+JL+6J3bmLqEhGQ3pIOrk7gFu2IkSr7Ii7CZcxYc9Zb3orVOU+B125p4m/WFNwBiW7z3tFfKvn5/h6uBOdbZFl05qn1j2/uOxnosREXzHG9snqXJ3SW26on7IXzY/jQh13S3eapXpXaKdJBzI2b2Rn//kXN2ymPpjsBzNCYeeNlydekffFI1V/IaQHFFxwPDPj5kaBJ5H1pAqYw9IYMTaa/qAXfWVg5lFAJNgyJq+50WwDUFDBA3W6ZCcptZZEyYopMCdOl+2safsrWaM8aSDEaAPvpaN1UvLDiKWkC9kdMrYSw7WsA0GBiig/9tuqmwYI0hGSJyZwSPSFxoI4Rpf0hKmy8xdgqnlEY3t9U43bLcZlV0A5p09NW/ed0GlO5A9X5+O6e4sc+2M8wIJvwz8Eo9AntBO61ghaoYAQ==
+        thinking: 'The user wants me to:
+
+          1. First, add 2 and 3 using the add function
+
+          2. Then, add 7 to that result using the add function again
+
+          3. Make exactly one tool call per turn
+
+          4. After both results, reply with the final number only
+
+
+          Since I should make exactly one tool call per turn, I''ll start with the
+          first addition: 2 + 3.'
+        type: thinking
+      - caller: null
+        id: toolu_bdrk_01BEYvCK8kVzRoruaRfYYxRD
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: toolu_bdrk_01BEYvCK8kVzRoruaRfYYxRD
+        type: tool_result
+      role: user
+    - content:
+      - citations: null
+        text: 'Now I''ll add 7 to that result:'
+        type: text
+      - caller: null
+        id: toolu_bdrk_013qhsWZjw9r9LgGSrwJpUbL
+        input:
+          a: 5
+          b: 7
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '12'
+        tool_use_id: toolu_bdrk_013qhsWZjw9r9LgGSrwJpUbL
+        type: tool_result
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: true
+    thinking:
+      budget_tokens: 1024
+      type: enabled
+    tool_choice:
+      disable_parallel_tool_use: true
+      type: auto
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '2342'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1ea62-aba2-70f0-ab77-3eeffd03e4ec
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"anthropic.claude-haiku-4-5-20251001-v1:0","id":"msg_bdrk_fwvgzwjf75z4mz7j3wuxmvgwzjzct5fe32tq3s4zj4blgugdohyq","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":709,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"12"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":709,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":4,"output_tokens_details":{"thinking_tokens":0}}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: message_stop
+timestamp: '2026-11-17T16:41:37.442329+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

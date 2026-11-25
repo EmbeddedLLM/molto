@@ -96,6 +96,8 @@ stream = await molto.responses(
 
 Here the provider receives a Messages request and the application receives OpenAI Responses events. The downstream method, not the upstream endpoint, determines the returned SDK types.
 
+For Claude on Bedrock, use `provider="bedrock"`, `endpoint="messages"`, and an explicit runtime or Mantle `base_url` ending in `/anthropic`. Molto uses the selected Bedrock API key with the regular Anthropic SDK; the SDK appends `/v1/messages`. See [Bedrock configuration and examples](../provider-compatibility.md#selected-protocols-and-configuration). Native Messages and translated Responses/Chat requests support streaming and non-streaming results.
+
 ## Native wire contract
 
 ### Requests and conversation turns
@@ -231,7 +233,7 @@ The instructions retain their order relative to each other, but `B` loses its po
 
 The client preserves the response ID, model, and supported block order. Each emitted block keeps a stable index across its lifecycle. Text delta boundaries, thinking delta boundaries, tool call identity, and every partial-JSON delta are also preserved. Anthropic does not provide a creation timestamp, so Molto captures local wall-clock time when it observes `message_start` for downstream protocols that require one.
 
-`thinking_delta` does not say whether its text is raw reasoning or a summary. Molto classifies it using the explicit provider capability profile: Anthropic and OpenAI profiles use summaries, while vLLM uses raw reasoning. The endpoint or base URL does not select this behavior.
+Messages `thinking` text uses the provider profile during normalization. A signature remains independent of the resulting raw or summary classification. An OpenRouter Responses summary therefore projects into a Messages thinking block even when its continuation uses the raw profile. See [Reasoning and signatures](../reasoning.md).
 
 A thinking block that starts with text or a signature begins immediately so the observed snapshot cannot be lost. A completely empty thinking start is deferred until a non-empty thinking or signature delta establishes content. If the block stays empty, Molto omits it and assigns dense normalized indexes to the remaining blocks. Native `ping` events are ignored on this semantic path.
 
@@ -267,7 +269,9 @@ User text and tool-result text are always projected in explicit content-block li
 
 Reasoning effort is the portable control. For known Claude model IDs, Molto uses the installed Anthropic model profile to select adaptive thinking or manual extended thinking. Non-Claude model IDs on Messages-compatible endpoints default to adaptive thinking, as covered by the cross-protocol fixtures. In addition, current and future adaptive Claude families are force-treated as adaptive and `xhigh`-capable even when the pinned model table has no entry yet: `claude-mythos-preview` and any `claude-{fable,haiku,mythos,opus,sonnet}-<major>=5+` model ID.
 
-When the application speaks Messages, an inbound thinking block is normalized as summarized reasoning: Molto sets `reasoning.summary="detailed"` on the normalized request for both adaptive and `enabled` manual modes.
+Any prefix before `claude-` is ignored only for this capability lookup, including vendor names, route names, and Bedrock inference profiles. The original model ID is preserved in the request.
+
+When a Messages request enables adaptive or manual thinking, Molto requests `reasoning.summary="detailed"`. The provider profile separately classifies text in assistant history.
 
 | Normalized effort | Adaptive `output_config.effort`         | Manual `budget_tokens` |
 | ----------------- | --------------------------------------- | ---------------------- |
@@ -282,15 +286,11 @@ When the application speaks Messages, an inbound thinking block is normalized as
 
 Adaptive requests always use summarized display and an explicit effort. A manual `budget_tokens` value must be less than `max_tokens`; Molto rejects the request before transport when the budget is invalid. Reasoning history enables thinking when the current request omits reasoning configuration, using high effort for adaptive models or the default 10,000-token manual budget.
 
-Inbound `thinking_delta` classification is a separate concern from the outbound adaptive-versus-manual model policy. A Messages thinking output lifecycle contains one of:
-
-- raw reasoning without a signature;
-- a reasoning summary with an optional signature; or
-- a signature without reasoning text.
-
-It must not mix or switch representations within one block. Output processing accepts a missing summary signature and projects it as an empty Messages signature without inventing continuation state. Request normalization preserves unsigned summary history for upstream validation. Chat upstreams accept the summary text, while Responses and Messages upstream builders reject it before transport. Official Anthropic continuation requires the original Anthropic-issued signature. Molto's local request model also permits an absent signature for compatible providers such as vLLM; this does not make unsigned thinking history valid against Anthropic's official API.
+The shared request builder uses raw content when available and otherwise uses the summary. It includes a supplied signature and accepts unsigned history. Official Anthropic continuation may require the original Anthropic-issued signature.
 
 ### Opaque thinking state
+
+See [Reasoning and signatures](../reasoning.md) for current provider profiles, signature replacement semantics, and the distinction between accepting output and replaying signed or unsigned history.
 
 A Messages thinking block has an initial `signature` and may later receive a `signature_delta`. The delta is a complete replacement snapshot, not text to append to the initial value: the Anthropic SDK replaces the block's initial signature when it processes a `signature_delta`. Molto stores and reuses the replacement value for block completion and subsequent history.
 
@@ -303,6 +303,8 @@ OpenAI Responses exposes three encrypted snapshots where Messages has only two s
 | Terminal response output | No independent Messages slot; reuse the done value |
 
 Molto does not buffer the whole stream to reproduce the third ciphertext. This mapping is valid only under an explicit same-provider contract in which the provider defines both fields as the same opaque continuation state. The matched fixtures make that assumption because OpenAI serves both endpoints. Molto currently does not track or enforce the issuer and will mechanically project the value. Callers must not reuse translated continuation state across providers: an Anthropic-issued signature is not valid OpenAI `encrypted_content`, and an OpenAI-issued value is not valid for continuation against Anthropic merely because the wire fields look similar.
+
+An empty thinking block with an empty signature replays to Responses as a reasoning item with empty `summary` and `content`, and without an ID or `encrypted_content`. OpenAI accepts this history. See [empty reasoning items in history](openai-responses.md#empty-reasoning-items-in-history).
 
 ### Termination and service tier
 
@@ -372,7 +374,7 @@ When Messages is the translated upstream and the provider is Anthropic, missing,
 
 Cross-protocol Messages support includes streaming and non-streaming requests for the explicitly mapped text, portable image input, thinking, custom function tools, direct tool calls, successful tool results, limited failed-result paths, conversation history, lifecycle metadata, termination, and usage semantics described above.
 
-A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Unsigned reasoning summary output can pass through Chat Completions, but present signatures cannot because Chat has no signature slot. Unsigned summary history can be translated to a Chat upstream; Responses and Messages upstream builders still require signatures. Molto also does not enforce the same-provider requirement for opaque continuation state; callers must keep signatures with their issuing provider.
+A route targeting Messages must supply a downstream output-token limit because Messages requires `max_tokens`. Applications must keep opaque state with its issuing provider. The [reasoning guide](../reasoning.md) covers signed Chat extensions, attachment order, and unsigned continuation.
 
 The normalized path does not currently implement image output, non-web citations, refusals as content blocks, redacted thinking, hosted tools other than basic web search, structured output, or multiple candidates. Request fields accepted by the local Messages wrapper are not cross-protocol features unless the adapter and client map them explicitly.
 

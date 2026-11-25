@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from json import dumps
 
 import httpx
@@ -63,6 +64,7 @@ from molto.upstream.openai import (
     OpenAIResponsesClient,
     _search_parts,
 )
+from molto.utils.test import collect_sdk_response
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
@@ -433,14 +435,10 @@ def test_openai_clients_preserve_assistant_message_and_text_part_boundaries(empt
             ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
             Thinking(content="Later", summary=""),
         ],
-        [
-            ToolCall(tool_name="lookup", tool_call_id="call_1", args="{}"),
-            TextOutput(content="Later"),
-        ],
     ],
 )
 def test_chat_client_rejects_unrepresentable_order_within_assistant_message(content):
-    """Ensures Chat never reorders or overwrites parts from one explicit assistant message."""
+    """Ensures Chat rejects reasoning after text or calls within one assistant message."""
     request = NormalizedRequest(model="m", input=[AssistantInput(content=content)])
 
     with pytest.raises(UnsupportedInput):
@@ -522,7 +520,7 @@ def test_chat_completions_client_remaps_parallel_image_result_after_tool_message
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call all tools.")]),
-            Thinking(content="", summary="I should call all tools in parallel."),
+            Thinking(content="I should call all tools in parallel.", summary=""),
             ToolCall(
                 tool_call_id="call_a",
                 tool_name="read_image",
@@ -714,7 +712,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
     request = NormalizedRequest(
         input=[
             UserInput(content=[TextInput(content="Call both tools.")]),
-            Thinking(content="", summary="I should call both tools in parallel."),
+            Thinking(content="I should call both tools in parallel.", summary=""),
             ToolCall(
                 tool_call_id="call_a",
                 tool_name="read_image",
@@ -733,7 +731,7 @@ def test_chat_completions_client_flushes_image_results_before_later_assistant_hi
                 tool_call_id="call_b",
                 content=[TextInput(content="Text from b.txt")],
             ),
-            Thinking(content="", summary="Let me try again."),
+            Thinking(content="Let me try again.", summary=""),
             ToolCall(
                 tool_call_id="call_c",
                 tool_name="read_image",
@@ -2063,14 +2061,11 @@ def _message_item_events(
 @pytest.mark.parametrize(
     "signature_fields", [{}, {"encrypted_content": None}, {"encrypted_content": ""}]
 )
-async def test_responses_events_omit_completely_empty_reasoning_part(
+async def test_responses_events_preserve_completely_empty_reasoning_part(
     monkeypatch: pytest.MonkeyPatch,
     signature_fields: dict[str, str | None],
 ) -> None:
-    """Ensures absent or empty ciphertext cannot materialize an empty reasoning lifecycle."""
-    # A reasoning item with no content, summary, signature, or deltas carries
-    # nothing to translate, so its part lifecycle is omitted from the IR and the
-    # surviving parts are reindexed to stay dense.
+    """Ensures empty Responses items retain their IDs and position without invented ciphertext."""
     empty_reasoning_item = {
         "id": "rs_123",
         "type": "reasoning",
@@ -2114,9 +2109,11 @@ async def test_responses_events_omit_completely_empty_reasoning_part(
         PartStartEvent(index=0, part=TextOutput(content="", id="msg_a")),
         PartDeltaEvent(index=0, delta=TextDelta(content_delta="Hi")),
         PartEndEvent(index=0, part=TextOutput(content="Hi", id="msg_a")),
-        PartStartEvent(index=1, part=TextOutput(content="", id="msg_b")),
-        PartDeltaEvent(index=1, delta=TextDelta(content_delta="Bye")),
-        PartEndEvent(index=1, part=TextOutput(content="Bye", id="msg_b")),
+        PartStartEvent(index=1, part=Thinking(content="", summary="", id="rs_123")),
+        PartEndEvent(index=1, part=Thinking(content="", summary="", id="rs_123")),
+        PartStartEvent(index=2, part=TextOutput(content="", id="msg_b")),
+        PartDeltaEvent(index=2, delta=TextDelta(content_delta="Bye")),
+        PartEndEvent(index=2, part=TextOutput(content="Bye", id="msg_b")),
     ]
 
 
@@ -2269,42 +2266,31 @@ async def test_responses_events_preserve_reasoning_added_snapshot(
     assert first == PartStartEvent(index=0, part=expected_part)
 
 
-async def test_responses_events_reject_reasoning_outside_capability(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def stub_native_events(
-        native_request: OpenAIResponsesCreateRequest,
-    ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
-        yield _response_event(
-            {
-                "type": "response.output_item.added",
-                "item": {
-                    "id": "rs_123",
-                    "type": "reasoning",
-                    "content": [{"type": "reasoning_text", "text": "raw"}],
-                    "summary": [],
-                },
-                "output_index": 0,
-                "sequence_number": 0,
-            }
-        )
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(_unexpected_http)) as http_client:
-        client = OpenAIResponsesClient(http_client, capabilities=OPENAI_CAPABILITIES)
-        monkeypatch.setattr(client, "native_events", stub_native_events)
-        with pytest.raises(ValueError, match="cannot contain raw text"):
-            await anext(client.events(NormalizedRequest(model="m")))
-
-
-def test_responses_client_rejects_unsigned_summary_history() -> None:
-    """Ensures Responses rejects summaries without required opaque state."""
-    request = NormalizedRequest(
-        input=[Thinking(content="", summary="Summary")],
-        model="m",
+@pytest.mark.parametrize(
+    ("content", "summary", "signature"),
+    [
+        ("Raw", "", None),
+        ("", "Summary", None),
+        ("Raw", "Summary", "opaque"),
+        ("Raw", "", "opaque"),
+        ("", "", "opaque"),
+        ("", "", None),
+    ],
+)
+def test_responses_reasoning_history_round_trip(content, summary, signature) -> None:
+    """Ensures Responses normalizes and restores each reasoning field independently."""
+    item = {
+        "type": "reasoning",
+        "content": [{"type": "reasoning_text", "text": content}] if content else [],
+        "summary": [{"type": "summary_text", "text": summary}] if summary else [],
+    }
+    if signature is not None:
+        item["encrypted_content"] = signature
+    normalized = OpenAIResponsesAdapter(OPENAI_CAPABILITIES).normalize_request(
+        OpenAIResponsesCreateRequest(model="m", input=[item])
     )
-
-    with pytest.raises(ValueError, match="summary requires a signature"):
-        OpenAIResponsesClient._native_request(request)
+    assert normalized.input == [Thinking(content=content, summary=summary, signature=signature)]
+    assert OpenAIResponsesClient._native_request(normalized).model_dump()["input"] == [item]
 
 
 @pytest.mark.parametrize(
@@ -2433,11 +2419,11 @@ async def test_responses_events_preserve_reasoning_added_snapshot_and_deltas(
     ]
 
 
-async def test_responses_events_defer_completely_empty_reasoning_part_start(
+async def test_responses_events_start_empty_reasoning_immediately(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Only a completely empty reasoning item is deferred; with no further events
-    # it produces nothing at all.
+    """Ensures an empty start preserves the reasoning item identity as soon as it arrives."""
+
     async def stub_native_events(
         native_request: OpenAIResponsesCreateRequest,
     ) -> AsyncIterator[OpenAIResponsesStreamEvent]:
@@ -2454,15 +2440,16 @@ async def test_responses_events_defer_completely_empty_reasoning_part_start(
         client = OpenAIResponsesClient(http_client, capabilities=VLLM_CAPABILITIES)
         monkeypatch.setattr(client, "native_events", stub_native_events)
         stream = client.events(NormalizedRequest(model="m"))
-        with pytest.raises(StopAsyncIteration):
-            await anext(stream)
+        assert await anext(stream) == PartStartEvent(
+            index=0, part=Thinking(content="", summary="", id="rs_123")
+        )
+        await stream.aclose()
 
 
 async def test_responses_events_complete_reasoning_part_without_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # A reasoning item whose text only appears in the completed item still gets a
-    # balanced part lifecycle: the deferred start is flushed at completion.
+    """Ensures text present only at completion survives in the final part snapshot."""
     native_events = [
         _response_event(
             {
@@ -2630,11 +2617,7 @@ async def test_responses_adapter_omits_empty_reasoning_part_lifecycle(
 async def test_responses_events_translate_non_empty_part_added_snapshots(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Part-added snapshots can carry initial text; translate them as deltas so
-    # the streamed text stays consistent with the completed snapshots. Raw
-    # reasoning and summaries use separate reasoning items, as required by the
-    # Responses lifecycle. Empty part-added echoes remain ignored (see
-    # test_responses_events_ignore_...).
+    """Ensures raw, summary, and answer text present in part-added snapshots reach the IR."""
     native_events = [
         _response_event(
             {
@@ -2798,11 +2781,10 @@ async def test_responses_events_translate_non_empty_part_added_snapshots(
     ]
 
 
-async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
+async def test_responses_events_ignore_empty_reasoning_deltas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Empty deltas are lifecycle echoes: they must not materialize a deferred
-    # reasoning part, so the part is still omitted at completion.
+    """Ensures an empty item survives empty delta echoes without creating reasoning text."""
     empty_item = {"id": "rs_123", "type": "reasoning", "content": [], "summary": []}
     native_events = [
         _response_event(
@@ -2854,7 +2836,8 @@ async def test_responses_events_ignore_empty_deltas_on_deferred_reasoning_part(
         monkeypatch.setattr(client, "native_events", stub_native_events)
         events = [event async for event in client.events(NormalizedRequest(model="m"))]
 
-    assert events == []
+    part = Thinking(id="rs_123", content="", summary="")
+    assert events == [PartStartEvent(index=0, part=part), PartEndEvent(index=0, part=part)]
 
 
 async def test_responses_events_forward_same_provider_opaque_reasoning_state(
@@ -3933,6 +3916,280 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, APIStatusError)
+
+
+def _provider_chunk(delta, finish_reason=None):
+    return {
+        "id": "chatcmpl_synthetic",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "synthetic",
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+
+
+def _provider_stream(*chunks):
+    return httpx.Response(
+        200,
+        text="".join(f"data: {dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n",
+        headers={"content-type": "text/event-stream"},
+    )
+
+
+@pytest.mark.parametrize("following", [{"content": "\n\n"}, {"reasoning_content": " think "}])
+async def test_tool_lifecycle_closes_before_following_content(following):
+    """Ensures actual nonempty content finishes the preceding call before starting a new part."""
+    first = {
+        "index": 0,
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "lookup", "arguments": "{"},
+    }
+    chunks = [
+        _provider_chunk({"tool_calls": [first]}),
+        _provider_chunk(
+            {
+                "content": "",
+                "reasoning_content": "",
+                "tool_calls": [{"index": 0, "function": {"arguments": "}"}}],
+            }
+        ),
+        _provider_chunk(following),
+        _provider_chunk({}, "tool_calls"),
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        events = [
+            event
+            async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+        ]
+    starts = [event for event in events if isinstance(event, PartStartEvent)]
+    ends = [event for event in events if isinstance(event, PartEndEvent)]
+    assert [event.index for event in starts] == [0, 1]
+    assert [event.index for event in ends] == [0, 1]
+    assert ends[0].part == ToolCall(tool_call_id="call_1", tool_name="lookup", args="{}")
+    assert events.index(ends[0]) < events.index(starts[1])
+    assert ends[1].part == (
+        TextOutput(content="\n\n")
+        if "content" in following
+        else Thinking(content=" think ", summary="")
+    )
+
+
+@pytest.mark.parametrize(
+    "following",
+    [
+        {"content": "text"},
+        {"reasoning_content": "think"},
+        {
+            "tool_calls": [
+                {"index": 1, "id": "call_2", "function": {"name": "second", "arguments": "{}"}}
+            ]
+        },
+    ],
+)
+async def test_closed_tool_call_cannot_resume(following):
+    """Ensures intervening text, reasoning, or another call makes later fragments fail explicitly."""
+    chunks = [
+        _provider_chunk(
+            {
+                "tool_calls": [
+                    {"index": 0, "id": "call_1", "function": {"name": "first", "arguments": "{"}}
+                ]
+            }
+        ),
+        _provider_chunk(following),
+        _provider_chunk({"tool_calls": [{"index": 0, "function": {"arguments": "}"}}]}),
+        _provider_chunk({}, "stop"),
+    ]
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        with pytest.raises(ValueError, match="contiguous"):
+            [
+                event
+                async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+            ]
+
+
+@pytest.mark.parametrize("placement", ["message", "part", "call"])
+def test_translated_history_rejects_google_state(placement):
+    """Ensures opaque native continuation state is rejected instead of dropped in translation."""
+    message = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "hello"}],
+        "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}
+        ],
+    }
+    extension = {"google": {"thought_signature": "opaque"}}
+    target = (
+        message
+        if placement == "message"
+        else message["content"][0]
+        if placement == "part"
+        else message["tool_calls"][0]
+    )
+    target["extra_content"] = extension
+    original = deepcopy(message)
+    request = OpenAIChatCompletionsCreateRequest(model="synthetic", messages=[message])
+    with pytest.raises(UnsupportedInput, match="extra_content"):
+        OpenAIChatCompletionsAdapter(PROVIDER_CAPABILITIES["vllm"]).normalize_request(request)
+    assert message == original
+
+
+@pytest.mark.parametrize("placement", ["message", "call"])
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_shared_chat_client_ignores_unknown_extra_content(placement, coordinator, stream):
+    """Ensures a shared protocol client completes output carrying an extension it does not model."""
+    delta = {
+        "tool_calls": [
+            {"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+        ]
+    }
+    target = delta if placement == "message" else delta["tool_calls"][0]
+    target["extra_content"] = {"google": {"thought_signature": "opaque"}}
+    body = {"model": "synthetic", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = "Hello"
+    else:
+        body.update(messages=[{"role": "user", "content": "Hello"}], max_tokens=32)
+    async with Molto(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: _provider_stream(
+                    _provider_chunk(delta), _provider_chunk({}, "tool_calls")
+                )
+            )
+        )
+    ) as client:
+        result = await getattr(client, coordinator)(
+            body=body, endpoint="chat/completions", provider="vllm", api_key="test"
+        )
+        if stream:
+            async with result:
+                result = collect_sdk_response(coordinator, [event async for event in result])
+    items = result.output if coordinator == "responses" else result.content
+    assert [item.type for item in items] == [
+        "function_call" if coordinator == "responses" else "tool_use"
+    ]
+
+
+@pytest.mark.parametrize("placement", ["message", "call"])
+@pytest.mark.parametrize("coordinator", ["responses", "messages"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_translated_output_rejects_google_state_and_closes(placement, coordinator, stream):
+    """Ensures OpenAI output state it cannot translate fails explicitly and releases the stream."""
+    provider = "openai"
+    delta = {
+        "tool_calls": [
+            {"index": 0, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+        ]
+    }
+    target = delta if placement == "message" else delta["tool_calls"][0]
+    target["extra_content"] = {"google": {"thought_signature": "opaque"}}
+    responses = []
+
+    def handler(request):
+        response = _provider_stream(_provider_chunk(delta), _provider_chunk({}, "tool_calls"))
+        responses.append(response)
+        return response
+
+    body = {"model": "synthetic", "stream": stream}
+    if coordinator == "responses":
+        body["input"] = "Hello"
+    else:
+        body.update(messages=[{"role": "user", "content": "Hello"}], max_tokens=32)
+    async with Molto(
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ) as client:
+        with pytest.raises(ValueError, match="extra_content|associated text"):
+            result = await getattr(client, coordinator)(
+                body=body, endpoint="chat/completions", provider=provider, api_key="test"
+            )
+            if stream:
+                async with result:
+                    [event async for event in result]
+        assert responses[0].is_closed
+
+
+def test_chat_projection_rejects_reasoning_signatures():
+    """Ensures Chat history rejects opaque state that its protocol cannot represent."""
+    request = NormalizedRequest(
+        model="synthetic",
+        input=[AssistantInput(content=[Thinking(content="", summary="", signature="opaque")])],
+    )
+    with pytest.raises(UnsupportedInput, match="cannot represent"):
+        OpenAIChatCompletionsClient._native_request(request)
+
+
+async def test_generic_chat_missing_index_fails_instead_of_losing_call():
+    """Ensures unsupported missing indices cannot produce a successful empty translated response."""
+    chunk = _provider_chunk(
+        {
+            "tool_calls": [
+                {"index": None, "id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}
+            ]
+        }
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: _provider_stream(chunk, _provider_chunk({}, "tool_calls"))
+        )
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=PROVIDER_CAPABILITIES["vllm"], api_key="test"
+        )
+        with pytest.raises(ValueError, match="require an index"):
+            [
+                event
+                async for event in client.events(NormalizedRequest(model="synthetic", stream=True))
+            ]
+
+
+@pytest.mark.parametrize("usage_only", [True, False])
+async def test_chat_translation_selects_choice_zero_by_index(usage_only):
+    """Ensures alternative completions stay native and their chunks can still report shared usage."""
+    chunks = [_provider_chunk({"content": "first"}), _provider_chunk({"content": "alternative"})]
+    chunks[1]["choices"][0]["index"] = 1
+    mixed = _provider_chunk({"reasoning": "wrong"})
+    mixed["choices"][0]["index"] = 1
+    mixed["choices"].append({"index": 0, "delta": {"content": " choice"}})
+    alternate_end = _provider_chunk({}, "length")
+    alternate_end["choices"][0]["index"] = 1
+    chunks.extend([mixed, _provider_chunk({}, "stop"), alternate_end])
+    if usage_only:
+        chunks.append({**_provider_chunk({}), "choices": []})
+    chunks[-1]["usage"] = {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: _provider_stream(*chunks))
+    ) as transport:
+        client = OpenAIChatCompletionsClient(
+            transport, capabilities=OPENAI_CAPABILITIES, api_key="test"
+        )
+        events = [
+            event async for event in client.events(NormalizedRequest(model="m", stream=True))
+        ]
+        native = [
+            event
+            async for event in client.native_events({"model": "m", "messages": [], "stream": True})
+        ]
+    assert [event.part for event in events if isinstance(event, PartEndEvent)] == [
+        TextOutput(content="first choice")
+    ]
+    assert events[-1].termination_reason == "stop"
+    assert events[-1].usage.total_tokens == 3
+    assert [[choice.index for choice in chunk.choices] for chunk in native] == [
+        [choice["index"] for choice in chunk["choices"]] for chunk in chunks
+    ]
 
 
 @pytest.mark.filterwarnings("error")

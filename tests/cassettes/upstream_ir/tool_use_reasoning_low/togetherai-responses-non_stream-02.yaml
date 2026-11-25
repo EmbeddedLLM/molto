@@ -1,0 +1,170 @@
+filename: 2026-11-17-01a1ea5e-76c4-79d1-bb64-617d94635bac
+request:
+  body:
+    input:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content:
+      - text: 'The user wants me to:
+
+          1. Add 2 and 3
+
+          2. Then add the result of that with 4
+
+          3. Give the final answer
+
+
+          Let me start with the first call.'
+        type: reasoning_text
+      id: rs_0423dab93ad247b9b1d25b8a75264422-aws_as1-01a1ea5e-731b-7dd3-bb71-42bcc0e7ee65
+      summary: []
+      type: reasoning
+    - arguments: '{"a":2,"b":3}'
+      call_id: call_01a1ea5e73ac7001900e935a
+      id: fc_call_01a1ea5e73ac7001900e935a
+      name: add
+      type: function_call
+    - call_id: call_01a1ea5e73ac7001900e935a
+      output: '5'
+      type: function_call_output
+    - content:
+      - text: The result of adding 2 and 3 is 5. Now I need to add 5 and 4.
+        type: reasoning_text
+      id: rs_cc6ffc065fa6461fbe2171ddf175abb9-aws_as1-01a1ea5e-756c-7113-8122-4ca13ae298bf
+      summary: []
+      type: reasoning
+    - arguments: '{"a":5,"b":4}'
+      call_id: call_01a1ea5e75da7e52ae4c7c2c
+      id: fc_call_01a1ea5e75da7e52ae4c7c2c
+      name: add
+      type: function_call
+    - call_id: call_01a1ea5e75da7e52ae4c7c2c
+      output: '9'
+      type: function_call_output
+    max_output_tokens: 2048
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: low
+    store: false
+    stream: false
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1538'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1ea5e-76c4-79d1-bb64-617d94635bac
+response:
+  body:
+    background: false
+    completed_at: 1794933421
+    created_at: 1794933421
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1ea5e-770f-77b2-b52a-2e4c297d4854
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 2048
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - text: The final result is 9.
+        type: reasoning_text
+      id: rs_6663cf62e15b4032997d27f8d0da465d-aws_as1-01a1ea5e-770f-77b2-b52a-2e5de95da643
+      status: completed
+      summary: []
+      type: reasoning
+    - content:
+      - annotations: []
+        text: 'The final answer is **9**.
+
+
+          Here''s the step-by-step breakdown:
+
+          1. 2 + 3 = 5
+
+          2. 5 + 4 = 9'
+        type: output_text
+      id: msg_6663cf62e15b4032997d27f8d0da465d-aws_as1-01a1ea5e-770f-77b2-b52a-2e5de95da643
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: low
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: none
+    tools:
+    - description: Add two integers.
+      name: add
+      parameters:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 152
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 46
+      output_tokens_details:
+        reasoning_tokens: 8
+      total_tokens: 198
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 6663cf62e15b4032997d27f8d0da465d-aws_as1
+  status_code: 200
+timestamp: '2026-11-17T16:37:01.764708+00:00'
+upstream_url: https://api.together.ai/v1/responses

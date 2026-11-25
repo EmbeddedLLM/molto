@@ -1,0 +1,93 @@
+filename: 2026-11-18-01a1ee14-1a4c-7651-9c9c-13104c2f2237
+request:
+  body:
+    extra_body:
+      google:
+        thinking_config:
+          include_thoughts: true
+          thinking_level: medium
+    max_completion_tokens: 2048
+    messages:
+    - content: Find the smallest positive integer divisible by 6, 8 and 9. Explain
+        briefly.
+      role: user
+    - content: 'The smallest positive integer divisible by 6, 8, and 9 is **72**.
+
+
+        **Explanation:**
+
+        To find the smallest number divisible by a set of numbers, you need to find
+        their **Least Common Multiple (LCM)**. You can do this by looking at the prime
+        factorization of each number:
+
+
+        *   **6** = 2 × 3
+
+        *   **8** = 2³
+
+        *   **9** = 3²
+
+
+        To calculate the LCM, take the highest power of each prime factor present
+        in the numbers:
+
+        *   The highest power of 2 is **2³ (8)**.
+
+        *   The highest power of 3 is **3² (9)**.
+
+
+        Multiply these together: **8 × 9 = 72**.'
+      extra_content:
+        google:
+          thought_signature: EtoHCtcHAWkUfRP/lJD4/ar0NXLDacHcmtfTzS0w+RWIb/cAXJPPhZOlPfzfLSlB/rsUfTMie4HMTpLfy7ayDDH9LVyPOnMHrQAVxkAjpEdy0MEDZTG+2rg5x0SsEfxY9cBWRSSw09ZZkRmaP2b2ab4PA0b8qCr8WonzWLg+QG1AYQ2PsMoopuC+i43951NKDFXEyLFs+Q+lr8sFK9VQi073xaF8Bve8yUtTgCcC42vBQ2O1e/1AWmtCCMamgN2qBP7BHjR6irMtSYmqOsZ/jfVQi0eIkxLiLAISJLbmzcSX0Rnp1P2GbS8UNtWfL4CeCR9rIK6PpzUpfuiZlXWmKQWYxD6XWCzt6MLCm5xVFDRk+tXZqjwRWX9sA1NXZIwSAjG7VmNSlIEV5/TxeECZ4yKMDRWN6MDxDA/1ZJwyzHIkN/Nqcn9IAvY2ImOvmenZHKG0VC5o2XfYwbRMz0C4lEMC4FnvSz8twiKksoyAibxCpe4Ox4EO7R47g1ltsG8hmrX662CyIm86iIiBrBbQfp20Jk3MAQT7RIaYZ/05SQJCOKMpaXECOr9GXy++D5MtykcTYzBXiDSMMoaYvYw920EcwUvbsBalilPtB5NLuMoR1lMg9uFyMT6lKCKlBeS7srtQ1/uwb65RCJ+p5DofTxHPEeoUZyjiZF7NJqxgR1rQ47AbJUMrJGF19Uef0O8vD/parv/YQ5fEkLcmljWlqrqMrFVjPLNNPe8rLcZSYnyuI1ABZvY2eqjTgvcWZ2Q1ErESSRvlp6hexQ/HLWNGXlgYkelIlUw5FY8rmIW6+GARYoAr4cK4XtD+eBt4C1iSMnwgcOFhTAYB76leabxkrpzW1+34+2j4D7K2a8IHR4oPdYxhVcKf0d6BaMn39tMNZxrTn8hjnifaAMmjEq0N+JwKIekJcVrriNsVsF63L4AYDX6LihKMaqF6bpSAL6CdLE/VcoNyEzqNDTbSqRvBjIduwz+MAVsCZOJylF/TE4Se1a5vNk6fqPQX+0Ezt5Sm1Tumy1LxbJ6dymdF7EqAWbox6owNV1EIHLPhJm078JPOs81kMyy+STS5q/0HGgPaf7+z827vQrkS0LT1Xg+8yPbqD935m3o8Do1o6pEM++99spgoP7aMceeVSZCTijPheCIXBcMyR+bnvDjUqudHKdlufn6CKMOVKOjzRmDWT9BrwOBUOLoJKQvD1RhTK7b3F7kwiQTDDz2SfWI+Oi1NdzlOJJoU2A7jXcgHmzFF94pL/oPgQoiublewyd9BpnRTaRjuU8wYpmEVfpx46SusQ7Lrxg6ZpL3yTqGegak=
+      role: assistant
+    - content: What is half that number?
+      role: user
+    model: gemini-3.1-flash-lite
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '2303'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1ee14-1a4c-7651-9c9c-13104c2f2237
+response:
+  error_event: false
+  headers:
+    content-type: text/event-stream
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"Half","role":"assistant"},"index":0}],"created":1794995657,"id":"yXX9aqfNFt2Ez7IPlNj0uQs","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":" of 72 is **36**.","role":"assistant"},"index":0}],"created":1794995658,"id":"yXX9aqfNFt2Ez7IPlNj0uQs","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"extra_content":{"google":{"thought_signature":"EvoCCvcCAWkUfROMSxVmqRUSbcEJskjak7OEeHxYysMnWqxmlawygM7uLqpzppdOMv+15MJWfgn9UbQdfu70CwqZ7IrG6AhOMW06S1knEl0Quq5ImQMThA0QcNwTBcwLbgkoSC0C9EItTC7XvVpYkCrMR1NdF7Pp4Xw6SyLe6B131vd3yL4U84fptvu572R+r8cr6MsctuvHhAFo6RU2VEkAEtHGts50zrz2Uf691Gyz7QLh7KD+6oE5249PvmapI4ZatYXPLohpkhVoDCs3/8YCGaq3B8aCT1vYLlcQ4RuGYxbUIX9lHutgmY+vGksjRPB0p2ibI690HgVHIXYmATgxHBfQeEDn7IaGlGeHWGOaKDtvdkPWy32iTzIzpN7NYWOT0xiryX1Qn49kKrvVfYdX5HycrFjNi0KgRn3kDQe5N3hGTkqoDd+CcSXLoaGCagwgtsgDDq1YnPIyZFAoQN4C+suytKG2l3YxkG5gshRU1o6jMypLHzJxm8Xa"}},"role":"assistant"},"finish_reason":"stop","index":0}],"created":1794995658,"id":"yXX9aqfNFt2Ez7IPlNj0uQs","model":"gemini-3.1-flash-lite","object":"chat.completion.chunk"}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-18T09:54:17.292362+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

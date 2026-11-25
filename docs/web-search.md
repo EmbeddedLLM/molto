@@ -2,13 +2,13 @@
 
 Molto preserves provider-hosted web search on native routes and translates basic search through Responses and Messages upstreams. Searches run at the provider, separately from client functions.
 
-| Caller protocol  | Responses upstream                          | Messages upstream                           | Chat upstream             |
-| ---------------- | ------------------------------------------- | ------------------------------------------- | ------------------------- |
-| Responses        | Native passthrough                          | Search, answer, and URL attribution         | Rejected before transport |
-| Messages         | Search, answer, and reduced URL attribution | Native passthrough                          | Rejected before transport |
-| Chat Completions | Mandatory search; signed reasoning rejected | Mandatory search; signed reasoning rejected | Native passthrough        |
+| Caller protocol  | Responses upstream                          | Messages upstream                   | Chat upstream             |
+| ---------------- | ------------------------------------------- | ----------------------------------- | ------------------------- |
+| Responses        | Native passthrough                          | Search, answer, and URL attribution | Rejected before transport |
+| Messages         | Search, answer, and reduced URL attribution | Native passthrough                  | Rejected before transport |
+| Chat Completions | Mandatory search                            | Mandatory search                    | Native passthrough        |
 
-Translated Chat cannot preserve reasoning signatures or encrypted reasoning. The OpenAI Responses streaming search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking; these turns raise `ValueError("Chat Completions cannot preserve reasoning signatures.")`. Use Responses or Messages downstream to retain that output. Search without reasoning or with unsigned reasoning remains representable; the provider profile classifies Chat reasoning as raw text (`vllm`) or a summary (`openai`, `anthropic`). Provider support for hosted search is separate. Rejection depends on the returned reasoning data, not whether search was requested. Native Chat passthrough is unaffected.
+The OpenAI Responses search recording contains encrypted reasoning, and Anthropic Messages search turns can contain signed thinking. To receive this state through translated Chat, supply `chat_signature_namespace` for the continuation issuer. Without that option, signed output raises a translation error. See [Reasoning and signatures](reasoning.md).
 
 Messages callers receive translated URL citations with `Molto.messages(..., citation_policy="buffer")`, or with `citation_policy="auto"` when the normalized request declares hosted search or carries search or citation history. The default `"drop"` streams text without citations; native Messages passthrough preserves citations under every policy.
 
@@ -33,7 +33,7 @@ Omitted options remain omitted; native options pass through unchanged. Without a
 
 `extra_body` and `extra_headers` are opaque upstream request extensions, merged by the provider SDK after Molto constructs its request. They never guide routing, normalization, request translation, or output projection. Headers are filtered once at the credential boundary before forwarding. Translation guarantees cover the normalized request; callers supplying `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for the extensions. Normalized search declarations, selections, and history (search calls, results, and cited text) remain rejected on translated Chat upstreams. A caller can enable search through `extra_body.web_search_options` on a Chat upstream: Molto forwards it verbatim, transport proceeds, and the translated Chat projection drops any returned annotations.
 
-Replacing tools does not change reasoning projection: Chat rejects signed or encrypted reasoning whether search was declared, injected, disabled, or absent.
+Tool overrides do not change the signature namespace used for Chat output.
 
 Responses and Messages preserve automatic, disabled, required, and supported named selection. Translated Chat requests require hosted search specifically, using Responses required `allowed_tools` restricted to search or Messages named `web_search` selection. Conflicting explicit Chat tool choices are rejected on translated routes. A client function named `web_search` remains distinct from hosted search, but Messages cannot select between them by name; rename the function when using named selection.
 
@@ -100,7 +100,7 @@ Buffering increases text latency and changes chunk boundaries. All policies reta
 
 Each buffered Messages text block starts with empty text and its citations, then emits the full block text in one `text_delta` before stopping. This preserves compatibility with the Anthropic SDK's `text_stream` iterator.
 
-Translated Chat omits structured annotations in both modes. It preserves actual answer text and existing inline links, without inserting replacement citations or narration. Signed or encrypted reasoning raises the error described above, including signature-only parts without visible reasoning text. Unsigned reasoning follows the existing protocol restrictions.
+Translated Chat omits structured annotations in both modes. It preserves the answer text and existing inline links.
 
 ## Search activity and results
 

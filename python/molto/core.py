@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Mapping
+from dataclasses import replace
 from typing import Any, Self
 
 from httpx import AsyncClient, Headers
@@ -9,8 +10,10 @@ from molto.configs import ENV_CONFIG
 from molto.providers import (
     DEFAULT_PROVIDER_BY_ENDPOINT,
     PROVIDER_CAPABILITIES,
+    ChatReasoningField,
     Endpoint,
     Provider,
+    ProviderCapabilities,
 )
 from molto.types.anthropic_messages import (
     AnthropicMessagesCreateRequest,
@@ -29,8 +32,8 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
     has_anthropic_search_metadata,
 )
-from molto.upstream.anthropic import AnthropicMessagesClient
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.base import BaseClient
+from molto.upstream.registry import CLIENTS
 from molto.utils.io import request_to_dict
 
 VLLM_DUMMY_API_KEY = "EMPTY"
@@ -166,14 +169,20 @@ class Molto:
         await self._http_client.aclose()
 
     @staticmethod
-    def _resolve_api_key(provider: Provider, api_key: str | None) -> str | None:
-        if api_key is None and provider == "openai":
+    def _resolve_api_key(
+        client_type: type[BaseClient], provider: Provider, api_key: str | None
+    ) -> str | None:
+        if api_key is not None:
+            return api_key
+        if client_type.REQUIRED_API_KEY:
+            return getattr(ENV_CONFIG, client_type.REQUIRED_API_KEY.lower()).get_secret_value()
+        if provider == "openai":
             return ENV_CONFIG.openai_api_key_plain
-        if api_key is None and provider == "anthropic":
+        if provider == "anthropic":
             return ENV_CONFIG.anthropic_api_key_plain
-        if api_key is None and provider == "vllm":
+        if provider == "vllm":
             return VLLM_DUMMY_API_KEY
-        return api_key
+        return None
 
     @staticmethod
     def _resolve_provider(endpoint: Endpoint, provider: Provider | None) -> Provider:
@@ -181,7 +190,49 @@ class Molto:
         # endpoint cannot surface as an unrelated translation error.
         if endpoint not in DEFAULT_PROVIDER_BY_ENDPOINT:
             raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
-        return provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
+        if provider is not None and provider not in PROVIDER_CAPABILITIES:
+            raise ValueError(f"Unsupported provider: {provider!r}.")
+        resolved_provider = provider or DEFAULT_PROVIDER_BY_ENDPOINT[endpoint]
+        return resolved_provider
+
+    def _upstream_client(
+        self,
+        endpoint: Endpoint,
+        provider: Provider,
+        *,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
+        api_key: str | None,
+        base_url: str | None,
+        extra_body: Mapping[str, Any] | None,
+        extra_headers: Mapping[str, str] | None,
+    ) -> tuple[BaseClient, ProviderCapabilities]:
+        """Select a registered client and resolve its translation capabilities."""
+        client_type = CLIENTS.get((provider, endpoint))
+        if client_type is None:
+            raise ValueError(
+                f"Unsupported upstream endpoint {endpoint!r} for provider {provider!r}."
+            )
+        profile = PROVIDER_CAPABILITIES[provider]
+        if chat_reasoning_field is not None:
+            if chat_reasoning_field not in {"reasoning", "reasoning_content"}:
+                raise ValueError(
+                    "chat_reasoning_field must be 'reasoning' or 'reasoning_content'."
+                )
+            profile = replace(profile, chat_reasoning_field=chat_reasoning_field)
+        if chat_signature_namespace is not None:
+            if not chat_signature_namespace.strip():
+                raise ValueError("chat_signature_namespace must be a nonempty namespace.")
+            profile = replace(profile, chat_signature_namespace=chat_signature_namespace)
+        upstream = client_type(
+            self._http_client,
+            api_key=self._resolve_api_key(client_type, provider, api_key),
+            base_url=base_url,
+            capabilities=profile,
+            extra_body=extra_body,
+            extra_headers=_upstream_headers(extra_headers),
+        )
+        return upstream, upstream.capabilities
 
     async def responses(
         self,
@@ -192,6 +243,9 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        *,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[OpenAIResponsesStreamEvent] | OpenAIResponsesResponse:
         """
         Consume OpenAI Responses request and return Responses output.
@@ -208,13 +262,24 @@ class Molto:
             extra_body: Additional fields merged into the upstream request body.
             extra_headers: Additional upstream headers. Client credentials and transport
                 headers are removed before the provider request.
+            chat_reasoning_field: Preferred Chat reasoning alias during translation.
+                Set to "reasoning_content" for older vLLM servers.
+            chat_signature_namespace: Chat extension namespace for opaque signatures,
+                such as "google" for Gemini.
         """
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIResponsesCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIResponsesCreateRequest.")
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
-        upstream_headers = _upstream_headers(extra_headers)
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
+            api_key=api_key,
+            base_url=base_url,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+        )
 
         if endpoint == "responses":
             body = request_to_dict(body)
@@ -223,14 +288,6 @@ class Molto:
                     "Anthropic search extra_content requires endpoint='messages' "
                     "and provider='anthropic'."
                 )
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = OpenAIResponsesAdapter(capabilities)
             if body.get("stream") is True:
                 return await _prefetch_stream(
@@ -250,26 +307,6 @@ class Molto:
             capabilities, preserve_anthropic_search_metadata=preserve_search_metadata
         )
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "messages":
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,
@@ -287,6 +324,9 @@ class Molto:
         base_url: str | None = None,
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        *,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[OpenAIChatCompletionsStreamChunk] | OpenAIChatCompletionsResponse:
         """Consume a Chat Completions request using any supported upstream protocol.
 
@@ -297,19 +337,18 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, OpenAIChatCompletionsCreateRequest)):
             raise TypeError("body must be a dictionary or OpenAIChatCompletionsCreateRequest.")
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
-        upstream_headers = _upstream_headers(extra_headers)
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
+            api_key=api_key,
+            base_url=base_url,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+        )
         if endpoint == "chat/completions":
             body = request_to_dict(body)
-            upstream = OpenAIChatCompletionsClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = OpenAIChatCompletionsAdapter(capabilities)
             if body.get("stream") is True:
                 return await _prefetch_stream(
@@ -321,26 +360,6 @@ class Molto:
         request = OpenAIChatCompletionsCreateRequest.model_validate(body)
         adapter = OpenAIChatCompletionsAdapter(capabilities)
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "responses":
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "messages":
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,
@@ -359,6 +378,9 @@ class Molto:
         extra_body: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
         citation_policy: CitationPolicy = "drop",
+        *,
+        chat_reasoning_field: ChatReasoningField | None = None,
+        chat_signature_namespace: str | None = None,
     ) -> MoltoStream[AnthropicMessagesStreamEvent] | AnthropicMessagesResponse:
         """Consume an Anthropic Messages request using any supported upstream protocol.
 
@@ -374,19 +396,18 @@ class Molto:
         resolved_provider = self._resolve_provider(endpoint, provider)
         if not isinstance(body, (dict, AnthropicMessagesCreateRequest)):
             raise TypeError("body must be a dictionary or AnthropicMessagesCreateRequest.")
-        resolved_api_key = self._resolve_api_key(resolved_provider, api_key)
-        capabilities = PROVIDER_CAPABILITIES[resolved_provider]
-        upstream_headers = _upstream_headers(extra_headers)
+        upstream, capabilities = self._upstream_client(
+            endpoint,
+            resolved_provider,
+            chat_reasoning_field=chat_reasoning_field,
+            chat_signature_namespace=chat_signature_namespace,
+            api_key=api_key,
+            base_url=base_url,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
+        )
         if endpoint == "messages":
             body = request_to_dict(body)
-            upstream = AnthropicMessagesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
             adapter = AnthropicMessagesAdapter(capabilities, citation_policy=citation_policy)
             if body.get("stream") is True:
                 return await _prefetch_stream(
@@ -402,26 +423,6 @@ class Molto:
             citation_policy="drop" if endpoint == "chat/completions" else citation_policy,
         )
         normalized_request = adapter.normalize_request(request)
-        if endpoint == "responses":
-            upstream = OpenAIResponsesClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        elif endpoint == "chat/completions":
-            upstream = OpenAIChatCompletionsClient(
-                self._http_client,
-                api_key=resolved_api_key,
-                base_url=base_url,
-                capabilities=capabilities,
-                extra_body=extra_body,
-                extra_headers=upstream_headers,
-            )
-        else:
-            raise ValueError(f"Unsupported endpoint: {endpoint!r}.")
         projected_events = adapter.project_events(
             upstream.events(normalized_request.model_copy(update={"stream": True})),
             normalized_request,

@@ -1,0 +1,111 @@
+filename: 2026-11-05-01a1a9c9-a113-77e1-b1e0-826cbff9b63a
+request:
+  body:
+    input:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '220'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9c9-a113-77e1-b1e0-826cbff9b63a
+response:
+  body:
+    background: false
+    completed_at: 1793849928
+    created_at: 1793849926
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9c9-a27b-7162-8c19-affa897ead99
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: "Here are several name suggestions for a robot gardener, broken down\
+          \ by the \"vibe\" you might be going for:\n\n**Botanical & Mechanical (Punny\
+          \ & Clever)**\n*   **Mechanibloom**\n*   **Robo-Rooter**\n*   **Sproutnik**\n\
+          *   **Bot-anical**\n*   **Turflink**\n*   **Metalleaf**\n*   **Thornbot**\n\
+          *   **Circuit-Sprout**\n\n**Cute & Friendly (Great for a home garden)**\n\
+          *   **BloomBot**\n*   **Sprig**\n*   **Pip**\n*   **Dewey**\n*   **Flora**\n\
+          *   **Sunny**\n*   **Bud-E** (Buddy)\n*   **Petal**\n\n**Nature & Mythology\
+          \ Inspired (Elegant or poetic)**\n*   **Sylvia** (Derived from *Silva*,\
+          \ Latin for forest)\n*   **Demeter** (Greek goddess of the harvest)\n* \
+          \  **Flora** (Roman goddess of flowers)\n*   **Ceres** (Roman goddess of\
+          \ agriculture)\n*   **Verdant**\n*   **Gaia**\n\n**Sci-Fi & Futuristic (Sleek\
+          \ and professional)**\n*   **CultiBot**\n*   **Green-Drive**\n*   **TerraDroid**\n\
+          *   **Aero-G**\n*   **VegiTech**\n*   **Sentinel-Sprout**\n*   **Bio-Mech**\n\
+          \n**Specific Task Names (If it does one thing really well)**\n*   **Clipper**\
+          \ (For a pruning/hedge-trimming robot)\n*   **Digger** (For planting/bulbing)\n\
+          *   **Sprinkles** (For a watering robot)\n*   **Weeder**\n*   **Harvestor**\n\
+          \n**My Top 3 Recommendations:**\n1.  **Sproutnik** – It’s memorable, fun\
+          \ to say, and perfectly blends the idea of a new plant sprout with Sputnik\
+          \ (the famous robot/satellite). \n2.  **BloomBot** – Classic, alliterative,\
+          \ and immediately tells you exactly what the robot does.\n3.  **Sylvia**\
+          \ – A great name if you want something that sounds like a helpful companion\
+          \ rather than a machine. \n\nWhat kind of vibe are you going for with your\
+          \ robot?"
+        type: output_text
+      id: msg_8d272d0e-aws_as1-01a1a9c9-a27b-7162-8c19-b00a4cc7a324
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools: []
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 16
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 498
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 514
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 8d272d0e-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:38:45.907749+00:00'
+upstream_url: https://api.together.ai/v1/responses

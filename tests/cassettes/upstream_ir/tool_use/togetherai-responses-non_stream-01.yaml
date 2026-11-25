@@ -1,0 +1,135 @@
+filename: 2026-11-05-01a1a9cb-4d12-7ff3-bf9a-b7a28d308e3d
+request:
+  body:
+    input:
+    - content:
+      - text: Read index.txt using read_file. It contains the path of another file.
+          Read that file too, then summarize its contents in one sentence.
+        type: input_text
+      role: user
+    - arguments: '{"path":"index.txt"}'
+      call_id: call_01a1a9cb0df07a72b0092b2f
+      id: fc_call_01a1a9cb0df07a72b0092b2f
+      name: read_file
+      status: completed
+      type: function_call
+    - call_id: call_01a1a9cb0df07a72b0092b2f
+      output:
+      - text: garden.txt
+        type: input_text
+      type: function_call_output
+    max_output_tokens: 1024
+    model: zai-org/GLM-5.2
+    parallel_tool_calls: false
+    reasoning:
+      effort: minimal
+    store: false
+    stream: false
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '905'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1a9cb-4d12-7ff3-bf9a-b7a28d308e3d
+response:
+  body:
+    background: false
+    completed_at: 1793850037
+    created_at: 1793850037
+    error: null
+    frequency_penalty: 0.0
+    id: resp_01a1a9cb-5571-7541-962e-9147370622cb
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: 1024
+    max_tool_calls: null
+    metadata: {}
+    model: zai-org/GLM-5.2
+    object: response
+    output:
+    - content:
+      - annotations: []
+        text: The file `index.txt` contains the path `garden.txt`. Let me read that
+          file now.
+        type: output_text
+      id: msg_0f26025d-aws_as1-01a1a9cb-5572-7e32-8fd7-61aeed733e54
+      role: assistant
+      status: completed
+      type: message
+    - arguments: '{"path":"garden.txt"}'
+      call_id: call_01a1a9cb561876b2be7c103a
+      id: fc_call_01a1a9cb561876b2be7c103a
+      name: read_file
+      status: completed
+      type: function_call
+    parallel_tool_calls: false
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: null
+    reasoning:
+      effort: minimal
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: false
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: auto
+    tools:
+    - description: Read a file by its path.
+      name: read_file
+      parameters:
+        additionalProperties: false
+        properties:
+          path:
+            type: string
+        required:
+        - path
+        type: object
+      strict: false
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 203
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 192
+      output_tokens: 34
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 237
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+    x-request-id: 0f26025d-aws_as1
+  status_code: 200
+timestamp: '2026-11-05T03:40:35.474314+00:00'
+upstream_url: https://api.together.ai/v1/responses

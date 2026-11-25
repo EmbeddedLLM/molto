@@ -10,27 +10,29 @@ Three upstream endpoints are implemented:
 - `chat/completions`: native Chat Completions passthrough or cross-protocol translation through Chat Completions;
 - `messages`: native Anthropic Messages passthrough or translated through the normalized representation.
 
-Native same-protocol and cross-protocol routes support streaming and non-streaming requests. Cross-protocol routes cover text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, function tools, tool calls and results, conversation history, prompt-cache intent, lifecycle metadata, and token usage. Translated output through Chat supports unsigned raw reasoning and summaries; present signatures remain unsupported because Chat has no signature field. Request normalization preserves unsigned summary history. Chat upstreams accept its text, while Responses and Messages upstream builders still require signatures.
+Native and translated routes support streaming and non-streaming requests for text, portable image input, reasoning, tools, conversation history, prompt-cache intent, lifecycle metadata, and usage. See [Reasoning and signatures](../docs/reasoning.md) for the protocol mapping and continuation contract.
 
 ## Route configuration
 
 `endpoint`, `provider`, and `base_url` are independent:
 
-| Concept    | Purpose                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`.                                |
-| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, or `vllm`. |
-| `base_url` | Selects only the HTTP destination.                                                                                            |
+| Concept | Purpose |
+| --- | --- |
+| `endpoint` | Selects the upstream wire protocol and client: `responses`, `chat/completions`, or `messages`. |
+| `provider` | Identifies the implementation serving that protocol and selects its `ProviderCapabilities`: `openai`, `anthropic`, `vllm`, or an explicit hosted-provider profile. |
+| `base_url` | Selects only the HTTP destination. |
 
 Molto never derives provider behavior from a URL hostname. When `provider` is omitted, the coordinator uses the canonical implementation for the selected endpoint as a convenience default: OpenAI for Responses and Chat Completions, and Anthropic for Messages. An explicit provider overrides that default without changing the endpoint, while an explicit base URL changes neither the protocol nor the capability profile.
 
 ### Endpoint selection belongs to the coordinator
 
-Each upstream client implements one upstream wire protocol. A client must not switch or override the selected endpoint to accommodate a provider's supported protocols. Implement provider-specific clients only for protocols that the provider supports, reusing the existing protocol client where possible. For example, if Together AI supports only Chat Completions, implement `TogetherAIChatCompletionsClient`; do not implement a Responses client that silently sends Chat Completions requests.
+Each upstream client implements one upstream wire protocol. A client must not switch or override the selected endpoint to accommodate a provider's supported protocols. Implement provider-specific clients only for protocols that the provider supports, reusing the existing protocol client where possible. For example, `GeminiChatCompletionsClient` sends Chat Completions requests; it must not present itself as a Responses client.
 
-Any desired provider-specific endpoint default, forced switch, or override belongs in the `Molto` coordinator. Resolve the effective upstream endpoint before selecting the client and deciding between native passthrough and translation. The coordinator must preserve its downstream protocol contract: a Responses request routed through `TogetherAIChatCompletionsClient` uses the Responses adapter and normalized translation path.
+Any desired provider-specific endpoint default, forced switch, or override belongs in the `Molto` coordinator. Resolve the effective upstream endpoint before selecting the client and deciding between native passthrough and translation. The coordinator must preserve its downstream protocol contract: a Responses request routed through `GeminiChatCompletionsClient` uses the Responses adapter and normalized translation path.
 
 This defines ownership of any future routing policy; it does not introduce automatic endpoint switching. The current explicit-provider behavior described above remains unchanged.
+
+Each supported `(provider, endpoint)` route has an explicit class in `upstream/registry.py`, including thin subclasses where the shared implementation is sufficient. Prefer Responses for a model and capability it supports, then Messages, then Chat Completions. Together, Fireworks, and Bedrock each have separate Responses and Chat Completions classes; Bedrock also has a Messages class for Claude. OpenRouter uses Responses and Gemini uses Chat Completions. Each class remains single-protocol, and registering a provider does not establish support for its entire model catalog. Existing canonical OpenAI/Anthropic clients and vLLM routes remain available. Native and translated requests require a registered pair, even with an explicit base URL. Unregistered pairs fail before HTTP; registered clients retain their credentials, destination defaults, and explicit overrides. SDK resource paths are appended to the selected base URL unchanged. The coordinator never switches endpoints. Provider classes own their default destination, required credential name, and protocol-specific capability adjustments; the coordinator resolves configured credentials and explicit overrides. Bedrock requires an explicit regional destination. Its Messages client reuses the Anthropic protocol implementation with Bedrock API-key authentication and a runtime or Mantle base URL ending in `/anthropic`; the SDK appends `/v1/messages`. Claude thinking-capability lookup recognizes `claude-...` regardless of preceding provider, route, or inference-profile prefixes, leaving the wire model unchanged.
 
 ## Architectural goal
 
@@ -66,7 +68,7 @@ Downstream X protocol
 Downstream X events
 ```
 
-Each downstream protocol should require one adapter and each upstream protocol should require one client. Composition then grows approximately as N + M implementations instead of N x M pairwise translators.
+Each downstream protocol has one adapter, and each upstream protocol has a shared client implementation with provider-specific subclasses. The subclasses inherit transport and normalization unless a provider difference requires an override. The shared Responses and Chat Completions implementations are `ResponsesClient` and `ChatCompletionsClient`; the OpenAI clients are provider subclasses like any other. Shared clients ignore output extensions they do not model, and a provider client validates only the extensions and contract it knows. Translation still composes adapters and clients instead of adding pairwise translators.
 
 The native protocol passthrough is an identity optimization to this model. When the two protocols are identical, crossing the IR would only reduce fidelity. Cross-protocol routes still compose adapters and clients through the normalized representation.
 
@@ -76,7 +78,7 @@ Cross-protocol translation follows one governing principle: Molto is strict duri
 - Normalized outputs are open to provider extensions.
 - Retaining unknown output data does not authorize projecting it into another protocol.
 
-Documented exceptions allow omission at protocol boundaries. Chat Completions and Messages may omit optional Responses output-item IDs because they have no equivalent and do not affect model behavior. Messages silently drops caller-defined prompt-cache keys because Anthropic computes cache identity implicitly; dropping a key does not enable caching, and remaining cache options are processed independently. Translated Responses routes may ignore `include=["reasoning.encrypted_content"]` because Molto already preserves any encrypted reasoning present in the response, `include=["web_search_call.action.sources"]` because Molto requests and projects search sources whenever hosted search is declared, and `store=false` because it requests no provider-side state; `store=true` remains unsupported. Native passthrough forwards these fields unchanged. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
+Documented exceptions allow omission at protocol boundaries. Chat Completions and Messages may omit optional Responses output-item IDs because they have no equivalent and do not affect model behavior. Messages silently drops caller-defined prompt-cache keys because Anthropic computes cache identity implicitly; dropping a key does not enable caching, and remaining cache options are processed independently. Translated Responses routes may ignore `include=["reasoning.encrypted_content"]` because Molto already preserves any encrypted reasoning present in the response, `include=["web_search_call.action.sources"]` because Molto requests and projects search sources whenever hosted search is declared, and `store=false` because it requests no provider-side state; `store=true` remains unsupported. Responses request normalization also omits the `format="unknown"` label on raw-only reasoning history, which names no encoding; other formats are rejected. Native passthrough forwards these fields unchanged. Responses preserves output-item IDs, including on marked assistant history. Both OpenAI protocols preserve cache keys. Portable call identities such as `ToolCall.tool_call_id` remain lossless-or-rejected.
 
 Every semantic rejection while normalizing or projecting a cross-protocol request raises `UnsupportedInput`, a `ValueError` subclass. Protocol schema validation on translated routes remains owned by the corresponding Pydantic request model and retains its native validation errors. Molto's local public request models inherit from `ExcludeNoneModel` and reject unknown fields by default. Native routes bypass this validation. Output and event validation errors are not `UnsupportedInput`.
 
@@ -107,9 +109,9 @@ The layers have distinct ownership:
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | `core.py` (`Molto`) | Public orchestration facade, protocol coordinators, route selection, composition, credentials | Provider-specific field transformations |
-| `providers.py` | Provider names, endpoint defaults, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
+| `providers.py` | Provider names, default protocol-to-provider selection, and immutable capability profiles | Wire-protocol schemas or HTTP destinations |
 | `adapters/` | Downstream native request to normalized request; normalized events to downstream-native events; projected native events to a complete downstream-native response | HTTP transport |
-| `upstream/` | Upstream request construction, provider SDK stream integration, compatibility validation where required, upstream response normalization | Downstream response formatting |
+| `upstream/` | Explicit provider/protocol client registry, destination/authentication defaults, upstream request construction, provider SDK stream integration, compatibility validation, and upstream response normalization | Downstream response formatting |
 | `types/normalized.py` | Provider-neutral schemas and validation for request content, response parts, deltas, lifecycle metadata, and usage | Protocol conversions, transport, or SDK lifecycle objects |
 | `types/openai_*.py` | OpenAI request schemas, SDK-native result aliases, and narrow compatibility validators | Cross-protocol orchestration |
 
@@ -147,6 +149,8 @@ Each implemented coordinator performs the following work:
 4. Resolve the API key and injected or default HTTP client.
 5. Select the upstream path from `endpoint`.
 6. Return either an async iterator of downstream SDK event models or the downstream SDK response model.
+
+Each client applies its protocol-specific `resolve_capabilities()` once, in its constructor, and exposes the result as `capabilities`. The coordinator passes that same resolved profile to the adapter, so adapter and client always classify reasoning identically.
 
 Every coordinator also accepts request-scoped `extra_body` and `extra_headers` as opaque request extensions sent to the upstream. The selected provider SDK merges them into the final upstream request only after Molto has built it. Molto must never consult these extensions when choosing a route, normalizing input, constructing or translating a request, or projecting output. They must not influence any other Molto logic except the header filtering at the credential boundary described below. Translation guarantees are defined over the normalized request; callers who supply `tools`, `input`, `include`, or `web_search_options` through `extra_body` opt out of those guarantees for those extensions.
 
@@ -255,7 +259,7 @@ OpenAIChatCompletionsAdapter.project_events()
 ChatCompletionChunk SDK stream
 ```
 
-`reasoning_content` is a provider extension to the OpenAI Chat schema, but the field itself does not distinguish raw reasoning from a reasoning summary. Molto models the extension only on assistant messages and uses `ProviderCapabilities.thinking` to classify it. OpenAI classifies it as a summary and vLLM as raw reasoning. Responses events already distinguish `response.reasoning_text.*` from `response.reasoning_summary_*`; their explicit event types remain authoritative. Output normalization and projection tolerate unsigned summaries, including those received through Chat. Request normalization preserves unsigned summary history, and Chat upstream construction accepts its text. Present signatures remain unrepresentable in Chat; Responses and Messages upstream construction still requires signatures for summary history. These destination checks run before transport and do not change native passthrough.
+Chat accepts `reasoning` and `reasoning_content`. Its selected field name, signature namespace, and raw/summary classification are independent settings. Responses always uses explicit wire labels. See [Reasoning and signatures](../docs/reasoning.md).
 
 ## Normalized request model
 
@@ -273,7 +277,7 @@ ChatCompletionChunk SDK stream
 
 Assistant conversation history uses one strict `AssistantInput` per source message, containing ordered `Thinking`, `TextOutput`, `ToolCall`, `SearchCall`, and `SearchResult` parts and an optional Responses message ID. Standalone Responses reasoning and function-call items remain top-level `Thinking` and `ToolCall` values. Hosted search calls and linked results can likewise be top-level history parts. `TextOutput` is an assistant part, not a top-level request item. This retains both the enclosing message boundary and its ordered content. `AssistantInput.id` supplies the history message ID; IDs on nested `TextOutput` parts are retained output metadata and are not used when projecting history.
 
-Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary. Assistant text parts follow the same rule: multiple text parts remain in one message, and adjacent assistant messages remain separate. Messages can retain any supported assistant part order. Within one explicit assistant message, Chat accepts runs of reasoning, text, and tool-call parts in that order, with any run optional. Adjacent reasoning parts concatenate in order with a newline separator; text parts retain their array boundaries and markers, and tool calls retain distinct array entries and IDs. Chat rejects reasoning after text or calls and text after calls rather than splitting or reordering the message. This grouping never merges separate explicit assistant messages. Responses has standalone reasoning and call items, so projecting a mixed assistant message emits contiguous text runs as messages interleaved with those items.
+Native request projection always expresses user text as a protocol content-part list: Responses uses `input_text`, Chat Completions uses `text`, and Anthropic Messages uses a `text` block. In the normalized representation, one `UserInput` corresponds to exactly one user message and each child `TextInput` corresponds to one ordered text part. Adapters and clients must not merge or split either boundary. Provider-specific part discriminators remain at the wire boundary. Assistant text parts follow the same rule: multiple text parts remain in one message, and adjacent assistant messages remain separate. Messages can retain any supported assistant part order. Within one explicit assistant message, Chat accepts leading reasoning followed by any interleaving of text and tool-call parts. It groups text and calls into separate fields, preserving order within each field while losing their interleaving. Independent reasoning parts use separate Chat assistant entries; text parts retain their array boundaries and markers, and tool calls retain distinct array entries and IDs. Chat still rejects reasoning after text or calls. This grouping never merges separate explicit assistant messages. Responses has standalone reasoning and call items, so projecting a mixed assistant message emits contiguous text runs as messages interleaved with those items.
 
 Responses and Chat Completions also project every normalized instruction as a `developer` message with one text part, whether or not it has a cache breakpoint. Markers remain attached only to their marked parts.
 
@@ -327,13 +331,13 @@ For the text, reasoning, and function-tool paths:
 - `PartEndEvent` carries the complete reasoning, text, or function call accumulated from the deltas;
 - `ResponseEndEvent` carries terminal metadata, a required provider-neutral `TerminationReason` literal, an optional matched stop sequence, and normalized usage. The literal includes `unknown` for an incomplete response whose cause is unavailable.
 
-A reasoning part with no content, summary, signature, or deltas carries nothing to translate; upstream clients omit its part lifecycle from the stream rather than emitting empty `Thinking` bookends, and surviving parts are reindexed so normalized indices stay dense. Recorded providers never produce such parts.
+Responses preserves empty reasoning items and their IDs. An empty Messages thinking block is deferred until it carries text or state. A Chat chunk without content or a signature does not start a thinking part.
 
 Chat's role chunk starts the first part but its empty content is not emitted as a delta. Reasoning and text may interleave, so each transition between them — in either direction — ends the active part and starts a new one. A finish reason ends the active part. Usage can arrive in a later chunk, so the response ends only after the upstream SDK stream has been consumed.
 
 Chat does not expose an end marker for each indexed tool call. Molto treats calls as contiguous: a new call index closes the preceding call, and a later delta cannot resume a closed index. This keeps normalized, Responses and Messages content-block lifecycles balanced without buffering calls.
 
-The normalized representation preserves the distinction that ambiguous wire protocols omit: `Thinking.content` and `ThinkingDelta.content_delta` contain raw reasoning, while `Thinking.summary` and `ThinkingDelta.summary_delta` contain a summary. Chat Completions `reasoning_content` and Messages `thinking_delta` are classified by the resolved provider capability profile. Every downstream adapter accepts the normalized representation selected by that profile; Chat Completions and Messages then emit it through their protocol's single reasoning field, while Responses retains the distinction with separate reasoning-text and reasoning-summary lifecycles.
+`Thinking.content` and `Thinking.summary` are independent. Responses retains both and their separate text lifecycles. A Chat or Messages history builder selects raw content first. Its streaming projector selects the first nonempty representation for each part, including when building a non-streaming response.
 
 Opaque reasoning state is represented as snapshots, not text. `Thinking.signature` carries the state observed at part start or part end, and `ThinkingDelta.signature_delta` replaces the prior snapshot instead of appending to it. Empty Responses `encrypted_content` normalizes to no signature and does not produce a signature delta. Responses exposes three encrypted snapshots for a reasoning item (`output_item.added`, `output_item.done`, and terminal response output), while Messages exposes only a thinking-block start signature and a later signature delta. Molto preserves the first two by mapping `added` to part start and `done` to the replacement delta; a translated terminal Responses item reuses the `done` snapshot rather than buffering the stream to reproduce a third ciphertext.
 
@@ -347,7 +351,7 @@ The normalized termination reason maps shared semantics explicitly: normal compl
 
 `SearchCall` and `SearchResult` use the existing part lifecycle and link by call identity. They are assistant history/output parts. An unfinished call may have no result, and a search error does not determine overall termination. Responses folds a call and result into one item; Messages emits separate server-tool blocks.
 
-Chat projection rejects reasoning signatures and encrypted reasoning based on output data, including signature-only parts. Search declarations and transport overrides do not change that rule; turns without reasoning or with unsigned reasoning remain representable.
+A Chat projection with signed reasoning requires a signature namespace, including during hosted search. Search declarations and transport overrides do not select this namespace.
 
 `TextOutput.citations` holds `WebCitation` ranges local to each text part. `CitationDelta` adds attribution, and the final snapshot is authoritative. Citation buffering belongs to the Messages adapter, exposed by the `Molto.messages()` argument `citation_policy`, which accepts `"buffer"`, `"auto"`, or `"drop"`. With Responses upstream, the default `"drop"` streams text and discards attribution; `"buffer"` waits for every text part's completed snapshot, including uncited text, before splitting it at citation boundaries. `"auto"` buffers when the normalized request declares hosted search or carries search calls, search results, or text with citations in its history; otherwise text streams and unexpected citations are dropped. The coordinator selects `"drop"` for Chat upstream regardless of the requested policy, preserving immediate text streaming and chunk boundaries because Chat normalization discards annotations. The policy never changes request construction or native passthrough. The Responses normalizer and Messages projector buffer unresolved search parts in start order, allowing ordinary parts to stream when they reach the front. No upstream client predicts citation buffering, and opaque extensions cannot influence it. The `"auto"` policy inspects only the normalized request; callers supplying search context only through `extra_body` must explicitly select `"buffer"` for attribution. Projection assigns output indices because parts can expand or disappear.
 
@@ -435,9 +439,7 @@ Response and stream result types are intentional SDK aliases:
 - `OpenAIChatCompletionsResponse` aliases the SDK `ChatCompletion`;
 - `OpenAIChatCompletionsStreamChunk` aliases the SDK `ChatCompletionChunk`.
 
-Molto does not subclass or duplicate these result models. The SDK already owns the wire schema, and aliases avoid schema drift while giving callers familiar types.
-
-Two members of the Responses event union are intentionally replaced rather than aliased: `OpenAIResponseCompletedEvent` normalizes a `null` `cache_write_tokens` to `0`, and `OpenAIResponseFunctionCallArgumentsDoneEvent` relaxes the SDK's required `name` on the function-call-arguments-done event. Assert these unions by comparing wrapped members with the SDK union rather than asserting identity.
+SDK result aliases keep native passthrough aligned with the installed SDK. For strict validation of recorded response bodies, `OpenAICompatibleResponsesResponse` accepts an omitted or null cache-write count as `None`. Each Responses event that contains a response uses the same model. The function-call-arguments-done model also accepts an omitted `name`.
 
 Molto does not recreate or expose the OpenAI SDK's transport-bearing `AsyncStream` runtime object. It context-manages the SDK stream internally and exposes a Molto-owned async iterator that yields SDK-native Responses events and Chat Completions chunks directly.
 
@@ -453,9 +455,9 @@ Each OpenAI upstream client constructs a short-lived `AsyncOpenAI` wrapper with:
 
 An absent vLLM key resolves to the fixed non-secret `EMPTY` credential. OpenAI organization and project environment settings are suppressed so compatible-provider requests cannot leak OpenAI account metadata.
 
-The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Recognized errors on every route follow the [error translation](../docs/errors.md) contract; unknown SDK errors pass through unchanged. Before directly yielding a Responses completion event, Molto narrowly normalizes the compatible-provider omission where `cache_write_tokens` is `None` to `0`.
+The SDK owns request serialization, authentication, HTTP, SSE decoding, terminal markers, retries, error types, and native model construction for both protocols. Recognized errors on every route follow the [error translation](../docs/errors.md) contract; unknown SDK errors pass through unchanged. Native Responses preserves missing cache-write counts.
 
-Translated clients build one validated upstream-native request model and pass it directly to native transport. Serialization at the SDK boundary retains the translated request models' unset/`None` exclusions. Native passthrough retains the supplied request dictionary, including explicit nulls.
+Translated clients build one validated upstream-native request model and pass it directly to native transport. Serialization at the SDK boundary retains the translated request models' unset/`None` exclusions. Native passthrough retains the supplied request dictionary, including explicit nulls. The Fireworks and Gemini Chat clients, whose input endpoints reject null top-level message fields, omit those fields on native and translated routes and leave nested values unchanged.
 
 Native transport separates SDK body parameters from unknown top-level properties. It sends unknown properties through the SDK's `extra_body`, with explicit coordinator `extra_body` values taking precedence. Names such as `extra_headers`, `extra_body`, `extra_query`, and `timeout` inside the request body remain body properties; they cannot become SDK transport options. Nested request properties pass through the SDK's native serialization without Molto schema filtering.
 
@@ -505,7 +507,7 @@ Matched public-route conversations carry actual returned SDK output cumulatively
 
 ## Current limitations and extension path
 
-The current public paths support native and translated streaming and non-streaming responses for text, portable image input, raw reasoning, reasoning summaries between Responses and Messages, and client-defined function tools. Output through Chat Completions supports unsigned raw reasoning and summaries, but rejects present signatures. Request normalization preserves unsigned summary history. Chat upstreams accept its text, while Responses and Messages upstream builders still require signatures. Function-tool support includes definitions, selection, parallel-call control, successful results, conversation history, and streamed JSON arguments. Native routes preserve hosted web search. Basic hosted search translation is supported through Responses and Messages upstreams, with text-only projection for downstream Chat when reasoning is absent or unsigned; signed or encrypted reasoning raises an error; translated Chat upstreams reject normalized search declarations and history, while opaque `extra_body.web_search_options` is forwarded and returned annotations are dropped. Other hosted tools, failed client-function result semantics outside Messages, other multimodal content, and additional provider capabilities are not complete yet. The matched Responses/Messages fixtures also map the reconstructible opaque reasoning snapshots under the assumption that OpenAI serves both endpoints; opaque state is not portable across providers, the implementation does not enforce its issuer, and the separately recorded terminal Responses ciphertext is not byte-reconstructible through Messages.
+The public paths support text, portable image input, reasoning, client-defined functions, streamed arguments, and successful tool results. Native routes preserve hosted web search. Basic search translation supports Responses and Messages upstreams. Chat output omits hosted activity and structured citations, and requires a signature namespace for signed reasoning. Chat upstreams reject normalized search declarations and history. The implementation does not validate the issuer of opaque state. See [Reasoning and signatures](../docs/reasoning.md) and [Hosted web search](../docs/web-search.md).
 
 Function and hosted-search definitions and tool selection use provider-neutral normalized types. Protocol-specific function schemas and tool-choice shapes remain at their adapters and clients.
 
@@ -519,3 +521,11 @@ To add another upstream protocol:
 4. add cassette-backed parity tests against the downstream SDK contract.
 
 To add another downstream protocol, add an adapter that normalizes its request and projects normalized events without performing transport.
+
+## Hosted compatibility boundaries
+
+Hosted clients inherit the shared protocol implementation and override observed provider differences. Gemini repairs missing tool indices by call ID or the sole known call. Already-indexed native calls pass through. The shared Chat implementation carries signatures through the configured namespace, including the observed Gemini message signature that follows its text. See [provider compatibility](../docs/provider-compatibility.md).
+
+Provider conversations share `tests/upstream/test_multi_turn.py` and scenario-first `upstream_ir/` cassette names. Tests reuse actual output as history and compare independent SDK semantics. Configuration tests do not establish live provider compatibility.
+
+OpenRouter accepts `format="unknown"` on raw-only Responses items. Other formats and formatted signed or summarized reasoning require an encoding contract. Fireworks uses the shared Responses parser and builder. All Responses clients preserve the explicit raw and summary labels.

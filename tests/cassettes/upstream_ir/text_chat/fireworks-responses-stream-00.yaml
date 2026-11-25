@@ -1,0 +1,112 @@
+filename: 2026-11-04-01a1a479-2350-7fc0-856e-232fda3aa49a
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '308'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-2350-7fc0-856e-232fda3aa49a
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: 1c044698-3a78-4aa3-ae45-ebb60c38aa96
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_7937cb8577cf43999e36cc99acfc712c","object":"response","created_at":1793760765,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_7937cb8577cf43999e36cc99acfc712c","object":"response","created_at":1793760765,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"message","id":"msg_b348b978c6df4705a726fd7db59e7bf2","status":"in_progress","role":"assistant","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"delta":"Blue","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"delta":"
+    lantern","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":6,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"delta":".","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":7,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"text":"Blue
+    lantern.","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":8,"item_id":"msg_b348b978c6df4705a726fd7db59e7bf2","output_index":0,"content_index":0,"part":{"type":"output_text","text":"Blue
+    lantern.","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":9,"output_index":0,"item":{"type":"message","id":"msg_b348b978c6df4705a726fd7db59e7bf2","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Blue
+    lantern.","annotations":[]}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":10,"response":{"id":"resp_7937cb8577cf43999e36cc99acfc712c","object":"response","created_at":1793760765,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"msg_b348b978c6df4705a726fd7db59e7bf2","type":"message","role":"assistant","content":[{"type":"output_text","text":"Blue
+    lantern.","annotations":[]}],"status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":28,"output_tokens":4,"total_tokens":32,"input_tokens_details":{"cached_tokens":27},"output_tokens_details":{"reasoning_tokens":0}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:52:44.752590+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

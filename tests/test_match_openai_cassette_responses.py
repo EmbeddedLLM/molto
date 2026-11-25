@@ -37,6 +37,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     """Ensures every discovered conversation turn matches valid native output idempotently."""
     chat = read_yaml(chat_path)
     responses = read_yaml(responses_path)
+    original_responses = deepcopy(responses)
     transport = deepcopy(chat["response"]["headers"])
 
     match_chat_completions_response(chat, responses)
@@ -65,6 +66,7 @@ def test_matches_real_non_streaming_cassette_and_is_idempotent(
     matched = deepcopy(chat)
     match_chat_completions_response(chat, responses)
     assert chat == matched
+    assert responses == original_responses
 
 
 @pytest.mark.parametrize("details_state", ["missing", "null"])

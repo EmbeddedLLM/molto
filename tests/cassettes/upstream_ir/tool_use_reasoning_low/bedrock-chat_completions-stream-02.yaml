@@ -1,0 +1,158 @@
+filename: 2026-11-17-01a1ea64-6984-7103-80f2-507f3fa83087
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - content: ''
+      reasoning: We need to call add twice.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: chatcmpl-tool-b5b67e0cb5e47465
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-b5b67e0cb5e47465
+    - content: ''
+      reasoning: We have result 5. Next add 5 and 4 => 9. Use add function.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":5,"b":4}'
+          name: add<|channel|>commentary
+        id: chatcmpl-tool-905c39a5ba524674
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: chatcmpl-tool-905c39a5ba524674
+    model: openai.gpt-oss-20b
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: true
+    stream_options:
+      include_usage: true
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1185'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea64-6984-7103-80f2-507f3fa83087
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+    x-request-id: req_rxqnqez5bob4t23ixzvbgw4zw63sxf2patecpfovbttylmlp7rna
+  sse:
+  - 'data: {"choices":[{"delta":{"content":"","role":"assistant"},"finish_reason":null,"index":0,"obfuscation":"fWHjdDNtQ4E84qyRpZxzNphXHeObsI6VvgeSfTBf3ba"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"i5bn3g3YKQUNtv3beM9QB5I1ZM4engNXMzuQRW2qgmTYfmZLMQp2qy16D22QDWrPGegnHTysrxJhx5TN1hec7d3muSGr0QW5q6cBn72","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"BSOiAODKlzv8kWL6nUHQ3mJOo6K5m2x4njaBBedeLL"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"ciWzBVFFC6iyMVbKaQxLDDhgd5f4wrDHl3YkYRhoW0Ezn2zIFQt7fmJL3rQeCb5yQwEzOvgh5bTvO7qOuH4tHy6SV0sjAGxb0tSMULVflo8z6EmbyQi2foHS4BeFTMA","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"P0vN68NmLsODdhY3Thdk7edTqqc5qdF34l"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"L8zcVUD7S9x96mtBOaeLLNxzT183H4JgUd606I25opgS2VWoT6NbkG7R4FEHsM2","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"KwW8jjKCfG2Fppnh9Ahj4vwGIFWNsHayC87DlXt57jjPT"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"IXBvCkUPgOt2nyfilh91cm4sxCt0vOeFTY5WIvBuF10kqjfRmrMbsLlF0","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"reasoning":"We need to output final answer: 9."},"finish_reason":null,"index":0,"obfuscation":"DEtpRCx4irSElhu4k9ak8uRtDINKQC6vSSGIwxeqvzSYBnOPOMmKaJZUO74FI4aYwwCV1RRxkRUUIqhr0Gmkg1Nf2VjiTCuj8qAznvPmo"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"5G6JIOkBBA2p0ExcgktpqlnxeRDKnGmsikovfmnikZdTQIQLCd6dEZadPk66UWZFZNmaooJ4lmdZH54uatBiSpTbOAq","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"zxc89JrWTMLtvp8uUTKXxXulycIDt7V99UaQcdk19z3yLsbqY"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"b52KqCZcKD4YzFUg3hYrCmctVfM4BasKs8eq4uaA8F41nThRH6ZNlRUTcNJJF6DMDPEVlyS2OMBELNSn2CQIdbfQE6jLMKrb052mgv3PKSOsMbpH2ggUl7QD","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"pkSlLswfF68MXR3ujHI1iOo6qgva9DGMJaniJK0wo0p5o7Pr5RCHViYNVBUV69melcAgBwDQVVajsGohyqJlo2y"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"L9m3wcBGcGcGPNS5xnISeYWSsY8UrMKMz285IeiQvdmBjSgmzOerz8W01Cs","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"NeT07KbMudUf4eCFfv2pfGX3TY1umspxHcMhc4mGf"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"blQ6EjytquTVxEJMRSps23fyR2ZEx6hjHpJY56kwa9rfuV4jdh8OmXzjmjuiYDVgh8dou9CNqKvGNZi3Zhe9UQnBqmvkmJu4KYLEwA8YVD55iGo7sMIBLv2","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"jWduuT1k8FsjW98R87rV42Sv9SdkIZkdLKSl7lBlW2sM8wdpczzQ3EVC19PGdg7hyEDjDGe66WKTkkTEmraL5RCIZaPT2Bgh2cbSEAfL5Fdfb"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"nDUS5Hb6xge9DZTIepOW0tHZM4N9fgiatt3rDzH2e7jwBlhMdJOoPcntHWsDMF8aoTwQM8c4q6VBsHud4DHDo5TiarFN8XUD23mrpybxPeR9rDZ9GYrM3xFq","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":null,"index":0,"obfuscation":"tBSOUtjAssiBtiDtLzkUNjERCngyP1UMW87R0qPHSVxvYaNpOtRt9hlXPLNguonlJnSJQOMoONcwtperhhg08RdtpZywrVKGxuiFeVOUCd28kjAB64hnHDN2"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"YHbbJWxofX0k7A3aRYrzNhOKrtZueUWFtDyIfYoSiBXLhdlMwg8G7NGMEXn","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{"content":"The final result is: **9**"},"finish_reason":null,"index":0,"obfuscation":"skW5KpAwY8Aci6bs8Fi5cn9SQI6zTEz4Koyfm8gvxhMD7OCzSImOM1ZwfU8iolklyAeg"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"hvQ7fdUbUzj4T6R2eP739NbgA463aWpRYUIRFyGgBSd36aVeeuOHMXrPJrYwtBp955oy5Pzw7mxLVK127RmqisCueZUdb4ZMuDHFwIqJJMSNwG","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[{"delta":{},"finish_reason":"stop","index":0,"obfuscation":"KNo7DEDQw3ftmCzm1EtR8poOEaGoWRyvhyzrHWtECx2xwRAV4USuZ42yq9pgH2klnw1W6cB5X"}],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"WQcF0W7EDBluqQhlnGW4aFjmdL1DYwDwd07SmNwBAnNOv4kiDCC7KJkPDPaROL","object":"chat.completion.chunk","service_tier":"default"}
+
+    '
+  - '
+
+    '
+  - 'data: {"choices":[],"created":1794933811,"id":"chatcmpl-376b8f77-01ef-4505-9e02-e1f6c791334d","model":"openai.gpt-oss-20b","obfuscation":"NFReLa4MAH02ySfqsSdm8mcJZfGnALUvN1NoNSWITBXtgovaC8n","object":"chat.completion.chunk","service_tier":"default","usage":{"completion_tokens":28,"prompt_tokens":230,"total_tokens":258}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-17T16:43:31.588959+00:00'
+upstream_url: https://bedrock-mantle.us-west-2.api.aws/v1/chat/completions

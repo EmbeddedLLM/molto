@@ -1,0 +1,133 @@
+filename: 2026-11-16-01a1e428-fddf-7371-9e0d-6d0eaae31e01
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Use add to add 2 and 3. Then use add again to add 7 to that result.
+          Make exactly one tool call per turn. After both results, reply with the
+          final number only.
+        type: text
+      role: user
+    - content:
+      - caller: null
+        id: toolu_bdrk_01MRf2YGse3ggT8mU62ATMgr
+        input:
+          a: 2
+          b: 3
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '5'
+        tool_use_id: toolu_bdrk_01MRf2YGse3ggT8mU62ATMgr
+        type: tool_result
+      role: user
+    - content:
+      - caller: null
+        id: toolu_bdrk_01JeEJ76ECHzhLBC1ytVArtX
+        input:
+          a: 5
+          b: 7
+        name: add
+        type: tool_use
+      role: assistant
+    - content:
+      - content: '12'
+        tool_use_id: toolu_bdrk_01JeEJ76ECHzhLBC1ytVArtX
+        type: tool_result
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: true
+    tool_choice:
+      type: none
+    tools:
+    - description: Add two integers.
+      input_schema:
+        additionalProperties: false
+        properties:
+          a:
+            type: integer
+          b:
+            type: integer
+        required:
+        - a
+        - b
+        type: object
+      name: add
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '1073'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1e428-fddf-7371-9e0d-6d0eaae31e01
+response:
+  error_event: false
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'event: message_start
+
+    '
+  - 'data: {"type":"message_start","message":{"model":"anthropic.claude-haiku-4-5-20251001-v1:0","id":"msg_bdrk_mb4ztvgolxb4n46ocy7tui3furwya6vvpg6ompq6skwaeefnhj2a","type":"message","role":"assistant","content":[],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":778,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_start
+
+    '
+  - 'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_delta
+
+    '
+  - 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"12"}}
+
+    '
+  - '
+
+    '
+  - 'event: content_block_stop
+
+    '
+  - 'data: {"type":"content_block_stop","index":0}
+
+    '
+  - '
+
+    '
+  - 'event: message_delta
+
+    '
+  - 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null,"container":null},"usage":{"input_tokens":778,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":4}}
+
+    '
+  - '
+
+    '
+  - 'event: message_stop
+
+    '
+  - 'data: {"type":"message_stop"}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: message_stop
+timestamp: '2026-11-16T11:40:54.111526+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

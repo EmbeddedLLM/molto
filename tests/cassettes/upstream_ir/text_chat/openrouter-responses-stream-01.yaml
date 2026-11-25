@@ -1,0 +1,132 @@
+filename: 2026-11-04-01a1a489-985f-7d50-953f-708adb71b035
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        logprobs: []
+        text: blue lantern
+        type: output_text
+      id: msg_tmp_9je8kf4lbol
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Repeat the phrase
+        type: input_text
+      - text: ' exactly, preserving its spaces.'
+        type: input_text
+      role: user
+    max_output_tokens: 1024
+    model: nvidia/nemotron-3.5-lightning:free
+    provider:
+      allow_fallbacks: false
+      max_price:
+        completion: 0
+        prompt: 0
+        request: 0
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '690'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /api/v1/responses
+  query_params: {}
+request_id: 01a1a489-985f-7d50-953f-708adb71b035
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream
+  sse:
+  - 'data: {"type":"response.created","response":{"id":"gen-1793761843-nn9lX6sVIH8WGNHkcT6U","object":"response","created_at":1793761843,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[],"tool_choice":"auto","parallel_tool_calls":true,"max_output_tokens":1024,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"none"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"gen-1793761843-nn9lX6sVIH8WGNHkcT6U","object":"response","created_at":1793761843,"model":"nvidia/nemotron-3.5-lightning:free","status":"in_progress","completed_at":null,"output":[],"error":null,"incomplete_details":null,"access_programs":null,"tools":[],"tool_choice":"auto","parallel_tool_calls":true,"max_output_tokens":1024,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"none"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":null},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","output_index":0,"item":{"id":"msg_tmp_9tlzcmt0drn","type":"message","status":"in_progress","role":"assistant","content":[]},"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","output_index":0,"item_id":"msg_tmp_9tlzcmt0drn","content_index":0,"part":{"type":"output_text","text":"","annotations":[],"logprobs":[]},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":0,"item_id":"msg_tmp_9tlzcmt0drn","content_index":0,"delta":"blue","logprobs":[],"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","output_index":0,"item_id":"msg_tmp_9tlzcmt0drn","content_index":0,"delta":"
+    lantern","logprobs":[],"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","output_index":0,"item_id":"msg_tmp_9tlzcmt0drn","content_index":0,"text":"blue
+    lantern","logprobs":[],"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","output_index":0,"item_id":"msg_tmp_9tlzcmt0drn","content_index":0,"part":{"type":"output_text","text":"blue
+    lantern","annotations":[],"logprobs":[]},"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_tmp_9tlzcmt0drn","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[],"logprobs":[]}]},"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"gen-1793761843-nn9lX6sVIH8WGNHkcT6U","object":"response","created_at":1793761843,"model":"nvidia/nemotron-3.5-lightning:free","status":"completed","completed_at":1793761843,"output":[{"id":"msg_tmp_9tlzcmt0drn","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[],"logprobs":[]}]}],"error":null,"incomplete_details":null,"access_programs":null,"tools":[],"tool_choice":"auto","parallel_tool_calls":true,"max_output_tokens":1024,"temperature":1,"top_p":1,"presence_penalty":0,"frequency_penalty":0,"top_logprobs":0,"max_tool_calls":null,"metadata":{},"background":false,"previous_response_id":null,"service_tier":"auto","truncation":"disabled","store":false,"instructions":null,"text":{"format":{"type":"text"}},"reasoning":{"effort":"none"},"safety_identifier":null,"prompt_cache_key":null,"prompt_cache_options":null,"usage":{"input_tokens":53,"input_tokens_details":{"cached_tokens":0},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":56,"cost":0,"is_byok":false,"cost_details":{"upstream_inference_cost":0,"upstream_inference_input_cost":0,"upstream_inference_output_cost":0}}},"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'data: [DONE]
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: '[DONE]'
+timestamp: '2026-11-04T03:10:43.295304+00:00'
+upstream_url: https://openrouter.ai/api/v1/responses

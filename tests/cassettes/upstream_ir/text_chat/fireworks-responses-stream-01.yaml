@@ -1,0 +1,120 @@
+filename: 2026-11-04-01a1a479-2ac3-71d1-8f35-fe4669784e94
+request:
+  body:
+    input:
+    - content:
+      - text: 'Remember the exact phrase: blue  lantern.'
+        type: input_text
+      - text: Reply briefly.
+        type: input_text
+      role: user
+    - content:
+      - annotations: []
+        text: Blue lantern.
+        type: output_text
+      id: msg_b348b978c6df4705a726fd7db59e7bf2
+      role: assistant
+      status: completed
+      type: message
+    - content:
+      - text: Repeat the phrase
+        type: input_text
+      - text: ' exactly, preserving its spaces.'
+        type: input_text
+      role: user
+    max_output_tokens: 2048
+    model: accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b
+    reasoning:
+      effort: none
+    store: false
+    stream: true
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '627'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /inference/v1/responses
+  query_params: {}
+request_id: 01a1a479-2ac3-71d1-8f35-fe4669784e94
+response:
+  error_event: false
+  headers:
+    cache-control: no-cache
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+    x-request-id: c3bf94e2-c109-41ff-ae91-84ec90bc82c3
+  sse:
+  - 'data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_a7a5da5939d443bb8ccd933ffb2b6439","object":"response","created_at":1793760766,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_a7a5da5939d443bb8ccd933ffb2b6439","object":"response","created_at":1793760766,"status":"in_progress","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[],"previous_response_id":null,"usage":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"type":"message","id":"msg_58e4d781c3324891bf487bde28670134","status":"in_progress","role":"assistant","content":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_58e4d781c3324891bf487bde28670134","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_58e4d781c3324891bf487bde28670134","output_index":0,"content_index":0,"delta":"blue","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_58e4d781c3324891bf487bde28670134","output_index":0,"content_index":0,"delta":"
+    lantern","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_text.done","sequence_number":6,"item_id":"msg_58e4d781c3324891bf487bde28670134","output_index":0,"content_index":0,"text":"blue
+    lantern","logprobs":[]}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.content_part.done","sequence_number":7,"item_id":"msg_58e4d781c3324891bf487bde28670134","output_index":0,"content_index":0,"part":{"type":"output_text","text":"blue
+    lantern","annotations":[]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.output_item.done","sequence_number":8,"output_index":0,"item":{"type":"message","id":"msg_58e4d781c3324891bf487bde28670134","status":"completed","role":"assistant","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[]}]}}
+
+    '
+  - '
+
+    '
+  - 'data: {"type":"response.completed","sequence_number":9,"response":{"id":"resp_a7a5da5939d443bb8ccd933ffb2b6439","object":"response","created_at":1793760767,"status":"completed","model":"accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b","output":[{"id":"msg_58e4d781c3324891bf487bde28670134","type":"message","role":"assistant","content":[{"type":"output_text","text":"blue
+    lantern","annotations":[]}],"status":"completed"}],"previous_response_id":null,"usage":{"input_tokens":54,"output_tokens":3,"total_tokens":57,"input_tokens_details":{"cached_tokens":27},"output_tokens_details":{"reasoning_tokens":0}},"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":2048,"max_tool_calls":null,"parallel_tool_calls":true,"reasoning":{"effort":"none"},"store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":0.95,"top_logprobs":null,"truncation":"disabled","user":null,"background":null,"metadata":{}}}
+
+    '
+  - '
+
+    '
+  status_code: 200
+  stream_status: complete
+  terminal_event: null
+timestamp: '2026-11-04T02:52:46.659874+00:00'
+upstream_url: https://api.fireworks.ai/inference/v1/responses

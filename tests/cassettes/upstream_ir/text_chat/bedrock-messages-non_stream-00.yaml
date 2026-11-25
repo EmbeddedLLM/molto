@@ -1,0 +1,52 @@
+filename: 2026-11-16-01a1e429-0047-71d2-9d95-eb98e2c59a8b
+request:
+  body:
+    max_tokens: 512
+    messages:
+    - content:
+      - text: Write one short sentence about the ocean.
+        type: text
+      role: user
+    model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    connection: keep-alive
+    content-length: '199'
+    content-type: application/json
+    user-agent: AsyncAnthropic/Python 0.121.0
+  method: POST
+  path: /anthropic/v1/messages
+  query_params: {}
+request_id: 01a1e429-0047-71d2-9d95-eb98e2c59a8b
+response:
+  body:
+    container: null
+    content:
+    - text: The ocean covers more than seventy percent of Earth's surface and remains
+        largely unexplored.
+      type: text
+    id: msg_bdrk_wjfpb2urfnkymxrfgenlypi7caqthpppnrzhvumtysapqyba6hcq
+    model: anthropic.claude-haiku-4-5-20251001-v1:0
+    role: assistant
+    stop_details: null
+    stop_reason: end_turn
+    stop_sequence: null
+    type: message
+    usage:
+      cache_creation:
+        ephemeral_1h_input_tokens: 0
+        ephemeral_5m_input_tokens: 0
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+      input_tokens: 15
+      output_tokens: 22
+      service_tier: standard
+  headers:
+    connection: keep-alive
+    content-length: '583'
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-16T11:40:54.727459+00:00'
+upstream_url: https://bedrock-runtime.ap-southeast-1.amazonaws.com/anthropic/v1/messages

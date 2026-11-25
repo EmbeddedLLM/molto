@@ -1,0 +1,131 @@
+filename: 2026-11-06-01a1af0d-271b-7d42-abfc-dfdc607c2e35
+request:
+  body:
+    max_completion_tokens: 1024
+    messages:
+    - content:
+      - text: Suggest a name for a robot gardener.
+        type: text
+      role: user
+    model: gemini-3.1-flash-lite
+    reasoning_effort: minimal
+    stream: false
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '209'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1beta/openai/chat/completions
+  query_params: {}
+request_id: 01a1af0d-271b-7d42-abfc-dfdc607c2e35
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      message:
+        content: 'To choose the best name for a robot gardener, it helps to consider
+          the "vibe" of your robot. Here are several suggestions categorized by style:
+
+
+          ### Botanical & Nature-Inspired
+
+          These names emphasize the robot’s connection to plants and growth.
+
+          *   **Floros:** A classic, tech-sounding name derived from "flora."
+
+          *   **Sprout:** Cute, simple, and perfect for a small helper.
+
+          *   **Chloris:** Named after the Greek nymph of flowers.
+
+          *   **Bud:** Friendly and short; implies growth.
+
+          *   **Terra:** Latin for earth/soil.
+
+          *   **Thistle:** A fun, slightly edgy name for a robot that handles weeds.
+
+          *   **Arbor:** Sounds sturdy and structural, like a tree.
+
+
+          ### Functional & Descriptive
+
+          These names highlight the robot’s job and capabilities.
+
+          *   **GrowBot:** Straight to the point.
+
+          *   **Prunella:** A clever play on "pruning."
+
+          *   **Cultivator (or "Cully"):** Sounds professional and efficient.
+
+          *   **The Trowel:** A nod to the most essential gardening tool.
+
+          *   **Rooter:** Simple, punchy, and functional.
+
+          *   **WeedWiz:** If the robot is specifically good at weeding.
+
+
+          ### Playful & Whimsical
+
+          If you want your robot to have personality.
+
+          *   **Wall-E (or "Wally"):** The gold standard for nature-loving bots.
+
+          *   **Petal Pusher:** A fun pun on "paper pusher."
+
+          *   **Green Thumb:** A classic, slightly ironic name for a machine.
+
+          *   **Twiggy:** Light, nimble, and plant-related.
+
+          *   **Bloom:** Short, sweet, and descriptive.
+
+          *   **Botany:** A clever pun on the field of study.
+
+
+          ### Sophisticated & Mythological
+
+          These names sound a bit more "high-end" or elegant.
+
+          *   **Gaia:** The personification of the Earth itself.
+
+          *   **Demeter:** The Greek goddess of agriculture.
+
+          *   **Silvanus:** The Roman god of woods and fields.
+
+          *   **Verdant:** An adjective meaning green with grass or other rich vegetation.
+
+          *   **Eden:** Suggests the robot is creating a paradise.
+
+
+          ### My Personal Favorites:
+
+          1.  **Sprout** (if it’s small and cute)
+
+          2.  **Prunella** (if it’s precise and helpful)
+
+          3.  **Terra** (if it’s a heavy-duty landscaping robot)
+
+          4.  **Bud** (if it’s a friendly companion)
+
+
+          **Which one feels like the best fit for your robot''s personality?**'
+        extra_content:
+          google:
+            thought_signature: EnMKcQFpFH0TI4+252Fl0FAaX86pMAl+gciDec4Iol+aGKWnLaddBpKAZrHLCjY8NJHipy292S0D4IKlF5nncWMqOtiRlQvB61PWXVJbg0W/YuRzl/gnAFAlty+notTEppM9cGoWqdI1l5OFXQgpPEctBLPc
+        role: assistant
+    created: 1793938239
+    id: PVPtaqTiGfyyytMPvoLJiQQ
+    model: gemini-3.1-flash-lite
+    object: chat.completion
+    usage:
+      completion_tokens: 592
+      prompt_tokens: 9
+      total_tokens: 601
+  headers:
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-06T04:10:37.211418+00:00'
+upstream_url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions

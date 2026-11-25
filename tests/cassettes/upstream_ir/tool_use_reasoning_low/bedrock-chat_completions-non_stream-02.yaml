@@ -1,0 +1,100 @@
+filename: 2026-11-17-01a1ea64-5ea1-7890-b5a8-f777c644bcb2
+request:
+  body:
+    max_completion_tokens: 2048
+    messages:
+    - content: Use add to add 2 and 3. After the result, use add to add that result
+        and 4. Then give the final answer.
+      role: user
+    - reasoning: Need to call add twice.
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":2,"b":3}'
+          name: add
+        id: chatcmpl-tool-83c5f09c50ddba50
+        type: function
+    - content: '5'
+      role: tool
+      tool_call_id: chatcmpl-tool-83c5f09c50ddba50
+    - reasoning: 'Need second add: 5+4=9.'
+      role: assistant
+      tool_calls:
+      - function:
+          arguments: '{"a":5,"b":4}'
+          name: add<|channel|>commentary
+        id: chatcmpl-tool-928bd41255a844e1
+        type: function
+    - content: '9'
+      role: tool
+      tool_call_id: chatcmpl-tool-928bd41255a844e1
+    model: openai.gpt-oss-20b
+    parallel_tool_calls: false
+    reasoning_effort: low
+    stream: false
+    tool_choice: none
+    tools:
+    - function:
+        description: Add two integers.
+        name: add
+        parameters:
+          additionalProperties: false
+          properties:
+            a:
+              type: integer
+            b:
+              type: integer
+          required:
+          - a
+          - b
+          type: object
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate, br
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '1082'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/chat/completions
+  query_params: {}
+request_id: 01a1ea64-5ea1-7890-b5a8-f777c644bcb2
+response:
+  body:
+    choices:
+    - finish_reason: stop
+      index: 0
+      logprobs: null
+      message:
+        content: '**Result:** 9'
+        reasoning: 'We need to respond final answer: 9.'
+        refusal: null
+        role: assistant
+    created: 1794933809
+    id: chatcmpl-e3d7cc63-1c85-4a29-9519-d3c1773b458d
+    model: openai.gpt-oss-20b
+    object: chat.completion
+    service_tier: default
+    usage:
+      completion_tokens: 25
+      prompt_tokens: 230
+      total_tokens: 255
+  body_bytes: !!binary |
+    eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJsb2dwcm9icyI6
+    bnVsbCwibWVzc2FnZSI6eyJjb250ZW50IjoiKipSZXN1bHQ6KiogOSIsInJlYXNvbmluZyI6Ildl
+    IG5lZWQgdG8gcmVzcG9uZCBmaW5hbCBhbnN3ZXI6IDkuIiwicmVmdXNhbCI6bnVsbCwicm9sZSI6
+    ImFzc2lzdGFudCJ9fV0sImNyZWF0ZWQiOjE3OTQ5MzM4MDksImlkIjoiY2hhdGNtcGwtZTNkN2Nj
+    NjMtMWM4NS00YTI5LTk1MTktZDNjMTc3M2I0NThkIiwibW9kZWwiOiJvcGVuYWkuZ3B0LW9zcy0y
+    MGIiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0Iiwi
+    dXNhZ2UiOnsiY29tcGxldGlvbl90b2tlbnMiOjI1LCJwcm9tcHRfdG9rZW5zIjoyMzAsInRvdGFs
+    X3Rva2VucyI6MjU1fX0=
+  headers:
+    connection: keep-alive
+    content-length: '413'
+    content-type: application/json
+    x-request-id: req_ak6v3ezv7jdddxe5ar7e6myqvvnuiewwzmjjhsv57dsppdp2prsq
+  status_code: 200
+timestamp: '2026-11-17T16:43:28.801875+00:00'
+upstream_url: https://bedrock-mantle.us-west-2.api.aws/v1/chat/completions

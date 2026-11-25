@@ -541,20 +541,24 @@ def _map_input_usage(
         raise ValueError("Responses input token details must be an object.")
 
     input_tokens = response_usage["input_tokens"]
-    cache_creation_tokens = input_details.get("cache_write_tokens", 0)
+    cache_creation_tokens = input_details.get("cache_write_tokens")
     cache_read_tokens = input_details.get("cached_tokens", 0)
-    if not all(
-        isinstance(value, int)
-        for value in (input_tokens, cache_creation_tokens, cache_read_tokens)
+    if (
+        not isinstance(input_tokens, int)
+        or not isinstance(cache_read_tokens, int)
+        or (cache_creation_tokens is not None and not isinstance(cache_creation_tokens, int))
     ):
         raise ValueError("Responses input token counts must be integers.")
 
-    message_input_tokens = input_tokens - cache_creation_tokens - cache_read_tokens
+    message_input_tokens = input_tokens - (cache_creation_tokens or 0) - cache_read_tokens
     if message_input_tokens < 0:
         raise ValueError("Responses cache tokens exceed total input tokens.")
     message_usage["input_tokens"] = message_input_tokens
     message_usage["cache_creation_input_tokens"] = cache_creation_tokens
     message_usage["cache_read_input_tokens"] = cache_read_tokens
+    if cache_creation_tokens is None:
+        message_usage.pop("cache_creation", None)
+        return
     cache_creation = message_usage.get("cache_creation")
     if isinstance(cache_creation, dict):
         if len(cache_lifetimes) > 1 and cache_creation_tokens:
