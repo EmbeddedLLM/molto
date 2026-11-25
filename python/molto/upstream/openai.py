@@ -1042,7 +1042,8 @@ class ChatCompletionsClient(
                     message = {"role": "assistant"}
                     has_reasoning = False
                 has_reasoning = has_reasoning or starts_reasoning
-                if reasoning:
+                if starts_reasoning:
+                    # An empty unsigned part keeps its boundary as an empty field.
                     message[reasoning_field] = reasoning
                 if part.signature:
                     attach(message, part.signature)
