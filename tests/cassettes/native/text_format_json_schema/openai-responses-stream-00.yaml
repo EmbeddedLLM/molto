@@ -1,0 +1,262 @@
+filename: 2026-11-10-01a1c610-64d8-70c0-91e1-9e9ef160fda5
+request:
+  body:
+    input:
+    - content: Who are you?
+      role: user
+    instructions: You are patrick jane, a consultant for the CBI
+    model: gpt-4.1-mini
+    stream: true
+    text:
+      format:
+        description: The final response which ends this conversation
+        name: final_result
+        schema:
+          additionalProperties: false
+          properties:
+            job:
+              type: string
+            name:
+              type: string
+          required:
+          - name
+          - job
+          type: object
+        strict: true
+        type: json_schema
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '440'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c610-64d8-70c0-91e1-9e9ef160fda5
+response:
+  headers:
+    connection: keep-alive
+    content-type: text/event-stream; charset=utf-8
+  sse:
+  - 'event: response.created
+
+    '
+  - 'data: {"type":"response.created","response":{"id":"resp_000aeb726550c3e1006af33767105487d2aee01a1c63f4a1a7","object":"response","created_at":1794324327,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"json_schema","description":"The
+    final response which ends this conversation","name":"final_result","schema":{"type":"object","properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"additionalProperties":false},"strict":true},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+    '
+  - '
+
+    '
+  - 'event: response.in_progress
+
+    '
+  - 'data: {"type":"response.in_progress","response":{"id":"resp_000aeb726550c3e1006af33767105487d2aee01a1c63f4a1a7","object":"response","created_at":1794324327,"status":"in_progress","access_programs":null,"background":false,"completed_at":null,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"auto","store":true,"temperature":1.0,"text":{"format":{"type":"json_schema","description":"The
+    final response which ends this conversation","name":"final_result","schema":{"type":"object","properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"additionalProperties":false},"strict":true},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.added
+
+    '
+  - 'data: {"type":"response.output_item.added","item":{"id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","type":"message","status":"in_progress","content":[],"role":"assistant"},"output_index":0,"sequence_number":2}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.added
+
+    '
+  - 'data: {"type":"response.content_part.added","content_index":0,"item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""},"sequence_number":3}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"{\"","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"nd0YVLxj12glZb","output_index":0,"sequence_number":4}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"name","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"INvxR4zuTJ1T","output_index":0,"sequence_number":5}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\":\"","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"eRzuNcJpGv1Np","output_index":0,"sequence_number":6}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Patrick","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"HZEckEsG5","output_index":0,"sequence_number":7}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" Jane","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"YGFnprODS7H","output_index":0,"sequence_number":8}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\",\"","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"5Z5ryhmJ1hxo1","output_index":0,"sequence_number":9}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"job","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"POB1ce53G40dc","output_index":0,"sequence_number":10}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\":\"","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"urws6T2kKMw4L","output_index":0,"sequence_number":11}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"Consult","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"v9dnF5PdM","output_index":0,"sequence_number":12}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"ant","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"rlNwvtBV8qGTB","output_index":0,"sequence_number":13}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" for","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"wNnS6k1a5CYX","output_index":0,"sequence_number":14}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" the","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"qi9k5FGCLoPx","output_index":0,"sequence_number":15}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":" C","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"fZZB4jFgh6YOzZ","output_index":0,"sequence_number":16}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"BI","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"ufc7Ij8jAUTZew","output_index":0,"sequence_number":17}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.delta
+
+    '
+  - 'data: {"type":"response.output_text.delta","content_index":0,"delta":"\"}","item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"obfuscation":"0DvcJQDHWg8eE6","output_index":0,"sequence_number":18}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_text.done
+
+    '
+  - 'data: {"type":"response.output_text.done","content_index":0,"item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","logprobs":[],"output_index":0,"sequence_number":19,"text":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}"}
+
+    '
+  - '
+
+    '
+  - 'event: response.content_part.done
+
+    '
+  - 'data: {"type":"response.content_part.done","content_index":0,"item_id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","output_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}"},"sequence_number":20}
+
+    '
+  - '
+
+    '
+  - 'event: response.output_item.done
+
+    '
+  - 'data: {"type":"response.output_item.done","item":{"id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}"}],"role":"assistant"},"output_index":0,"sequence_number":21}
+
+    '
+  - '
+
+    '
+  - 'event: response.completed
+
+    '
+  - 'data: {"type":"response.completed","response":{"id":"resp_000aeb726550c3e1006af33767105487d2aee01a1c63f4a1a7","object":"response","created_at":1794324327,"status":"completed","access_programs":null,"background":false,"completed_at":1794324327,"error":null,"frequency_penalty":0.0,"image":{"context_compression":"disabled"},"incomplete_details":null,"instructions":"You
+    are patrick jane, a consultant for the CBI","max_output_tokens":null,"max_tool_calls":null,"model":"gpt-4.1-mini-2025-04-14","moderation":null,"output":[{"id":"msg_000aeb726550c3e1006af33767bcb887d2b6a7e10323a35344","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"{\"name\":\"Patrick
+    Jane\",\"job\":\"Consultant for the CBI\"}"}],"role":"assistant"}],"parallel_tool_calls":true,"presence_penalty":0.0,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":"in_memory","reasoning":{"context":null,"effort":null,"summary":null},"safety_identifier":null,"service_tier":"default","store":true,"temperature":1.0,"text":{"format":{"type":"json_schema","description":"The
+    final response which ends this conversation","name":"final_result","schema":{"type":"object","properties":{"name":{"type":"string"},"job":{"type":"string"}},"required":["name","job"],"additionalProperties":false},"strict":true},"verbosity":"medium"},"tool_choice":"auto","tool_usage":{"image_gen":{"input_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0},"output_tokens":0,"output_tokens_details":{"image_tokens":0,"text_tokens":0},"total_tokens":0},"web_search":{"num_requests":0}},"tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":66,"input_tokens_details":{"cache_write_tokens":0,"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":82},"user":null,"metadata":{}},"sequence_number":22}
+
+    '
+  - '
+
+    '
+  status_code: 200
+timestamp: '2026-11-10T15:25:25.592300+00:00'

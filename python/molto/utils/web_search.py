@@ -247,11 +247,17 @@ def search_calls_to_messages(search_call: SearchCall) -> list[dict[str, Any]]:
 def search_result_from_responses(item: dict[str, Any]) -> SearchResult:
     """Extract a result after the caller identifies a finished Responses search."""
     sources = (item.get("action") or {}).get("sources")
+    # OpenAI also returns non-URL sources such as {"type": "api", "name": "oai-weather"}.
+    # Classify by URL because compatible providers may omit `type`. A result backed
+    # only by non-URL sources is unknown, while an explicit empty list means no results.
+    url_sources = [
+        search_source_from_responses(source)
+        for source in sources or ()
+        if source.get("url") is not None
+    ]
     return SearchResult(
         tool_call_id=item["id"],
-        sources=[search_source_from_responses(source) for source in sources]
-        if sources is not None
-        else None,
+        sources=url_sources if url_sources or sources == [] else None,
         error="unavailable" if item.get("status") == "failed" else None,
     )
 

@@ -1,0 +1,403 @@
+filename: 2026-11-11-01a1ca5f-9b7c-7372-901b-2d525a3dccc7
+request:
+  body:
+    include:
+    - reasoning.encrypted_content
+    - code_interpreter_call.outputs
+    - web_search_call.action.sources
+    - message.output_text.logprobs
+    input:
+    - content: When was Python 3.13.0 released?
+      role: user
+    instructions: 'Use web search with this exact query: site:python.org Python 3.13.0
+      release date.'
+    max_output_tokens: 400
+    max_tool_calls: 1
+    model: gpt-5.1
+    parallel_tool_calls: true
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    safety_identifier: safety
+    service_tier: flex
+    store: false
+    stream: false
+    temperature: 0.45
+    tool_choice: required
+    tools:
+    - search_context_size: medium
+      type: web_search
+    - container:
+        type: auto
+      type: code_interpreter
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '759'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1ca5f-9b7c-7372-901b-2d525a3dccc7
+response:
+  body:
+    access_programs: null
+    background: false
+    billing:
+      payer: openai
+    completed_at: 1794396630
+    created_at: 1794396626
+    error: null
+    frequency_penalty: 0.0
+    id: resp_04d705aa0e40becd016af451d216d087d2bb8625c86b330465
+    image:
+      context_compression: disabled
+    incomplete_details: null
+    instructions: 'Use web search with this exact query: site:python.org Python 3.13.0
+      release date.'
+    max_output_tokens: 400
+    max_tool_calls: 1
+    metadata: {}
+    model: gpt-5.1-2025-11-13
+    moderation: null
+    object: response
+    output:
+    - action:
+        queries:
+        - site:python.org Python 3.13.0 release date
+        query: site:python.org Python 3.13.0 release date
+        sources:
+        - type: url
+          url: https://www.python.org/downloads/release/python-3130/
+        - type: url
+          url: https://blog.python.org/2024/10/python-3130-final-released/
+        - type: url
+          url: https://www.python.org/doc/versions/
+        - type: url
+          url: https://peps.python.org/pep-0719/
+        - type: url
+          url: https://www.python.org/doc/versions-old/
+        - type: url
+          url: https://www.python.org/downloads/windows/?sid=o25025
+        - type: url
+          url: https://www.python.org/search/?page=1&q=3.13
+        - type: url
+          url: https://test.python.org/doc/versions/
+        - type: url
+          url: https://www.python.org/search/?q=https
+        - type: url
+          url: https://www.python.org/getit/
+        - type: url
+          url: https://www.python.org/search/?q=python+version+3.13
+        - type: url
+          url: https://www.python.org/search/?page=1&q=https%2F%3F%2F
+        - type: url
+          url: https://legacy.python.org/doc/essays/ppt/pycon2008/Py3kAndYou.pdf
+        - type: url
+          url: https://bugs.python.org/file47781/Tutorial.pdf
+        - type: url
+          url: https://legacy.python.org/doc/essays/ppt/stanford2003/Stanford.pdf
+        - type: url
+          url: https://bugs.python.org/file47781/TutorialEDIT.pdf
+        type: search
+      id: ws_04d705aa0e40becd016af451d30bd887d2814044a0c03bad74
+      status: completed
+      type: web_search_call
+    - content:
+      - annotations: []
+        logprobs:
+        - bytes:
+          - 80
+          - 121
+          - 116
+          - 104
+          - 111
+          - 110
+          logprob: -4.0e-06
+          token: Python
+          top_logprobs:
+          - bytes:
+            - 80
+            - 121
+            - 116
+            - 104
+            - 111
+            - 110
+            logprob: -4.0e-06
+            token: Python
+        - bytes:
+          - 32
+          logprob: 8.0e-06
+          token: ' '
+          top_logprobs:
+          - bytes:
+            - 32
+            logprob: 8.0e-06
+            token: ' '
+        - bytes:
+          - 51
+          logprob: -2.7e-05
+          token: '3'
+          top_logprobs:
+          - bytes:
+            - 51
+            logprob: -2.7e-05
+            token: '3'
+        - bytes:
+          - 46
+          logprob: 8.0e-06
+          token: .
+          top_logprobs:
+          - bytes:
+            - 46
+            logprob: 8.0e-06
+            token: .
+        - bytes:
+          - 49
+          - 51
+          logprob: -1.9e-05
+          token: '13'
+          top_logprobs:
+          - bytes:
+            - 49
+            - 51
+            logprob: -1.9e-05
+            token: '13'
+        - bytes:
+          - 46
+          logprob: 0.0
+          token: .
+          top_logprobs:
+          - bytes:
+            - 46
+            logprob: 0.0
+            token: .
+        - bytes:
+          - 48
+          logprob: -8.0e-06
+          token: '0'
+          top_logprobs:
+          - bytes:
+            - 48
+            logprob: -8.0e-06
+            token: '0'
+        - bytes:
+          - 32
+          - 119
+          - 97
+          - 115
+          logprob: -7.6e-05
+          token: ' was'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 119
+            - 97
+            - 115
+            logprob: -7.6e-05
+            token: ' was'
+        - bytes:
+          - 32
+          - 114
+          - 101
+          - 108
+          - 101
+          - 97
+          - 115
+          - 101
+          - 100
+          logprob: 0.0
+          token: ' released'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 114
+            - 101
+            - 108
+            - 101
+            - 97
+            - 115
+            - 101
+            - 100
+            logprob: 0.0
+            token: ' released'
+        - bytes:
+          - 32
+          - 111
+          - 110
+          logprob: -1.9e-05
+          token: ' on'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 111
+            - 110
+            logprob: -1.9e-05
+            token: ' on'
+        - bytes:
+          - 32
+          - 79
+          - 99
+          - 116
+          - 111
+          - 98
+          - 101
+          - 114
+          logprob: -0.002522
+          token: ' October'
+          top_logprobs:
+          - bytes:
+            - 32
+            - 79
+            - 99
+            - 116
+            - 111
+            - 98
+            - 101
+            - 114
+            logprob: -0.002522
+            token: ' October'
+        - bytes:
+          - 32
+          logprob: 1.5e-05
+          token: ' '
+          top_logprobs:
+          - bytes:
+            - 32
+            logprob: 1.5e-05
+            token: ' '
+        - bytes:
+          - 55
+          logprob: 1.5e-05
+          token: '7'
+          top_logprobs:
+          - bytes:
+            - 55
+            logprob: 1.5e-05
+            token: '7'
+        - bytes:
+          - 44
+          logprob: 1.9e-05
+          token: ','
+          top_logprobs:
+          - bytes:
+            - 44
+            logprob: 1.9e-05
+            token: ','
+        - bytes:
+          - 32
+          logprob: -8.0e-06
+          token: ' '
+          top_logprobs:
+          - bytes:
+            - 32
+            logprob: -8.0e-06
+            token: ' '
+        - bytes:
+          - 50
+          - 48
+          - 50
+          logprob: -4.0e-06
+          token: '202'
+          top_logprobs:
+          - bytes:
+            - 50
+            - 48
+            - 50
+            logprob: -4.0e-06
+            token: '202'
+        - bytes:
+          - 52
+          logprob: 0.0
+          token: '4'
+          top_logprobs:
+          - bytes:
+            - 52
+            logprob: 0.0
+            token: '4'
+        - bytes:
+          - 46
+          logprob: -8.0e-06
+          token: .
+          top_logprobs:
+          - bytes:
+            - 46
+            logprob: -8.0e-06
+            token: .
+        text: Python 3.13.0 was released on October 7, 2024.
+        type: output_text
+      id: msg_04d705aa0e40becd016af451d5c07487d2877978001c6e893b
+      role: assistant
+      status: completed
+      type: message
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: my_cache_key
+    prompt_cache_retention: 24h
+    reasoning:
+      context: current_turn
+      effort: none
+      mode: standard
+      summary: null
+    safety_identifier: safety
+    service_tier: flex
+    status: completed
+    store: false
+    temperature: 0.45
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 1
+    tools:
+    - container:
+        type: auto
+      type: code_interpreter
+    - return_token_budget: default
+      search_content_types:
+      - text
+      search_context_size: medium
+      type: web_search
+      user_location:
+        city: null
+        country: US
+        region: null
+        timezone: null
+        type: approximate
+    top_logprobs: 1
+    top_p: 0.55
+    truncation: disabled
+    usage:
+      input_tokens: 11271
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 4992
+      output_tokens: 64
+      output_tokens_details:
+        reasoning_tokens: 38
+      total_tokens: 11335
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-11T11:30:25.788194+00:00'

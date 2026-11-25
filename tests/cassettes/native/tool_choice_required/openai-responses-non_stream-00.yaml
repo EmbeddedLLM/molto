@@ -1,0 +1,128 @@
+filename: 2026-11-10-01a1c610-7a96-7122-adbc-0482ab031634
+request:
+  body:
+    input:
+    - content: What number am I thinking of?
+      role: user
+    model: gpt-4.1-mini
+    stream: false
+    tool_choice: required
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      strict: true
+      type: function
+  headers:
+    accept: application/json
+    accept-encoding: gzip, deflate
+    authorization: Bearer ***
+    connection: keep-alive
+    content-length: '391'
+    content-type: application/json
+    user-agent: AsyncOpenAI/Python 2.53.0
+  method: POST
+  path: /v1/responses
+  query_params: {}
+request_id: 01a1c610-7a96-7122-adbc-0482ab031634
+response:
+  body:
+    access_programs: null
+    background: false
+    billing:
+      payer: openai
+    completed_at: 1794324332
+    created_at: 1794324331
+    error: null
+    frequency_penalty: 0.0
+    id: resp_0342b5ab61534d82006af3376bcec487d2996fea39f84fd9d4
+    image:
+      context_compression: disabled
+    incomplete_details: null
+    instructions: null
+    max_output_tokens: null
+    max_tool_calls: null
+    metadata: {}
+    model: gpt-4.1-mini-2025-04-14
+    moderation: null
+    object: response
+    output:
+    - arguments: '{"number":50}'
+      call_id: call_R4wAvqKP76TuXuFprp8UWKPT
+      id: fc_0342b5ab61534d82006af3376c1bf887d2b69bcb00edae57da
+      name: guess_number
+      status: completed
+      type: function_call
+    parallel_tool_calls: true
+    presence_penalty: 0.0
+    previous_response_id: null
+    prompt_cache_key: null
+    prompt_cache_retention: in_memory
+    reasoning:
+      context: null
+      effort: null
+      summary: null
+    safety_identifier: null
+    service_tier: default
+    status: completed
+    store: true
+    temperature: 1.0
+    text:
+      format:
+        type: text
+      verbosity: medium
+    tool_choice: required
+    tool_usage:
+      image_gen:
+        input_tokens: 0
+        input_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        output_tokens: 0
+        output_tokens_details:
+          image_tokens: 0
+          text_tokens: 0
+        total_tokens: 0
+      web_search:
+        num_requests: 0
+    tools:
+    - description: Guess a number.
+      name: guess_number
+      output_schema: null
+      parameters:
+        additionalProperties: false
+        properties:
+          number:
+            description: The guessed number.
+            type: integer
+        required:
+        - number
+        type: object
+      strict: true
+      type: function
+    top_logprobs: 0
+    top_p: 1.0
+    truncation: disabled
+    usage:
+      input_tokens: 57
+      input_tokens_details:
+        cache_write_tokens: 0
+        cached_tokens: 0
+      output_tokens: 6
+      output_tokens_details:
+        reasoning_tokens: 0
+      total_tokens: 63
+    user: null
+  headers:
+    connection: keep-alive
+    content-type: application/json
+  status_code: 200
+timestamp: '2026-11-10T15:25:31.158740+00:00'

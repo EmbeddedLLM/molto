@@ -6,6 +6,8 @@ import pytest
 from openai import APIError, APIStatusError, OpenAIError
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import NotFoundError as OpenAINotFoundError
+from openai._models import construct_type
+from openai.types.responses import ResponseOutputItem
 
 from molto import Molto
 from molto.adapters.openai import OpenAIChatCompletionsAdapter, OpenAIResponsesAdapter
@@ -56,7 +58,11 @@ from molto.types.openai_responses import (
     OpenAIResponsesStreamEvent,
     OpenAIResponsesStreamEventAdapter,
 )
-from molto.upstream.openai import OpenAIChatCompletionsClient, OpenAIResponsesClient
+from molto.upstream.openai import (
+    OpenAIChatCompletionsClient,
+    OpenAIResponsesClient,
+    _search_parts,
+)
 
 OPENAI_CAPABILITIES = PROVIDER_CAPABILITIES["openai"]
 VLLM_CAPABILITIES = PROVIDER_CAPABILITIES["vllm"]
@@ -3927,3 +3933,43 @@ async def test_native_events_normalize_known_sdk_errors(endpoint: str):
     error = exc_info.value
     assert error.response.status_code == 404
     assert isinstance(error.__cause__, APIStatusError)
+
+
+@pytest.mark.filterwarnings("error")
+@pytest.mark.parametrize(
+    ("sources", "expected_urls"),
+    [
+        ([], []),
+        ([{"type": "url", "url": "https://a"}], ["https://a"]),
+        # Compatible providers may omit the source type.
+        ([{"url": "https://a"}], ["https://a"]),
+        ([{"type": "api", "name": "oai-weather"}], None),
+        (
+            [{"type": "api", "name": "oai-weather"}, {"type": "url", "url": "https://a"}],
+            ["https://a"],
+        ),
+    ],
+)
+def test_search_parts_separate_url_and_non_url_sources(sources, expected_urls):
+    """Ensures only URL sources are normalized and non-URL sources are dropped.
+
+    A result backed only by non-URL sources is unknown rather than empty, so it never
+    claims that the search found nothing. SDK-undeclared values raise no serializer
+    warnings.
+    """
+    item = construct_type(
+        type_=ResponseOutputItem,
+        value={
+            "id": "ws_1",
+            "type": "web_search_call",
+            "status": "completed",
+            "action": {"type": "search", "query": "weather: Taiwan", "sources": sources},
+        },
+    )
+
+    _, result = _search_parts(item)
+
+    assert result is not None
+    assert (
+        None if result.sources is None else [source.url for source in result.sources]
+    ) == expected_urls
