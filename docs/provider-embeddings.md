@@ -95,7 +95,7 @@ On vLLM, compatible native extensions such as `add_special_tokens`, `truncate_pr
 
 ## Modality and contextual boundaries
 
-This coordinator supports one dense vector per text or supported token-ID input. It does not claim complete modality coverage for any provider.
+This coordinator supports one dense vector per text or supported token-ID input. It does not claim complete modality coverage for any provider. Molto accepts only OpenAI embedding requests, and that request has no image or other non-text input, so the multimodal input of Cohere and VoyageAI cannot be reached through it.
 
 | Provider | Modes outside this coordinator |
 | --- | --- |
